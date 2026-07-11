@@ -71,7 +71,6 @@ class RepoMapBuilder:
         self.files = files
         self.config = config
         self.cache = cache or RepoMapCache(config.workspace_root)
-        self._module_index: dict[str, str] = {}
 
     def build(
         self, query: str = "", touched_files: Sequence[str] = ()
@@ -118,22 +117,30 @@ class RepoMapBuilder:
             )
         except (OSError, WorkspaceError) as error:
             raise RepoMapError("bounded repository scan failed") from error
-        self._module_index = _module_index(paths)
+        module_index = _module_index(paths)
         entries: list[RepoEntry] = []
         for path in paths:
             absolute = self.files.guard.resolve(path)
             try:
+                parsed, source_facts = self.cache.get_or_scan_facts(
+                    absolute, lambda: self._scan_file(path)
+                )
                 entries.append(
-                    self.cache.get_or_scan(absolute, lambda: self._scan_file(path))
+                    RepoEntry(
+                        path,
+                        parsed.symbols,
+                        _resolve_imports(path, _imports(source_facts), module_index),
+                        parsed.size_bytes,
+                    )
                 )
             except _UncacheableScan:
                 entries.append(RepoEntry(path, size_bytes=self._file_size(path)))
         return tuple(entries)
 
-    def _scan_file(self, path: str) -> RepoEntry:
+    def _scan_file(self, path: str) -> tuple[RepoEntry, tuple[_ImportRef, ...]]:
         suffix = PurePosixPath(path).suffix.casefold()
         if suffix not in _DECLARATION_SUFFIXES and suffix != _PYTHON_SUFFIX:
-            return RepoEntry(path, size_bytes=self._file_size(path))
+            return RepoEntry(path, size_bytes=self._file_size(path)), ()
         try:
             document = self.files.read_text(path, max_bytes=_MAX_SOURCE_BYTES)
             size = len(document.text.encode("utf-8"))
@@ -146,12 +153,7 @@ class RepoMapBuilder:
             symbols, imports = parsed
         else:
             symbols, imports = _parse_declarations(path, suffix, document.text), ()
-        return RepoEntry(
-            path,
-            symbols,
-            _resolve_imports(path, imports, self._module_index),
-            size,
-        )
+        return RepoEntry(path, symbols, size_bytes=size), imports
 
     def _file_size(self, path: str) -> int:
         try:
@@ -269,6 +271,10 @@ def _resolve_imports(
             if candidate in index and index[candidate] != path:
                 dependencies.add(index[candidate])
     return tuple(sorted(dependencies))
+
+
+def _imports(source_facts: Sequence[object]) -> tuple[_ImportRef, ...]:
+    return tuple(item for item in source_facts if isinstance(item, _ImportRef))
 
 
 def _rank(

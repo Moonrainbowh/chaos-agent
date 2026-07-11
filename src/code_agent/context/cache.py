@@ -20,6 +20,7 @@ class FileSignature:
 class CachedScan:
     signature: FileSignature
     entry: RepoEntry
+    source_facts: tuple[object, ...] = ()
 
 
 class RepoMapCache:
@@ -39,6 +40,15 @@ class RepoMapCache:
 
     def get_or_scan(self, path: Path, scan: Callable[[], RepoEntry]) -> RepoEntry:
         """Return a current entry, scanning only when file metadata changed."""
+        entry, _ = self.get_or_scan_facts(path, lambda: (scan(), ()))
+        return entry
+
+    def get_or_scan_facts(
+        self,
+        path: Path,
+        scan: Callable[[], tuple[RepoEntry, tuple[object, ...]]],
+    ) -> tuple[RepoEntry, tuple[object, ...]]:
+        """Return successful parse facts without treating derived data as cached."""
         resolved = self._resolve(path)
         try:
             signature = _signature(resolved)
@@ -47,13 +57,13 @@ class RepoMapCache:
         cached = self._entries.get(resolved)
         if cached is not None and cached.signature == signature:
             self._entries.move_to_end(resolved)
-            return cached.entry
-        entry = scan()
-        self._entries[resolved] = CachedScan(signature, entry)
+            return cached.entry, cached.source_facts
+        entry, source_facts = scan()
+        self._entries[resolved] = CachedScan(signature, entry, source_facts)
         self._entries.move_to_end(resolved)
         while len(self._entries) > self.max_entries:
             self._entries.popitem(last=False)
-        return entry
+        return entry, source_facts
 
     def invalidate(self, paths: Iterable[str | Path]) -> None:
         for path in paths:
