@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "code-agent-win"
+version = "0.1.0"
+description = "Windows-first, policy-gated open-source coding agent"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "code-agent contributors"}]
+dependencies = ["httpx>=0.28,<0.29", "psutil>=5.9", "regex>=2024.0"]
+
+[project.scripts]
+agent = "code_agent_win.cli:main"

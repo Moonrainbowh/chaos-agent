@@ -1,0 +1,133 @@
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Optional, Tuple
+
+from code_agent.core.models import Message
+
+
+def _positive_integer(value: object, label: str) -> None:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise TypeError(f"{label} must be an integer")
+    if value <= 0:
+        raise ValueError(f"{label} must be positive")
+
+
+def _nonnegative_integer(value: object, label: str) -> None:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise TypeError(f"{label} must be an integer")
+    if value < 0:
+        raise ValueError(f"{label} must not be negative")
+
+
+def _stable_path(value: object, label: str) -> Path:
+    try:
+        raw = os.fspath(value)  # type: ignore[arg-type]
+    except TypeError as error:
+        raise TypeError(f"{label} must be a path") from error
+    if not isinstance(raw, str):
+        raise TypeError(f"{label} must be a text path")
+    if not raw.strip() or "\0" in raw:
+        raise ValueError(f"{label} must be a non-empty path")
+    return Path(raw).expanduser().resolve(strict=False)
+
+
+@dataclass(frozen=True)
+class ContextConfig:
+    workspace_root: Path
+    cwd: Path
+    system_prompt: str
+    max_rule_bytes: int = 64_000
+    max_rules_total: int = 256_000
+    repo_scan: int = 5_000
+    repo_map_tokens: int = 1_200
+    message_tokens: int = 8_000
+    recent_messages: int = 12
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "workspace_root", _stable_path(self.workspace_root, "workspace_root")
+        )
+        object.__setattr__(self, "cwd", _stable_path(self.cwd, "cwd"))
+        if not isinstance(self.system_prompt, str):
+            raise TypeError("system_prompt must be text")
+        if not self.system_prompt.strip():
+            raise ValueError("system_prompt must be non-empty")
+        for label in (
+            "max_rule_bytes",
+            "max_rules_total",
+            "repo_scan",
+            "repo_map_tokens",
+            "message_tokens",
+            "recent_messages",
+        ):
+            _positive_integer(getattr(self, label), label)
+
+
+@dataclass(frozen=True)
+class ProjectRule:
+    path: str
+    content: str
+    scope_depth: int
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.path, str) or not self.path:
+            raise ValueError("path must be non-empty text")
+        if not isinstance(self.content, str):
+            raise TypeError("content must be text")
+        _nonnegative_integer(self.scope_depth, "scope_depth")
+
+
+@dataclass(frozen=True)
+class Symbol:
+    path: str
+    name: str
+    kind: str
+    line: int
+
+    def __post_init__(self) -> None:
+        for label in ("path", "name", "kind"):
+            if not isinstance(getattr(self, label), str) or not getattr(self, label):
+                raise ValueError(f"{label} must be non-empty text")
+        _positive_integer(self.line, "line")
+
+
+@dataclass(frozen=True)
+class RepoEntry:
+    path: str
+    symbols: Tuple[Symbol, ...] = field(default_factory=tuple)
+    dependencies: Tuple[str, ...] = field(default_factory=tuple)
+    size_bytes: int = 0
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.path, str) or not self.path:
+            raise ValueError("path must be non-empty text")
+        symbols = tuple(self.symbols)
+        dependencies = tuple(self.dependencies)
+        if not all(isinstance(item, Symbol) for item in symbols):
+            raise TypeError("symbols must contain only Symbol values")
+        if not all(isinstance(item, str) and item for item in dependencies):
+            raise TypeError("dependencies must contain non-empty paths")
+        _nonnegative_integer(self.size_bytes, "size_bytes")
+        object.__setattr__(self, "symbols", symbols)
+        object.__setattr__(self, "dependencies", dependencies)
+
+
+@dataclass(frozen=True)
+class CompactionResult:
+    messages: Tuple[Message, ...]
+    removed_count: int
+    estimated_tokens: int
+    summary: Optional[str] = None
+
+    def __post_init__(self) -> None:
+        messages = tuple(self.messages)
+        if not all(isinstance(item, Message) for item in messages):
+            raise TypeError("messages must contain only Message values")
+        _nonnegative_integer(self.removed_count, "removed_count")
+        _nonnegative_integer(self.estimated_tokens, "estimated_tokens")
+        if self.summary is not None and not isinstance(self.summary, str):
+            raise TypeError("summary must be text or None")
+        object.__setattr__(self, "messages", messages)

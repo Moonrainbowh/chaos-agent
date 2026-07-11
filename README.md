@@ -1,0 +1,78 @@
+# code-agent-win
+
+`code-agent-win` is a Windows-first, open-source coding agent with a shared headless core, a full-screen terminal UI, and non-interactive CLI/JSON modes.
+
+It is a clean-room implementation. It takes architectural lessons from projects such as uv-agent, Aider, Cline, OpenCode, mini-swe-agent, OpenHands, and Goose, but does not copy their source code.
+
+## What It Does
+
+- Uses OpenAI Responses, OpenAI Chat Completions, or Anthropic Messages through one streaming model protocol.
+- Keeps sessions, messages, events, goals, and checkpoints in a versioned SQLite database.
+- Discovers hierarchical `AGENTS.md` rules, builds a bounded repository map, and compacts history deterministically.
+- Routes file reads, edits, Git inspection, and PowerShell commands through typed tools, central policy checks, audit events, and explicit approval.
+- Provides a Windows Terminal TUI (`agent`), a text CLI (`agent ask`), session resume (`agent resume`), and machine-readable events (`agent run --json`).
+
+## Install
+
+```powershell
+python -m pip install .
+```
+
+For development, install the runtime dependencies and run the test suites:
+
+```powershell
+python -m pip install -e .
+python -m unittest discover -s src\code_agent\core\tests -p 'test_*.py'
+```
+
+## Configure A Provider
+
+The API key is never written to a session or project file. Set it in the environment that launches `agent`.
+
+```powershell
+$env:OPENAI_API_KEY = "..."
+$env:CODE_AGENT_API = "responses"
+$env:CODE_AGENT_BASE_URL = "https://api.openai.com"
+$env:CODE_AGENT_MODEL = "gpt-4.1-mini"
+```
+
+Provider selection values:
+
+| `CODE_AGENT_API` | Protocol |
+| --- | --- |
+| `responses` | OpenAI Responses API |
+| `chat_completions` | OpenAI-compatible Chat Completions |
+| `anthropic_messages` | Anthropic Messages API |
+
+Use `CODE_AGENT_API_KEY_ENV` when the key variable is not `OPENAI_API_KEY`.
+
+## Run
+
+```powershell
+agent
+agent ask "inspect this repository and explain the test layout"
+agent resume <thread-id>
+agent resume <thread-id> "continue the previous task"
+agent run --json "list the relevant files"
+```
+
+The Windows TUI supports typing, streaming transcript updates, a tool timeline, `D` for Diff preview, `S` for recent session selection, and `Y`/`N` approval for writes and commands. It is designed for Windows Terminal and PowerShell.
+
+## Safety Defaults
+
+- `CODE_AGENT_APPROVAL_MODE=ask` is the default. Reads run automatically; writes and commands require TUI approval.
+- `plan` allows reads only. `auto` still requires approval for every command, critical actions, and outside-workspace access.
+- Unknown and critical actions are denied. Workspace traversal, protected metadata paths, symlink/reparse escapes, destructive commands, and unbounded output are rejected.
+- The local runtime is controlled process execution, not an OS-level sandbox. Docker is optional and uses no network and no image pulls.
+
+Sessions are stored at `%LOCALAPPDATA%\code-agent\sessions.sqlite3` by default.
+
+## Development Status
+
+The first release targets Windows 10/11. The core protocol and adapters are portable, while Linux/macOS end-to-end terminal/runtime support remains future work.
+
+## License And Acknowledgements
+
+Released under the [MIT License](LICENSE).
+
+This project acknowledges the public design work of uv-agent, Aider, Cline, OpenCode, mini-swe-agent, OpenHands, and Goose. They are references for problem framing and user experience, not code sources for this repository.

@@ -7,3 +7,12 @@
 - 不负责：发起模型请求、修改文件、运行命令或持久化完整会话。
 - 不负责：将整个仓库或所有扩展说明无条件注入提示词。
 
+## Units
+- `ContextConfig`、`ProjectRule`、`Symbol`、`RepoEntry`、`CompactionResult`: 冻结上下文构建配置和中间结果 | 无副作用 | 路径和预算在构造时校验
+- `estimate_tokens(text): int`、`truncate_to_tokens(text, budget): str`: 对 ASCII、多字节字符和代理对做确定性保守估算与截断 | 无副作用 | 不切断 Unicode 代理对
+- `RuleLoader.load(cwd): tuple[ProjectRule, ...]`: 按根规则、根扩展规则和目录链加载受边界保护的说明 | 读取已授权工作区文件 | 严格受单文件和总字节预算约束
+- `RuleLoader.render(rules): str`: 把规则序列编码为稳定、带路径边界的系统提示片段 | 无副作用
+- `RepoMapBuilder.build(query, touched_files): tuple[RepoEntry, ...]`: 在有界扫描内提取 Python AST 与常见语言声明并按关联性排序 | 读取工作区文件 | 不是完整语言解析器
+- `RepoMapBuilder.render(query, touched_files, token_budget): str`: 渲染并截断代码地图 | 无副作用 | 不超过 token 预算
+- `DeterministicCompactor.compact(messages): CompactionResult`: 以确定规则压缩旧消息，同时保留最近消息与工具调用/结果配对 | 无副作用 | 不依赖模型摘要
+- `WorkspaceContextBuilder.build(messages, user_input): ContextBundle`: 组装稳定系统前缀、规则、repo map 与压缩后的消息 | 在线程池中读取工作区 | 非空输入只追加一个 user 消息；空输入不追加消息，供工具循环重建上下文
