@@ -102,11 +102,7 @@ class ContextConfig:
                 min_message_tokens=min(default_budget.min_message_tokens, message_tokens),
             )
         elif self.prompt_budget == default_budget:
-            normalized = replace(
-                default_budget,
-                max_repo_map_tokens=1_200,
-                max_message_tokens=8_000,
-            )
+            normalized = default_budget
         else:
             normalized = self.prompt_budget
 

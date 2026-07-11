@@ -55,8 +55,8 @@ class PromptBudgetTests(unittest.TestCase):
             task_state_tokens=1_000,
         )
 
-        self.assertEqual(allocation.repo_map_tokens, 2_000)
-        self.assertEqual(allocation.message_tokens, 2_000)
+        self.assertEqual(allocation.repo_map_tokens, 0)
+        self.assertEqual(allocation.message_tokens, 4_000)
         self.assertLessEqual(allocation.total_tokens, budget.max_prompt_tokens)
 
     def test_allocation_rejects_invalid_fixed_content_and_unsatisfiable_minimum(self) -> None:
@@ -100,6 +100,13 @@ class ContextConfigBudgetCompatibilityTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.temporary.cleanup()
+
+    def test_config_without_legacy_aliases_keeps_prompt_budget_defaults(self) -> None:
+        config = ContextConfig(self.root, self.root, "System")
+
+        self.assertEqual(config.prompt_budget, PromptBudget())
+        self.assertEqual(config.repo_map_tokens, 2_000)
+        self.assertEqual(config.message_tokens, 12_000)
 
     def test_legacy_aliases_normalize_to_budget_and_remain_available(self) -> None:
         config = ContextConfig(

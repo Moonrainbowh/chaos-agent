@@ -112,11 +112,8 @@ class PromptBudget:
         if remaining < self.min_message_tokens:
             raise PromptBudgetError("fixed prompt content cannot retain minimum messages")
 
-        repo_map_tokens = min(
-            self.max_repo_map_tokens,
-            remaining - self.min_message_tokens,
-        )
-        message_tokens = min(self.max_message_tokens, remaining - repo_map_tokens)
+        message_tokens = min(self.max_message_tokens, remaining)
+        repo_map_tokens = min(self.max_repo_map_tokens, remaining - message_tokens)
         return PromptAllocation(
             rule_tokens=system_and_rules_tokens,
             tool_tokens=tool_tokens,
