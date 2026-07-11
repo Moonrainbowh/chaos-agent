@@ -14,6 +14,7 @@ if str(SRC_ROOT) not in sys.path:
 from code_agent.context.errors import (  # noqa: E402
     ContextBudgetError,
     ContextError,
+    PromptBudgetError,
     RepoMapError,
     RuleLimitError,
 )
@@ -37,7 +38,12 @@ class ContextModelTests(unittest.TestCase):
         self.temporary.cleanup()
 
     def test_context_errors_share_a_feature_base(self) -> None:
-        for error_type in (RuleLimitError, ContextBudgetError, RepoMapError):
+        for error_type in (
+            RuleLimitError,
+            ContextBudgetError,
+            PromptBudgetError,
+            RepoMapError,
+        ):
             self.assertTrue(issubclass(error_type, ContextError))
 
     def test_config_is_frozen_and_validates_stable_inputs_and_positive_limits(
