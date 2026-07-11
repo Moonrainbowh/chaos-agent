@@ -3,6 +3,7 @@ from __future__ import annotations
 from .errors import SessionPersistenceError
 from .events import AgentEvent, EventKind
 from .models import ActionRequest, ActionResult, Message
+from .limits import EngineLimits, TaskBudget
 from .protocols import SessionRepository
 from .task_state import TaskState
 
@@ -39,6 +40,24 @@ class SessionJournal:
             await self._repository.append_event(thread_id, event)
         except Exception:
             raise SessionPersistenceError("could not persist event") from None
+
+    async def get_or_create_task_budget(
+        self, thread_id: str, model_name: str, limits: EngineLimits
+    ) -> TaskBudget:
+        try:
+            return await self._repository.get_or_create_task_budget(thread_id, model_name, limits)
+        except Exception:
+            raise SessionPersistenceError("could not load task budget") from None
+
+    async def reserve_task_budget(
+        self, thread_id: str, *, model_turns: int = 0, tool_calls: int = 0
+    ) -> TaskBudget | None:
+        try:
+            return await self._repository.reserve_task_budget(
+                thread_id, model_turns=model_turns, tool_calls=tool_calls
+            )
+        except Exception:
+            raise SessionPersistenceError("could not persist task budget") from None
 
     async def load_task_state(self, thread_id: str) -> TaskState:
         try:

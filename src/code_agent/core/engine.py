@@ -42,12 +42,16 @@ class AgentEngine:
         sessions: SessionRepository,
         *,
         limits: Optional[EngineLimits] = None,
+        model_name: str = "configured-model",
     ) -> None:
         self._model = model
         self._context = context
         self._actions = actions
         self._journal = SessionJournal(sessions)
         self._limits = limits or EngineLimits()
+        if not isinstance(model_name, str) or not model_name.strip():
+            raise ValueError("model_name must be non-blank text")
+        self._model_name = model_name
 
     async def run(
         self,
@@ -68,6 +72,9 @@ class AgentEngine:
 
         token = cancellation or CancellationToken()
         active_thread = thread_id or await self._journal.create_thread()
+        task_budget = await self._journal.get_or_create_task_budget(
+            active_thread, self._model_name, self._limits
+        )
         started = AgentEvent(
             kind=EventKind.RUN_STARTED,
             payload={"thread_id": active_thread},
@@ -86,11 +93,16 @@ class AgentEngine:
 
             messages = prior_messages + (user_message,)
             used_call_ids: set[str] = set()
-            tool_call_count = 0
             total_usage = Usage()
 
-            for turn in range(1, self._limits.max_model_turns + 1):
+            for turn in range(1, task_budget.limits.max_agent_rounds + 1):
                 token.raise_if_cancelled()
+                reserved = await self._journal.reserve_task_budget(
+                    active_thread, model_turns=1
+                )
+                if reserved is None:
+                    raise EngineLimitError("model turn budget exceeded")
+                task_budget = reserved
                 tools, tool_names = self._advertised_tools()
                 turn_started = AgentEvent(
                     kind=EventKind.TURN_STARTED,
@@ -186,8 +198,8 @@ class AgentEngine:
                         kind=EventKind.COMPLETED,
                         payload={
                             "thread_id": active_thread,
-                            "turns": turn,
-                            "tool_calls": tool_call_count,
+                            "turns": task_budget.model_turns,
+                            "tool_calls": task_budget.tool_calls,
                             "usage": usage_payload(total_usage),
                         },
                     )
@@ -195,10 +207,16 @@ class AgentEngine:
                     yield finished
                     return
 
-                if turn >= self._limits.max_model_turns:
+                if task_budget.model_turns >= task_budget.limits.max_agent_rounds:
                     raise EngineLimitError("model turn budget exceeded")
-                if tool_call_count + len(calls) > self._limits.max_tool_calls:
+                if len(calls) > task_budget.limits.max_tool_calls_per_round:
+                    raise EngineLimitError("tool call per-round budget exceeded")
+                reserved = await self._journal.reserve_task_budget(
+                    active_thread, tool_calls=len(calls)
+                )
+                if reserved is None:
                     raise EngineLimitError("tool call budget exceeded")
+                task_budget = reserved
                 if len({call.id for call in calls}) != len(calls) or any(
                     call.id in used_call_ids for call in calls
                 ):
@@ -206,7 +224,6 @@ class AgentEngine:
 
                 for call in calls:
                     used_call_ids.add(call.id)
-                    tool_call_count += 1
                     async for action_event in self._dispatch(
                         active_thread,
                         call,

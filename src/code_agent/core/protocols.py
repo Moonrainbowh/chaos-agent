@@ -13,6 +13,7 @@ from .models import (
     ToolDefinition,
 )
 from .task_state import TaskState
+from .limits import EngineLimits, TaskBudget
 
 
 class ModelClient(Protocol):
@@ -54,6 +55,14 @@ class SessionRepository(Protocol):
     async def append_event(
         self, thread_id: str, event: AgentEvent
     ) -> None: ...
+
+    async def get_or_create_task_budget(
+        self, thread_id: str, model_name: str, limits: EngineLimits
+    ) -> TaskBudget: ...
+
+    async def reserve_task_budget(
+        self, thread_id: str, *, model_turns: int = 0, tool_calls: int = 0
+    ) -> TaskBudget | None: ...
 
     async def load_task_state(self, thread_id: str) -> TaskState: ...
 

@@ -83,20 +83,31 @@ def _is_sensitive_key(key: str) -> bool:
     )
 
 
-def redact_sensitive(value: Any) -> Any:
+def redact_sensitive(value: Any, _memo: dict[int, Any] | None = None) -> Any:
     """Copy a nested value while replacing values under sensitive keys."""
 
+    memo = {} if _memo is None else _memo
     if isinstance(value, Mapping):
-        return {
-            key: (
+        existing = memo.get(id(value))
+        if existing is not None:
+            return existing
+        copied: dict[Any, Any] = {}
+        memo[id(value)] = copied
+        for key, item in value.items():
+            copied[key] = (
                 _REDACTED
                 if isinstance(key, str) and _is_sensitive_key(key)
-                else redact_sensitive(item)
+                else redact_sensitive(item, memo)
             )
-            for key, item in value.items()
-        }
+        return copied
     if isinstance(value, list):
-        return [redact_sensitive(item) for item in value]
+        existing = memo.get(id(value))
+        if existing is not None:
+            return existing
+        copied: list[Any] = []
+        memo[id(value)] = copied
+        copied.extend(redact_sensitive(item, memo) for item in value)
+        return copied
     if isinstance(value, tuple):
-        return tuple(redact_sensitive(item) for item in value)
+        return tuple(redact_sensitive(item, memo) for item in value)
     return value

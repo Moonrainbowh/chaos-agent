@@ -109,6 +109,16 @@ class SanitizeEnvironmentTests(unittest.TestCase):
 
 
 class RedactSensitiveTests(unittest.TestCase):
+    def test_redaction_handles_cyclic_nested_values(self) -> None:
+        value: dict[str, object] = {"api_key": "test-local-key-7xK2"}
+        value["self"] = value
+
+        redacted = redact_sensitive(value)
+
+        self.assertEqual(redacted["api_key"], "[REDACTED]")
+        self.assertIs(redacted["self"], redacted)
+        self.assertNotIn("test-local-key-7xK2", repr(redacted))
+
     def test_redacts_camel_case_compound_secret_keys_without_mutating_input(self) -> None:
         value = {
             "apiKey": "api-key",

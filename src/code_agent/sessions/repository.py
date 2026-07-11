@@ -7,6 +7,7 @@ from typing import Optional
 from code_agent.core.events import AgentEvent
 from code_agent.core.models import ActionRequest, ActionResult, Message
 from code_agent.core.task_state import TaskState, reduce_task_state
+from code_agent.core.limits import EngineLimits, TaskBudget
 
 from ._codec import (
     decode_datetime,
@@ -161,6 +162,58 @@ class SQLiteSessionRepository(RecordRepositoryMixin):
 
         return await self._database.write(write)
 
+    async def get_or_create_task_budget(
+        self, thread_id: str, model_name: str, limits: EngineLimits
+    ) -> TaskBudget:
+        thread_id = _text(thread_id, "thread_id")
+        model_name = _text(model_name, "model_name")
+        if not isinstance(limits, EngineLimits):
+            raise TypeError("limits must be EngineLimits")
+
+        def write(connection: sqlite3.Connection) -> TaskBudget:
+            _require_thread(connection, thread_id)
+            row = connection.execute(
+                "SELECT * FROM task_budgets WHERE thread_id = ?", (thread_id,)
+            ).fetchone()
+            if row is None:
+                connection.execute(
+                    "INSERT INTO task_budgets VALUES (?, ?, ?, ?, ?, 0, 0)",
+                    (thread_id, model_name, limits.max_agent_rounds, limits.max_tool_calls, limits.max_tool_calls_per_round),
+                )
+                return TaskBudget(model_name, limits)
+            return _task_budget(row)
+
+        return await self._database.write(write)
+
+    async def reserve_task_budget(
+        self, thread_id: str, *, model_turns: int = 0, tool_calls: int = 0
+    ) -> TaskBudget | None:
+        thread_id = _text(thread_id, "thread_id")
+        if any(isinstance(value, bool) or not isinstance(value, int) or value < 0 for value in (model_turns, tool_calls)):
+            raise ValueError("budget increments must be non-negative integers")
+
+        def write(connection: sqlite3.Connection) -> TaskBudget | None:
+            _require_thread(connection, thread_id)
+            row = connection.execute(
+                "SELECT * FROM task_budgets WHERE thread_id = ?", (thread_id,)
+            ).fetchone()
+            if row is None:
+                raise SessionCorruptionError("task budget is missing")
+            current = _task_budget(row)
+            if (current.model_turns + model_turns > current.limits.max_agent_rounds or current.tool_calls + tool_calls > current.limits.max_tool_calls):
+                return None
+            next_budget = TaskBudget(
+                current.model_name, current.limits,
+                current.model_turns + model_turns, current.tool_calls + tool_calls,
+            )
+            connection.execute(
+                "UPDATE task_budgets SET model_turns = ?, tool_calls = ? WHERE thread_id = ?",
+                (next_budget.model_turns, next_budget.tool_calls, thread_id),
+            )
+            return next_budget
+
+        return await self._database.write(write)
+
     async def archive_thread(self, thread_id: str) -> None:
         thread_id = _text(thread_id, "thread_id")
         timestamp = encode_datetime(utc_now())
@@ -217,3 +270,19 @@ def _summary(row: sqlite3.Row) -> ThreadSummary:
         message_count=row["message_count"],
         last_message_preview=preview,
     )
+
+
+def _task_budget(row: sqlite3.Row) -> TaskBudget:
+    try:
+        return TaskBudget(
+            row["model_name"],
+            EngineLimits(
+                max_agent_rounds=row["max_agent_rounds"],
+                max_tool_calls=row["max_tool_calls"],
+                max_tool_calls_per_round=row["max_tool_calls_per_round"],
+            ),
+            row["model_turns"],
+            row["tool_calls"],
+        )
+    except (KeyError, TypeError, ValueError) as error:
+        raise SessionCorruptionError("invalid persisted task budget") from error

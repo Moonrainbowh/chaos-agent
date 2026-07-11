@@ -19,6 +19,7 @@ from code_agent.core.protocols import SessionRepository  # noqa: E402
 from code_agent.sessions.errors import SessionNotFound  # noqa: E402
 from code_agent.sessions.models import GoalStatus, ThreadStatus  # noqa: E402
 from code_agent.sessions.repository import SQLiteSessionRepository  # noqa: E402
+from code_agent.core.limits import EngineLimits  # noqa: E402
 
 
 class SQLiteSessionRepositoryTests(unittest.IsolatedAsyncioTestCase):
@@ -132,6 +133,18 @@ class SQLiteSessionRepositoryTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(operation=operation):
                 with self.assertRaises(SessionNotFound):
                     await operation
+
+    async def test_task_budget_survives_restart_and_refuses_over_budget_reservation(self) -> None:
+        thread_id = await self.repository.create_thread()
+        limits = EngineLimits(max_agent_rounds=2, max_tool_calls=3)
+        created = await self.repository.get_or_create_task_budget(thread_id, "model-a", limits)
+        reserved = await self.repository.reserve_task_budget(thread_id, model_turns=1, tool_calls=2)
+        reopened = SQLiteSessionRepository(self.database)
+
+        self.assertEqual(created.model_turns, 0)
+        self.assertEqual(reserved.model_turns, 1)
+        self.assertEqual(reserved.tool_calls, 2)
+        self.assertIsNone(await reopened.reserve_task_budget(thread_id, tool_calls=2))
 
 
 if __name__ == "__main__":
