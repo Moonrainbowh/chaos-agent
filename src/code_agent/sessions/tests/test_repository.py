@@ -101,11 +101,13 @@ class SQLiteSessionRepositoryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(dict(checkpoints[0].metadata), {"commit": "abc"})
 
     async def test_task_state_survives_reopen_and_reduces_atomically(self) -> None:
-        thread_id = await self.repository.create_thread()
+        repository: SessionRepository = self.repository
+        thread_id = await repository.create_thread()
         state = TaskState(objective="repair startup", open_questions=("where?",))
 
-        await self.repository.save_task_state(thread_id, state)
-        reduced = await self.repository.reduce_task_state(
+        await repository.save_task_state(thread_id, state)
+        self.assertEqual(await repository.load_task_state(thread_id), state)
+        reduced = await repository.reduce_task_state(
             thread_id,
             ActionRequest("read-1", "read_file", {"path": "src/app.py"}),
             ActionResult("read-1", "read_file", {"text": "contents"}),

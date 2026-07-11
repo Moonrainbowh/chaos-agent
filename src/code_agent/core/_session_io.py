@@ -49,6 +49,12 @@ class SessionJournal:
         except Exception:
             raise SessionPersistenceError("could not load task state") from None
 
+    async def save_task_state(self, thread_id: str, state: TaskState) -> None:
+        try:
+            await self._repository.save_task_state(thread_id, state)
+        except Exception:
+            raise SessionPersistenceError("could not persist task state") from None
+
     async def reduce_task_state(
         self, thread_id: str, request: ActionRequest, result: ActionResult
     ) -> TaskState:

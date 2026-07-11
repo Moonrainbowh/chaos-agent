@@ -114,6 +114,9 @@ class MemorySessionRepository:
     async def load_task_state(self, thread_id: str) -> TaskState:
         return self.task_states[thread_id]
 
+    async def save_task_state(self, thread_id: str, state: TaskState) -> None:
+        self.task_states[thread_id] = state
+
     async def reduce_task_state(
         self, thread_id: str, request: ActionRequest, result: ActionResult
     ) -> TaskState:
