@@ -146,6 +146,39 @@ class AgentEngineToolTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(model.calls, [])
         self.assertEqual(sessions.events["thread-1"][-1].kind, EventKind.ERROR)
 
+    async def test_tools_failure_becomes_terminal_error_after_user_persistence(self) -> None:
+        class RaisingToolsDispatcher(FakeActionDispatcher):
+            def tools(self) -> tuple[ToolDefinition, ...]:
+                raise RuntimeError("untrusted dispatcher failure")
+
+        model = FakeModelClient(())
+        context = FakeContextBuilder()
+        sessions = MemorySessionRepository()
+        engine = AgentEngine(model, context, RaisingToolsDispatcher(), sessions)
+
+        with self.assertRaises(ModelStreamError):
+            _ = [event async for event in engine.run("inspect")]
+
+        self.assertEqual(sessions.messages["thread-1"], [Message(role="user", content="inspect")])
+        self.assertEqual(context.calls, [])
+        self.assertEqual(model.calls, [])
+        self.assertEqual(sessions.events["thread-1"][-1].kind, EventKind.ERROR)
+
+    async def test_invalid_advertised_tool_becomes_terminal_error(self) -> None:
+        model = FakeModelClient(())
+        actions = FakeActionDispatcher()
+        actions._tools = (object(),)  # type: ignore[assignment]
+        context = FakeContextBuilder()
+        sessions = MemorySessionRepository()
+        engine = AgentEngine(model, context, actions, sessions)
+
+        with self.assertRaises(ModelStreamError):
+            _ = [event async for event in engine.run("inspect")]
+
+        self.assertEqual(context.calls, [])
+        self.assertEqual(model.calls, [])
+        self.assertEqual(sessions.events["thread-1"][-1].kind, EventKind.ERROR)
+
 
 if __name__ == "__main__":
     unittest.main()

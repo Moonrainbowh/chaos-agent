@@ -21,6 +21,7 @@ from .models import (
     ModelEvent,
     ModelEventKind,
     ToolCall,
+    ToolDefinition,
     Usage,
 )
 from .protocols import (
@@ -90,10 +91,7 @@ class AgentEngine:
 
             for turn in range(1, self._limits.max_model_turns + 1):
                 token.raise_if_cancelled()
-                tools = tuple(self._actions.tools())
-                tool_names = {tool.name for tool in tools}
-                if len(tool_names) != len(tools):
-                    raise ModelStreamError("action dispatcher exposed duplicate tools")
+                tools, tool_names = self._advertised_tools()
                 turn_started = AgentEvent(
                     kind=EventKind.TURN_STARTED,
                     payload={"turn": turn},
@@ -298,6 +296,20 @@ class AgentEngine:
         added = self._journal.message_added(message)
         await self._journal.append_event(thread_id, added)
         yield added
+
+    def _advertised_tools(self) -> tuple[tuple[ToolDefinition, ...], set[str]]:
+        try:
+            tools = tuple(self._actions.tools())
+            if not all(isinstance(tool, ToolDefinition) for tool in tools):
+                raise TypeError("action dispatcher exposed an invalid tool")
+            tool_names = {tool.name for tool in tools}
+            if len(tool_names) != len(tools):
+                raise ModelStreamError("action dispatcher exposed duplicate tools")
+            return tools, tool_names
+        except ModelStreamError:
+            raise
+        except Exception:
+            raise ModelStreamError("action dispatcher exposed invalid tools") from None
 
     def _accumulate_model_event(
         self,
