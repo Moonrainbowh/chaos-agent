@@ -113,6 +113,29 @@ class RootActionDispatcherTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(result.is_error)
         self.assertEqual(invalidated, [("note.txt",)])
 
+    async def test_successful_replace_invalidates_the_exact_relative_cache_path(self) -> None:
+        invalidated: list[tuple[str, ...]] = []
+        guard = WorkspacePathGuard(self.root)
+        dispatcher = RootActionDispatcher(
+            WorkspaceFiles(guard, IgnoreRules.from_workspace(self.root)),
+            WorkspaceEditor(guard),
+            ActionPolicy(PolicyConfig(ApprovalMode.AUTO, workspace_root=self.root)),
+            ApprovalBroker(),
+            invalidate_cache=lambda paths: invalidated.append(tuple(paths)),
+        )
+
+        result = await dispatcher.dispatch(
+            ActionRequest(
+                "call-1",
+                "replace_text",
+                {"path": "note.txt", "old_text": "before", "new_text": "after"},
+            ),
+            CancellationToken(),
+        )
+
+        self.assertFalse(result.is_error)
+        self.assertEqual(invalidated, [("note.txt",)])
+
     async def test_denied_write_does_not_invalidate_cache(self) -> None:
         invalidated: list[tuple[str, ...]] = []
         guard = WorkspacePathGuard(self.root)

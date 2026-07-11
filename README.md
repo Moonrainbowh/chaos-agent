@@ -70,7 +70,7 @@ Sessions are stored at `%LOCALAPPDATA%\code-agent\sessions.sqlite3` by default.
 ## Context Budgets And Local Diagnostics
 
 Each model context has a deterministic 20,000-token configured ceiling. The
-default allocations are 3,000 for rendered project rules, 1,500 for tool
+default allocations are 3,000 shared by the system prompt and rendered project rules, 1,500 for tool
 schemas, 1,000 for structured task state, up to 2,000 for the repository map,
 up to 12,000 for messages, and a 500-token safety reserve. The repository map
 shrinks before message history, which retains at least 2,000 tokens. A project

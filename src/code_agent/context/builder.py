@@ -102,13 +102,13 @@ class WorkspaceContextBuilder:
         )
         compacted = self.compactor.compact(working, allocation.message_tokens)
         query = user_input or _latest_user_text(compacted.messages)
-        hits_before, misses_before = self.repo_map.cache.counters()
-        rendered_map = self.repo_map.render(
-            query,
-            (),
-            allocation.repo_map_tokens,
+        rendered_map, cache_hits, cache_misses = self.repo_map.cache.measure_operation(
+            lambda: self.repo_map.render(
+                query,
+                (),
+                allocation.repo_map_tokens,
+            )
         )
-        hits_after, misses_after = self.repo_map.cache.counters()
         system_prompt = prefix + rendered_map
         prompt_tokens = (
             estimate_tokens(system_prompt)
@@ -131,8 +131,8 @@ class WorkspaceContextBuilder:
                 "repo_map_tokens": allocation.repo_map_tokens,
                 "message_tokens": allocation.message_tokens,
                 "removed_message_count": compacted.removed_count,
-                "cache_hits": hits_after - hits_before,
-                "cache_misses": misses_after - misses_before,
+                "cache_hits": cache_hits,
+                "cache_misses": cache_misses,
             },
         )
 

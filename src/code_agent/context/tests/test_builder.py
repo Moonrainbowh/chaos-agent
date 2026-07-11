@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -147,6 +149,36 @@ class WorkspaceContextBuilderTests(unittest.IsolatedAsyncioTestCase):
 
         with self.assertRaisesRegex(RuleLimitError, "3,000"):
             await self.builder.build((), "request", (), TaskState.empty())
+
+    async def test_concurrent_builds_attribute_cache_counts_to_their_own_render(self) -> None:
+        class SlowRepoMapBuilder(RepoMapBuilder):
+            def render(
+                self, query: str, touched_files: tuple[str, ...], token_budget: int
+            ) -> str:
+                time.sleep(0.05)
+                return super().render(query, touched_files, token_budget)
+
+        guard = WorkspacePathGuard(self.root)
+        files = WorkspaceFiles(guard, IgnoreRules.from_workspace(self.root))
+        builder = WorkspaceContextBuilder(
+            self.config,
+            RuleLoader(guard, files, self.config),
+            SlowRepoMapBuilder(files, self.config),
+            DeterministicCompactor(self.config),
+        )
+
+        first, second = await asyncio.gather(
+            builder.build((), "first", (), TaskState.empty()),
+            builder.build((), "second", (), TaskState.empty()),
+        )
+
+        counts = sorted(
+            (
+                (bundle.measurements["cache_hits"], bundle.measurements["cache_misses"])
+                for bundle in (first, second)
+            )
+        )
+        self.assertEqual(counts, [(0, 3), (3, 0)])
 
 
 if __name__ == "__main__":
