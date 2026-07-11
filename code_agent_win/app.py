@@ -4,10 +4,12 @@ import asyncio
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from collections.abc import Callable
 from typing import Mapping, Optional, Sequence
 
 from code_agent.context.builder import WorkspaceContextBuilder
 from code_agent.context.compaction import DeterministicCompactor
+from code_agent.context.cache import RepoMapCache
 from code_agent.context.models import ContextConfig
 from code_agent.context.repo_map import RepoMapBuilder
 from code_agent.context.rules import RuleLoader
@@ -45,6 +47,7 @@ class RootActionDispatcher:
         *,
         git: Optional[GitWorkspace] = None,
         runtime: Optional[WindowsLocalRuntime] = None,
+        invalidate_cache: Callable[[Sequence[str]], None] | None = None,
     ) -> None:
         self.files = files
         self.editor = editor
@@ -52,6 +55,7 @@ class RootActionDispatcher:
         self.approvals = approvals
         self.git = git
         self.runtime = runtime
+        self.invalidate_cache = invalidate_cache
         self.interactive = False
 
     def tools(self) -> Sequence[ToolDefinition]:
@@ -109,6 +113,8 @@ class RootActionDispatcher:
         if request.name in {"write_file", "replace_text"}:
             plan = await asyncio.to_thread(self._edit_plan, request)
             await asyncio.to_thread(self.editor.apply, plan)
+            if self.invalidate_cache is not None:
+                self.invalidate_cache((plan.relative_path,))
             return _ok(request, {"path": plan.relative_path}, {"diff": plan.diff})
         if request.name == "git_status":
             if self.git is None:
@@ -161,10 +167,11 @@ def create_application(workspace_root: Path | None = None) -> Application:
     guard = WorkspacePathGuard(root)
     files = WorkspaceFiles(guard, IgnoreRules.from_workspace(root))
     config = ContextConfig(root, root, "You are a careful coding agent.")
+    cache = RepoMapCache(root)
     context = WorkspaceContextBuilder(
         config,
         RuleLoader(guard, files, config),
-        RepoMapBuilder(files, config),
+        RepoMapBuilder(files, config, cache=cache),
         DeterministicCompactor(config),
     )
     approvals = ApprovalBroker()
@@ -177,6 +184,7 @@ def create_application(workspace_root: Path | None = None) -> Application:
         approvals,
         git=GitWorkspace(root),
         runtime=WindowsLocalRuntime(root),
+        invalidate_cache=cache.invalidate,
     )
     sessions = SQLiteSessionRepository(_session_path())
     model = _model_client()

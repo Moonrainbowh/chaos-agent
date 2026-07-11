@@ -9,6 +9,7 @@ from typing import Iterable, Sequence
 from code_agent.workspace.errors import WorkspaceError
 from code_agent.workspace.files import WorkspaceFiles
 
+from .cache import RepoMapCache
 from .errors import RepoMapError
 from .models import ContextConfig, RepoEntry, Symbol
 from .tokens import estimate_tokens, truncate_to_tokens
@@ -47,18 +48,20 @@ class _ImportRef:
     names: tuple[str, ...] = ()
 
 
-@dataclass(frozen=True)
-class _ScannedFile:
-    path: str
-    symbols: tuple[Symbol, ...]
-    imports: tuple[_ImportRef, ...]
-    size_bytes: int
+class _UncacheableScan(Exception):
+    """A read or parse failure that must not become a successful cache entry."""
 
 
 class RepoMapBuilder:
     """Build a bounded clean-room map, not a complete language parser."""
 
-    def __init__(self, files: WorkspaceFiles, config: ContextConfig) -> None:
+    def __init__(
+        self,
+        files: WorkspaceFiles,
+        config: ContextConfig,
+        *,
+        cache: RepoMapCache | None = None,
+    ) -> None:
         if not isinstance(files, WorkspaceFiles):
             raise TypeError("files must be WorkspaceFiles")
         if not isinstance(config, ContextConfig):
@@ -67,6 +70,8 @@ class RepoMapBuilder:
             raise ValueError("workspace files root must match config.workspace_root")
         self.files = files
         self.config = config
+        self.cache = cache or RepoMapCache(config.workspace_root)
+        self._module_index: dict[str, str] = {}
 
     def build(
         self, query: str = "", touched_files: Sequence[str] = ()
@@ -75,18 +80,7 @@ class RepoMapBuilder:
             raise TypeError("query must be text")
         if any(not isinstance(path, str) or not path for path in touched_files):
             raise ValueError("touched_files must contain non-empty paths")
-        scanned = self._scan()
-        module_index = _module_index(item.path for item in scanned)
-        entries = tuple(
-            RepoEntry(
-                path=item.path,
-                symbols=item.symbols,
-                dependencies=_resolve_imports(item.path, item.imports, module_index),
-                size_bytes=item.size_bytes,
-            )
-            for item in scanned
-        )
-        return _rank(entries, query, touched_files)
+        return _rank(self._scan(), query, touched_files)
 
     def render(
         self,
@@ -116,7 +110,7 @@ class RepoMapBuilder:
         rendered = "\n".join(chunks)
         return truncate_to_tokens(rendered, token_budget)
 
-    def _scan(self) -> tuple[_ScannedFile, ...]:
+    def _scan(self) -> tuple[RepoEntry, ...]:
         try:
             paths = self.files.list_files(
                 max_entries=self.config.repo_scan,
@@ -124,22 +118,40 @@ class RepoMapBuilder:
             )
         except (OSError, WorkspaceError) as error:
             raise RepoMapError("bounded repository scan failed") from error
-        return tuple(self._scan_file(path) for path in paths)
+        self._module_index = _module_index(paths)
+        entries: list[RepoEntry] = []
+        for path in paths:
+            absolute = self.files.guard.resolve(path)
+            try:
+                entries.append(
+                    self.cache.get_or_scan(absolute, lambda: self._scan_file(path))
+                )
+            except _UncacheableScan:
+                entries.append(RepoEntry(path, size_bytes=self._file_size(path)))
+        return tuple(entries)
 
-    def _scan_file(self, path: str) -> _ScannedFile:
+    def _scan_file(self, path: str) -> RepoEntry:
         suffix = PurePosixPath(path).suffix.casefold()
         if suffix not in _DECLARATION_SUFFIXES and suffix != _PYTHON_SUFFIX:
-            return _ScannedFile(path, (), (), self._file_size(path))
+            return RepoEntry(path, size_bytes=self._file_size(path))
         try:
             document = self.files.read_text(path, max_bytes=_MAX_SOURCE_BYTES)
             size = len(document.text.encode("utf-8"))
         except (OSError, UnicodeError, WorkspaceError):
-            return _ScannedFile(path, (), (), self._file_size(path))
+            raise _UncacheableScan from None
         if suffix == _PYTHON_SUFFIX:
-            symbols, imports = _parse_python(path, document.text)
+            parsed = _parse_python(path, document.text)
+            if parsed is None:
+                raise _UncacheableScan
+            symbols, imports = parsed
         else:
             symbols, imports = _parse_declarations(path, suffix, document.text), ()
-        return _ScannedFile(path, symbols, imports, size)
+        return RepoEntry(
+            path,
+            symbols,
+            _resolve_imports(path, imports, self._module_index),
+            size,
+        )
 
     def _file_size(self, path: str) -> int:
         try:
@@ -174,11 +186,11 @@ class _PythonSymbols(ast.NodeVisitor):
 
 def _parse_python(
     path: str, text: str
-) -> tuple[tuple[Symbol, ...], tuple[_ImportRef, ...]]:
+) -> tuple[tuple[Symbol, ...], tuple[_ImportRef, ...]] | None:
     try:
         tree = ast.parse(text)
     except (SyntaxError, ValueError, TypeError, MemoryError):
-        return (), ()
+        return None
     visitor = _PythonSymbols(path)
     visitor.visit(tree)
     imports: list[_ImportRef] = []
