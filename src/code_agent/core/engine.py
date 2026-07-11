@@ -29,6 +29,7 @@ from .protocols import (
     ModelClient,
     SessionRepository,
 )
+from .task_state import TaskState
 
 
 class AgentEngine:
@@ -89,6 +90,10 @@ class AgentEngine:
 
             for turn in range(1, self._limits.max_model_turns + 1):
                 token.raise_if_cancelled()
+                tools = tuple(self._actions.tools())
+                tool_names = {tool.name for tool in tools}
+                if len(tool_names) != len(tools):
+                    raise ModelStreamError("action dispatcher exposed duplicate tools")
                 turn_started = AgentEvent(
                     kind=EventKind.TURN_STARTED,
                     payload={"turn": turn},
@@ -99,7 +104,12 @@ class AgentEngine:
                 source_messages = prior_messages if turn == 1 else messages
                 source_input = user_input if turn == 1 else ""
                 try:
-                    bundle = await self._context.build(source_messages, source_input)
+                    bundle = await self._context.build(
+                        source_messages,
+                        source_input,
+                        tools,
+                        TaskState.empty(),
+                    )
                     if not isinstance(bundle, ContextBundle):
                         raise TypeError("context builder returned an invalid bundle")
                 except CancellationError:
@@ -125,10 +135,6 @@ class AgentEngine:
                 calls: list[ToolCall] = []
                 completed = False
                 try:
-                    tools = tuple(self._actions.tools())
-                    tool_names = {tool.name for tool in tools}
-                    if len(tool_names) != len(tools):
-                        raise ModelStreamError("action dispatcher exposed duplicate tools")
                     stream = self._model.stream(
                         bundle.system_prompt,
                         bundle.messages,

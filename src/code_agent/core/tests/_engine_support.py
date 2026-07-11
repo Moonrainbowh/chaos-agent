@@ -12,6 +12,7 @@ from code_agent.core.models import (
     ModelEvent,
     ToolDefinition,
 )
+from code_agent.core.task_state import TaskState
 
 
 class FakeModelClient:
@@ -39,13 +40,17 @@ class FakeModelClient:
 
 class FakeContextBuilder:
     def __init__(self) -> None:
-        self.calls: list[tuple[tuple[Message, ...], str]] = []
+        self.calls: list[tuple[tuple[Message, ...], str, tuple[ToolDefinition, ...], TaskState]] = []
 
     async def build(
-        self, messages: Sequence[Message], user_input: str
+        self,
+        messages: Sequence[Message],
+        user_input: str,
+        tools: Sequence[ToolDefinition],
+        task_state: TaskState,
     ) -> ContextBundle:
         history = tuple(messages)
-        self.calls.append((history, user_input))
+        self.calls.append((history, user_input, tuple(tools), task_state))
         if user_input:
             history += (Message(role="user", content=user_input),)
         return ContextBundle(system_prompt="system", messages=history)

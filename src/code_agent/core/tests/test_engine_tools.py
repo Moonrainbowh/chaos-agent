@@ -113,6 +113,19 @@ class AgentEngineToolTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(feedback["output"]["error"], "tool is not available")
         self.assertNotIn(EventKind.ACTION_STARTED, [event.kind for event in events])
 
+    async def test_engine_passes_one_tool_tuple_to_context_then_model(self) -> None:
+        model = FakeModelClient(((completed(),),))
+        actions = FakeActionDispatcher()
+        context = FakeContextBuilder()
+        sessions = MemorySessionRepository()
+        engine = AgentEngine(model, context, actions, sessions)
+
+        events = [event async for event in engine.run("inspect")]
+
+        self.assertEqual(events[-1].kind, EventKind.COMPLETED)
+        self.assertIs(context.calls[0][2], model.calls[0][2])
+        self.assertEqual(context.calls[0][2], tuple(actions.tools()))
+
 
 if __name__ == "__main__":
     unittest.main()

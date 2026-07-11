@@ -12,6 +12,7 @@ from .models import (
     ModelEvent,
     ToolDefinition,
 )
+from .task_state import TaskState
 
 
 class ModelClient(Protocol):
@@ -25,7 +26,11 @@ class ModelClient(Protocol):
 
 class ContextBuilder(Protocol):
     async def build(
-        self, messages: Sequence[Message], user_input: str
+        self,
+        messages: Sequence[Message],
+        user_input: str,
+        tools: Sequence[ToolDefinition],
+        task_state: TaskState,
     ) -> ContextBundle: ...
 
 

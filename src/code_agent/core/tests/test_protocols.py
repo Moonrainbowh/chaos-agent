@@ -27,6 +27,7 @@ from code_agent.core.protocols import (  # noqa: E402
     ModelClient,
     SessionRepository,
 )
+from code_agent.core.task_state import TaskState  # noqa: E402
 
 
 class FakeModelClient:
@@ -41,7 +42,11 @@ class FakeModelClient:
 
 class FakeContextBuilder:
     async def build(
-        self, messages: Sequence[Message], user_input: str
+        self,
+        messages: Sequence[Message],
+        user_input: str,
+        tools: Sequence[ToolDefinition],
+        task_state: TaskState,
     ) -> ContextBundle:
         return ContextBundle(system_prompt=user_input, messages=messages)
 
@@ -110,7 +115,7 @@ class ProtocolImplementationTests(unittest.IsolatedAsyncioTestCase):
         builder: ContextBuilder = FakeContextBuilder()
         message = Message(role="user", content="hello")
 
-        bundle = await builder.build((message,), "system")
+        bundle = await builder.build((message,), "system", (), TaskState.empty())
 
         self.assertEqual(
             bundle,
