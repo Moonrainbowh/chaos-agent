@@ -33,6 +33,7 @@ from code_agent.workspace.files import WorkspaceFiles
 from code_agent.workspace.git import GitWorkspace
 from code_agent.workspace.ignore import IgnoreRules
 from code_agent.workspace.paths import WorkspacePathGuard
+from code_agent_win.tools import tool_definitions, validate_tool_arguments
 
 
 class RootActionDispatcher:
@@ -59,20 +60,14 @@ class RootActionDispatcher:
         self.interactive = False
 
     def tools(self) -> Sequence[ToolDefinition]:
-        return (
-            ToolDefinition("read_file", "Read a UTF-8 workspace file.", {"type": "object"}),
-            ToolDefinition("list_files", "List visible workspace files.", {"type": "object"}),
-            ToolDefinition("search_text", "Search visible workspace text.", {"type": "object"}),
-            ToolDefinition("write_file", "Atomically write a reviewed workspace file.", {"type": "object"}),
-            ToolDefinition("replace_text", "Replace one exact text occurrence.", {"type": "object"}),
-            ToolDefinition("git_status", "Read Git porcelain status.", {"type": "object"}),
-            ToolDefinition("git_diff", "Read Git diff for workspace paths.", {"type": "object"}),
-            ToolDefinition("run_command", "Run an approved PowerShell command.", {"type": "object"}),
-        )
+        return tool_definitions()
 
     async def dispatch(
         self, request: ActionRequest, cancellation: CancellationToken
     ) -> ActionResult:
+        validation_error = validate_tool_arguments(request.name, request.arguments)
+        if validation_error is not None:
+            return _error(request, "invalid tool arguments", validation_error)
         decision = self.policy.evaluate(request)
         if decision.outcome is DecisionOutcome.DENY:
             return _error(request, "action denied", decision.reason)
