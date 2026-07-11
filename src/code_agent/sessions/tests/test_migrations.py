@@ -52,6 +52,23 @@ def create_v1_database(path: Path) -> None:
     connection.close()
 
 
+def create_v3_database(path: Path) -> None:
+    create_v1_database(path)
+    with sqlite3.connect(path) as connection:
+        connection.executescript(
+            """
+            ALTER TABLE threads ADD COLUMN title TEXT;
+            ALTER TABLE threads ADD COLUMN status TEXT NOT NULL DEFAULT 'active';
+            CREATE TABLE goals (id TEXT PRIMARY KEY, thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE, objective TEXT NOT NULL, status TEXT NOT NULL, metadata TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+            CREATE TABLE checkpoints (id TEXT PRIMARY KEY, thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE, label TEXT NOT NULL, metadata TEXT NOT NULL, created_at TEXT NOT NULL);
+            CREATE INDEX goals_thread_created ON goals(thread_id, created_at, id);
+            CREATE INDEX checkpoints_thread_created ON checkpoints(thread_id, created_at, id);
+            CREATE TABLE task_budgets (thread_id TEXT PRIMARY KEY REFERENCES threads(id) ON DELETE CASCADE, model_name TEXT NOT NULL, max_agent_rounds INTEGER NOT NULL, max_tool_calls INTEGER NOT NULL, max_tool_calls_per_round INTEGER NOT NULL, model_turns INTEGER NOT NULL DEFAULT 0, tool_calls INTEGER NOT NULL DEFAULT 0);
+            PRAGMA user_version = 3;
+            """
+        )
+
+
 class SessionMigrationTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
@@ -92,6 +109,22 @@ class SessionMigrationTests(unittest.IsolatedAsyncioTestCase):
             version = connection.execute("PRAGMA user_version").fetchone()[0]
         self.assertEqual(version, SCHEMA_VERSION)
 
+    def test_v3_database_migrates_task_state_table(self) -> None:
+        create_v3_database(self.database)
+
+        SQLiteSessionRepository(self.database)
+
+        with sqlite3.connect(self.database) as connection:
+            version = connection.execute("PRAGMA user_version").fetchone()[0]
+            tables = {
+                row[0]
+                for row in connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table'"
+                )
+            }
+        self.assertEqual(version, 4)
+        self.assertIn("task_states", tables)
+
     def test_future_schema_version_is_rejected_without_mutation(self) -> None:
         with sqlite3.connect(self.database) as connection:
             connection.execute("PRAGMA user_version = 999")
@@ -129,6 +162,18 @@ class SessionMigrationTests(unittest.IsolatedAsyncioTestCase):
 
         with self.assertRaises(SessionCorruptionError):
             await repository.load_messages(thread_id)
+
+    async def test_malformed_task_state_json_fails_closed(self) -> None:
+        repository = SQLiteSessionRepository(self.database)
+        thread_id = await repository.create_thread()
+        with sqlite3.connect(self.database) as connection:
+            connection.execute(
+                "INSERT INTO task_states(thread_id, payload, updated_at) VALUES (?, ?, ?)",
+                (thread_id, "{broken", "2026-07-11T00:00:00Z"),
+            )
+
+        with self.assertRaises(SessionCorruptionError):
+            await repository.load_task_state(thread_id)
 
     def test_failed_migration_rolls_back_schema_and_version(self) -> None:
         create_v1_database(self.database)

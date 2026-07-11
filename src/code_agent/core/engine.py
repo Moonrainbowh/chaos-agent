@@ -102,11 +102,12 @@ class AgentEngine:
                 source_messages = prior_messages if turn == 1 else messages
                 source_input = user_input if turn == 1 else ""
                 try:
+                    task_state = await self._journal.load_task_state(active_thread)
                     bundle = await self._context.build(
                         source_messages,
                         source_input,
                         tools,
-                        TaskState.empty(),
+                        task_state,
                     )
                     if not isinstance(bundle, ContextBundle):
                         raise TypeError("context builder returned an invalid bundle")
@@ -279,6 +280,16 @@ class AgentEngine:
         )
         await self._journal.append_event(thread_id, completed)
         yield completed
+
+        if call.name in {
+            "read_file",
+            "list_files",
+            "search_text",
+            "write_file",
+            "replace_text",
+            "run_command",
+        }:
+            await self._journal.reduce_task_state(thread_id, request, result)
 
         content = json.dumps(
             result.to_dict(),

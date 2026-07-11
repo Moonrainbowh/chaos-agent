@@ -15,7 +15,7 @@
 - `CancellationToken`、`CancellationError`: 在线程与异步调用间传播首次取消原因 | 唤醒等待者
 - `ModelClient`: 约束统一的模型流式调用接口 | 具体副作用由实现负责
 - `ContextBuilder`: 异步构建当前回合上下文 | 具体副作用由实现负责
-- `TaskState.empty()`: 提供不可变的空任务状态占位 | 无副作用 | 后续持久化与归约在此接口上扩展
+- `CommandFact`、`TaskState`、`TaskStateUpdate`、`reduce_task_state`: 以有界 JSON 兼容事实表达持久任务进度 | 无副作用 | 工作笔记始终显式标注为未验证
 - `ActionDispatcher`: 暴露工具并分发可取消动作 | 具体副作用由实现负责
 - `SessionRepository`: 异步创建线程并持久化消息与事件 | 具体副作用由实现负责
 - `EngineLimits`: 冻结模型回合、工具调用、token 与输出字符预算 | 无副作用 | 越界前先阻止新的外部工具动作

@@ -68,6 +68,8 @@ class AgentEngineToolTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(model.calls[1][1], tuple(messages[:3]))
         self.assertEqual(events[-1].payload["tool_calls"], 1)
         self.assertIn(EventKind.ACTION_COMPLETED, [event.kind for event in events])
+        self.assertEqual(sessions.task_states["thread-1"].files_read, ("a.txt",))
+        self.assertEqual(context.calls[1][3].files_read, ("a.txt",))
 
     async def test_dispatch_exception_becomes_sanitized_tool_error_feedback(self) -> None:
         call = ToolCall(id="call-1", name="read_file", arguments={})

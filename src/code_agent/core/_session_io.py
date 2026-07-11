@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from .errors import SessionPersistenceError
 from .events import AgentEvent, EventKind
-from .models import Message
+from .models import ActionRequest, ActionResult, Message
 from .protocols import SessionRepository
+from .task_state import TaskState
 
 
 class SessionJournal:
@@ -38,6 +39,26 @@ class SessionJournal:
             await self._repository.append_event(thread_id, event)
         except Exception:
             raise SessionPersistenceError("could not persist event") from None
+
+    async def load_task_state(self, thread_id: str) -> TaskState:
+        try:
+            state = await self._repository.load_task_state(thread_id)
+            if not isinstance(state, TaskState):
+                raise TypeError("session has invalid task state")
+            return state
+        except Exception:
+            raise SessionPersistenceError("could not load task state") from None
+
+    async def reduce_task_state(
+        self, thread_id: str, request: ActionRequest, result: ActionResult
+    ) -> TaskState:
+        try:
+            state = await self._repository.reduce_task_state(thread_id, request, result)
+            if not isinstance(state, TaskState):
+                raise TypeError("session has invalid task state")
+            return state
+        except Exception:
+            raise SessionPersistenceError("could not persist task state") from None
 
     @staticmethod
     def message_added(message: Message) -> AgentEvent:

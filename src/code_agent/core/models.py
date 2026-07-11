@@ -14,6 +14,7 @@ from ._json import (
     validate_json_mapping,
     validate_name,
 )
+from .task_state import CommandFact, TaskState, TaskStateUpdate
 
 
 _MESSAGE_ROLES = frozenset({"system", "developer", "user", "assistant", "tool"})

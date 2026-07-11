@@ -13,6 +13,7 @@ from code_agent.core.models import (
     ToolDefinition,
 )
 from code_agent.core.task_state import TaskState
+from code_agent.core.task_state import reduce_task_state
 
 
 class FakeModelClient:
@@ -91,12 +92,14 @@ class MemorySessionRepository:
         self.messages: dict[str, list[Message]] = {}
         self.events: dict[str, list[AgentEvent]] = {}
         self.created = 0
+        self.task_states: dict[str, TaskState] = {}
 
     async def create_thread(self) -> str:
         self.created += 1
         thread_id = f"thread-{self.created}"
         self.messages[thread_id] = []
         self.events[thread_id] = []
+        self.task_states[thread_id] = TaskState.empty()
         return thread_id
 
     async def load_messages(self, thread_id: str) -> Sequence[Message]:
@@ -107,3 +110,13 @@ class MemorySessionRepository:
 
     async def append_event(self, thread_id: str, event: AgentEvent) -> None:
         self.events[thread_id].append(event)
+
+    async def load_task_state(self, thread_id: str) -> TaskState:
+        return self.task_states[thread_id]
+
+    async def reduce_task_state(
+        self, thread_id: str, request: ActionRequest, result: ActionResult
+    ) -> TaskState:
+        state = reduce_task_state(self.task_states[thread_id], request, result)
+        self.task_states[thread_id] = state
+        return state

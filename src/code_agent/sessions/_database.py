@@ -15,7 +15,7 @@ from .errors import (
 )
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 4
 _BUSY_TIMEOUT_MS = 5_000
 _SQLITE_CORRUPT = 11
 _SQLITE_NOTADB = 26
@@ -37,6 +37,12 @@ _MIGRATIONS: dict[int, tuple[str, ...]] = {
         "CREATE INDEX goals_thread_created ON goals(thread_id, created_at, id)",
         "CREATE INDEX checkpoints_thread_created ON checkpoints(thread_id, created_at, id)",
     ),
+    3: (
+        "CREATE TABLE task_budgets (thread_id TEXT PRIMARY KEY REFERENCES threads(id) ON DELETE CASCADE, model_name TEXT NOT NULL, max_agent_rounds INTEGER NOT NULL, max_tool_calls INTEGER NOT NULL, max_tool_calls_per_round INTEGER NOT NULL, model_turns INTEGER NOT NULL DEFAULT 0, tool_calls INTEGER NOT NULL DEFAULT 0)",
+    ),
+    4: (
+        "CREATE TABLE task_states (thread_id TEXT PRIMARY KEY REFERENCES threads(id) ON DELETE CASCADE, payload TEXT NOT NULL, updated_at TEXT NOT NULL)",
+    ),
 }
 
 _REQUIRED_COLUMNS = {
@@ -48,6 +54,8 @@ _REQUIRED_COLUMNS = {
         "updated_at",
     },
     "checkpoints": {"id", "thread_id", "label", "metadata", "created_at"},
+    "task_budgets": {"thread_id", "model_name", "max_agent_rounds", "max_tool_calls", "max_tool_calls_per_round", "model_turns", "tool_calls"},
+    "task_states": {"thread_id", "payload", "updated_at"},
 }
 
 

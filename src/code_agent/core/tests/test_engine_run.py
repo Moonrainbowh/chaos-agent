@@ -18,6 +18,7 @@ from code_agent.core.models import (  # noqa: E402
     ModelEventKind,
     Usage,
 )
+from code_agent.core.task_state import TaskState  # noqa: E402
 from code_agent.core.tests._engine_support import (  # noqa: E402
     FakeActionDispatcher,
     FakeContextBuilder,
@@ -99,6 +100,22 @@ class AgentEngineRunTests(unittest.IsolatedAsyncioTestCase):
             ],
         )
         self.assertEqual(events[0].payload["thread_id"], thread_id)
+
+    async def test_engine_loads_persisted_task_state_before_context_build(self) -> None:
+        sessions = MemorySessionRepository()
+        thread_id = await sessions.create_thread()
+        sessions.task_states[thread_id] = TaskState(objective="repair startup")
+        context = FakeContextBuilder()
+        engine = AgentEngine(
+            FakeModelClient(((model_event(ModelEventKind.COMPLETED),),)),
+            context,
+            FakeActionDispatcher(),
+            sessions,
+        )
+
+        _ = [event async for event in engine.run("inspect", thread_id=thread_id)]
+
+        self.assertEqual(context.calls[0][3].objective, "repair startup")
 
     async def test_blank_user_input_is_rejected_before_thread_creation(self) -> None:
         sessions = MemorySessionRepository()

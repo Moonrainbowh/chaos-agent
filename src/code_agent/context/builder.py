@@ -13,6 +13,7 @@ from .models import ContextConfig
 from .repo_map import RepoMapBuilder
 from .rules import RuleLoader
 from .tokens import estimate_tokens
+from .task_state import render_task_state
 
 
 class WorkspaceContextBuilder:
@@ -83,7 +84,9 @@ class WorkspaceContextBuilder:
                 f"project rules exceed {self.config.prompt_budget.max_rule_tokens:,} tokens"
             )
         rendered_tools = _render_tools(tools)
-        rendered_state = _render_task_state(task_state)
+        rendered_state = render_task_state(
+            task_state, self.config.prompt_budget.max_task_state_tokens
+        )
         state_tokens = estimate_tokens(rendered_state)
         if state_tokens > self.config.prompt_budget.max_task_state_tokens:
             raise ContextBudgetError("task state exceeds its configured token ceiling")
@@ -134,16 +137,13 @@ def _render_tools(tools: Sequence[ToolDefinition]) -> str:
     )
 
 
-def _render_task_state(task_state: TaskState) -> str:
-    del task_state
-    return "Task state:\n(empty)"
-
-
 def _system_prefix(system_prompt: str, rules: str, task_state: str) -> str:
     sections = [system_prompt]
     if rules:
         sections.append(rules)
-    sections.extend((task_state, "Repository map:\n"))
+    if task_state:
+        sections.append(task_state)
+    sections.append("Repository map:\n")
     return "\n\n".join(sections)
 
 

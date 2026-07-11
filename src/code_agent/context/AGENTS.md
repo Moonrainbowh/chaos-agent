@@ -18,3 +18,4 @@
 - `RepoMapBuilder.render(query, touched_files, token_budget): str`: 渲染并截断代码地图 | 无副作用 | 不超过 token 预算
 - `DeterministicCompactor.compact(messages): CompactionResult`: 以确定规则压缩旧消息，同时保留最近消息与工具调用/结果配对 | 无副作用 | 不依赖模型摘要
 - `WorkspaceContextBuilder.build(messages, user_input, tools, task_state): ContextBundle`: 按规则、工具、任务状态、repo map 和消息的动态预算组装稳定系统提示词 | 在线程池中读取工作区 | 规则超出 3,000 token 立即失败；非空输入只追加一个 user 消息
+- `render_task_state(state, token_budget): str`: 按优先级渲染有界持久任务事实 | 无副作用 | 事实在工作笔记之前，工作笔记始终标记为未验证

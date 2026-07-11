@@ -54,3 +54,9 @@ class SessionRepository(Protocol):
     async def append_event(
         self, thread_id: str, event: AgentEvent
     ) -> None: ...
+
+    async def load_task_state(self, thread_id: str) -> TaskState: ...
+
+    async def reduce_task_state(
+        self, thread_id: str, request: ActionRequest, result: ActionResult
+    ) -> TaskState: ...
