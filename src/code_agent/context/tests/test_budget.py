@@ -92,6 +92,16 @@ class PromptBudgetTests(unittest.TestCase):
                 PromptBudget(**kwargs)
         self.assertTrue(issubclass(PromptBudgetError, ContextError))
 
+    def test_budget_requires_capacity_for_safety_and_minimum_messages(self) -> None:
+        for max_prompt_tokens in (1, 2_499):
+            with self.subTest(max_prompt_tokens=max_prompt_tokens), self.assertRaises(
+                PromptBudgetError
+            ):
+                PromptBudget(max_prompt_tokens=max_prompt_tokens)
+
+        boundary = PromptBudget(max_prompt_tokens=2_500)
+        self.assertEqual(boundary.allocate().message_tokens, 2_000)
+
 
 class ContextConfigBudgetCompatibilityTests(unittest.TestCase):
     def setUp(self) -> None:

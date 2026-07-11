@@ -83,6 +83,10 @@ class PromptBudget:
             raise PromptBudgetError(
                 "min_message_tokens cannot exceed max_message_tokens"
             )
+        if self.max_prompt_tokens < self.safety_tokens + self.min_message_tokens:
+            raise PromptBudgetError(
+                "max_prompt_tokens cannot cover safety and minimum messages"
+            )
 
     def allocate(
         self,
