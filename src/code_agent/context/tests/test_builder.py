@@ -68,8 +68,20 @@ class WorkspaceContextBuilderTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Local constraint.", bundle.system_prompt)
         self.assertIn("src/tool.py", bundle.system_prompt)
         self.assertIn("inspect_file", bundle.system_prompt)
+        self.assertEqual(bundle.measurements["prompt_tokens"], 20_000)
+        self.assertEqual(
+            bundle.measurements["repo_map_tokens"],
+            self.config.prompt_budget.max_repo_map_tokens,
+        )
+        self.assertGreater(bundle.measurements["cache_misses"], 0)
+        self.assertEqual(bundle.measurements["cache_hits"], 0)
+        self.assertEqual(bundle.measurements["removed_message_count"], 0)
         again = await self.builder.build(history, "inspect tool", (), TaskState.empty())
         self.assertEqual(bundle, again)
+        self.assertEqual(
+            again.measurements["cache_hits"],
+            bundle.measurements["cache_misses"],
+        )
 
     async def test_empty_user_input_rebuilds_history_without_adding_empty_message(self) -> None:
         history = (

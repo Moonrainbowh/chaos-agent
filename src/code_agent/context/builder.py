@@ -102,11 +102,13 @@ class WorkspaceContextBuilder:
         )
         compacted = self.compactor.compact(working, allocation.message_tokens)
         query = user_input or _latest_user_text(compacted.messages)
+        hits_before, misses_before = self.repo_map.cache.counters()
         rendered_map = self.repo_map.render(
             query,
             (),
             allocation.repo_map_tokens,
         )
+        hits_after, misses_after = self.repo_map.cache.counters()
         system_prompt = prefix + rendered_map
         prompt_tokens = (
             estimate_tokens(system_prompt)
@@ -118,7 +120,21 @@ class WorkspaceContextBuilder:
             - self.config.prompt_budget.safety_tokens
         ):
             raise ContextBudgetError("rendered prompt exceeds its token budget")
-        return ContextBundle(system_prompt=system_prompt, messages=compacted.messages)
+        return ContextBundle(
+            system_prompt=system_prompt,
+            messages=compacted.messages,
+            measurements={
+                "prompt_tokens": self.config.prompt_budget.max_prompt_tokens,
+                "rule_tokens": allocation.rule_tokens,
+                "tool_tokens": allocation.tool_tokens,
+                "task_state_tokens": allocation.task_state_tokens,
+                "repo_map_tokens": allocation.repo_map_tokens,
+                "message_tokens": allocation.message_tokens,
+                "removed_message_count": compacted.removed_count,
+                "cache_hits": hits_after - hits_before,
+                "cache_misses": misses_after - misses_before,
+            },
+        )
 
 
 def _latest_user_text(messages: Sequence[Message]) -> str:

@@ -118,7 +118,7 @@ class AgentEngine:
 
                 built = AgentEvent(
                     kind=EventKind.CONTEXT_BUILT,
-                    payload={"turn": turn, "message_count": len(bundle.messages)},
+                    payload={"turn": turn, **bundle.measurements},
                 )
                 await self._journal.append_event(active_thread, built)
                 yield built

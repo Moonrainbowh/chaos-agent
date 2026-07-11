@@ -67,6 +67,36 @@ The Windows TUI supports typing, streaming transcript updates, a tool timeline, 
 
 Sessions are stored at `%LOCALAPPDATA%\code-agent\sessions.sqlite3` by default.
 
+## Context Budgets And Local Diagnostics
+
+Each model context has a deterministic 20,000-token configured ceiling. The
+default allocations are 3,000 for rendered project rules, 1,500 for tool
+schemas, 1,000 for structured task state, up to 2,000 for the repository map,
+up to 12,000 for messages, and a 500-token safety reserve. The repository map
+shrinks before message history, which retains at least 2,000 tokens. A project
+rule set that exceeds its 3,000-token allocation fails locally with a typed
+rule-limit error before any provider request is made; rules are never silently
+truncated.
+
+Repository-map scans use a process-local, 5,000-entry LRU cache keyed by file
+size and nanosecond modification time. It is cleared on process restart and a
+successful workspace write invalidates that path, so unchanged files can be
+reused while the next turn reparses changed files.
+
+Resumable task state records durable, reducer-derived facts such as files read
+or changed, command outcomes, and verified observations. Model-authored
+working notes and open questions are bounded separately and are explicitly
+rendered as unverified; they do not become facts merely by being stored.
+
+Every `CONTEXT_BUILT` session event contains local numeric counters only:
+configured prompt budget, rule/tool/task-state/repository-map/message
+allocations, removed-message count, and repository-cache hits and misses. It
+contains no prompt text, project rules, source text, command output, API-key
+names, or external telemetry. Agent-round and tool-call limits are intentionally
+retained from the existing model profile and persistent budget work; this
+feature measures their context environment for later evidence-based tuning and
+does not tune those limits.
+
 ## Development Status
 
 The first release targets Windows 10/11. The core protocol and adapters are portable, while Linux/macOS end-to-end terminal/runtime support remains future work.

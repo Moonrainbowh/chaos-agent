@@ -32,6 +32,40 @@ def model_event(kind: ModelEventKind, **values: object) -> ModelEvent:
 
 
 class AgentEngineRunTests(unittest.IsolatedAsyncioTestCase):
+    async def test_context_event_records_numeric_measurements_without_prompt_text(self) -> None:
+        measurements = {
+            "prompt_tokens": 20_000,
+            "rule_tokens": 321,
+            "tool_tokens": 123,
+            "task_state_tokens": 45,
+            "repo_map_tokens": 2_000,
+            "message_tokens": 12_000,
+            "removed_message_count": 2,
+            "cache_hits": 7,
+            "cache_misses": 3,
+        }
+        engine = AgentEngine(
+            FakeModelClient(((model_event(ModelEventKind.COMPLETED),),)),
+            FakeContextBuilder(measurements),
+            FakeActionDispatcher(),
+            MemorySessionRepository(),
+        )
+
+        events = [event async for event in engine.run("inspect secret.txt")]
+        context_event = next(
+            event for event in events if event.kind is EventKind.CONTEXT_BUILT
+        )
+
+        self.assertEqual(context_event.payload["prompt_tokens"], 20_000)
+        self.assertEqual(
+            {key: context_event.payload[key] for key in measurements},
+            measurements,
+        )
+        self.assertTrue(
+            all(isinstance(value, int) for value in context_event.payload.values())
+        )
+        self.assertNotIn("secret.txt", str(context_event.payload))
+
     async def test_final_answer_is_streamed_and_persisted(self) -> None:
         model = FakeModelClient(
             ((

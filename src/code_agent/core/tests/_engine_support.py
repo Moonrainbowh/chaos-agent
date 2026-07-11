@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Mapping, Sequence
 
 from code_agent.core.cancellation import CancellationToken
 from code_agent.core.events import AgentEvent
@@ -40,8 +40,9 @@ class FakeModelClient:
 
 
 class FakeContextBuilder:
-    def __init__(self) -> None:
+    def __init__(self, measurements: Mapping[str, int] | None = None) -> None:
         self.calls: list[tuple[tuple[Message, ...], str, tuple[ToolDefinition, ...], TaskState]] = []
+        self.measurements = dict(measurements or {})
 
     async def build(
         self,
@@ -54,7 +55,11 @@ class FakeContextBuilder:
         self.calls.append((history, user_input, tuple(tools), task_state))
         if user_input:
             history += (Message(role="user", content=user_input),)
-        return ContextBundle(system_prompt="system", messages=history)
+        return ContextBundle(
+            system_prompt="system",
+            messages=history,
+            measurements=self.measurements,
+        )
 
 
 class FakeActionDispatcher:

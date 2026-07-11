@@ -34,6 +34,8 @@ class RepoMapCache:
         self.workspace_root = workspace_root.resolve() if workspace_root else None
         self.max_entries = max_entries
         self._entries: OrderedDict[Path, CachedScan] = OrderedDict()
+        self._hits = 0
+        self._misses = 0
 
     def __len__(self) -> int:
         return len(self._entries)
@@ -53,11 +55,14 @@ class RepoMapCache:
         try:
             signature = _signature(resolved)
         except OSError:
+            self._misses += 1
             return scan()
         cached = self._entries.get(resolved)
         if cached is not None and cached.signature == signature:
+            self._hits += 1
             self._entries.move_to_end(resolved)
             return cached.entry, cached.source_facts
+        self._misses += 1
         entry, source_facts = scan()
         self._entries[resolved] = CachedScan(signature, entry, source_facts)
         self._entries.move_to_end(resolved)
@@ -71,6 +76,10 @@ class RepoMapCache:
 
     def clear(self) -> None:
         self._entries.clear()
+
+    def counters(self) -> tuple[int, int]:
+        """Return process-local cache hit and miss counters in that order."""
+        return self._hits, self._misses
 
     def _resolve(self, path: str | Path) -> Path:
         candidate = Path(path)
