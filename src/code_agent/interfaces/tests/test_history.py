@@ -86,7 +86,7 @@ class LoadThreadHistoryTests(unittest.IsolatedAsyncioTestCase):
         reader = InMemoryHistoryReader((), (), (), ())
 
         with self.assertRaisesRegex(ValueError, "thread_id must be non-blank text"):
-            await load_thread_history(reader, "")
+            await load_thread_history(reader, " ")
 
 
 if __name__ == "__main__":
