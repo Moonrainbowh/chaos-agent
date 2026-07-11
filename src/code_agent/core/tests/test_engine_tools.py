@@ -11,6 +11,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from code_agent.core.engine import AgentEngine  # noqa: E402
+from code_agent.core.errors import ModelStreamError  # noqa: E402
 from code_agent.core.events import EventKind  # noqa: E402
 from code_agent.core.models import (  # noqa: E402
     ActionRequest,
@@ -19,6 +20,7 @@ from code_agent.core.models import (  # noqa: E402
     ModelEvent,
     ModelEventKind,
     ToolCall,
+    ToolDefinition,
 )
 from code_agent.core.tests._engine_support import (  # noqa: E402
     FakeActionDispatcher,
@@ -125,6 +127,24 @@ class AgentEngineToolTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(events[-1].kind, EventKind.COMPLETED)
         self.assertIs(context.calls[0][2], model.calls[0][2])
         self.assertEqual(context.calls[0][2], tuple(actions.tools()))
+
+    async def test_duplicate_advertised_tools_fail_before_context_and_model(self) -> None:
+        model = FakeModelClient(())
+        actions = FakeActionDispatcher()
+        actions._tools = (
+            ToolDefinition("read_file", "Read a file", {"type": "object"}),
+            ToolDefinition("read_file", "Read another file", {"type": "object"}),
+        )
+        context = FakeContextBuilder()
+        sessions = MemorySessionRepository()
+        engine = AgentEngine(model, context, actions, sessions)
+
+        with self.assertRaises(ModelStreamError):
+            _ = [event async for event in engine.run("inspect")]
+
+        self.assertEqual(context.calls, [])
+        self.assertEqual(model.calls, [])
+        self.assertEqual(sessions.events["thread-1"][-1].kind, EventKind.ERROR)
 
 
 if __name__ == "__main__":
