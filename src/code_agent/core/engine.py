@@ -274,13 +274,6 @@ class AgentEngine:
                     type(exc).__name__,
                 )
 
-        completed = AgentEvent(
-            kind=EventKind.ACTION_COMPLETED,
-            payload={"result": result.to_dict()},
-        )
-        await self._journal.append_event(thread_id, completed)
-        yield completed
-
         if call.name in {
             "read_file",
             "list_files",
@@ -290,6 +283,13 @@ class AgentEngine:
             "run_command",
         }:
             await self._journal.reduce_task_state(thread_id, request, result)
+
+        completed = AgentEvent(
+            kind=EventKind.ACTION_COMPLETED,
+            payload={"result": result.to_dict()},
+        )
+        await self._journal.append_event(thread_id, completed)
+        yield completed
 
         content = json.dumps(
             result.to_dict(),

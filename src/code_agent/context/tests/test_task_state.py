@@ -46,6 +46,14 @@ class RenderTaskStateTests(unittest.TestCase):
         )
         self.assertIn("Working notes (unverified):", rendered)
 
+    def test_renderer_honors_a_configured_budget_above_default_limit(self) -> None:
+        rendered = render_task_state(
+            TaskState(objective="Repair startup regression"), token_budget=1_001
+        )
+
+        self.assertIn("Repair startup regression", rendered)
+        self.assertLessEqual(estimate_tokens(rendered), 1_001)
+
 
 if __name__ == "__main__":
     unittest.main()

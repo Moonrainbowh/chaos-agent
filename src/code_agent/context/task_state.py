@@ -5,17 +5,14 @@ from code_agent.core.task_state import TaskState
 from .tokens import estimate_tokens, truncate_to_tokens
 
 
-_MAX_RENDER_TOKENS = 1_000
-
-
 def render_task_state(state: TaskState, token_budget: int) -> str:
     """Render durable task facts in deterministic priority order."""
     if not isinstance(state, TaskState):
         raise TypeError("state must be a TaskState")
     if isinstance(token_budget, bool) or not isinstance(token_budget, int):
         raise TypeError("token_budget must be an integer")
-    if token_budget < 0 or token_budget > _MAX_RENDER_TOKENS:
-        raise ValueError("token_budget must be between 0 and 1000")
+    if token_budget < 0:
+        raise ValueError("token_budget must not be negative")
     if state == TaskState.empty() or token_budget == 0:
         return ""
     heading = "Task state (facts are verified; working notes are unverified):"
