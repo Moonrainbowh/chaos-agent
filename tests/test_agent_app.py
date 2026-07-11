@@ -6,6 +6,7 @@ import unittest
 from collections.abc import AsyncIterator, Sequence
 from io import StringIO
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 
@@ -14,7 +15,11 @@ SRC_ROOT = ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from code_agent_win.app import RootActionDispatcher, _model_profiles  # noqa: E402
+from code_agent_win.app import (  # noqa: E402
+    RootActionDispatcher,
+    _model_profiles,
+    create_application,
+)
 from code_agent_win.cli import _split_global_options, _split_profile_option, run  # noqa: E402
 from code_agent.core.cancellation import CancellationToken  # noqa: E402
 from code_agent.core.engine import AgentEngine  # noqa: E402
@@ -262,6 +267,26 @@ class CliFailureTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(status, 1)
         self.assertIn("RuntimeError", stderr.getvalue())
         self.assertNotIn("secret detail", stderr.getvalue())
+
+
+class ApplicationConstructionTests(unittest.TestCase):
+    def test_tui_uses_the_session_repository_for_history(self) -> None:
+        profile = SimpleNamespace(
+            max_agent_rounds=1,
+            max_tool_calls=1,
+            max_tool_calls_per_round=1,
+            name="test-model",
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            with patch("code_agent_win.app._model_client", return_value=(object(), profile)):
+                with patch(
+                    "code_agent_win.app._session_path",
+                    return_value=root / "sessions.sqlite3",
+                ):
+                    application = create_application(root)
+
+        self.assertIs(application.tui.sessions, application.tui.history)
 
 
 class FullStackTests(unittest.IsolatedAsyncioTestCase):

@@ -186,7 +186,7 @@ def create_application(workspace_root: Path | None = None) -> Application:
     controller = AgentController(AgentEngine(model, context, dispatcher, sessions))
     return Application(
         controller,
-        WindowsTerminalApp(controller, approvals, sessions=sessions),
+        WindowsTerminalApp(controller, approvals, sessions=sessions, history=sessions),
         dispatcher,
         model,
     )
