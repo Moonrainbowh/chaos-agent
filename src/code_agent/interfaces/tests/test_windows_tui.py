@@ -11,7 +11,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from code_agent.core.events import AgentEvent, EventKind  # noqa: E402
-from code_agent.core.models import ModelEvent, ModelEventKind  # noqa: E402
+from code_agent.core.models import Message, ModelEvent, ModelEventKind  # noqa: E402
 from code_agent.interfaces.controller import AgentController  # noqa: E402
 from code_agent.interfaces.terminal_state import ApprovalBroker, TerminalState  # noqa: E402
 from code_agent.interfaces.tests._support import FakeEngine  # noqa: E402
@@ -38,6 +38,21 @@ class WindowsTerminalRendererTests(unittest.TestCase):
         self.assertIn("requested read_file", rendered)
         self.assertIn("+++ b/x.py", rendered)
         self.assertIn("> next input", rendered)
+
+    def test_renderer_shows_an_older_transcript_window_at_history_offset(self) -> None:
+        state = TerminalState()
+        state.summary = ["goal: recover"]
+        state.timeline = ["requested read_file"]
+        state.transcript = [f"line {index}" for index in range(6)]
+
+        rendered = render_terminal(state, "", 80, 12, history_offset=2)
+
+        self.assertIn("line 0", rendered)
+        self.assertIn("line 3", rendered)
+        self.assertNotIn("line 4", rendered)
+        self.assertNotIn("line 5", rendered)
+        self.assertIn("goal: recover", rendered)
+        self.assertIn("recent: requested read_file", rendered)
 
 
 class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
@@ -66,6 +81,66 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
         self.assertGreaterEqual(len(output), 3)
         self.assertFalse(await app.submit("   "))
         await asyncio.sleep(0)
+
+    async def test_history_navigation_changes_and_resets_the_offset(self) -> None:
+        app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker())
+        app.state.transcript = [f"line {index}" for index in range(6)]
+
+        await app.handle_key("page_up")
+
+        self.assertGreater(app.history_offset, 0)
+        await app.handle_key("end")
+        self.assertEqual(app.history_offset, 0)
+
+    async def test_restore_thread_replaces_state_from_history_reader(self) -> None:
+        reader = _HistoryReader((Message("user", "resume task"), Message("assistant", "restored")))
+        app = WindowsTerminalApp(
+            AgentController(FakeEngine(())), ApprovalBroker(), history=reader
+        )
+
+        restored = await app.restore_thread("thread-1")
+
+        self.assertTrue(restored)
+        self.assertEqual(app.current_thread_id, "thread-1")
+        self.assertIn("goal: resume task", app.state.summary)
+        self.assertIn("assistant: restored", app.state.transcript)
+
+    async def test_restore_thread_failure_keeps_previous_state(self) -> None:
+        app = WindowsTerminalApp(
+            AgentController(FakeEngine(())), ApprovalBroker(), history=_FailingHistoryReader()
+        )
+        app.state.transcript = ["assistant: keep this"]
+
+        restored = await app.restore_thread("thread-1")
+
+        self.assertFalse(restored)
+        self.assertEqual(app.state.transcript, ["assistant: keep this"])
+        self.assertEqual(app.state.status, "session restore failed")
+
+
+class _HistoryReader:
+    def __init__(self, messages: tuple[Message, ...]) -> None:
+        self.messages = messages
+
+    async def load_messages(self, thread_id: str) -> tuple[Message, ...]:
+        return self.messages
+
+    async def load_events(self, thread_id: str) -> tuple[AgentEvent, ...]:
+        return ()
+
+    async def list_goals(self, thread_id: str) -> tuple[object, ...]:
+        return ()
+
+    async def list_checkpoints(self, thread_id: str) -> tuple[object, ...]:
+        return ()
+
+
+class _FailingHistoryReader(_HistoryReader):
+    def __init__(self) -> None:
+        super().__init__(())
+
+    async def load_messages(self, thread_id: str) -> tuple[Message, ...]:
+        raise RuntimeError("storage unavailable")
 
 
 if __name__ == "__main__":
