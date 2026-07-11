@@ -9,6 +9,8 @@ class ApprovalMode(str, Enum):
     PLAN = "plan"
     ASK = "ask"
     AUTO = "auto"
+    ELEVATED = "elevated"
+    FULL_LOCAL = "full-local"
 
 
 class Capability(str, Enum):

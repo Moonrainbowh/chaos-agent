@@ -14,8 +14,8 @@ SRC_ROOT = ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from code_agent_win.app import RootActionDispatcher  # noqa: E402
-from code_agent_win.cli import run  # noqa: E402
+from code_agent_win.app import RootActionDispatcher, _model_profiles  # noqa: E402
+from code_agent_win.cli import _split_global_options, _split_profile_option, run  # noqa: E402
 from code_agent.core.cancellation import CancellationToken  # noqa: E402
 from code_agent.core.engine import AgentEngine  # noqa: E402
 from code_agent.core.events import EventKind  # noqa: E402
@@ -79,6 +79,58 @@ class RootActionDispatcherTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.output["text"], "before\n")
         self.assertIn("read_file", [tool.name for tool in self.dispatcher.tools()])
 
+    async def test_full_local_reads_and_writes_explicit_external_file(self) -> None:
+        outside = self.root.parent / "outside.txt"
+        outside.write_bytes(b"external\n")
+        guard = WorkspacePathGuard(self.root, allow_outside=True)
+        dispatcher = RootActionDispatcher(
+            WorkspaceFiles(guard, IgnoreRules.from_workspace(self.root)),
+            WorkspaceEditor(guard),
+            ActionPolicy(
+                PolicyConfig(ApprovalMode.FULL_LOCAL, workspace_root=self.root)
+            ),
+            ApprovalBroker(),
+        )
+
+        read = await dispatcher.dispatch(
+            ActionRequest("read", "read_file", {"path": str(outside)}),
+            CancellationToken(),
+        )
+        write = await dispatcher.dispatch(
+            ActionRequest(
+                "write", "write_file", {"path": str(outside), "content": "changed\n"}
+            ),
+            CancellationToken(),
+        )
+
+        self.assertFalse(read.is_error)
+        self.assertEqual(read.output["text"], "external\n")
+        self.assertFalse(write.is_error)
+        self.assertEqual(outside.read_text(encoding="utf-8"), "changed\n")
+
+    async def test_full_local_recursively_lists_an_explicit_external_root(self) -> None:
+        outside = self.root.parent / f"{self.root.name}-external-tree"
+        (outside / "nested").mkdir(parents=True)
+        (outside / "top.txt").write_text("top", encoding="utf-8")
+        (outside / "nested" / "child.txt").write_text("child", encoding="utf-8")
+        guard = WorkspacePathGuard(self.root, allow_outside=True)
+        dispatcher = RootActionDispatcher(
+            WorkspaceFiles(guard, IgnoreRules.from_workspace(self.root)),
+            WorkspaceEditor(guard),
+            ActionPolicy(
+                PolicyConfig(ApprovalMode.FULL_LOCAL, workspace_root=self.root)
+            ),
+            ApprovalBroker(),
+        )
+
+        result = await dispatcher.dispatch(
+            ActionRequest("list", "list_files", {"root": str(outside)}),
+            CancellationToken(),
+        )
+
+        self.assertFalse(result.is_error)
+        self.assertEqual(result.output["files"], ("nested/child.txt", "top.txt"))
+
     async def test_write_file_returns_previewed_diff_and_applies_after_policy(self) -> None:
         result = await self.dispatcher.dispatch(
             ActionRequest(
@@ -112,6 +164,32 @@ class RootActionDispatcherTests(unittest.IsolatedAsyncioTestCase):
 
 
 class CliFailureTests(unittest.IsolatedAsyncioTestCase):
+    def test_global_profile_option_is_removed_before_command_parsing(self) -> None:
+        profile, command = _split_profile_option(("--profile", "company", "ask", "inspect"))
+
+        self.assertEqual(profile, "company")
+        self.assertEqual(command, ("ask", "inspect"))
+        with self.assertRaises(ValueError):
+            _split_profile_option(("--profile", "", "ask", "inspect"))
+
+    def test_global_model_option_is_removed_before_command_parsing(self) -> None:
+        model, command = _split_global_options(("--model", "fast", "ask", "inspect"))
+
+        self.assertEqual(model, "fast")
+        self.assertEqual(command, ("ask", "inspect"))
+        with self.assertRaises(ValueError):
+            _split_global_options(("--model", "fast", "--model", "slow", "ask", "inspect"))
+
+    def test_model_profile_owns_endpoint_protocol_and_auth_reference(self) -> None:
+        profiles = '{"fast":{"model":"api-fast","base_url":"https://example.test/api","api":"chat_completions","api_key_env":"FAST_KEY","context_window":1000,"max_output_tokens":100}}'
+
+        with patch.dict("os.environ", {"CODE_AGENT_MODEL_PROFILES": profiles}, clear=True):
+            selected = _model_profiles().select("fast")
+
+        self.assertEqual(selected.provider.base_url, "https://example.test/api")
+        self.assertEqual(selected.provider.api.value, "chat_completions")
+        self.assertEqual(selected.provider.api_key_env, "FAST_KEY")
+
     async def test_cli_reports_safe_error_without_a_traceback(self) -> None:
         stderr = StringIO()
 

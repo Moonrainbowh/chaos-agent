@@ -21,6 +21,38 @@ from code_agent.workspace.paths import WorkspacePathGuard  # noqa: E402
 
 
 class WorkspacePathGuardTests(unittest.TestCase):
+    def test_external_access_requires_explicit_guard_permissions(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary).resolve()
+            root = base / "workspace"
+            outside = base / "outside.txt"
+            root.mkdir()
+            outside.write_text("outside\n", encoding="utf-8")
+
+            strict = WorkspacePathGuard(root)
+            with self.assertRaises(PathOutsideWorkspace):
+                strict.resolve(outside)
+
+            permissive = WorkspacePathGuard(root, allow_outside=True)
+            self.assertEqual(permissive.resolve(outside), outside)
+
+    def test_external_sensitive_path_needs_its_own_opt_in(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary).resolve()
+            root = base / "workspace"
+            private_key = base / "id_ed25519"
+            root.mkdir()
+            private_key.write_text("private", encoding="utf-8")
+
+            guard = WorkspacePathGuard(root, allow_outside=True)
+            with self.assertRaises(SensitivePathError):
+                guard.resolve(private_key)
+            self.assertEqual(
+                WorkspacePathGuard(
+                    root, allow_outside=True, allow_sensitive=True
+                ).resolve(private_key),
+                private_key,
+            )
     def test_root_must_be_an_existing_directory(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
@@ -93,6 +125,16 @@ class WorkspacePathGuardTests(unittest.TestCase):
             self.assertEqual(permissive.resolve("server.pem"), root / "server.pem")
             with self.assertRaises(SensitivePathError):
                 permissive.resolve(".git/config")
+
+    def test_protects_local_api_config_directory_even_when_it_is_workspace(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            config_home = Path(temporary).resolve() / "code-agent"
+            config_home.mkdir()
+            (config_home / "config.toml").write_text("api_key = 'x'", encoding="utf-8")
+            with patch.dict(os.environ, {"LOCALAPPDATA": str(config_home.parent)}, clear=False):
+                guard = WorkspacePathGuard(config_home)
+                with self.assertRaises(SensitivePathError):
+                    guard.resolve("config.toml")
 
     def test_parent_components_cannot_hide_a_protected_directory(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

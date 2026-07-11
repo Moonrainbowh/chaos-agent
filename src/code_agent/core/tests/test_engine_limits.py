@@ -30,8 +30,9 @@ from code_agent.core.tests._engine_support import (  # noqa: E402
 class AgentEngineLimitTests(unittest.IsolatedAsyncioTestCase):
     def test_limits_reject_bool_and_out_of_range_values(self) -> None:
         for values in (
-            {"max_model_turns": 0},
+            {"max_agent_rounds": 0},
             {"max_tool_calls": -1},
+            {"max_tool_calls_per_round": 0},
             {"max_total_tokens": 0},
             {"max_assistant_chars": 0},
             {"max_tool_calls": True},
@@ -39,6 +40,24 @@ class AgentEngineLimitTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(values=values):
                 with self.assertRaises((TypeError, ValueError)):
                     EngineLimits(**values)  # type: ignore[arg-type]
+
+    async def test_resumed_thread_uses_persisted_task_round_budget(self) -> None:
+        sessions = MemorySessionRepository()
+        first = self.make_engine(
+            FakeModelClient(((ModelEvent(ModelEventKind.COMPLETED),),)),
+            sessions,
+            limits=EngineLimits(max_agent_rounds=1),
+        )
+        events = [event async for event in first.run("first")]
+        thread_id = events[0].payload["thread_id"]
+        resumed = self.make_engine(
+            FakeModelClient(((ModelEvent(ModelEventKind.COMPLETED),),)),
+            sessions,
+            limits=EngineLimits(max_agent_rounds=99),
+        )
+
+        with self.assertRaises(EngineLimitError):
+            _ = [event async for event in resumed.run("continue", thread_id=thread_id)]
 
     def make_engine(
         self,

@@ -29,12 +29,20 @@ _PRIVATE_KEY_SUFFIXES = (".key", ".pem", ".p12", ".pfx", ".private")
 class WorkspacePathGuard:
     """Resolve paths while enforcing containment and sensitive-file policy."""
 
-    def __init__(self, root: PathInput, *, allow_sensitive: bool = False) -> None:
+    def __init__(
+        self,
+        root: PathInput,
+        *,
+        allow_sensitive: bool = False,
+        allow_outside: bool = False,
+    ) -> None:
         root_path = Path(root).expanduser()
         if not root_path.exists() or not root_path.is_dir():
             raise ValueError("workspace root must be an existing directory")
         self.root = root_path.resolve(strict=True)
         self.allow_sensitive = bool(allow_sensitive)
+        self.allow_outside = bool(allow_outside)
+        self._local_config_directory = _local_config_directory()
 
     def resolve(self, path: PathInput, *, for_write: bool = False) -> Path:
         """Return a canonical in-workspace path, including for new files."""
@@ -51,20 +59,37 @@ class WorkspacePathGuard:
         try:
             lexical_relative = candidate.relative_to(self.root)
         except ValueError as error:
-            raise PathOutsideWorkspace(f"path escapes workspace: {raw!r}") from error
-        self._reject_link_components(lexical_relative, raw)
+            if not self.allow_outside:
+                raise PathOutsideWorkspace(f"path escapes workspace: {raw!r}") from error
+            lexical_relative = None
+        if lexical_relative is not None:
+            self._reject_link_components(lexical_relative, raw)
+        else:
+            self._reject_absolute_link_components(candidate, raw)
         try:
             resolved = candidate.resolve(strict=False)
             relative = resolved.relative_to(self.root)
         except (OSError, RuntimeError, ValueError) as error:
-            raise PathOutsideWorkspace(f"path escapes workspace: {raw!r}") from error
+            if not self.allow_outside:
+                raise PathOutsideWorkspace(f"path escapes workspace: {raw!r}") from error
+            try:
+                resolved = candidate.resolve(strict=False)
+            except (OSError, RuntimeError) as resolve_error:
+                raise PathOutsideWorkspace(f"path cannot be resolved: {raw!r}") from resolve_error
+            relative = resolved
 
         self._check_policy(relative)
+        if _is_within(resolved, self._local_config_directory):
+            raise SensitivePathError("local API configuration path is protected")
         return resolved
 
     def relative(self, path: PathInput) -> Path:
         """Return the canonical workspace-relative path."""
-        return self.resolve(path).relative_to(self.root)
+        resolved = self.resolve(path)
+        try:
+            return resolved.relative_to(self.root)
+        except ValueError:
+            return resolved
 
     def _check_policy(self, relative: Path) -> None:
         parts = relative.parts
@@ -83,6 +108,13 @@ class WorkspacePathGuard:
                     raise PathOutsideWorkspace(f"path escapes workspace: {raw!r}")
                 current = current.parent
                 continue
+            current = current / part
+            if _is_link_like(current):
+                raise PathOutsideWorkspace(f"linked paths are not allowed: {raw!r}")
+
+    def _reject_absolute_link_components(self, candidate: Path, raw: str) -> None:
+        current = Path(candidate.anchor)
+        for part in candidate.parts[1:]:
             current = current / part
             if _is_link_like(current):
                 raise PathOutsideWorkspace(f"linked paths are not allowed: {raw!r}")
@@ -106,3 +138,19 @@ def _is_link_like(path: Path) -> bool:
         return False
     reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
     return bool(attributes & reparse_flag)
+
+
+def _local_config_directory() -> Path:
+    base = os.getenv("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
+    configured = os.getenv("CODE_AGENT_CONFIG")
+    if configured and Path(configured).is_absolute():
+        return Path(configured).expanduser().parent.resolve(strict=False)
+    return (Path(base) / "code-agent").resolve(strict=False)
+
+
+def _is_within(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+        return True
+    except ValueError:
+        return False

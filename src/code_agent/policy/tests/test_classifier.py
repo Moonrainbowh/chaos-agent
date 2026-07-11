@@ -27,7 +27,10 @@ def request(name: str, **arguments: object) -> ActionRequest:
 
 class PolicyModelTests(unittest.TestCase):
     def test_enums_have_stable_wire_values(self) -> None:
-        self.assertEqual([item.value for item in ApprovalMode], ["plan", "ask", "auto"])
+        self.assertEqual(
+            [item.value for item in ApprovalMode],
+            ["plan", "ask", "auto", "elevated", "full-local"],
+        )
         self.assertEqual(
             [item.value for item in Capability],
             ["read", "write", "execute", "network", "outside_workspace"],

@@ -66,6 +66,7 @@ class WorkspaceFiles:
 
     def list_files(
         self,
+        root: str | os.PathLike[str] | None = None,
         sorted: bool = True,
         max_entries: int = DEFAULT_MAX_ENTRIES,
         max_scanned_entries: int | None = None,
@@ -80,6 +81,8 @@ class WorkspaceFiles:
         scan_limit = _scan_limit(max_entries, max_scanned_entries)
 
         del sorted  # The underlying iterator is ordered for both modes.
+        if root is not None:
+            return tuple(islice(self._iter_external_files(root, scan_limit), max_entries))
         return tuple(islice(self._iter_files(scan_limit), max_entries))
 
     def read_text(
@@ -125,6 +128,37 @@ class WorkspaceFiles:
             start_line=start_line,
             end_line=selected_end,
         )
+
+    def _iter_external_files(
+        self, root: str | os.PathLike[str], max_scanned_entries: int
+    ) -> Iterator[str]:
+        directory = self.guard.resolve(root)
+        if not directory.is_dir():
+            raise WorkspaceError(f"not a directory: {directory}")
+        pending = [directory]
+        scanned = 0
+        paths: list[str] = []
+        while pending:
+            current = pending.pop()
+            try:
+                entries = list(current.iterdir())
+                entries.sort(key=lambda item: item.name.casefold())
+            except OSError:
+                continue
+            for entry in entries:
+                scanned += 1
+                if scanned > max_scanned_entries:
+                    raise WorkspaceError(f"workspace scan exceeds {max_scanned_entries} entries")
+                try:
+                    resolved = self.guard.resolve(entry)
+                except WorkspaceError:
+                    continue
+                if resolved.is_dir():
+                    pending.append(resolved)
+                elif resolved.is_file():
+                    paths.append(resolved.relative_to(directory).as_posix())
+        paths.sort()
+        yield from paths
 
     def search(
         self,

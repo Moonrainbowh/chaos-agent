@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Mapping, Optional, Sequence
 
@@ -11,8 +12,10 @@ from code_agent.context.compaction import DeterministicCompactor
 from code_agent.context.models import ContextConfig
 from code_agent.context.repo_map import RepoMapBuilder
 from code_agent.context.rules import RuleLoader
+from code_agent.config.loader import load_runtime_config
 from code_agent.core.cancellation import CancellationToken
 from code_agent.core.engine import AgentEngine
+from code_agent.core.limits import EngineLimits
 from code_agent.core.models import ActionRequest, ActionResult, ToolDefinition
 from code_agent.interfaces.controller import AgentController
 from code_agent.interfaces.terminal_state import ApprovalBroker, ApprovalRequest
@@ -20,7 +23,12 @@ from code_agent.interfaces.windows_tui import WindowsTerminalApp
 from code_agent.policy.engine import ActionPolicy, PolicyConfig
 from code_agent.policy.models import ApprovalMode, DecisionOutcome
 from code_agent.providers.anthropic import AnthropicClient
-from code_agent.providers.config import ApiProtocol, ProviderConfig
+from code_agent.providers.config import (
+    ApiProtocol,
+    ModelProfile,
+    ModelProfileResolver,
+    ProviderConfig,
+)
 from code_agent.providers.openai_chat import OpenAIChatClient
 from code_agent.providers.openai_responses import OpenAIResponsesClient
 from code_agent.runtime.local import WindowsLocalRuntime
@@ -56,8 +64,8 @@ class RootActionDispatcher:
 
     def tools(self) -> Sequence[ToolDefinition]:
         return (
-            ToolDefinition("read_file", "Read a UTF-8 workspace file.", {"type": "object"}),
-            ToolDefinition("list_files", "List visible workspace files.", {"type": "object"}),
+            ToolDefinition("read_file", "Read a permitted UTF-8 file.", {"type": "object"}),
+            ToolDefinition("list_files", "List permitted files; root enables recursive enumeration.", {"type": "object"}),
             ToolDefinition("search_text", "Search visible workspace text.", {"type": "object"}),
             ToolDefinition("write_file", "Atomically write a reviewed workspace file.", {"type": "object"}),
             ToolDefinition("replace_text", "Replace one exact text occurrence.", {"type": "object"}),
@@ -96,7 +104,10 @@ class RootActionDispatcher:
             )
             return _ok(request, {"path": document.relative_path, "text": document.text, "total_lines": document.total_lines})
         if request.name == "list_files":
-            files = await asyncio.to_thread(self.files.list_files)
+            root = arguments.get("root")
+            if root is not None and not isinstance(root, str):
+                raise ValueError("root must be text")
+            files = await asyncio.to_thread(self.files.list_files, root)
             return _ok(request, {"files": list(files)})
         if request.name == "search_text":
             matches = await asyncio.to_thread(
@@ -156,9 +167,18 @@ class Application:
             await close()
 
 
-def create_application(workspace_root: Path | None = None) -> Application:
+def create_application(
+    workspace_root: Path | None = None,
+    model_name: str | None = None,
+    profile_name: str | None = None,
+) -> Application:
     root = (workspace_root or Path.cwd()).resolve()
-    guard = WorkspacePathGuard(root)
+    runtime_config = load_runtime_config(cli_profile=profile_name)
+    guard = WorkspacePathGuard(
+        root,
+        allow_outside=runtime_config.approval_mode is not ApprovalMode.PLAN,
+        allow_sensitive=runtime_config.allow_sensitive_paths,
+    )
     files = WorkspaceFiles(guard, IgnoreRules.from_workspace(root))
     config = ContextConfig(root, root, "You are a careful coding agent.")
     context = WorkspaceContextBuilder(
@@ -168,8 +188,9 @@ def create_application(workspace_root: Path | None = None) -> Application:
         DeterministicCompactor(config),
     )
     approvals = ApprovalBroker()
-    mode = ApprovalMode(os.getenv("CODE_AGENT_APPROVAL_MODE", "ask"))
-    policy = ActionPolicy(PolicyConfig(mode, workspace_root=root))
+    policy = ActionPolicy(
+        PolicyConfig(runtime_config.approval_mode, workspace_root=root)
+    )
     dispatcher = RootActionDispatcher(
         files,
         WorkspaceEditor(guard),
@@ -179,8 +200,15 @@ def create_application(workspace_root: Path | None = None) -> Application:
         runtime=WindowsLocalRuntime(root),
     )
     sessions = SQLiteSessionRepository(_session_path())
-    model = _model_client()
-    controller = AgentController(AgentEngine(model, context, dispatcher, sessions))
+    model, profile = _model_client(model_name, runtime_config.provider)
+    limits = EngineLimits(
+        max_agent_rounds=profile.max_agent_rounds,
+        max_tool_calls=profile.max_tool_calls,
+        max_tool_calls_per_round=profile.max_tool_calls_per_round,
+    )
+    controller = AgentController(
+        AgentEngine(model, context, dispatcher, sessions, limits=limits, model_name=profile.name)
+    )
     return Application(
         controller,
         WindowsTerminalApp(controller, approvals, sessions=sessions),
@@ -189,19 +217,78 @@ def create_application(workspace_root: Path | None = None) -> Application:
     )
 
 
-def _model_client() -> object:
-    protocol = ApiProtocol(os.getenv("CODE_AGENT_API", "responses"))
-    config = ProviderConfig(
-        base_url=os.getenv("CODE_AGENT_BASE_URL", "https://api.openai.com"),
-        model=os.getenv("CODE_AGENT_MODEL", "gpt-4.1-mini"),
-        api=protocol,
-        api_key_env=os.getenv("CODE_AGENT_API_KEY_ENV", "OPENAI_API_KEY"),
+def _model_client(
+    model_name: str | None = None, provider: ProviderConfig | None = None
+) -> tuple[object, ModelProfile]:
+    profile = _model_profiles(provider).select(model_name)
+    config = replace(
+        profile.provider, max_tool_calls=profile.max_tool_calls_per_round
     )
-    if protocol is ApiProtocol.RESPONSES:
-        return OpenAIResponsesClient(config)
-    if protocol is ApiProtocol.CHAT_COMPLETIONS:
-        return OpenAIChatClient(config)
-    return AnthropicClient(config)
+    if config.api is ApiProtocol.RESPONSES:
+        return OpenAIResponsesClient(config), profile
+    if config.api is ApiProtocol.CHAT_COMPLETIONS:
+        return OpenAIChatClient(config), profile
+    return AnthropicClient(config), profile
+
+
+def _model_profiles(provider: ProviderConfig | None = None) -> ModelProfileResolver:
+    raw = os.getenv("CODE_AGENT_MODEL_PROFILES")
+    default_name = os.getenv("CODE_AGENT_DEFAULT_MODEL")
+    if raw is None:
+        name = default_name or os.getenv("CODE_AGENT_MODEL", "gpt-4.1-mini")
+        profile = ModelProfile(
+            name=name,
+            provider=provider or _provider_config({"model": name}),
+            context_window=128_000,
+            max_output_tokens=16_384,
+        )
+        return ModelProfileResolver({name: profile}, name)
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as error:
+        raise ValueError("CODE_AGENT_MODEL_PROFILES must be valid JSON") from error
+    if not isinstance(payload, dict):
+        raise ValueError("CODE_AGENT_MODEL_PROFILES must be an object")
+    profiles: dict[str, ModelProfile] = {}
+    for name, values in payload.items():
+        if not isinstance(name, str) or not isinstance(values, dict):
+            raise ValueError("model profiles must map names to objects")
+        profiles[name] = ModelProfile(
+            name=name,
+            provider=_provider_config(values),
+            context_window=_positive(values, "context_window"),
+            max_output_tokens=_positive(values, "max_output_tokens"),
+            max_agent_rounds=_positive(values, "max_agent_rounds", 50),
+            max_tool_calls=_positive(values, "max_tool_calls", 128),
+            max_tool_calls_per_round=_positive(values, "max_tool_calls_per_round", 50),
+        )
+    return ModelProfileResolver(profiles, default_name or next(iter(profiles), ""))
+
+
+def _provider_config(values: Mapping[str, object]) -> ProviderConfig:
+    protocol = ApiProtocol(values.get("api", os.getenv("CODE_AGENT_API", "responses")))
+    return ProviderConfig(
+        base_url=_string(
+            values, "base_url", os.getenv("CODE_AGENT_BASE_URL", "https://api.openai.com")
+        ),
+        model=_string(values, "model"),
+        api=protocol,
+        api_key_env=_string(values, "api_key_env", os.getenv("CODE_AGENT_API_KEY_ENV", "OPENAI_API_KEY")),
+    )
+
+
+def _positive(values: Mapping[str, object], name: str, default: int | None = None) -> int:
+    value = values.get(name, default)
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise ValueError(f"model profile {name} must be a positive integer")
+    return value
+
+
+def _string(values: Mapping[str, object], name: str, default: str | None = None) -> str:
+    value = values.get(name, default)
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"model profile {name} must be non-blank text")
+    return value
 
 
 def _session_path() -> Path:

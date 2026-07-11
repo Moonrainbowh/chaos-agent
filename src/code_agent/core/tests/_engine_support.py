@@ -12,6 +12,7 @@ from code_agent.core.models import (
     ModelEvent,
     ToolDefinition,
 )
+from code_agent.core.limits import EngineLimits, TaskBudget
 
 
 class FakeModelClient:
@@ -86,6 +87,7 @@ class MemorySessionRepository:
         self.messages: dict[str, list[Message]] = {}
         self.events: dict[str, list[AgentEvent]] = {}
         self.created = 0
+        self.task_budgets: dict[str, TaskBudget] = {}
 
     async def create_thread(self) -> str:
         self.created += 1
@@ -102,3 +104,18 @@ class MemorySessionRepository:
 
     async def append_event(self, thread_id: str, event: AgentEvent) -> None:
         self.events[thread_id].append(event)
+
+    async def get_or_create_task_budget(
+        self, thread_id: str, model_name: str, limits: EngineLimits
+    ) -> TaskBudget:
+        return self.task_budgets.setdefault(thread_id, TaskBudget(model_name, limits))
+
+    async def reserve_task_budget(
+        self, thread_id: str, *, model_turns: int = 0, tool_calls: int = 0
+    ) -> TaskBudget | None:
+        current = self.task_budgets[thread_id]
+        if current.model_turns + model_turns > current.limits.max_agent_rounds or current.tool_calls + tool_calls > current.limits.max_tool_calls:
+            return None
+        next_budget = TaskBudget(current.model_name, current.limits, current.model_turns + model_turns, current.tool_calls + tool_calls)
+        self.task_budgets[thread_id] = next_budget
+        return next_budget

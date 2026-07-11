@@ -26,6 +26,36 @@ def request(name: str, **arguments: object) -> ActionRequest:
 
 
 class PathSecurityTests(unittest.TestCase):
+    def test_access_levels_apply_distinct_external_file_rules(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            workspace = base / "workspace"
+            workspace.mkdir()
+            outside = str(base / "outside.txt")
+            read = request("read_file", path=outside)
+            write = request("write_file", path=outside, content="x")
+
+            plan = ActionPolicy(
+                PolicyConfig(ApprovalMode.PLAN, workspace_root=workspace)
+            )
+            ask = ActionPolicy(
+                PolicyConfig(ApprovalMode.ASK, workspace_root=workspace)
+            )
+            elevated = ActionPolicy(
+                PolicyConfig(ApprovalMode.ELEVATED, workspace_root=workspace)
+            )
+            full = ActionPolicy(
+                PolicyConfig(ApprovalMode.FULL_LOCAL, workspace_root=workspace)
+            )
+
+        self.assertEqual(plan.evaluate(read).outcome, DecisionOutcome.DENY)
+        self.assertEqual(ask.evaluate(read).outcome, DecisionOutcome.ASK)
+        self.assertEqual(ask.evaluate(write).outcome, DecisionOutcome.DENY)
+        self.assertEqual(elevated.evaluate(read).outcome, DecisionOutcome.ASK)
+        self.assertEqual(elevated.evaluate(write).outcome, DecisionOutcome.ASK)
+        self.assertEqual(full.evaluate(read).outcome, DecisionOutcome.ALLOW)
+        self.assertEqual(full.evaluate(write).outcome, DecisionOutcome.ALLOW)
+
     def test_absolute_path_outside_workspace_is_high_risk(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)

@@ -70,19 +70,31 @@ class ActionPolicy:
                 "denied because critical-risk actions are never approved",
             )
 
-        read_only = classified.capabilities == frozenset({Capability.READ})
+        read_only = (
+            classified.capabilities - frozenset({Capability.OUTSIDE_WORKSPACE})
+            == frozenset({Capability.READ})
+        )
         mode = self.config.approval_mode
+        outside = Capability.OUTSIDE_WORKSPACE in classified.capabilities
 
         if mode is ApprovalMode.PLAN:
-            outcome = DecisionOutcome.ALLOW if read_only else DecisionOutcome.DENY
+            outcome = DecisionOutcome.ALLOW if read_only and not outside else DecisionOutcome.DENY
             reason = (
                 "allowed because plan mode permits read-only actions"
-                if read_only
+                if read_only and not outside
                 else "denied because plan mode permits read-only actions only"
             )
             return self._decision(outcome, classified, reason)
 
         if mode is ApprovalMode.ASK:
+            if outside:
+                outcome = DecisionOutcome.ASK if read_only else DecisionOutcome.DENY
+                reason = (
+                    "approval required for a single read outside the workspace"
+                    if read_only
+                    else "denied because ask mode does not permit writes outside the workspace"
+                )
+                return self._decision(outcome, classified, reason)
             outcome = DecisionOutcome.ALLOW if read_only else DecisionOutcome.ASK
             reason = (
                 "allowed because the action is read-only"
@@ -91,15 +103,28 @@ class ActionPolicy:
             )
             return self._decision(outcome, classified, reason)
 
-        if read_only:
+        if mode is ApprovalMode.FULL_LOCAL:
+            if Capability.EXECUTE in classified.capabilities:
+                return self._decision(
+                    DecisionOutcome.ASK,
+                    classified,
+                    "approval required for every command execution",
+                )
             return self._decision(
-                DecisionOutcome.ALLOW, classified, "allowed because the action is read-only"
+                DecisionOutcome.ALLOW,
+                classified,
+                "allowed by full-local mode for a non-critical typed action",
             )
-        if Capability.OUTSIDE_WORKSPACE in classified.capabilities:
+
+        if outside:
             return self._decision(
                 DecisionOutcome.ASK,
                 classified,
                 "approval required for access outside the workspace",
+            )
+        if read_only:
+            return self._decision(
+                DecisionOutcome.ALLOW, classified, "allowed because the action is read-only"
             )
         if Capability.EXECUTE in classified.capabilities:
             return self._decision(

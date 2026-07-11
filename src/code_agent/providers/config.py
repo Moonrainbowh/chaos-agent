@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 import os
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from urllib.parse import unquote, urlsplit
 
@@ -14,6 +14,30 @@ class ApiProtocol(str, Enum):
     RESPONSES = "responses"
     CHAT_COMPLETIONS = "chat_completions"
     ANTHROPIC_MESSAGES = "anthropic_messages"
+
+
+class ConfiguredApiKey:
+    """Opaque key value loaded from a local user configuration file."""
+
+    __slots__ = ("_value",)
+
+    def __init__(self, value: str) -> None:
+        if not isinstance(value, str) or not value.strip():
+            raise ProviderConfigError("configured API key must be non-empty")
+        self._value = value
+
+    def resolve(self) -> str:
+        return self._value
+
+    def __repr__(self) -> str:
+        return self.status
+
+    def __deepcopy__(self, memo: dict[int, object]) -> ConfiguredApiKey:
+        return self
+
+    @property
+    def status(self) -> str:
+        return f"configured (...{self._value[-4:]})"
 
 
 def _require_safe_base_url(value: object) -> str:
@@ -63,7 +87,10 @@ class ProviderConfig:
     base_url: str
     model: str
     api: ApiProtocol
-    api_key_env: str
+    api_key_env: str | None = None
+    api_key_source: ConfiguredApiKey | None = field(
+        default=None, repr=False, compare=False
+    )
     timeout_s: float = 60.0
     max_retries: int = 2
     max_event_bytes: int = 1_048_576
@@ -80,8 +107,15 @@ class ProviderConfig:
             raise ProviderConfigError("model must be a non-empty string")
         if not isinstance(self.api, ApiProtocol):
             raise ProviderConfigError("api must be an ApiProtocol")
-        if not isinstance(self.api_key_env, str) or not self.api_key_env.strip():
+        has_env = isinstance(self.api_key_env, str) and bool(self.api_key_env.strip())
+        if self.api_key_env is not None and not has_env:
             raise ProviderConfigError("api_key_env must be a non-empty string")
+        if self.api_key_source is not None and not isinstance(
+            self.api_key_source, ConfiguredApiKey
+        ):
+            raise ProviderConfigError("api_key_source must be a ConfiguredApiKey")
+        if has_env == (self.api_key_source is not None):
+            raise ProviderConfigError("configure exactly one API key source")
         if (
             isinstance(self.timeout_s, bool)
             or not isinstance(self.timeout_s, (int, float))
@@ -114,10 +148,70 @@ class ProviderConfig:
             )
 
     def resolve_api_key(self, env: Mapping[str, str] | None = None) -> str:
+        if self.api_key_source is not None:
+            return self.api_key_source.resolve()
         source = os.environ if env is None else env
-        value = source.get(self.api_key_env)
+        value = source.get(self.api_key_env or "")
         if not isinstance(value, str) or not value.strip():
             raise ProviderConfigError(
                 f"Required API key environment variable is missing: {self.api_key_env}"
             )
         return value
+
+    @property
+    def key_status(self) -> str:
+        if self.api_key_source is not None:
+            return self.api_key_source.status
+        return f"environment ({self.api_key_env})"
+
+
+@dataclass(frozen=True)
+class ModelProfile:
+    """One selectable model configuration without storing secret values."""
+
+    name: str
+    provider: ProviderConfig
+    context_window: int
+    max_output_tokens: int
+    max_agent_rounds: int = 50
+    max_tool_calls: int = 128
+    max_tool_calls_per_round: int = 50
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.name, str) or not self.name.strip():
+            raise ProviderConfigError("profile name must be a non-empty string")
+        if not isinstance(self.provider, ProviderConfig):
+            raise ProviderConfigError("profile provider must be a ProviderConfig")
+        for name in (
+            "context_window",
+            "max_output_tokens",
+            "max_agent_rounds",
+            "max_tool_calls",
+            "max_tool_calls_per_round",
+        ):
+            try:
+                _require_positive_int(getattr(self, name), name)
+            except ProviderConfigError:
+                raise
+
+
+class ModelProfileResolver:
+    def __init__(self, profiles: Mapping[str, ModelProfile], default_name: str) -> None:
+        if not isinstance(default_name, str) or not default_name.strip():
+            raise ProviderConfigError("default model name must be non-empty")
+        copied = dict(profiles)
+        if not copied or any(name != profile.name for name, profile in copied.items()):
+            raise ProviderConfigError("profiles must be keyed by their names")
+        if default_name not in copied:
+            raise ProviderConfigError("default model is not configured")
+        self._profiles = copied
+        self._default_name = default_name
+
+    def select(self, name: str | None) -> ModelProfile:
+        selected = self._default_name if name is None else name
+        if not isinstance(selected, str) or not selected.strip():
+            raise ProviderConfigError("model name must be non-empty")
+        try:
+            return self._profiles[selected]
+        except KeyError:
+            raise ProviderConfigError(f"unknown model profile: {selected}") from None
