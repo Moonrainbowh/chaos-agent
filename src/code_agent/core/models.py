@@ -14,9 +14,23 @@ from ._json import (
     validate_json_mapping,
     validate_name,
 )
+from .task_state import CommandFact, TaskState, TaskStateUpdate
 
 
 _MESSAGE_ROLES = frozenset({"system", "developer", "user", "assistant", "tool"})
+_CONTEXT_MEASUREMENT_KEYS = frozenset(
+    {
+        "prompt_tokens",
+        "rule_tokens",
+        "tool_tokens",
+        "task_state_tokens",
+        "repo_map_tokens",
+        "message_tokens",
+        "removed_message_count",
+        "cache_hits",
+        "cache_misses",
+    }
+)
 
 
 def _validate_token_count(value: object, label: str) -> None:
@@ -306,6 +320,7 @@ class ModelEvent:
 class ContextBundle:
     system_prompt: str
     messages: Tuple[Message, ...] = field(default_factory=tuple)
+    measurements: Mapping[str, int] = field(default_factory=dict, compare=False)
 
     def __post_init__(self) -> None:
         if not isinstance(self.system_prompt, str):
@@ -313,12 +328,19 @@ class ContextBundle:
         messages = tuple(self.messages)
         if not all(isinstance(message, Message) for message in messages):
             raise TypeError("messages must contain only Message values")
+        measurements = dict(self.measurements)
+        if not set(measurements).issubset(_CONTEXT_MEASUREMENT_KEYS):
+            raise ValueError("measurements contains an unsupported counter")
+        for name, value in measurements.items():
+            _validate_token_count(value, f"measurements.{name}")
         object.__setattr__(self, "messages", messages)
+        object.__setattr__(self, "measurements", freeze_mapping(measurements, "measurements"))
 
     def to_dict(self) -> dict[str, JSONValue]:
         return {
             "system_prompt": self.system_prompt,
             "messages": [message.to_dict() for message in self.messages],
+            "measurements": dict(self.measurements),
         }
 
     @classmethod
@@ -327,4 +349,5 @@ class ContextBundle:
         return cls(
             system_prompt=cast(str, data["system_prompt"]),
             messages=tuple(Message.from_dict(message) for message in messages),
+            measurements=cast(Mapping[str, int], data.get("measurements", {})),
         )

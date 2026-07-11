@@ -7,6 +7,7 @@ from typing import Mapping, cast
 from code_agent.core._json import JSONValue, plain
 from code_agent.core.events import AgentEvent
 from code_agent.core.models import Message
+from code_agent.core.task_state import TaskState
 
 from .errors import SessionCorruptionError
 
@@ -60,6 +61,21 @@ def decode_event(payload: object) -> AgentEvent:
         raise
     except (KeyError, TypeError, ValueError) as error:
         raise SessionCorruptionError("invalid persisted event") from error
+
+
+def encode_task_state(state: TaskState) -> str:
+    if not isinstance(state, TaskState):
+        raise TypeError("state must be a TaskState")
+    return _encode(state.to_dict())
+
+
+def decode_task_state(payload: object) -> TaskState:
+    try:
+        return TaskState.from_dict(_decode_object(payload, "task state"))
+    except SessionCorruptionError:
+        raise
+    except (KeyError, TypeError, ValueError) as error:
+        raise SessionCorruptionError("invalid persisted task state") from error
 
 
 def encode_metadata(metadata: Mapping[str, JSONValue]) -> str:

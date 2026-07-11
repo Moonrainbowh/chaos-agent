@@ -11,6 +11,8 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from code_agent.context.models import ContextConfig  # noqa: E402
+from code_agent.context.models import RepoEntry  # noqa: E402
+from code_agent.context.cache import RepoMapCache  # noqa: E402
 from code_agent.context.repo_map import RepoMapBuilder  # noqa: E402
 from code_agent.context.tokens import estimate_tokens  # noqa: E402
 from code_agent.workspace.files import WorkspaceFiles  # noqa: E402
@@ -42,8 +44,12 @@ class RepoMapBuilderTests(unittest.TestCase):
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(content, encoding="utf-8")
 
-    def builder(self, config: ContextConfig | None = None) -> RepoMapBuilder:
-        return RepoMapBuilder(self.files, config or self.config)
+    def builder(
+        self,
+        config: ContextConfig | None = None,
+        cache: RepoMapCache | None = None,
+    ) -> RepoMapBuilder:
+        return RepoMapBuilder(self.files, config or self.config, cache=cache)
 
     def entries_by_path(self) -> dict[str, object]:
         return {entry.path: entry for entry in self.builder().build()}
@@ -169,6 +175,79 @@ class RepoMapBuilderTests(unittest.TestCase):
         )
 
         self.assertLessEqual(len(self.builder(limited).build()), 3)
+
+    def test_unchanged_file_is_parsed_once_but_reranked_for_each_query(self) -> None:
+        self.write("alpha.py", "def alpha():\n    pass\n")
+        self.write("target.py", "def target():\n    pass\n")
+        builder = self.builder(cache=RepoMapCache())
+        scans = 0
+        original = builder._scan_file
+
+        def count_scans(path: str):
+            nonlocal scans
+            scans += 1
+            return original(path)
+
+        builder._scan_file = count_scans  # type: ignore[method-assign]
+
+        self.assertEqual(builder.build(query="alpha")[0].path, "alpha.py")
+        self.assertEqual(builder.build(query="target")[0].path, "target.py")
+        self.assertEqual(scans, 2)
+
+    def test_changed_file_is_reparsed_and_reranked(self) -> None:
+        self.write("module.py", "def first():\n    pass\n")
+        self.write("other.py", "def other():\n    pass\n")
+        builder = self.builder(cache=RepoMapCache())
+        self.assertEqual(builder.build(query="first")[0].path, "module.py")
+        self.write("module.py", "def second_symbol():\n    pass\n")
+
+        entries = builder.build(query="second_symbol")
+
+        self.assertEqual(entries[0].path, "module.py")
+        self.assertEqual(entries[0].symbols[0].name, "second_symbol")
+
+    def test_cache_evicts_the_least_recently_accessed_entry_at_capacity(self) -> None:
+        cache = RepoMapCache(max_entries=2)
+        first, second, third = (self.root / f"{name}.py" for name in ("first", "second", "third"))
+        for path in (first, second, third):
+            path.write_text("pass\n", encoding="utf-8")
+        scans = {"first": 0, "second": 0, "third": 0}
+
+        def scan(name: str) -> RepoEntry:
+            scans[name] += 1
+            return RepoEntry(f"{name}.py")
+
+        cache.get_or_scan(first, lambda: scan("first"))
+        cache.get_or_scan(second, lambda: scan("second"))
+        cache.get_or_scan(first, lambda: scan("first"))
+        cache.get_or_scan(third, lambda: scan("third"))
+        cache.get_or_scan(first, lambda: scan("first"))
+        cache.get_or_scan(second, lambda: scan("second"))
+
+        self.assertEqual(scans, {"first": 1, "second": 2, "third": 1})
+
+    def test_cached_importer_reresolves_dependencies_when_provider_is_added(self) -> None:
+        self.write("consumer.py", "import provider\n")
+        builder = self.builder(cache=RepoMapCache())
+        first = {entry.path: entry for entry in builder.build()}
+        self.assertEqual(first["consumer.py"].dependencies, ())
+
+        self.write("provider.py", "def provide():\n    pass\n")
+        second = builder.build()
+        updated = {entry.path: entry for entry in second}
+
+        self.assertEqual(updated["consumer.py"].dependencies, ("provider.py",))
+        self.assertEqual(second[0].path, "provider.py")
+
+    def test_parse_and_binary_failures_are_not_cached(self) -> None:
+        self.write("broken.py", "def broken(\n")
+        (self.root / "binary.ts").write_bytes(b"class Nope \xff")
+        cache = RepoMapCache()
+        builder = self.builder(cache=cache)
+
+        builder.build()
+
+        self.assertEqual(len(cache), 0)
 
 
 if __name__ == "__main__":

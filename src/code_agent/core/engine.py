@@ -21,6 +21,7 @@ from .models import (
     ModelEvent,
     ModelEventKind,
     ToolCall,
+    ToolDefinition,
     Usage,
 )
 from .protocols import (
@@ -29,6 +30,7 @@ from .protocols import (
     ModelClient,
     SessionRepository,
 )
+from .task_state import TaskState
 
 
 class AgentEngine:
@@ -40,16 +42,12 @@ class AgentEngine:
         sessions: SessionRepository,
         *,
         limits: Optional[EngineLimits] = None,
-        model_name: str = "configured-model",
     ) -> None:
         self._model = model
         self._context = context
         self._actions = actions
         self._journal = SessionJournal(sessions)
         self._limits = limits or EngineLimits()
-        if not isinstance(model_name, str) or not model_name.strip():
-            raise ValueError("model_name must be non-blank text")
-        self._model_name = model_name
 
     async def run(
         self,
@@ -70,9 +68,6 @@ class AgentEngine:
 
         token = cancellation or CancellationToken()
         active_thread = thread_id or await self._journal.create_thread()
-        task_budget = await self._journal.get_or_create_task_budget(
-            active_thread, self._model_name, self._limits
-        )
         started = AgentEvent(
             kind=EventKind.RUN_STARTED,
             payload={"thread_id": active_thread},
@@ -91,16 +86,12 @@ class AgentEngine:
 
             messages = prior_messages + (user_message,)
             used_call_ids: set[str] = set()
+            tool_call_count = 0
             total_usage = Usage()
 
-            for turn in range(1, task_budget.limits.max_agent_rounds + 1):
+            for turn in range(1, self._limits.max_model_turns + 1):
                 token.raise_if_cancelled()
-                reserved = await self._journal.reserve_task_budget(
-                    active_thread, model_turns=1
-                )
-                if reserved is None:
-                    raise EngineLimitError("model turn budget exceeded")
-                task_budget = reserved
+                tools, tool_names = self._advertised_tools()
                 turn_started = AgentEvent(
                     kind=EventKind.TURN_STARTED,
                     payload={"turn": turn},
@@ -111,7 +102,13 @@ class AgentEngine:
                 source_messages = prior_messages if turn == 1 else messages
                 source_input = user_input if turn == 1 else ""
                 try:
-                    bundle = await self._context.build(source_messages, source_input)
+                    task_state = await self._journal.load_task_state(active_thread)
+                    bundle = await self._context.build(
+                        source_messages,
+                        source_input,
+                        tools,
+                        task_state,
+                    )
                     if not isinstance(bundle, ContextBundle):
                         raise TypeError("context builder returned an invalid bundle")
                 except CancellationError:
@@ -121,7 +118,7 @@ class AgentEngine:
 
                 built = AgentEvent(
                     kind=EventKind.CONTEXT_BUILT,
-                    payload={"turn": turn, "message_count": len(bundle.messages)},
+                    payload={"turn": turn, **bundle.measurements},
                 )
                 await self._journal.append_event(active_thread, built)
                 yield built
@@ -137,10 +134,6 @@ class AgentEngine:
                 calls: list[ToolCall] = []
                 completed = False
                 try:
-                    tools = tuple(self._actions.tools())
-                    tool_names = {tool.name for tool in tools}
-                    if len(tool_names) != len(tools):
-                        raise ModelStreamError("action dispatcher exposed duplicate tools")
                     stream = self._model.stream(
                         bundle.system_prompt,
                         bundle.messages,
@@ -193,8 +186,8 @@ class AgentEngine:
                         kind=EventKind.COMPLETED,
                         payload={
                             "thread_id": active_thread,
-                            "turns": task_budget.model_turns,
-                            "tool_calls": task_budget.tool_calls,
+                            "turns": turn,
+                            "tool_calls": tool_call_count,
                             "usage": usage_payload(total_usage),
                         },
                     )
@@ -202,16 +195,10 @@ class AgentEngine:
                     yield finished
                     return
 
-                if task_budget.model_turns >= task_budget.limits.max_agent_rounds:
+                if turn >= self._limits.max_model_turns:
                     raise EngineLimitError("model turn budget exceeded")
-                if len(calls) > task_budget.limits.max_tool_calls_per_round:
-                    raise EngineLimitError("tool call per-round budget exceeded")
-                reserved = await self._journal.reserve_task_budget(
-                    active_thread, tool_calls=len(calls)
-                )
-                if reserved is None:
+                if tool_call_count + len(calls) > self._limits.max_tool_calls:
                     raise EngineLimitError("tool call budget exceeded")
-                task_budget = reserved
                 if len({call.id for call in calls}) != len(calls) or any(
                     call.id in used_call_ids for call in calls
                 ):
@@ -219,6 +206,7 @@ class AgentEngine:
 
                 for call in calls:
                     used_call_ids.add(call.id)
+                    tool_call_count += 1
                     async for action_event in self._dispatch(
                         active_thread,
                         call,
@@ -286,6 +274,16 @@ class AgentEngine:
                     type(exc).__name__,
                 )
 
+        if call.name in {
+            "read_file",
+            "list_files",
+            "search_text",
+            "write_file",
+            "replace_text",
+            "run_command",
+        }:
+            await self._journal.reduce_task_state(thread_id, request, result)
+
         completed = AgentEvent(
             kind=EventKind.ACTION_COMPLETED,
             payload={"result": result.to_dict()},
@@ -309,6 +307,20 @@ class AgentEngine:
         added = self._journal.message_added(message)
         await self._journal.append_event(thread_id, added)
         yield added
+
+    def _advertised_tools(self) -> tuple[tuple[ToolDefinition, ...], set[str]]:
+        try:
+            tools = tuple(self._actions.tools())
+            if not all(isinstance(tool, ToolDefinition) for tool in tools):
+                raise TypeError("action dispatcher exposed an invalid tool")
+            tool_names = {tool.name for tool in tools}
+            if len(tool_names) != len(tools):
+                raise ModelStreamError("action dispatcher exposed duplicate tools")
+            return tools, tool_names
+        except ModelStreamError:
+            raise
+        except Exception:
+            raise ModelStreamError("action dispatcher exposed invalid tools") from None
 
     def _accumulate_model_event(
         self,

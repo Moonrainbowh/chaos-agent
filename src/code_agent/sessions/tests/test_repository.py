@@ -13,7 +13,8 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from code_agent.core.events import AgentEvent, EventKind  # noqa: E402
-from code_agent.core.models import Message, ToolCall  # noqa: E402
+from code_agent.core.models import ActionRequest, ActionResult, Message, ToolCall  # noqa: E402
+from code_agent.core.task_state import TaskState  # noqa: E402
 from code_agent.core.protocols import SessionRepository  # noqa: E402
 from code_agent.sessions.errors import SessionNotFound  # noqa: E402
 from code_agent.sessions.models import GoalStatus, ThreadStatus  # noqa: E402
@@ -98,6 +99,23 @@ class SQLiteSessionRepositoryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(checkpoints), 1)
         self.assertEqual(checkpoints[0].id, checkpoint_id)
         self.assertEqual(dict(checkpoints[0].metadata), {"commit": "abc"})
+
+    async def test_task_state_survives_reopen_and_reduces_atomically(self) -> None:
+        repository: SessionRepository = self.repository
+        thread_id = await repository.create_thread()
+        state = TaskState(objective="repair startup", open_questions=("where?",))
+
+        await repository.save_task_state(thread_id, state)
+        self.assertEqual(await repository.load_task_state(thread_id), state)
+        reduced = await repository.reduce_task_state(
+            thread_id,
+            ActionRequest("read-1", "read_file", {"path": "src/app.py"}),
+            ActionResult("read-1", "read_file", {"text": "contents"}),
+        )
+        reopened = SQLiteSessionRepository(self.database)
+
+        self.assertEqual(reduced.files_read, ("src/app.py",))
+        self.assertEqual(await reopened.load_task_state(thread_id), reduced)
 
     async def test_unknown_thread_fails_closed_for_all_owned_records(self) -> None:
         operations = (

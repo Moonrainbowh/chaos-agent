@@ -12,7 +12,7 @@ from .models import (
     ModelEvent,
     ToolDefinition,
 )
-from .limits import EngineLimits, TaskBudget
+from .task_state import TaskState
 
 
 class ModelClient(Protocol):
@@ -26,7 +26,11 @@ class ModelClient(Protocol):
 
 class ContextBuilder(Protocol):
     async def build(
-        self, messages: Sequence[Message], user_input: str
+        self,
+        messages: Sequence[Message],
+        user_input: str,
+        tools: Sequence[ToolDefinition],
+        task_state: TaskState,
     ) -> ContextBundle: ...
 
 
@@ -51,10 +55,10 @@ class SessionRepository(Protocol):
         self, thread_id: str, event: AgentEvent
     ) -> None: ...
 
-    async def get_or_create_task_budget(
-        self, thread_id: str, model_name: str, limits: EngineLimits
-    ) -> TaskBudget: ...
+    async def load_task_state(self, thread_id: str) -> TaskState: ...
 
-    async def reserve_task_budget(
-        self, thread_id: str, *, model_turns: int = 0, tool_calls: int = 0
-    ) -> TaskBudget | None: ...
+    async def save_task_state(self, thread_id: str, state: TaskState) -> None: ...
+
+    async def reduce_task_state(
+        self, thread_id: str, request: ActionRequest, result: ActionResult
+    ) -> TaskState: ...

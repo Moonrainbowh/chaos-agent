@@ -13,5 +13,9 @@ class ContextBudgetError(ContextError):
     """Raised when a context budget cannot be satisfied."""
 
 
+class PromptBudgetError(ContextError):
+    """Raised when prompt budget limits or allocations are invalid."""
+
+
 class RepoMapError(ContextError):
     """Raised when bounded repository discovery cannot start or finish."""

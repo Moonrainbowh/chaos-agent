@@ -18,6 +18,7 @@ from code_agent.core.models import (  # noqa: E402
     ModelEventKind,
     Usage,
 )
+from code_agent.core.task_state import TaskState  # noqa: E402
 from code_agent.core.tests._engine_support import (  # noqa: E402
     FakeActionDispatcher,
     FakeContextBuilder,
@@ -31,6 +32,40 @@ def model_event(kind: ModelEventKind, **values: object) -> ModelEvent:
 
 
 class AgentEngineRunTests(unittest.IsolatedAsyncioTestCase):
+    async def test_context_event_records_numeric_measurements_without_prompt_text(self) -> None:
+        measurements = {
+            "prompt_tokens": 20_000,
+            "rule_tokens": 321,
+            "tool_tokens": 123,
+            "task_state_tokens": 45,
+            "repo_map_tokens": 2_000,
+            "message_tokens": 12_000,
+            "removed_message_count": 2,
+            "cache_hits": 7,
+            "cache_misses": 3,
+        }
+        engine = AgentEngine(
+            FakeModelClient(((model_event(ModelEventKind.COMPLETED),),)),
+            FakeContextBuilder(measurements),
+            FakeActionDispatcher(),
+            MemorySessionRepository(),
+        )
+
+        events = [event async for event in engine.run("inspect secret.txt")]
+        context_event = next(
+            event for event in events if event.kind is EventKind.CONTEXT_BUILT
+        )
+
+        self.assertEqual(context_event.payload["prompt_tokens"], 20_000)
+        self.assertEqual(
+            {key: context_event.payload[key] for key in measurements},
+            measurements,
+        )
+        self.assertTrue(
+            all(isinstance(value, int) for value in context_event.payload.values())
+        )
+        self.assertNotIn("secret.txt", str(context_event.payload))
+
     async def test_final_answer_is_streamed_and_persisted(self) -> None:
         model = FakeModelClient(
             ((
@@ -60,7 +95,8 @@ class AgentEngineRunTests(unittest.IsolatedAsyncioTestCase):
                 Message(role="assistant", content="Hello world"),
             ],
         )
-        self.assertEqual(context.calls, [((), "Say hello")])
+        self.assertEqual(context.calls[0][:2], ((), "Say hello"))
+        self.assertEqual(context.calls[0][3].__class__.__name__, "TaskState")
         self.assertEqual(model.calls[0][1], (Message(role="user", content="Say hello"),))
         self.assertEqual(events[-1].kind, EventKind.COMPLETED)
         self.assertEqual(events[-1].payload["usage"]["total_tokens"], 5)
@@ -85,7 +121,10 @@ class AgentEngineRunTests(unittest.IsolatedAsyncioTestCase):
         ]
 
         self.assertEqual(sessions.created, 1)
-        self.assertEqual(context.calls[0], ((Message(role="user", content="old"),), "new"))
+        self.assertEqual(
+            context.calls[0][:2],
+            ((Message(role="user", content="old"),), "new"),
+        )
         self.assertEqual(
             sessions.messages[thread_id],
             [
@@ -95,6 +134,22 @@ class AgentEngineRunTests(unittest.IsolatedAsyncioTestCase):
             ],
         )
         self.assertEqual(events[0].payload["thread_id"], thread_id)
+
+    async def test_engine_loads_persisted_task_state_before_context_build(self) -> None:
+        sessions = MemorySessionRepository()
+        thread_id = await sessions.create_thread()
+        sessions.task_states[thread_id] = TaskState(objective="repair startup")
+        context = FakeContextBuilder()
+        engine = AgentEngine(
+            FakeModelClient(((model_event(ModelEventKind.COMPLETED),),)),
+            context,
+            FakeActionDispatcher(),
+            sessions,
+        )
+
+        _ = [event async for event in engine.run("inspect", thread_id=thread_id)]
+
+        self.assertEqual(context.calls[0][3].objective, "repair startup")
 
     async def test_blank_user_input_is_rejected_before_thread_creation(self) -> None:
         sessions = MemorySessionRepository()

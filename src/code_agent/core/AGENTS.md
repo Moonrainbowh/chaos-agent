@@ -11,11 +11,12 @@
 ## Units
 - `Message`、`ToolCall`: 表达对话内容与模型工具调用 | 无副作用 | 输入在构造时校验并冻结
 - `ActionRequest`、`ActionResult`、`ToolDefinition`: 定义动作请求、结果与工具元数据 | 无副作用 | 仅承载 JSON 兼容数据
-- `ModelEvent`、`Usage`、`ContextBundle`: 表达模型流事件、用量和构建后的上下文 | 无副作用
-- `AgentEvent`: 发布可持久化的内核生命周期事件 | 生成 UTC 时间戳
+- `ModelEvent`、`Usage`、`ContextBundle`: 表达模型流事件、用量和构建后的上下文 | 无副作用 | 上下文度量只允许固定名称的非负整数计数
+- `AgentEvent`: 发布可持久化的内核生命周期事件 | 生成 UTC 时间戳 | `CONTEXT_BUILT` 仅记录本地数值预算、压缩和缓存计数，不含提示或工具输出
 - `CancellationToken`、`CancellationError`: 在线程与异步调用间传播首次取消原因 | 唤醒等待者
 - `ModelClient`: 约束统一的模型流式调用接口 | 具体副作用由实现负责
 - `ContextBuilder`: 异步构建当前回合上下文 | 具体副作用由实现负责
+- `CommandFact`、`TaskState`、`TaskStateUpdate`、`reduce_task_state`: 以有界 JSON 兼容事实表达持久任务进度 | 无副作用 | 工作笔记始终显式标注为未验证
 - `ActionDispatcher`: 暴露工具并分发可取消动作 | 具体副作用由实现负责
 - `SessionRepository`: 异步创建线程并持久化消息与事件 | 具体副作用由实现负责
 - `EngineLimits`: 冻结模型回合、工具调用、token 与输出字符预算 | 无副作用 | 越界前先阻止新的外部工具动作

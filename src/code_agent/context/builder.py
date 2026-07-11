@@ -1,14 +1,19 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from typing import Sequence
 
-from code_agent.core.models import ContextBundle, Message
+from code_agent.core.models import ContextBundle, Message, ToolDefinition
+from code_agent.core.task_state import TaskState
 
 from .compaction import DeterministicCompactor
+from .errors import ContextBudgetError, RuleLimitError
 from .models import ContextConfig
 from .repo_map import RepoMapBuilder
 from .rules import RuleLoader
+from .tokens import estimate_tokens
+from .task_state import render_task_state
 
 
 class WorkspaceContextBuilder:
@@ -41,7 +46,11 @@ class WorkspaceContextBuilder:
         self.compactor = compactor
 
     async def build(
-        self, messages: Sequence[Message], user_input: str
+        self,
+        messages: Sequence[Message],
+        user_input: str,
+        tools: Sequence[ToolDefinition],
+        task_state: TaskState,
     ) -> ContextBundle:
         """Build a stable prompt and compacted messages for one model turn."""
         checked = tuple(messages)
@@ -49,30 +58,82 @@ class WorkspaceContextBuilder:
             raise TypeError("messages must contain only Message values")
         if not isinstance(user_input, str):
             raise TypeError("user_input must be text")
-        return await asyncio.to_thread(self._build_sync, checked, user_input)
+        checked_tools = tuple(tools)
+        if not all(isinstance(tool, ToolDefinition) for tool in checked_tools):
+            raise TypeError("tools must contain only ToolDefinition values")
+        if not isinstance(task_state, TaskState):
+            raise TypeError("task_state must be a TaskState")
+        return await asyncio.to_thread(
+            self._build_sync, checked, user_input, checked_tools, task_state
+        )
 
     def _build_sync(
-        self, messages: tuple[Message, ...], user_input: str
+        self,
+        messages: tuple[Message, ...],
+        user_input: str,
+        tools: tuple[ToolDefinition, ...],
+        task_state: TaskState,
     ) -> ContextBundle:
         working = messages
         if user_input:
             working += (Message(role="user", content=user_input),)
-        compacted = self.compactor.compact(working)
-        query = user_input or _latest_user_text(compacted.messages)
         rendered_rules = self.rules.render(self.rules.load())
-        rendered_map = self.repo_map.render(
-            query,
-            (),
-            self.config.repo_map_tokens,
+        rule_tokens = estimate_tokens(rendered_rules)
+        if rule_tokens > self.config.prompt_budget.max_rule_tokens:
+            raise RuleLimitError(
+                f"project rules exceed {self.config.prompt_budget.max_rule_tokens:,} tokens"
+            )
+        rendered_tools = _render_tools(tools)
+        rendered_state = render_task_state(
+            task_state, self.config.prompt_budget.max_task_state_tokens
         )
-        sections = [self.config.system_prompt]
-        if rendered_rules:
-            sections.append(rendered_rules)
-        if rendered_map:
-            sections.append("Repository map:\n" + rendered_map)
+        state_tokens = estimate_tokens(rendered_state)
+        if state_tokens > self.config.prompt_budget.max_task_state_tokens:
+            raise ContextBudgetError("task state exceeds its configured token ceiling")
+        prefix = _system_prefix(
+            self.config.system_prompt, rendered_rules, rendered_state
+        )
+        allocation = self.config.prompt_budget.allocate(
+            system_and_rules_tokens=estimate_tokens(
+                _system_prefix(self.config.system_prompt, rendered_rules, "")
+            ),
+            tool_tokens=estimate_tokens(rendered_tools),
+            task_state_tokens=state_tokens,
+        )
+        compacted = self.compactor.compact(working, allocation.message_tokens)
+        query = user_input or _latest_user_text(compacted.messages)
+        rendered_map, cache_hits, cache_misses = self.repo_map.cache.measure_operation(
+            lambda: self.repo_map.render(
+                query,
+                (),
+                allocation.repo_map_tokens,
+            )
+        )
+        system_prompt = prefix + rendered_map
+        prompt_tokens = (
+            estimate_tokens(system_prompt)
+            + estimate_tokens(rendered_tools)
+            + _message_tokens(compacted.messages)
+        )
+        if prompt_tokens > (
+            self.config.prompt_budget.max_prompt_tokens
+            - self.config.prompt_budget.safety_tokens
+        ):
+            raise ContextBudgetError("rendered prompt exceeds its token budget")
         return ContextBundle(
-            system_prompt="\n\n".join(sections),
+            system_prompt=system_prompt,
             messages=compacted.messages,
+            measurements={
+                "prompt_tokens": self.config.prompt_budget.max_prompt_tokens,
+                "rule_tokens": allocation.rule_tokens,
+                "tool_tokens": allocation.tool_tokens,
+                "task_state_tokens": allocation.task_state_tokens,
+                "repo_map_tokens": allocation.repo_map_tokens,
+                "message_tokens": allocation.message_tokens,
+                "removed_message_count": compacted.removed_count,
+                "cache_hits": cache_hits,
+                "cache_misses": cache_misses,
+            },
         )
 
 
@@ -81,3 +142,39 @@ def _latest_user_text(messages: Sequence[Message]) -> str:
         if message.role == "user":
             return message.content
     return ""
+
+
+def _render_tools(tools: Sequence[ToolDefinition]) -> str:
+    return "\n".join(
+        json.dumps(
+            tool.to_dict(), ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        )
+        for tool in tools
+    )
+
+
+def _system_prefix(system_prompt: str, rules: str, task_state: str) -> str:
+    sections = [system_prompt]
+    if rules:
+        sections.append(rules)
+    if task_state:
+        sections.append(task_state)
+    sections.append("Repository map:\n")
+    return "\n\n".join(sections)
+
+
+def _message_tokens(messages: Sequence[Message]) -> int:
+    total = 0
+    for message in messages:
+        total += 1 + estimate_tokens(message.content)
+        if message.name:
+            total += estimate_tokens(message.name)
+        if message.tool_call_id:
+            total += estimate_tokens(message.tool_call_id)
+        for call in message.tool_calls:
+            total += 1 + estimate_tokens(
+                json.dumps(
+                    call.to_dict(), ensure_ascii=False, sort_keys=True, separators=(",", ":")
+                )
+            )
+    return total

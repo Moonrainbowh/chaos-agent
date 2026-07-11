@@ -10,6 +10,7 @@ from code_agent.workspace.paths import PathInput, WorkspacePathGuard
 
 from .errors import ContextError, RuleLimitError
 from .models import ContextConfig, ProjectRule
+from .tokens import estimate_tokens
 
 
 class RuleLoader:
@@ -80,7 +81,11 @@ class RuleLoader:
                     "[/PROJECT_RULE]",
                 )
             )
-        return "\n".join(rendered)
+        text = "\n".join(rendered)
+        token_limit = self.config.prompt_budget.max_rule_tokens
+        if estimate_tokens(text) > token_limit:
+            raise RuleLimitError(f"project rules exceed {token_limit:,} tokens")
+        return text
 
     def _validate_cwd(self, cwd: PathInput) -> Path:
         try:

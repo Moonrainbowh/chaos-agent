@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from .errors import SessionPersistenceError
 from .events import AgentEvent, EventKind
-from .models import Message
-from .limits import EngineLimits, TaskBudget
+from .models import ActionRequest, ActionResult, Message
 from .protocols import SessionRepository
+from .task_state import TaskState
 
 
 class SessionJournal:
@@ -40,23 +40,31 @@ class SessionJournal:
         except Exception:
             raise SessionPersistenceError("could not persist event") from None
 
-    async def get_or_create_task_budget(
-        self, thread_id: str, model_name: str, limits: EngineLimits
-    ) -> TaskBudget:
+    async def load_task_state(self, thread_id: str) -> TaskState:
         try:
-            return await self._repository.get_or_create_task_budget(thread_id, model_name, limits)
+            state = await self._repository.load_task_state(thread_id)
+            if not isinstance(state, TaskState):
+                raise TypeError("session has invalid task state")
+            return state
         except Exception:
-            raise SessionPersistenceError("could not load task budget") from None
+            raise SessionPersistenceError("could not load task state") from None
 
-    async def reserve_task_budget(
-        self, thread_id: str, *, model_turns: int = 0, tool_calls: int = 0
-    ) -> TaskBudget | None:
+    async def save_task_state(self, thread_id: str, state: TaskState) -> None:
         try:
-            return await self._repository.reserve_task_budget(
-                thread_id, model_turns=model_turns, tool_calls=tool_calls
-            )
+            await self._repository.save_task_state(thread_id, state)
         except Exception:
-            raise SessionPersistenceError("could not persist task budget") from None
+            raise SessionPersistenceError("could not persist task state") from None
+
+    async def reduce_task_state(
+        self, thread_id: str, request: ActionRequest, result: ActionResult
+    ) -> TaskState:
+        try:
+            state = await self._repository.reduce_task_state(thread_id, request, result)
+            if not isinstance(state, TaskState):
+                raise TypeError("session has invalid task state")
+            return state
+        except Exception:
+            raise SessionPersistenceError("could not persist task state") from None
 
     @staticmethod
     def message_added(message: Message) -> AgentEvent:

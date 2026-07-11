@@ -25,6 +25,7 @@ from code_agent.context.builder import WorkspaceContextBuilder  # noqa: E402
 from code_agent.context.compaction import DeterministicCompactor  # noqa: E402
 from code_agent.context.models import ContextConfig  # noqa: E402
 from code_agent.context.repo_map import RepoMapBuilder  # noqa: E402
+from code_agent.context.cache import RepoMapCache  # noqa: E402
 from code_agent.context.rules import RuleLoader  # noqa: E402
 from code_agent.interfaces.terminal_state import ApprovalBroker  # noqa: E402
 from code_agent.policy.engine import ActionPolicy, PolicyConfig  # noqa: E402
@@ -144,6 +145,67 @@ class RootActionDispatcherTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(result.is_error)
         self.assertIn("--- a/note.txt", result.metadata["diff"])
         self.assertEqual((self.root / "note.txt").read_text(encoding="utf-8"), "after\n")
+
+    async def test_successful_write_invalidates_the_exact_relative_cache_path(self) -> None:
+        invalidated: list[tuple[str, ...]] = []
+        guard = WorkspacePathGuard(self.root)
+        dispatcher = RootActionDispatcher(
+            WorkspaceFiles(guard, IgnoreRules.from_workspace(self.root)),
+            WorkspaceEditor(guard),
+            ActionPolicy(PolicyConfig(ApprovalMode.AUTO, workspace_root=self.root)),
+            ApprovalBroker(),
+            invalidate_cache=lambda paths: invalidated.append(tuple(paths)),
+        )
+
+        result = await dispatcher.dispatch(
+            ActionRequest("call-1", "write_file", {"path": "note.txt", "content": "after\n"}),
+            CancellationToken(),
+        )
+
+        self.assertFalse(result.is_error)
+        self.assertEqual(invalidated, [("note.txt",)])
+
+    async def test_successful_replace_invalidates_the_exact_relative_cache_path(self) -> None:
+        invalidated: list[tuple[str, ...]] = []
+        guard = WorkspacePathGuard(self.root)
+        dispatcher = RootActionDispatcher(
+            WorkspaceFiles(guard, IgnoreRules.from_workspace(self.root)),
+            WorkspaceEditor(guard),
+            ActionPolicy(PolicyConfig(ApprovalMode.AUTO, workspace_root=self.root)),
+            ApprovalBroker(),
+            invalidate_cache=lambda paths: invalidated.append(tuple(paths)),
+        )
+
+        result = await dispatcher.dispatch(
+            ActionRequest(
+                "call-1",
+                "replace_text",
+                {"path": "note.txt", "old_text": "before", "new_text": "after"},
+            ),
+            CancellationToken(),
+        )
+
+        self.assertFalse(result.is_error)
+        self.assertEqual(invalidated, [("note.txt",)])
+
+    async def test_denied_write_does_not_invalidate_cache(self) -> None:
+        invalidated: list[tuple[str, ...]] = []
+        guard = WorkspacePathGuard(self.root)
+        dispatcher = RootActionDispatcher(
+            WorkspaceFiles(guard, IgnoreRules.from_workspace(self.root)),
+            WorkspaceEditor(guard),
+            ActionPolicy(PolicyConfig(ApprovalMode.ASK, workspace_root=self.root)),
+            ApprovalBroker(),
+            invalidate_cache=lambda paths: invalidated.append(tuple(paths)),
+        )
+
+        result = await dispatcher.dispatch(
+            ActionRequest("call-1", "write_file", {"path": "note.txt", "content": "after\n"}),
+            CancellationToken(),
+        )
+
+        self.assertTrue(result.is_error)
+        self.assertEqual(invalidated, [])
 
     async def test_ask_mode_rejects_noninteractive_write_without_waiting(self) -> None:
         guard = WorkspacePathGuard(self.root)
