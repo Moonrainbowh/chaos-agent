@@ -182,12 +182,15 @@ class WindowsTerminalApp:
         if await self.restore_thread(identifier):
             self._session_choices = ()
     def _scroll_history(self, key: str) -> None:
+        display_line_count = sum(
+            len(_display_lines(entry)) for entry in self.state.transcript
+        )
         if key == "page_up":
-            self.history_offset = min(len(self.state.transcript), self.history_offset + 1)
+            self.history_offset = min(display_line_count, self.history_offset + 1)
         elif key == "page_down":
             self.history_offset = max(0, self.history_offset - 1)
         elif key == "home":
-            self.history_offset = len(self.state.transcript)
+            self.history_offset = display_line_count
         elif key == "end":
             self.history_offset = 0
 

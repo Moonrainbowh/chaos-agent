@@ -125,6 +125,20 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIn("line 0", rendered)
 
+    async def test_home_navigation_uses_physical_lines_for_multiline_transcript(self) -> None:
+        app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker())
+        app.state.transcript = [
+            "\n".join(f"entry {entry} line {line}" for line in range(10))
+            for entry in range(6)
+        ]
+
+        await app.handle_key("home")
+        rendered = render_terminal(app.state, "", 80, 12, history_offset=app.history_offset)
+
+        self.assertIn("entry 0 line 0", rendered)
+        self.assertIn("entry 0 line 4", rendered)
+        self.assertNotIn("entry 0 line 5", rendered)
+
     async def test_restore_thread_replaces_state_from_history_reader(self) -> None:
         reader = _HistoryReader((Message("user", "resume task"), Message("assistant", "restored")))
         app = WindowsTerminalApp(
