@@ -4,6 +4,7 @@ import asyncio
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 SRC_ROOT = Path(__file__).resolve().parents[3]
@@ -110,20 +111,42 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
         app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker())
         app.state.transcript = [f"line {index}" for index in range(6)]
 
-        await app.handle_key("page_up")
+        with patch("code_agent.interfaces.windows_tui.shutil.get_terminal_size", return_value=(80, 12)):
+            await app.handle_key("page_up")
 
         self.assertGreater(app.history_offset, 0)
-        await app.handle_key("end")
+        with patch("code_agent.interfaces.windows_tui.shutil.get_terminal_size", return_value=(80, 12)):
+            await app.handle_key("end")
         self.assertEqual(app.history_offset, 0)
 
     async def test_home_navigation_keeps_oldest_transcript_lines_visible(self) -> None:
         app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker())
         app.state.transcript = [f"line {index}" for index in range(6)]
 
-        await app.handle_key("home")
+        with patch("code_agent.interfaces.windows_tui.shutil.get_terminal_size", return_value=(80, 12)):
+            await app.handle_key("home")
         rendered = render_terminal(app.state, "", 80, 12, history_offset=app.history_offset)
 
         self.assertIn("line 0", rendered)
+
+    async def test_page_down_after_home_moves_to_a_newer_history_window(self) -> None:
+        output: list[str] = []
+        app = WindowsTerminalApp(
+            AgentController(FakeEngine(())), ApprovalBroker(), write=output.append
+        )
+        app.state.transcript = [f"line {index}" for index in range(6)]
+
+        with patch("code_agent.interfaces.windows_tui.shutil.get_terminal_size", return_value=(80, 12)):
+            await app.handle_key("home")
+            oldest_window = output[-1]
+            await app.handle_key("page_down")
+            newer_window = output[-1]
+            await app.handle_key("page_up")
+
+        self.assertNotEqual(oldest_window, newer_window)
+        self.assertIn("line 1", newer_window)
+        self.assertNotIn("line 0", newer_window)
+        self.assertEqual(oldest_window, output[-1])
 
     async def test_home_navigation_uses_physical_lines_for_multiline_transcript(self) -> None:
         app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker())
@@ -132,7 +155,8 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
             for entry in range(6)
         ]
 
-        await app.handle_key("home")
+        with patch("code_agent.interfaces.windows_tui.shutil.get_terminal_size", return_value=(80, 12)):
+            await app.handle_key("home")
         rendered = render_terminal(app.state, "", 80, 12, history_offset=app.history_offset)
 
         self.assertIn("entry 0 line 0", rendered)

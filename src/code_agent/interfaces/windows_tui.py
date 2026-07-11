@@ -1,26 +1,18 @@
 from __future__ import annotations
-
 import asyncio
 import os
 import shutil
 import sys
 from collections.abc import Callable, Sequence
 from typing import Optional, Protocol
-
 from code_agent.core.cancellation import CancellationToken
-
 from .controller import AgentController
 from .history import ThreadHistoryReader, load_thread_history
 from .terminal_state import ApprovalBroker, ApprovalRequest, TerminalState
-
-
 class SessionBrowser(Protocol):
     async def list_threads(self, *, limit: int = 100) -> Sequence[object]: ...
-
-
 class WindowsTerminalApp:
     """A native ANSI TUI for Windows Terminal without UI package dependencies."""
-
     def __init__(
         self,
         controller: AgentController,
@@ -182,18 +174,23 @@ class WindowsTerminalApp:
         if await self.restore_thread(identifier):
             self._session_choices = ()
     def _scroll_history(self, key: str) -> None:
-        display_line_count = sum(
-            len(_display_lines(entry)) for entry in self.state.transcript
+        _, rows = shutil.get_terminal_size((100, 30))
+        capacity = _transcript_capacity(
+            self.state,
+            rows,
+            show_diff=self.show_diff,
+            pending_approval=self._pending_approval,
+            sessions=self._session_choices,
         )
+        max_offset = _history_max_offset(self.state.transcript, capacity)
         if key == "page_up":
-            self.history_offset = min(display_line_count, self.history_offset + 1)
+            self.history_offset = min(max_offset, self.history_offset + 1)
         elif key == "page_down":
             self.history_offset = max(0, self.history_offset - 1)
         elif key == "home":
-            self.history_offset = display_line_count
+            self.history_offset = max_offset
         elif key == "end":
             self.history_offset = 0
-
     async def _close_tasks(self) -> None:
         if self._token is not None:
             self._token.cancel("TUI closed")
@@ -203,8 +200,6 @@ class WindowsTerminalApp:
         tasks = [task for task in (self._run_task, self._approval_task) if task]
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
-
-
 def render_terminal(
     state: TerminalState,
     input_text: str,
@@ -239,8 +234,13 @@ def render_terminal(
     diff_lines = _display_lines(state.diff)[:4] if show_diff and state.diff else []
     lines.append(_clip(_safe_text("recent: " + " | ".join(state.timeline[-4:])), width))
     lines.append("-" * width)
-    fixed_lines = len(lines) + len(diff_lines) + (1 if diff_lines else 0) + 2
-    transcript_capacity = max(0, height - fixed_lines)
+    transcript_capacity = _transcript_capacity(
+        state,
+        height,
+        show_diff=show_diff,
+        pending_approval=pending_approval,
+        sessions=sessions,
+    )
     lines.extend(_history_window(state.transcript, transcript_capacity, history_offset))
     if diff_lines:
         lines.append("diff:")
@@ -248,8 +248,6 @@ def render_terminal(
     lines.append("-" * width)
     lines.append(_clip("> " + _safe_text(input_text), width))
     return "\x1b[2J\x1b[H" + "\n".join(_clip(line, width) for line in lines)
-
-
 def _read_key() -> str:
     import msvcrt
     key = msvcrt.getwch()
@@ -258,42 +256,41 @@ def _read_key() -> str:
             msvcrt.getwch(), ""
         )
     return key
-
-
 def _stdout_write(value: str) -> None:
     sys.stdout.write(value)
     sys.stdout.flush()
-
-
 def _safe_text(value: str) -> str:
-    return "".join(
-        character if character >= " " or character in {"\n", "\t"} else "?"
-        for character in value
-    ).replace("\x1b", "?")
-
-
+    return "".join(character if character >= " " or character in {"\n", "\t"} else "?" for character in value).replace("\x1b", "?")
 def _display_lines(value: Optional[str]) -> list[str]:
     if not value:
         return []
     return _safe_text(value).replace("\t", "    ").splitlines() or [""]
-
-
 def _clip(value: str, width: int) -> str:
     return value[:width]
-
-
+def _transcript_capacity(
+    state: TerminalState,
+    rows: int,
+    *,
+    show_diff: bool,
+    pending_approval: Optional[ApprovalRequest],
+    sessions: Sequence[object],
+) -> int:
+    summary_lines = len(_display_lines("\n".join(state.summary))[:3])
+    diff_lines = len(_display_lines(state.diff)[:4]) if show_diff and state.diff else 0
+    fixed_lines = 7 + summary_lines + (3 if pending_approval else 0) + bool(sessions)
+    return max(0, max(12, rows) - fixed_lines - diff_lines - bool(diff_lines))
+def _history_max_offset(transcript: Sequence[str], capacity: int) -> int:
+    line_count = sum(len(_display_lines(entry)) for entry in transcript)
+    return max(0, line_count - capacity)
 def _history_window(transcript: Sequence[str], capacity: int, history_offset: int) -> list[str]:
     """Return a fixed-size transcript slice, offset backward from the live edge."""
     if capacity <= 0:
         return []
     lines = [line for entry in transcript for line in _display_lines(entry)]
-    max_offset = max(0, len(lines) - capacity)
+    max_offset = _history_max_offset(transcript, capacity)
     offset = min(max(0, history_offset), max_offset)
     end = len(lines) - offset
-    start = max(0, end - capacity)
-    return lines[start:end]
-
-
+    return lines[max(0, end - capacity):end]
 def _session_line(sessions: Sequence[object]) -> str:
     labels = []
     for index, session in enumerate(sessions, start=1):
