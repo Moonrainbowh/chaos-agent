@@ -54,6 +54,30 @@ class WindowsTerminalRendererTests(unittest.TestCase):
         self.assertIn("goal: recover", rendered)
         self.assertIn("recent: requested read_file", rendered)
 
+    def test_renderer_clamps_home_offset_to_an_oldest_visible_window(self) -> None:
+        state = TerminalState()
+        state.transcript = [f"line {index}" for index in range(6)]
+
+        rendered = render_terminal(state, "", 80, 12, history_offset=len(state.transcript))
+
+        self.assertIn("line 0", rendered)
+        self.assertIn("line 4", rendered)
+
+    def test_renderer_limits_multiline_live_transcript_to_physical_row_capacity(self) -> None:
+        state = TerminalState()
+        state.transcript = [
+            "user: first\ncontinued",
+            "assistant: second\ncontinued",
+            "reasoning: third\ncontinued",
+        ]
+
+        rendered = render_terminal(state, "", 80, 12)
+        frame_lines = rendered.removeprefix("\x1b[2J\x1b[H").splitlines()
+
+        self.assertLessEqual(len(frame_lines), 12)
+        self.assertIn("continued", frame_lines)
+        self.assertNotIn("user: first", frame_lines)
+
 
 class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
     async def test_submit_consumes_engine_events_and_redraws(self) -> None:
@@ -92,6 +116,15 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
         await app.handle_key("end")
         self.assertEqual(app.history_offset, 0)
 
+    async def test_home_navigation_keeps_oldest_transcript_lines_visible(self) -> None:
+        app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker())
+        app.state.transcript = [f"line {index}" for index in range(6)]
+
+        await app.handle_key("home")
+        rendered = render_terminal(app.state, "", 80, 12, history_offset=app.history_offset)
+
+        self.assertIn("line 0", rendered)
+
     async def test_restore_thread_replaces_state_from_history_reader(self) -> None:
         reader = _HistoryReader((Message("user", "resume task"), Message("assistant", "restored")))
         app = WindowsTerminalApp(
@@ -104,6 +137,25 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(app.current_thread_id, "thread-1")
         self.assertIn("goal: resume task", app.state.summary)
         self.assertIn("assistant: restored", app.state.transcript)
+
+    async def test_restored_multiline_transcript_respects_physical_row_capacity(self) -> None:
+        reader = _HistoryReader(
+            (
+                Message("user", "first\ncontinued"),
+                Message("assistant", "second\ncontinued"),
+                Message("assistant", "third\ncontinued"),
+            )
+        )
+        app = WindowsTerminalApp(
+            AgentController(FakeEngine(())), ApprovalBroker(), history=reader
+        )
+
+        self.assertTrue(await app.restore_thread("thread-1"))
+        rendered = render_terminal(app.state, "", 80, 12)
+
+        self.assertLessEqual(
+            len(rendered.removeprefix("\x1b[2J\x1b[H").splitlines()), 12
+        )
 
     async def test_restore_thread_failure_keeps_previous_state(self) -> None:
         app = WindowsTerminalApp(

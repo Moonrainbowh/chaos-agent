@@ -249,7 +249,6 @@ def render_terminal(
 
 def _read_key() -> str:
     import msvcrt
-
     key = msvcrt.getwch()
     if key in {"\x00", "\xe0"}:
         return {"I": "page_up", "Q": "page_down", "G": "home", "O": "end"}.get(
@@ -284,10 +283,12 @@ def _history_window(transcript: Sequence[str], capacity: int, history_offset: in
     """Return a fixed-size transcript slice, offset backward from the live edge."""
     if capacity <= 0:
         return []
-    offset = min(max(0, history_offset), len(transcript))
-    end = len(transcript) - offset
+    lines = [line for entry in transcript for line in _display_lines(entry)]
+    max_offset = max(0, len(lines) - capacity)
+    offset = min(max(0, history_offset), max_offset)
+    end = len(lines) - offset
     start = max(0, end - capacity)
-    return [_safe_text(line) for line in transcript[start:end]]
+    return lines[start:end]
 
 
 def _session_line(sessions: Sequence[object]) -> str:
