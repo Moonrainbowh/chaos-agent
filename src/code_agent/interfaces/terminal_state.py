@@ -134,6 +134,8 @@ class TerminalState:
                 self.transcript[-1] += model_event.text
             else:
                 self.transcript.append("assistant: " + model_event.text)
+        elif model_event.kind is ModelEventKind.REASONING_DELTA and model_event.text:
+            self.transcript.append("reasoning: " + model_event.text)
 
     def _capture_diff(self, event: AgentEvent) -> None:
         request = event.payload.get("request")

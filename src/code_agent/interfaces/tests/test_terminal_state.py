@@ -148,6 +148,24 @@ class TerminalStateTests(unittest.TestCase):
 
         self.assertEqual(state.transcript, ["assistant: hello world"])
 
+    def test_reasoning_delta_remains_visible_and_breaks_text_coalescing(self) -> None:
+        state = TerminalState()
+
+        for model_event in (
+            ModelEvent(ModelEventKind.TEXT_DELTA, text="hello "),
+            ModelEvent(ModelEventKind.TEXT_DELTA, text="world"),
+            ModelEvent(ModelEventKind.REASONING_DELTA, text="planning"),
+            ModelEvent(ModelEventKind.TEXT_DELTA, text="again"),
+        ):
+            state.apply(
+                AgentEvent(EventKind.MODEL_EVENT, {"event": model_event.to_dict()})
+            )
+
+        self.assertEqual(
+            state.transcript,
+            ["assistant: hello world", "reasoning: planning", "assistant: again"],
+        )
+
 
 class ApprovalBrokerTests(unittest.IsolatedAsyncioTestCase):
     async def test_request_waits_for_matching_keyboard_decision(self) -> None:
