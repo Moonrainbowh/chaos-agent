@@ -111,6 +111,21 @@ class SessionJournal:
         except Exception:
             raise SessionPersistenceError("could not persist task validation") from None
 
+    async def record_task_active_seconds(self, task_id: str, active_seconds: int) -> TaskBudget:
+        try:
+            return await self._repository.record_task_active_seconds(task_id, active_seconds)
+        except Exception:
+            raise SessionPersistenceError("could not persist task active time") from None
+
+    async def consume_task_controls(self, task_id: str) -> tuple[str, ...]:
+        try:
+            controls = await self._repository.consume_task_controls(task_id)
+            if not all(isinstance(control, str) for control in controls):
+                raise TypeError("task controls must be text")
+            return controls
+        except Exception:
+            raise SessionPersistenceError("could not consume task controls") from None
+
     @staticmethod
     def message_added(message: Message) -> AgentEvent:
         return AgentEvent(

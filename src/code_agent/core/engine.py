@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from typing import AsyncIterator, Optional
 
 from ._session_io import SessionJournal
@@ -81,7 +82,7 @@ class AgentEngine:
         task_budget = await self._journal.get_or_create_task_budget(
             active_thread, self._model_name, self._limits
         )
-        supervisor = TaskSupervisor(task.contract, started_at=task.created_at) if task else None
+        supervisor = TaskSupervisor(task.contract, task_budget) if task else None
         started = AgentEvent(
             kind=EventKind.RUN_STARTED,
             payload={"thread_id": active_thread},
@@ -107,11 +108,15 @@ class AgentEngine:
                 if supervisor is not None:
                     decision = supervisor.before_model_turn()
                     if decision.kind is SupervisionKind.PAUSE:
-                        await self._pause_task(active_thread, task, decision.reason or "task paused")
+                        await self._pause_task(active_thread, task, supervisor, decision.reason or "task paused")
                         paused = AgentEvent(EventKind.TASK_PAUSED, {"task_id": task.id, "status": "paused", "reason": decision.reason or "task paused"})
                         await self._journal.append_event(active_thread, paused)
                         yield paused
                         return
+                    await self._journal.record_task_active_seconds(
+                        task.id, supervisor.checkpoint_active_seconds()
+                    )
+                    await self._journal.consume_task_controls(task.id)
                 reserved = await self._journal.reserve_task_budget(
                     active_thread, model_turns=1
                 )
@@ -216,6 +221,10 @@ class AgentEngine:
 
                 if not calls:
                     if task is not None:
+                        if supervisor is not None:
+                            await self._journal.record_task_active_seconds(
+                                task.id, supervisor.checkpoint_active_seconds()
+                            )
                         completed_task = await self._journal.transition_task(task.id, TaskStatus.COMPLETED)
                         task_event = AgentEvent(EventKind.TASK_STATUS_CHANGED, {"task_id": completed_task.id, "status": completed_task.status.value})
                         await self._journal.append_event(active_thread, task_event)
@@ -264,6 +273,11 @@ class AgentEngine:
                             )
                             messages += (result_message,)
                         yield action_event
+                        if action_event.kind in {
+                            EventKind.TASK_PAUSED,
+                            EventKind.TASK_DECISION_REQUIRED,
+                        }:
+                            return
 
             raise EngineLimitError("model turn budget exceeded")
         except CancellationError as exc:
@@ -305,11 +319,14 @@ class AgentEngine:
             if supervisor is not None and call.name in {"write_file", "replace_text", "run_command"}:
                 decision = supervisor.before_external_action()
                 if decision.kind is SupervisionKind.PAUSE:
-                    await self._pause_task(thread_id, task, decision.reason or "task paused")
+                    await self._pause_task(thread_id, task, supervisor, decision.reason or "task paused")
                     paused = AgentEvent(EventKind.TASK_PAUSED, {"task_id": task.id, "status": "paused", "reason": decision.reason or "task paused"})
                     await self._journal.append_event(thread_id, paused)
                     yield paused
                     return
+                await self._journal.record_task_active_seconds(
+                    task.id, supervisor.checkpoint_active_seconds()
+                )
             started = AgentEvent(
                 kind=EventKind.ACTION_STARTED,
                 payload={"request_id": call.id, "name": call.name},
@@ -332,6 +349,18 @@ class AgentEngine:
                     type(exc).__name__,
                 )
 
+        if task is not None and _requires_decision(result):
+            waiting = await self._journal.transition_task(
+                task.id, TaskStatus.WAITING_DECISION, "approval required"
+            )
+            decision_event = AgentEvent(
+                EventKind.TASK_DECISION_REQUIRED,
+                {"task_id": waiting.id, "status": waiting.status.value},
+            )
+            await self._journal.append_event(thread_id, decision_event)
+            yield decision_event
+            return
+
         if call.name in {
             "read_file",
             "list_files",
@@ -345,8 +374,13 @@ class AgentEngine:
                 fingerprint = _validation_fingerprint(request, result)
                 decision = supervisor.observe_validation(fingerprint, len(state.files_changed))
                 await self._journal.observe_task_validation(task.id, fingerprint, len(state.files_changed))
+                await self._journal.create_checkpoint(
+                    thread_id,
+                    "validation-complete",
+                    {"task_id": task.id, "failed": fingerprint is not None},
+                )
                 if decision.kind is SupervisionKind.PAUSE:
-                    await self._pause_task(thread_id, task, decision.reason or "validation paused")
+                    await self._pause_task(thread_id, task, supervisor, decision.reason or "validation paused")
                     paused = AgentEvent(EventKind.TASK_PAUSED, {"task_id": task.id, "status": "paused", "reason": decision.reason or "validation paused"})
                     await self._journal.append_event(thread_id, paused)
                     yield paused
@@ -375,7 +409,16 @@ class AgentEngine:
         await self._journal.append_event(thread_id, added)
         yield added
 
-    async def _pause_task(self, thread_id: str, task: TaskRecord, reason: str) -> None:
+    async def _pause_task(
+        self,
+        thread_id: str,
+        task: TaskRecord,
+        supervisor: TaskSupervisor,
+        reason: str,
+    ) -> None:
+        await self._journal.record_task_active_seconds(
+            task.id, supervisor.checkpoint_active_seconds()
+        )
         paused = await self._journal.transition_task(task.id, TaskStatus.PAUSED, reason)
         await self._journal.create_checkpoint(thread_id, "task-paused", {"task_id": paused.id, "status": paused.status.value, "reason": reason})
 
@@ -413,7 +456,7 @@ class AgentEngine:
 
 def _validation_fingerprint(request: ActionRequest, result: object) -> str | None:
     output = getattr(result, "output", {})
-    if not isinstance(output, dict):
+    if not isinstance(output, Mapping):
         return None
     if not getattr(result, "is_error", True) and output.get("returncode") in {0, None}:
         return None
@@ -422,3 +465,12 @@ def _validation_fingerprint(request: ActionRequest, result: object) -> str | Non
         return None
     prefix = " ".join(str(output.get(key, ""))[:256] for key in ("stdout", "stderr"))
     return f"{command[:120]}|{output.get('returncode')}|{output.get('reason', 'failed')}|{prefix[:256]}"
+
+
+def _requires_decision(result: object) -> bool:
+    output = getattr(result, "output", None)
+    return (
+        bool(getattr(result, "is_error", False))
+        and isinstance(output, Mapping)
+        and output.get("error") == "approval required in TUI"
+    )

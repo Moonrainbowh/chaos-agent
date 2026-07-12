@@ -83,7 +83,7 @@ class FakeActionDispatcher:
         return self._tools
 
     async def dispatch(
-        self, request: ActionRequest, cancellation: CancellationToken
+        self, request: ActionRequest, cancellation: CancellationToken, *args: object
     ) -> ActionResult:
         self.requests.append(request)
         self.tokens.append(cancellation)
@@ -145,3 +145,9 @@ class MemorySessionRepository:
         state = reduce_task_state(self.task_states[thread_id], request, result)
         self.task_states[thread_id] = state
         return state
+
+    async def record_task_active_seconds(self, task_id: str, active_seconds: int) -> TaskBudget:
+        raise KeyError(task_id)
+
+    async def consume_task_controls(self, task_id: str) -> tuple[str, ...]:
+        return ()

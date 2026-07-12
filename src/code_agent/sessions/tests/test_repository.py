@@ -20,6 +20,8 @@ from code_agent.sessions.errors import SessionNotFound  # noqa: E402
 from code_agent.sessions.models import GoalStatus, ThreadStatus  # noqa: E402
 from code_agent.sessions.repository import SQLiteSessionRepository  # noqa: E402
 from code_agent.core.limits import EngineLimits  # noqa: E402
+from code_agent.core.models import Usage  # noqa: E402
+from code_agent.core.task import TaskAuthorization, TaskContract  # noqa: E402
 
 
 class SQLiteSessionRepositoryTests(unittest.IsolatedAsyncioTestCase):
@@ -145,6 +147,31 @@ class SQLiteSessionRepositoryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(reserved.model_turns, 1)
         self.assertEqual(reserved.tool_calls, 2)
         self.assertIsNone(await reopened.reserve_task_budget(thread_id, tool_calls=2))
+
+    async def test_task_controls_and_supervision_budget_survive_restart(self) -> None:
+        thread_id = await self.repository.create_thread()
+        task = await self.repository.create_task(
+            thread_id,
+            TaskContract("repair", TaskAuthorization.local_workspace(self.temporary.name)),
+        )
+        await self.repository.get_or_create_task_budget(thread_id, "model-a", EngineLimits())
+        await self.repository.consume_task_usage(task.id, Usage(4, 3))
+        await self.repository.observe_task_validation(task.id, "pytest|1", 1)
+        await self.repository.observe_task_validation(task.id, "pytest|1", 1)
+        await self.repository.record_task_active_seconds(task.id, 42)
+        await self.repository.record_task_control(task.id, "stop editing and inspect tests")
+
+        reopened = SQLiteSessionRepository(self.database)
+        budget = await reopened.load_task_budget(task.id)
+
+        self.assertEqual((budget.input_tokens, budget.output_tokens), (4, 3))
+        self.assertEqual((budget.repair_cycles, budget.repeated_failures), (2, 2))
+        self.assertEqual(budget.active_seconds, 42)
+        self.assertEqual(
+            await reopened.consume_task_controls(task.id),
+            ("stop editing and inspect tests",),
+        )
+        self.assertEqual(await reopened.consume_task_controls(task.id), ())
 
 
 if __name__ == "__main__":

@@ -65,13 +65,14 @@ class TaskBudget:
     repair_cycles: int = 0
     repeated_failures: int = 0
     last_failure_signature: str | None = None
+    active_seconds: int = 0
 
     def __post_init__(self) -> None:
         if not isinstance(self.model_name, str) or not self.model_name.strip():
             raise ValueError("model_name must be non-blank text")
         if not isinstance(self.limits, EngineLimits):
             raise TypeError("limits must be EngineLimits")
-        for name in ("model_turns", "tool_calls", "input_tokens", "output_tokens", "repair_cycles", "repeated_failures"):
+        for name in ("model_turns", "tool_calls", "input_tokens", "output_tokens", "repair_cycles", "repeated_failures", "active_seconds"):
             value = getattr(self, name)
             if isinstance(value, bool) or not isinstance(value, int) or value < 0:
                 raise ValueError(f"{name} must be a non-negative integer")

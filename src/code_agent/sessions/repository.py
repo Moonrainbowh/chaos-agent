@@ -218,7 +218,7 @@ class SQLiteSessionRepository(RecordRepositoryMixin):
             ).fetchone()
             if row is None:
                 connection.execute(
-                    "INSERT INTO task_budgets VALUES (?, ?, ?, ?, ?, 0, 0, 0, 0, 0, 0, NULL)",
+                    "INSERT INTO task_budgets(thread_id, model_name, max_agent_rounds, max_tool_calls, max_tool_calls_per_round) VALUES (?, ?, ?, ?, ?)",
                     (thread_id, model_name, limits.max_agent_rounds, limits.max_tool_calls, limits.max_tool_calls_per_round),
                 )
                 return TaskBudget(model_name, limits)
@@ -271,7 +271,7 @@ class SQLiteSessionRepository(RecordRepositoryMixin):
             row = connection.execute("SELECT * FROM task_budgets WHERE thread_id = ?", (task.thread_id,)).fetchone()
             if row is None: raise SessionCorruptionError("task budget is missing")
             current = _task_budget(row)
-            updated = TaskBudget(current.model_name, current.limits, current.model_turns, current.tool_calls, current.input_tokens + usage.input_tokens, current.output_tokens + usage.output_tokens, current.repair_cycles, current.repeated_failures, current.last_failure_signature)
+            updated = TaskBudget(current.model_name, current.limits, current.model_turns, current.tool_calls, current.input_tokens + usage.input_tokens, current.output_tokens + usage.output_tokens, current.repair_cycles, current.repeated_failures, current.last_failure_signature, current.active_seconds)
             connection.execute("UPDATE task_budgets SET input_tokens = ?, output_tokens = ? WHERE thread_id = ?", (updated.input_tokens, updated.output_tokens, task.thread_id))
             return updated
         return await self._database.write(write)
@@ -286,9 +286,68 @@ class SQLiteSessionRepository(RecordRepositoryMixin):
             current = _task_budget(row)
             repeated = current.repeated_failures + 1 if fingerprint and fingerprint == current.last_failure_signature and changed_files else 1 if fingerprint and changed_files else 0
             repairs = current.repair_cycles + (1 if fingerprint and changed_files else 0)
-            updated = TaskBudget(current.model_name, current.limits, current.model_turns, current.tool_calls, current.input_tokens, current.output_tokens, repairs, repeated, fingerprint)
+            updated = TaskBudget(current.model_name, current.limits, current.model_turns, current.tool_calls, current.input_tokens, current.output_tokens, repairs, repeated, fingerprint, current.active_seconds)
             connection.execute("UPDATE task_budgets SET repair_cycles = ?, repeated_failures = ?, last_failure_signature = ? WHERE thread_id = ?", (repairs, repeated, fingerprint, task.thread_id))
             return updated
+        return await self._database.write(write)
+
+    async def record_task_active_seconds(self, task_id: str, active_seconds: int) -> TaskBudget:
+        if isinstance(active_seconds, bool) or not isinstance(active_seconds, int) or active_seconds < 0:
+            raise ValueError("active_seconds must be a non-negative integer")
+        task = await self.load_task(task_id)
+
+        def write(connection: sqlite3.Connection) -> TaskBudget:
+            row = connection.execute("SELECT * FROM task_budgets WHERE thread_id = ?", (task.thread_id,)).fetchone()
+            if row is None:
+                raise SessionCorruptionError("task budget is missing")
+            current = _task_budget(row)
+            if active_seconds < current.active_seconds:
+                raise ValueError("active_seconds must not decrease")
+            connection.execute(
+                "UPDATE task_budgets SET active_seconds = ? WHERE thread_id = ?",
+                (active_seconds, task.thread_id),
+            )
+            return TaskBudget(
+                current.model_name, current.limits, current.model_turns,
+                current.tool_calls, current.input_tokens, current.output_tokens,
+                current.repair_cycles, current.repeated_failures,
+                current.last_failure_signature, active_seconds,
+            )
+
+        return await self._database.write(write)
+
+    async def record_task_control(self, task_id: str, instruction: str) -> None:
+        task_id = _text(task_id, "task_id")
+        instruction = _text(instruction, "instruction")
+        timestamp = encode_datetime(utc_now())
+
+        def write(connection: sqlite3.Connection) -> None:
+            row = connection.execute("SELECT 1 FROM tasks WHERE id = ?", (task_id,)).fetchone()
+            if row is None:
+                raise SessionNotFound("task not found")
+            connection.execute(
+                "INSERT INTO task_controls(task_id, instruction, created_at) VALUES (?, ?, ?)",
+                (task_id, instruction, timestamp),
+            )
+
+        await self._database.write(write)
+
+    async def consume_task_controls(self, task_id: str) -> tuple[str, ...]:
+        task_id = _text(task_id, "task_id")
+
+        def write(connection: sqlite3.Connection) -> tuple[str, ...]:
+            row = connection.execute("SELECT 1 FROM tasks WHERE id = ?", (task_id,)).fetchone()
+            if row is None:
+                raise SessionNotFound("task not found")
+            rows = connection.execute(
+                "SELECT sequence, instruction FROM task_controls WHERE task_id = ? ORDER BY sequence",
+                (task_id,),
+            ).fetchall()
+            instructions = tuple(_text(row["instruction"], "instruction") for row in rows)
+            if rows:
+                connection.execute("DELETE FROM task_controls WHERE task_id = ?", (task_id,))
+            return instructions
+
         return await self._database.write(write)
 
     async def archive_thread(self, thread_id: str) -> None:
@@ -361,6 +420,7 @@ def _task_budget(row: sqlite3.Row) -> TaskBudget:
             row["model_turns"],
             row["tool_calls"], row["input_tokens"], row["output_tokens"],
             row["repair_cycles"], row["repeated_failures"], row["last_failure_signature"],
+            row["active_seconds"],
         )
     except (KeyError, TypeError, ValueError) as error:
         raise SessionCorruptionError("invalid persisted task budget") from error

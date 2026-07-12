@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -19,6 +20,8 @@ from code_agent.core.models import (  # noqa: E402
     Usage,
 )
 from code_agent.core.task_state import TaskState  # noqa: E402
+from code_agent.core.task import TaskAuthorization, TaskContract, TaskStatus  # noqa: E402
+from code_agent.sessions.repository import SQLiteSessionRepository  # noqa: E402
 from code_agent.core.tests._engine_support import (  # noqa: E402
     FakeActionDispatcher,
     FakeContextBuilder,
@@ -150,6 +153,30 @@ class AgentEngineRunTests(unittest.IsolatedAsyncioTestCase):
         _ = [event async for event in engine.run("inspect", thread_id=thread_id)]
 
         self.assertEqual(context.calls[0][3].objective, "repair startup")
+
+    async def test_persisted_steering_is_consumed_before_the_next_model_turn(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            sessions = SQLiteSessionRepository(Path(directory) / "sessions.sqlite3")
+            thread_id = await sessions.create_thread()
+            task = await sessions.create_task(
+                thread_id,
+                TaskContract("repair", TaskAuthorization.local_workspace(directory)),
+            )
+            task = await sessions.transition_task(task.id, TaskStatus.RUNNING)
+            await sessions.append_message(thread_id, Message("user", "change direction"))
+            await sessions.record_task_control(task.id, "change direction")
+            context = FakeContextBuilder()
+            engine = AgentEngine(
+                FakeModelClient(((model_event(ModelEventKind.COMPLETED),),)),
+                context,
+                FakeActionDispatcher(),
+                sessions,
+            )
+
+            _ = [event async for event in engine.run("repair", thread_id=thread_id, task=task)]
+
+            self.assertIn(Message("user", "change direction"), context.calls[0][0])
+            self.assertEqual(await sessions.consume_task_controls(task.id), ())
 
     async def test_blank_user_input_is_rejected_before_thread_creation(self) -> None:
         sessions = MemorySessionRepository()

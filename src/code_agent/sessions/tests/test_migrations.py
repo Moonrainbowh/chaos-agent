@@ -122,7 +122,7 @@ class SessionMigrationTests(unittest.IsolatedAsyncioTestCase):
                     "SELECT name FROM sqlite_master WHERE type = 'table'"
                 )
             }
-        self.assertEqual(version, 5)
+        self.assertEqual(version, SCHEMA_VERSION)
         self.assertIn("task_states", tables)
 
     def test_future_schema_version_is_rejected_without_mutation(self) -> None:

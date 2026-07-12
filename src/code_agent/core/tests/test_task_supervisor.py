@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 from code_agent.core.task import TaskAuthorization, TaskContract
 from code_agent.core.task_supervisor import SupervisionKind, TaskSupervisor
+from code_agent.core.limits import EngineLimits, TaskBudget
 
 
 class TaskSupervisorTests(unittest.TestCase):
@@ -29,3 +30,17 @@ class TaskSupervisorTests(unittest.TestCase):
         contract = replace(self.contract, max_active_seconds=1)
         past = datetime.now(timezone.utc) - timedelta(seconds=2)
         self.assertEqual(TaskSupervisor(contract, started_at=past).before_model_turn().kind, SupervisionKind.PAUSE)
+
+    def test_restored_budget_retains_stall_and_active_time_limits(self) -> None:
+        contract = replace(self.contract, max_active_seconds=5)
+        budget = TaskBudget(
+            "model", EngineLimits(), repair_cycles=2, repeated_failures=2,
+            last_failure_signature="pytest:1:abc", active_seconds=5,
+        )
+        supervisor = TaskSupervisor(contract, budget)
+
+        self.assertEqual(supervisor.before_model_turn().kind, SupervisionKind.PAUSE)
+        self.assertEqual(
+            supervisor.observe_validation("pytest:1:abc", 1).kind,
+            SupervisionKind.PAUSE,
+        )
