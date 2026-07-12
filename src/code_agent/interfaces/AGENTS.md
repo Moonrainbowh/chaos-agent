@@ -14,5 +14,7 @@
 - `execute_command(command, controller, tui, write): int`: 把解析后的命令委托给 TUI、文本流或 JSON 流 | 写入调用方提供的输出 | 依赖组合留给集成阶段
 - `ApprovalBroker`: 在策略动作分发与 TUI 之间传递可取消的审批请求和 Y/N 决定 | 异步等待 | 同一 request ID 只允许一个待决审批
 - `TerminalState.apply(event)`: 从内核事件派生转录、工具时间线、状态和 Diff 预览 | 无副作用 | 不信任事件中的终端控制字符
+- `load_thread_history(reader, thread_id): RestoredThread`: 并发读取一个既存 thread 的消息、事件、目标与 checkpoint，供 TUI 恢复 | SQLite 读取 | 缺失或损坏会话不伪造摘要
+- `TerminalState.restore(history)`: 把持久消息和事件投影为固定任务摘要、近期操作与可滚动聊天记录 | 无副作用 | 工具原始输出不进入聊天区
 - `WindowsTerminalApp`: 基于 Windows Terminal ANSI 与 `msvcrt` 提供全屏输入、会话选择、审批、Diff 和流式重绘 | 终端 I/O | 首版仅支持 Windows
 - `render_terminal(state, input, columns, rows): str`: 生成单帧 ANSI 终端画面 | 无副作用 | 清除控制字符并约束行宽

@@ -95,7 +95,10 @@ class RootActionDispatcher:
             )
             return _ok(request, {"path": document.relative_path, "text": document.text, "total_lines": document.total_lines})
         if request.name == "list_files":
-            files = await asyncio.to_thread(self.files.list_files)
+            root = arguments.get("root")
+            if root is not None and not isinstance(root, str):
+                raise ValueError("root must be text")
+            files = await asyncio.to_thread(self.files.list_files, root)
             return _ok(request, {"files": list(files)})
         if request.name == "search_text":
             matches = await asyncio.to_thread(
@@ -186,7 +189,7 @@ def create_application(workspace_root: Path | None = None) -> Application:
     controller = AgentController(AgentEngine(model, context, dispatcher, sessions))
     return Application(
         controller,
-        WindowsTerminalApp(controller, approvals, sessions=sessions),
+        WindowsTerminalApp(controller, approvals, sessions=sessions, history=sessions),
         dispatcher,
         model,
     )

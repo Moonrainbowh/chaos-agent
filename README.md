@@ -89,7 +89,7 @@ agent resume <thread-id> "continue the previous task"
 agent run --json "list the relevant files"
 ```
 
-The Windows TUI supports typing, streaming transcript updates, a tool timeline, `D` for Diff preview, `S` for recent session selection, and `Y`/`N` approval for writes and commands. It is designed for Windows Terminal and PowerShell.
+The Windows TUI supports typing, streaming transcript updates, and a tool timeline. Resuming or selecting a session restores a compact task summary and recent actions; `PageUp`/`PageDown` browse chat history, while `Home` and `End` jump to its oldest and newest visible positions. `D` retains Diff preview, `S` retains recent session selection, and `Y`/`N` retain approval for writes and commands. It is designed for Windows Terminal and PowerShell.
 
 ## Safety Defaults
 
