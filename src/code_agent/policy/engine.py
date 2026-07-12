@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Optional
 
 from code_agent.core.models import ActionRequest
+from code_agent.core.task import TaskAuthorization
 
 from .classifier import ActionClassification, classify_action
 from .models import (
@@ -56,7 +57,7 @@ class ActionPolicy:
             capabilities=classified.capabilities,
         )
 
-    def evaluate(self, request: ActionRequest) -> PolicyDecision:
+    def evaluate(self, request: ActionRequest, task_authorization: TaskAuthorization | None = None) -> PolicyDecision:
         classified = classify_action(request, self.config.workspace_root)
 
         if not classified.known_tool:
@@ -85,6 +86,19 @@ class ActionPolicy:
                 else "denied because plan mode permits read-only actions only"
             )
             return self._decision(outcome, classified, reason)
+
+        if task_authorization is not None:
+            configured = self.config.workspace_root
+            authorized_root = Path(task_authorization.workspace_root).resolve(strict=False)
+            local = configured is not None and configured == authorized_root
+            blocked = Capability.NETWORK in classified.capabilities or Capability.OUTSIDE_WORKSPACE in classified.capabilities
+            if local and not blocked:
+                if Capability.EXECUTE in classified.capabilities and task_authorization.allow_local_execute:
+                    return self._decision(DecisionOutcome.ALLOW, classified, "allowed by foreground task authorization")
+                if Capability.WRITE in classified.capabilities and task_authorization.allow_workspace_write:
+                    return self._decision(DecisionOutcome.ALLOW, classified, "allowed by foreground task authorization")
+                if Capability.READ in classified.capabilities:
+                    return self._decision(DecisionOutcome.ALLOW, classified, "allowed by foreground task authorization")
 
         if mode is ApprovalMode.ASK:
             if outside:

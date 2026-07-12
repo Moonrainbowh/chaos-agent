@@ -101,6 +101,27 @@ The Windows TUI supports typing, streaming transcript updates, and a tool timeli
 
 Sessions are stored at `%LOCALAPPDATA%\code-agent\sessions.sqlite3` by default.
 
+## Foreground Tasks
+
+Engineering requests in the Windows TUI run as durable foreground tasks. A task
+is scoped to its current workspace and may perform ordinary workspace edits and
+non-network local tests without a prompt for every action. Network access,
+paths outside the workspace, unknown tools, and critical commands remain
+blocked or require an explicit decision.
+
+Use `Esc` or `/暂停 <task-id>` to pause, `/继续 <task-id>` to resume, `/停止
+<task-id>` to stop, `/任务` to inspect tasks, and `/引导 <text>` to queue
+guidance. Process commands are `agent task list` and `agent task resume
+<task-id> [instruction]`. Chinese Windows uses Chinese task chrome by default;
+`/language en` selects English UI labels. Paths, commands, model names, Git
+refs, and raw tool data are never translated.
+
+Tasks persist lifecycle state, checkpoints, and cumulative budgets. Closing the
+terminal, sleep, hibernate, shutdown, or reboot does not keep work running;
+the next foreground session resumes from a checkpoint and never replays an
+in-flight command. This release deliberately has no daemon, remote observer,
+background continuation, worktrees, automatic commit, or push.
+
 ## Context Budgets And Local Diagnostics
 
 Each model context has a deterministic 20,000-token configured ceiling. The

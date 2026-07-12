@@ -60,13 +60,18 @@ class TaskBudget:
     limits: EngineLimits
     model_turns: int = 0
     tool_calls: int = 0
+    input_tokens: int = 0
+    output_tokens: int = 0
+    repair_cycles: int = 0
+    repeated_failures: int = 0
+    last_failure_signature: str | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.model_name, str) or not self.model_name.strip():
             raise ValueError("model_name must be non-blank text")
         if not isinstance(self.limits, EngineLimits):
             raise TypeError("limits must be EngineLimits")
-        for name in ("model_turns", "tool_calls"):
+        for name in ("model_turns", "tool_calls", "input_tokens", "output_tokens", "repair_cycles", "repeated_failures"):
             value = getattr(self, name)
             if isinstance(value, bool) or not isinstance(value, int) or value < 0:
                 raise ValueError(f"{name} must be a non-negative integer")
@@ -74,6 +79,10 @@ class TaskBudget:
             raise ValueError("model_turns exceeds task limit")
         if self.tool_calls > self.limits.max_tool_calls:
             raise ValueError("tool_calls exceeds task limit")
+        if self.input_tokens + self.output_tokens > self.limits.max_total_tokens:
+            raise ValueError("token usage exceeds task limit")
+        if self.last_failure_signature is not None and (not isinstance(self.last_failure_signature, str) or len(self.last_failure_signature) > 1024):
+            raise ValueError("last_failure_signature must be bounded text or None")
 
 
 def add_usage(left: Usage, right: Usage) -> Usage:

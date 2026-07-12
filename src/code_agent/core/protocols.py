@@ -11,9 +11,11 @@ from .models import (
     Message,
     ModelEvent,
     ToolDefinition,
+    Usage,
 )
 from .task_state import TaskState
 from .limits import EngineLimits, TaskBudget
+from .task import TaskAuthorization, TaskContract, TaskRecord, TaskStatus
 
 
 class ModelClient(Protocol):
@@ -39,7 +41,8 @@ class ActionDispatcher(Protocol):
     def tools(self) -> Sequence[ToolDefinition]: ...
 
     async def dispatch(
-        self, request: ActionRequest, cancellation: CancellationToken
+        self, request: ActionRequest, cancellation: CancellationToken,
+        task_authorization: TaskAuthorization | None = None,
     ) -> ActionResult: ...
 
 
@@ -63,6 +66,14 @@ class SessionRepository(Protocol):
     async def reserve_task_budget(
         self, thread_id: str, *, model_turns: int = 0, tool_calls: int = 0
     ) -> TaskBudget | None: ...
+
+    async def create_task(self, thread_id: str, contract: TaskContract) -> TaskRecord: ...
+    async def load_task(self, task_id: str) -> TaskRecord: ...
+    async def load_task_for_thread(self, thread_id: str) -> TaskRecord | None: ...
+    async def transition_task(self, task_id: str, status: TaskStatus, reason: str | None = None) -> TaskRecord: ...
+    async def list_tasks(self, *, include_terminal: bool = False) -> tuple[TaskRecord, ...]: ...
+    async def consume_task_usage(self, task_id: str, usage: Usage) -> TaskBudget: ...
+    async def observe_task_validation(self, task_id: str, fingerprint: str | None, changed_files: int) -> TaskBudget: ...
 
     async def load_task_state(self, thread_id: str) -> TaskState: ...
 

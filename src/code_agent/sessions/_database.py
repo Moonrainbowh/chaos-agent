@@ -15,7 +15,7 @@ from .errors import (
 )
 
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 _BUSY_TIMEOUT_MS = 5_000
 _SQLITE_CORRUPT = 11
 _SQLITE_NOTADB = 26
@@ -43,6 +43,15 @@ _MIGRATIONS: dict[int, tuple[str, ...]] = {
     4: (
         "CREATE TABLE task_states (thread_id TEXT PRIMARY KEY REFERENCES threads(id) ON DELETE CASCADE, payload TEXT NOT NULL, updated_at TEXT NOT NULL)",
     ),
+    5: (
+        "CREATE TABLE tasks (id TEXT PRIMARY KEY, thread_id TEXT NOT NULL UNIQUE REFERENCES threads(id) ON DELETE CASCADE, contract TEXT NOT NULL, status TEXT NOT NULL, stop_reason TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)",
+        "CREATE INDEX tasks_status_updated ON tasks(status, updated_at DESC, id)",
+        "ALTER TABLE task_budgets ADD COLUMN input_tokens INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE task_budgets ADD COLUMN output_tokens INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE task_budgets ADD COLUMN repair_cycles INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE task_budgets ADD COLUMN repeated_failures INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE task_budgets ADD COLUMN last_failure_signature TEXT",
+    ),
 }
 
 _REQUIRED_COLUMNS = {
@@ -54,8 +63,9 @@ _REQUIRED_COLUMNS = {
         "updated_at",
     },
     "checkpoints": {"id", "thread_id", "label", "metadata", "created_at"},
-    "task_budgets": {"thread_id", "model_name", "max_agent_rounds", "max_tool_calls", "max_tool_calls_per_round", "model_turns", "tool_calls"},
+    "task_budgets": {"thread_id", "model_name", "max_agent_rounds", "max_tool_calls", "max_tool_calls_per_round", "model_turns", "tool_calls", "input_tokens", "output_tokens", "repair_cycles", "repeated_failures", "last_failure_signature"},
     "task_states": {"thread_id", "payload", "updated_at"},
+    "tasks": {"id", "thread_id", "contract", "status", "stop_reason", "created_at", "updated_at"},
 }
 
 

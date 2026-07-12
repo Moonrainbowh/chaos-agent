@@ -9,6 +9,12 @@ from ._json import JSONValue, freeze_mapping, plain, validate_json_mapping
 
 
 class EventKind(str, Enum):
+    TASK_CREATED = "task_created"
+    TASK_STATUS_CHANGED = "task_status_changed"
+    TASK_CHECKPOINT_CREATED = "task_checkpoint_created"
+    TASK_BUDGET_WARNING = "task_budget_warning"
+    TASK_PAUSED = "task_paused"
+    TASK_DECISION_REQUIRED = "task_decision_required"
     RUN_STARTED = "run_started"
     TURN_STARTED = "turn_started"
     CONTEXT_BUILT = "context_built"

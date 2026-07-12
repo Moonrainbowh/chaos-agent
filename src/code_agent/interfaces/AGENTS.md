@@ -10,6 +10,8 @@
 
 ## Units
 - `AgentController.ask`、`resume`、`run_json`: 将同一 `AgentEngine` 事件流提供给交互和非交互调用方 | 调用内核 | 不重解释动作或绕过取消令牌
+- `ForegroundTaskController`: 创建、附着、暂停、恢复、停止前台任务，并在安全边界提交 steering | 调用 core runner | 不持有 SQLite 或直接执行工具
+- `parse_tui_command(text)`: 解析 TUI 内部 `/任务`、`/暂停`、`/继续`、`/停止`、`/引导`、`/语言` | 无副作用 | 不与进程级 CLI grammar 循环依赖
 - `parse_command(arguments): Command`: 解析 `agent`、`ask`、`resume` 和 `run --json` 的稳定命令语义 | 无副作用 | 不打印或直接退出，便于集成入口处理用法错误
 - `execute_command(command, controller, tui, write): int`: 把解析后的命令委托给 TUI、文本流或 JSON 流 | 写入调用方提供的输出 | 依赖组合留给集成阶段
 - `ApprovalBroker`: 在策略动作分发与 TUI 之间传递可取消的审批请求和 Y/N 决定 | 异步等待 | 同一 request ID 只允许一个待决审批

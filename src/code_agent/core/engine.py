@@ -31,6 +31,9 @@ from .protocols import (
     SessionRepository,
 )
 from .task_state import TaskState
+from .task import TaskRecord
+from .task import TaskStatus
+from .task_supervisor import SupervisionKind, TaskSupervisor
 
 
 class AgentEngine:
@@ -59,6 +62,7 @@ class AgentEngine:
         *,
         thread_id: Optional[str] = None,
         cancellation: Optional[CancellationToken] = None,
+        task: TaskRecord | None = None,
     ) -> AsyncIterator[AgentEvent]:
         """Run one user request and stream events after durable persistence."""
         if not isinstance(user_input, str):
@@ -72,9 +76,12 @@ class AgentEngine:
 
         token = cancellation or CancellationToken()
         active_thread = thread_id or await self._journal.create_thread()
+        if task is not None and task.thread_id != active_thread:
+            raise ValueError("task must belong to the active thread")
         task_budget = await self._journal.get_or_create_task_budget(
             active_thread, self._model_name, self._limits
         )
+        supervisor = TaskSupervisor(task.contract, started_at=task.created_at) if task else None
         started = AgentEvent(
             kind=EventKind.RUN_STARTED,
             payload={"thread_id": active_thread},
@@ -97,6 +104,14 @@ class AgentEngine:
 
             for turn in range(1, task_budget.limits.max_agent_rounds + 1):
                 token.raise_if_cancelled()
+                if supervisor is not None:
+                    decision = supervisor.before_model_turn()
+                    if decision.kind is SupervisionKind.PAUSE:
+                        await self._pause_task(active_thread, task, decision.reason or "task paused")
+                        paused = AgentEvent(EventKind.TASK_PAUSED, {"task_id": task.id, "status": "paused", "reason": decision.reason or "task paused"})
+                        await self._journal.append_event(active_thread, paused)
+                        yield paused
+                        return
                 reserved = await self._journal.reserve_task_budget(
                     active_thread, model_turns=1
                 )
@@ -111,7 +126,11 @@ class AgentEngine:
                 await self._journal.append_event(active_thread, turn_started)
                 yield turn_started
 
-                source_messages = prior_messages if turn == 1 else messages
+                source_messages = (
+                    await self._journal.load_messages(active_thread)
+                    if task is not None
+                    else prior_messages if turn == 1 else messages
+                )
                 source_input = user_input if turn == 1 else ""
                 try:
                     task_state = await self._journal.load_task_state(active_thread)
@@ -172,6 +191,8 @@ class AgentEngine:
                         yield streamed
                         if model_event.usage is not None:
                             total_usage = add_usage(total_usage, model_event.usage)
+                            if task is not None:
+                                await self._journal.consume_task_usage(task.id, model_event.usage)
                             if total_usage.total_tokens > self._limits.max_total_tokens:
                                 raise EngineLimitError("token budget exceeded")
                 except (AgentEngineError, CancellationError):
@@ -194,6 +215,11 @@ class AgentEngine:
                 yield assistant_added
 
                 if not calls:
+                    if task is not None:
+                        completed_task = await self._journal.transition_task(task.id, TaskStatus.COMPLETED)
+                        task_event = AgentEvent(EventKind.TASK_STATUS_CHANGED, {"task_id": completed_task.id, "status": completed_task.status.value})
+                        await self._journal.append_event(active_thread, task_event)
+                        yield task_event
                     finished = AgentEvent(
                         kind=EventKind.COMPLETED,
                         payload={
@@ -229,6 +255,8 @@ class AgentEngine:
                         call,
                         token,
                         is_available=call.name in tool_names,
+                        task=task,
+                        supervisor=supervisor,
                     ):
                         if action_event.kind is EventKind.MESSAGE_ADDED:
                             result_message = Message.from_dict(
@@ -261,6 +289,8 @@ class AgentEngine:
         token: CancellationToken,
         *,
         is_available: bool,
+        task: TaskRecord | None = None,
+        supervisor: TaskSupervisor | None = None,
     ) -> AsyncIterator[AgentEvent]:
         request = ActionRequest(id=call.id, name=call.name, arguments=call.arguments)
         requested = AgentEvent(
@@ -272,6 +302,14 @@ class AgentEngine:
         if not is_available:
             result = tool_failure(call, "tool is not available")
         else:
+            if supervisor is not None and call.name in {"write_file", "replace_text", "run_command"}:
+                decision = supervisor.before_external_action()
+                if decision.kind is SupervisionKind.PAUSE:
+                    await self._pause_task(thread_id, task, decision.reason or "task paused")
+                    paused = AgentEvent(EventKind.TASK_PAUSED, {"task_id": task.id, "status": "paused", "reason": decision.reason or "task paused"})
+                    await self._journal.append_event(thread_id, paused)
+                    yield paused
+                    return
             started = AgentEvent(
                 kind=EventKind.ACTION_STARTED,
                 payload={"request_id": call.id, "name": call.name},
@@ -279,7 +317,10 @@ class AgentEngine:
             await self._journal.append_event(thread_id, started)
             yield started
             try:
-                result = await self._actions.dispatch(request, token)
+                if task is None:
+                    result = await self._actions.dispatch(request, token)
+                else:
+                    result = await self._actions.dispatch(request, token, task.contract.authorization)
                 if result.request_id != call.id or result.name != call.name:
                     result = tool_failure(call, "invalid tool result")
             except CancellationError:
@@ -299,7 +340,16 @@ class AgentEngine:
             "replace_text",
             "run_command",
         }:
-            await self._journal.reduce_task_state(thread_id, request, result)
+            state = await self._journal.reduce_task_state(thread_id, request, result)
+            if task is not None and supervisor is not None and call.name == "run_command":
+                fingerprint = _validation_fingerprint(request, result)
+                decision = supervisor.observe_validation(fingerprint, len(state.files_changed))
+                await self._journal.observe_task_validation(task.id, fingerprint, len(state.files_changed))
+                if decision.kind is SupervisionKind.PAUSE:
+                    await self._pause_task(thread_id, task, decision.reason or "validation paused")
+                    paused = AgentEvent(EventKind.TASK_PAUSED, {"task_id": task.id, "status": "paused", "reason": decision.reason or "validation paused"})
+                    await self._journal.append_event(thread_id, paused)
+                    yield paused
 
         completed = AgentEvent(
             kind=EventKind.ACTION_COMPLETED,
@@ -324,6 +374,10 @@ class AgentEngine:
         added = self._journal.message_added(message)
         await self._journal.append_event(thread_id, added)
         yield added
+
+    async def _pause_task(self, thread_id: str, task: TaskRecord, reason: str) -> None:
+        paused = await self._journal.transition_task(task.id, TaskStatus.PAUSED, reason)
+        await self._journal.create_checkpoint(thread_id, "task-paused", {"task_id": paused.id, "status": paused.status.value, "reason": reason})
 
     def _advertised_tools(self) -> tuple[tuple[ToolDefinition, ...], set[str]]:
         try:
@@ -355,3 +409,16 @@ class AgentEngine:
             if event.tool_call is None:
                 raise ModelStreamError("tool call event has no call")
             calls.append(event.tool_call)
+
+
+def _validation_fingerprint(request: ActionRequest, result: object) -> str | None:
+    output = getattr(result, "output", {})
+    if not isinstance(output, dict):
+        return None
+    if not getattr(result, "is_error", True) and output.get("returncode") in {0, None}:
+        return None
+    command = request.arguments.get("command")
+    if not isinstance(command, str):
+        return None
+    prefix = " ".join(str(output.get(key, ""))[:256] for key in ("stdout", "stderr"))
+    return f"{command[:120]}|{output.get('returncode')}|{output.get('reason', 'failed')}|{prefix[:256]}"

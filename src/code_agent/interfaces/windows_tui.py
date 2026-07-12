@@ -9,6 +9,9 @@ from code_agent.core.cancellation import CancellationToken
 from .controller import AgentController
 from .history import ThreadHistoryReader, load_thread_history
 from .terminal_state import ApprovalBroker, ApprovalRequest, TerminalState
+from .task_controller import ForegroundTaskController
+from .tui_commands import TuiCommandKind, parse_tui_command
+from .i18n import EN_US, ZH_CN, UiCatalog
 class SessionBrowser(Protocol):
     async def list_threads(self, *, limit: int = 100) -> Sequence[object]: ...
 class WindowsTerminalApp:
@@ -19,6 +22,7 @@ class WindowsTerminalApp:
         approvals: ApprovalBroker,
         *,
         sessions: Optional[SessionBrowser] = None,
+        tasks: ForegroundTaskController | None = None,
         history: Optional[ThreadHistoryReader] = None,
         write: Optional[Callable[[str], object]] = None,
     ) -> None:
@@ -29,6 +33,9 @@ class WindowsTerminalApp:
         self.controller = controller
         self.approvals = approvals
         self.sessions = sessions
+        self.tasks = tasks
+        self.active_task_id: str | None = None
+        self.catalog = ZH_CN
         self.history = history
         self._write = write or _stdout_write
         self.state = TerminalState()
@@ -61,13 +68,27 @@ class WindowsTerminalApp:
     async def submit(self, text: str) -> bool:
         if not isinstance(text, str):
             raise TypeError("text must be a string")
-        if not text.strip() or (self._run_task is not None and not self._run_task.done()):
+        if not text.strip():
+            return False
+        command = parse_tui_command(text)
+        if command is not None:
+            return await self._handle_task_command(command)
+        if self._run_task is not None and not self._run_task.done():
+            if self.tasks is not None and self.active_task_id is not None:
+                await self.tasks.steer(self.active_task_id, text)
+                self.state.status = "steering queued"
+                return True
             return False
         self.input_text = ""
         self.history_offset = 0
         self.state.transcript.append("user: " + _safe_text(text))
         self._token = CancellationToken()
-        self._run_task = asyncio.create_task(self._consume(text, self._token))
+        if self.tasks is not None:
+            record = await self.tasks.start(text)
+            self.active_task_id = record.id
+            self._run_task = asyncio.create_task(self._consume_task(record.id, text))
+        else:
+            self._run_task = asyncio.create_task(self._consume(text, self._token))
         self.redraw()
         return True
     async def wait_idle(self) -> None:
@@ -79,6 +100,8 @@ class WindowsTerminalApp:
             self.approvals.resolve(request.request_id, key.casefold() == "y")
             self._pending_approval = None
             self._approval_done.set()
+        elif key == "\x1b" and self.active_task_id and self.tasks is not None:
+            await self.tasks.pause(self.active_task_id)
         elif key in {"\x03", "q"} and not self.input_text:
             self.running = False
             if self._token is not None:
@@ -149,6 +172,40 @@ class WindowsTerminalApp:
             self.state.status = "error"
             self.state.transcript.append("error: " + type(error).__name__)
             self.redraw()
+    async def _consume_task(self, task_id: str, text: str) -> None:
+        try:
+            if self.tasks is None:
+                return
+            async for event in self.tasks.events(task_id, text):
+                self.state.apply(event)
+                self.redraw()
+        except Exception as error:
+            self.state.status = "error"
+            self.state.transcript.append("error: " + type(error).__name__)
+            self.redraw()
+
+    async def _handle_task_command(self, command: object) -> bool:
+        if self.tasks is None:
+            return False
+        kind = getattr(command, "kind", None)
+        task_id = getattr(command, "task_id", None) or self.active_task_id
+        if kind is TuiCommandKind.TASKS:
+            records = await self.tasks.list(include_terminal=True)
+            self.state.transcript.append("tasks: " + " | ".join(f"{task.id}:{task.status.value}" for task in records))
+        elif kind is TuiCommandKind.PAUSE and task_id:
+            await self.tasks.pause(task_id)
+        elif kind is TuiCommandKind.STOP and task_id:
+            await self.tasks.stop(task_id)
+        elif kind is TuiCommandKind.RESUME and task_id:
+            self.active_task_id = task_id
+            self._run_task = asyncio.create_task(self._consume_task(task_id, "continue safely"))
+        elif kind is TuiCommandKind.STEER and task_id:
+            await self.tasks.steer(task_id, getattr(command, "instruction", ""))
+        elif kind is TuiCommandKind.LANGUAGE:
+            self.catalog = ZH_CN if getattr(command, "instruction", "") in {"zh", "zh-CN"} else EN_US
+        else:
+            return False
+        return True
     async def _listen_approvals(self) -> None:
         while True:
             request = await self.approvals.next_request()
@@ -192,6 +249,8 @@ class WindowsTerminalApp:
         elif key == "end":
             self.history_offset = 0
     async def _close_tasks(self) -> None:
+        if self.tasks is not None and self.active_task_id is not None and self._run_task is not None and not self._run_task.done():
+            await self.tasks.pause(self.active_task_id, "TUI closed")
         if self._token is not None:
             self._token.cancel("TUI closed")
         for task in (self._run_task, self._approval_task):
@@ -210,6 +269,7 @@ def render_terminal(
     pending_approval: Optional[ApprovalRequest] = None,
     sessions: Sequence[object] = (),
     history_offset: int = 0,
+    catalog: UiCatalog = EN_US,
 ) -> str:
     """Render one complete ANSI screen without trusting model terminal escapes."""
     width = max(40, columns)
@@ -220,6 +280,8 @@ def render_terminal(
         _clip(_safe_text("status: " + state.status), width),
         _clip("[s] sessions [d] diff [q] quit | history: PageUp/PageDown Home/End", width),
     ]
+    if state.task_id and state.task_status not in {"completed", "failed"}:
+        lines.insert(2, _clip(f"{catalog.task} {state.task_id} · {state.task_status} · Esc {catalog.paused} · /任务", width))
     lines.extend(_display_lines("\n".join(state.summary))[:3])
     if pending_approval is not None:
         lines.extend(

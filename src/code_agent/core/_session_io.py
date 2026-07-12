@@ -3,9 +3,11 @@ from __future__ import annotations
 from .errors import SessionPersistenceError
 from .events import AgentEvent, EventKind
 from .models import ActionRequest, ActionResult, Message
+from .models import Usage
 from .limits import EngineLimits, TaskBudget
 from .protocols import SessionRepository
 from .task_state import TaskState
+from .task import TaskRecord, TaskStatus
 
 
 class SessionJournal:
@@ -84,6 +86,30 @@ class SessionJournal:
             return state
         except Exception:
             raise SessionPersistenceError("could not persist task state") from None
+
+    async def transition_task(self, task_id: str, status: TaskStatus, reason: str | None = None) -> TaskRecord:
+        try:
+            return await self._repository.transition_task(task_id, status, reason)
+        except Exception:
+            raise SessionPersistenceError("could not transition task") from None
+
+    async def create_checkpoint(self, thread_id: str, label: str, metadata: dict[str, object]) -> object:
+        try:
+            return await self._repository.create_checkpoint(thread_id, label, metadata)
+        except Exception:
+            raise SessionPersistenceError("could not create task checkpoint") from None
+
+    async def consume_task_usage(self, task_id: str, usage: Usage) -> TaskBudget:
+        try:
+            return await self._repository.consume_task_usage(task_id, usage)
+        except Exception:
+            raise SessionPersistenceError("could not persist task usage") from None
+
+    async def observe_task_validation(self, task_id: str, fingerprint: str | None, changed_files: int) -> TaskBudget:
+        try:
+            return await self._repository.observe_task_validation(task_id, fingerprint, changed_files)
+        except Exception:
+            raise SessionPersistenceError("could not persist task validation") from None
 
     @staticmethod
     def message_added(message: Message) -> AgentEvent:

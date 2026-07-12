@@ -27,6 +27,7 @@ async def run(arguments: Sequence[str]) -> int:
             application.controller,
             application.tui,
             sys.stdout.write,
+            application.foreground_tasks,
         )
     except Exception as error:
         print(f"agent error: {type(error).__name__}", file=sys.stderr)

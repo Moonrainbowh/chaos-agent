@@ -8,6 +8,7 @@ from code_agent.core._json import JSONValue, plain
 from code_agent.core.events import AgentEvent
 from code_agent.core.models import Message
 from code_agent.core.task_state import TaskState
+from code_agent.core.task import TaskRecord
 
 from .errors import SessionCorruptionError
 
@@ -76,6 +77,21 @@ def decode_task_state(payload: object) -> TaskState:
         raise
     except (KeyError, TypeError, ValueError) as error:
         raise SessionCorruptionError("invalid persisted task state") from error
+
+
+def encode_task(record: TaskRecord) -> str:
+    if not isinstance(record, TaskRecord):
+        raise TypeError("record must be a TaskRecord")
+    return _encode(record.to_dict())
+
+
+def decode_task(payload: object) -> TaskRecord:
+    try:
+        return TaskRecord.from_dict(_decode_object(payload, "task"))
+    except SessionCorruptionError:
+        raise
+    except (KeyError, TypeError, ValueError) as error:
+        raise SessionCorruptionError("invalid persisted task") from error
 
 
 def encode_metadata(metadata: Mapping[str, JSONValue]) -> str:

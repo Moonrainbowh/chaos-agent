@@ -8,6 +8,7 @@ from collections.abc import Callable
 from typing import Mapping, Optional, Sequence
 
 from code_agent.context.builder import WorkspaceContextBuilder
+from code_agent.config.loader import load_runtime_config
 from code_agent.context.compaction import DeterministicCompactor
 from code_agent.context.cache import RepoMapCache
 from code_agent.context.models import ContextConfig
@@ -16,7 +17,9 @@ from code_agent.context.rules import RuleLoader
 from code_agent.core.cancellation import CancellationToken
 from code_agent.core.engine import AgentEngine
 from code_agent.core.models import ActionRequest, ActionResult, ToolDefinition
+from code_agent.core.task import TaskAuthorization
 from code_agent.interfaces.controller import AgentController
+from code_agent.interfaces.task_controller import ForegroundTaskController
 from code_agent.interfaces.terminal_state import ApprovalBroker, ApprovalRequest
 from code_agent.interfaces.windows_tui import WindowsTerminalApp
 from code_agent.policy.engine import ActionPolicy, PolicyConfig
@@ -63,12 +66,13 @@ class RootActionDispatcher:
         return tool_definitions()
 
     async def dispatch(
-        self, request: ActionRequest, cancellation: CancellationToken
+        self, request: ActionRequest, cancellation: CancellationToken,
+        task_authorization: TaskAuthorization | None = None,
     ) -> ActionResult:
         validation_error = validate_tool_arguments(request.name, request.arguments)
         if validation_error is not None:
             return _error(request, "invalid tool arguments", validation_error)
-        decision = self.policy.evaluate(request)
+        decision = self.policy.evaluate(request, task_authorization)
         if decision.outcome is DecisionOutcome.DENY:
             return _error(request, "action denied", decision.reason)
         if decision.outcome is DecisionOutcome.ASK:
@@ -150,6 +154,7 @@ class RootActionDispatcher:
 @dataclass
 class Application:
     controller: AgentController
+    foreground_tasks: ForegroundTaskController
     tui: WindowsTerminalApp
     dispatcher: RootActionDispatcher
     model: object
@@ -160,7 +165,14 @@ class Application:
             await close()
 
 
-def create_application(workspace_root: Path | None = None) -> Application:
+def create_application(
+    workspace_root: Path | None = None,
+    *,
+    model_name: str | None = None,
+    profile_name: str | None = None,
+) -> Application:
+    if profile_name is not None and (not isinstance(profile_name, str) or not profile_name.strip()):
+        raise ValueError("profile_name must be non-blank text")
     root = (workspace_root or Path.cwd()).resolve()
     guard = WorkspacePathGuard(root)
     files = WorkspaceFiles(guard, IgnoreRules.from_workspace(root))
@@ -173,7 +185,8 @@ def create_application(workspace_root: Path | None = None) -> Application:
         DeterministicCompactor(config),
     )
     approvals = ApprovalBroker()
-    mode = ApprovalMode(os.getenv("CODE_AGENT_APPROVAL_MODE", "ask"))
+    runtime_config = load_runtime_config(cli_profile=profile_name)
+    mode = runtime_config.approval_mode
     policy = ActionPolicy(PolicyConfig(mode, workspace_root=root))
     dispatcher = RootActionDispatcher(
         files,
@@ -185,24 +198,25 @@ def create_application(workspace_root: Path | None = None) -> Application:
         invalidate_cache=cache.invalidate,
     )
     sessions = SQLiteSessionRepository(_session_path())
-    model = _model_client()
+    model = _model_client(runtime_config.provider, model_name)
     controller = AgentController(AgentEngine(model, context, dispatcher, sessions))
+    foreground_tasks = ForegroundTaskController(controller, sessions, root)
     return Application(
         controller,
-        WindowsTerminalApp(controller, approvals, sessions=sessions, history=sessions),
+        foreground_tasks,
+        WindowsTerminalApp(controller, approvals, sessions=sessions, history=sessions, tasks=foreground_tasks),
         dispatcher,
         model,
     )
 
 
-def _model_client() -> object:
-    protocol = ApiProtocol(os.getenv("CODE_AGENT_API", "responses"))
-    config = ProviderConfig(
-        base_url=os.getenv("CODE_AGENT_BASE_URL", "https://api.openai.com"),
-        model=os.getenv("CODE_AGENT_MODEL", "gpt-4.1-mini"),
-        api=protocol,
-        api_key_env=os.getenv("CODE_AGENT_API_KEY_ENV", "OPENAI_API_KEY"),
-    )
+def _model_client(config: ProviderConfig, model_name: str | None = None) -> object:
+    if model_name is not None:
+        config = ProviderConfig(
+            base_url=config.base_url, model=model_name, api=config.api,
+            api_key_env=config.api_key_env, api_key_source=config.api_key_source,
+        )
+    protocol = config.api
     if protocol is ApiProtocol.RESPONSES:
         return OpenAIResponsesClient(config)
     if protocol is ApiProtocol.CHAT_COMPLETIONS:

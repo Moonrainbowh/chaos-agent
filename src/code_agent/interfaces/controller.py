@@ -6,6 +6,7 @@ from typing import Optional, Protocol
 
 from code_agent.core.cancellation import CancellationToken
 from code_agent.core.events import AgentEvent
+from code_agent.core.task import TaskRecord
 
 
 class AgentRunner(Protocol):
@@ -15,6 +16,7 @@ class AgentRunner(Protocol):
         *,
         thread_id: Optional[str] = None,
         cancellation: Optional[CancellationToken] = None,
+        task: TaskRecord | None = None,
     ) -> AsyncIterator[AgentEvent]: ...
 
 
@@ -32,12 +34,12 @@ class AgentController:
         *,
         thread_id: Optional[str] = None,
         cancellation: Optional[CancellationToken] = None,
+        task: TaskRecord | None = None,
     ) -> AsyncIterator[AgentEvent]:
-        async for event in self._engine.run(
-            user_input,
-            thread_id=thread_id,
-            cancellation=cancellation,
-        ):
+        kwargs = {"thread_id": thread_id, "cancellation": cancellation}
+        if task is not None:
+            kwargs["task"] = task
+        async for event in self._engine.run(user_input, **kwargs):
             yield event
 
     async def resume(

@@ -5,9 +5,10 @@ import uuid
 from typing import Optional
 
 from code_agent.core.events import AgentEvent
-from code_agent.core.models import ActionRequest, ActionResult, Message
+from code_agent.core.models import ActionRequest, ActionResult, Message, Usage
 from code_agent.core.task_state import TaskState, reduce_task_state
 from code_agent.core.limits import EngineLimits, TaskBudget
+from code_agent.core.task import TaskContract, TaskRecord, TaskStatus
 
 from ._codec import (
     decode_datetime,
@@ -18,6 +19,8 @@ from ._codec import (
     encode_event,
     encode_message,
     encode_task_state,
+    encode_task,
+    decode_task,
     utc_now,
 )
 from ._database import SessionDatabase
@@ -52,6 +55,44 @@ class SQLiteSessionRepository(RecordRepositoryMixin):
 
         await self._database.write(write)
         return identifier
+
+    async def create_task(self, thread_id: str, contract: TaskContract) -> TaskRecord:
+        if not isinstance(contract, TaskContract):
+            raise TypeError("contract must be a TaskContract")
+        record = TaskRecord.new(thread_id, contract.objective, contract.authorization, max_active_seconds=contract.max_active_seconds, max_repair_cycles=contract.max_repair_cycles, max_repeated_failure_signatures=contract.max_repeated_failure_signatures)
+        def write(connection: sqlite3.Connection) -> TaskRecord:
+            _require_thread(connection, record.thread_id)
+            connection.execute("INSERT INTO tasks(id, thread_id, contract, status, stop_reason, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)", (record.id, record.thread_id, encode_task(record), record.status.value, record.stop_reason, encode_datetime(record.created_at), encode_datetime(record.updated_at)))
+            return record
+        return await self._database.write(write)
+
+    async def load_task(self, task_id: str) -> TaskRecord:
+        def read(connection: sqlite3.Connection) -> TaskRecord:
+            row = connection.execute("SELECT contract, id, thread_id, status, stop_reason, created_at, updated_at FROM tasks WHERE id = ?", (_text(task_id, "task_id"),)).fetchone()
+            if row is None: raise SessionNotFound("task not found")
+            return _row_task(row)
+        return await self._database.read(read)
+
+    async def load_task_for_thread(self, thread_id: str) -> TaskRecord | None:
+        def read(connection: sqlite3.Connection) -> TaskRecord | None:
+            row = connection.execute("SELECT contract, id, thread_id, status, stop_reason, created_at, updated_at FROM tasks WHERE thread_id = ?", (_text(thread_id, "thread_id"),)).fetchone()
+            return None if row is None else _row_task(row)
+        return await self._database.read(read)
+
+    async def transition_task(self, task_id: str, status: TaskStatus, reason: str | None = None) -> TaskRecord:
+        def write(connection: sqlite3.Connection) -> TaskRecord:
+            row = connection.execute("SELECT contract, id, thread_id, status, stop_reason, created_at, updated_at FROM tasks WHERE id = ?", (_text(task_id, "task_id"),)).fetchone()
+            if row is None: raise SessionNotFound("task not found")
+            updated = _row_task(row).transition(status, reason)
+            connection.execute("UPDATE tasks SET contract = ?, status = ?, stop_reason = ?, updated_at = ? WHERE id = ?", (encode_task(updated), updated.status.value, updated.stop_reason, encode_datetime(updated.updated_at), updated.id))
+            return updated
+        return await self._database.write(write)
+
+    async def list_tasks(self, *, include_terminal: bool = False) -> tuple[TaskRecord, ...]:
+        def read(connection: sqlite3.Connection) -> tuple[TaskRecord, ...]:
+            where = "" if include_terminal else "WHERE status NOT IN ('completed', 'failed')"
+            return tuple(_row_task(row) for row in connection.execute(f"SELECT contract, id, thread_id, status, stop_reason, created_at, updated_at FROM tasks {where} ORDER BY updated_at DESC, id").fetchall())
+        return await self._database.read(read)
 
     async def load_messages(self, thread_id: str) -> tuple[Message, ...]:
         thread_id = _text(thread_id, "thread_id")
@@ -177,7 +218,7 @@ class SQLiteSessionRepository(RecordRepositoryMixin):
             ).fetchone()
             if row is None:
                 connection.execute(
-                    "INSERT INTO task_budgets VALUES (?, ?, ?, ?, ?, 0, 0)",
+                    "INSERT INTO task_budgets VALUES (?, ?, ?, ?, ?, 0, 0, 0, 0, 0, 0, NULL)",
                     (thread_id, model_name, limits.max_agent_rounds, limits.max_tool_calls, limits.max_tool_calls_per_round),
                 )
                 return TaskBudget(model_name, limits)
@@ -212,6 +253,42 @@ class SQLiteSessionRepository(RecordRepositoryMixin):
             )
             return next_budget
 
+        return await self._database.write(write)
+
+    async def load_task_budget(self, task_id: str) -> TaskBudget:
+        task = await self.load_task(task_id)
+        def read(connection: sqlite3.Connection) -> TaskBudget:
+            row = connection.execute("SELECT * FROM task_budgets WHERE thread_id = ?", (task.thread_id,)).fetchone()
+            if row is None: raise SessionCorruptionError("task budget is missing")
+            return _task_budget(row)
+        return await self._database.read(read)
+
+    async def consume_task_usage(self, task_id: str, usage: Usage) -> TaskBudget:
+        if not isinstance(usage, Usage):
+            raise TypeError("usage must be a Usage")
+        task = await self.load_task(task_id)
+        def write(connection: sqlite3.Connection) -> TaskBudget:
+            row = connection.execute("SELECT * FROM task_budgets WHERE thread_id = ?", (task.thread_id,)).fetchone()
+            if row is None: raise SessionCorruptionError("task budget is missing")
+            current = _task_budget(row)
+            updated = TaskBudget(current.model_name, current.limits, current.model_turns, current.tool_calls, current.input_tokens + usage.input_tokens, current.output_tokens + usage.output_tokens, current.repair_cycles, current.repeated_failures, current.last_failure_signature)
+            connection.execute("UPDATE task_budgets SET input_tokens = ?, output_tokens = ? WHERE thread_id = ?", (updated.input_tokens, updated.output_tokens, task.thread_id))
+            return updated
+        return await self._database.write(write)
+
+    async def observe_task_validation(self, task_id: str, fingerprint: str | None, changed_files: int) -> TaskBudget:
+        if fingerprint is not None and (not isinstance(fingerprint, str) or len(fingerprint) > 1024): raise ValueError("fingerprint must be bounded text or None")
+        if isinstance(changed_files, bool) or not isinstance(changed_files, int) or changed_files < 0: raise ValueError("changed_files must be non-negative")
+        task = await self.load_task(task_id)
+        def write(connection: sqlite3.Connection) -> TaskBudget:
+            row = connection.execute("SELECT * FROM task_budgets WHERE thread_id = ?", (task.thread_id,)).fetchone()
+            if row is None: raise SessionCorruptionError("task budget is missing")
+            current = _task_budget(row)
+            repeated = current.repeated_failures + 1 if fingerprint and fingerprint == current.last_failure_signature and changed_files else 1 if fingerprint and changed_files else 0
+            repairs = current.repair_cycles + (1 if fingerprint and changed_files else 0)
+            updated = TaskBudget(current.model_name, current.limits, current.model_turns, current.tool_calls, current.input_tokens, current.output_tokens, repairs, repeated, fingerprint)
+            connection.execute("UPDATE task_budgets SET repair_cycles = ?, repeated_failures = ?, last_failure_signature = ? WHERE thread_id = ?", (repairs, repeated, fingerprint, task.thread_id))
+            return updated
         return await self._database.write(write)
 
     async def archive_thread(self, thread_id: str) -> None:
@@ -282,7 +359,20 @@ def _task_budget(row: sqlite3.Row) -> TaskBudget:
                 max_tool_calls_per_round=row["max_tool_calls_per_round"],
             ),
             row["model_turns"],
-            row["tool_calls"],
+            row["tool_calls"], row["input_tokens"], row["output_tokens"],
+            row["repair_cycles"], row["repeated_failures"], row["last_failure_signature"],
         )
     except (KeyError, TypeError, ValueError) as error:
         raise SessionCorruptionError("invalid persisted task budget") from error
+
+
+def _row_task(row: sqlite3.Row) -> TaskRecord:
+    try:
+        return TaskRecord.from_dict({
+            "id": row["id"], "thread_id": row["thread_id"],
+            "contract": __import__("json").loads(row["contract"])["contract"],
+            "status": row["status"], "stop_reason": row["stop_reason"],
+            "created_at": row["created_at"], "updated_at": row["updated_at"],
+        })
+    except (KeyError, TypeError, ValueError) as error:
+        raise SessionCorruptionError("invalid persisted task") from error

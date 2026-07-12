@@ -83,6 +83,10 @@ class TerminalState:
         self.transcript: list[str] = []
         self.timeline: list[str] = []
         self.diff: Optional[str] = None
+        self.task_id: Optional[str] = None
+        self.task_status: Optional[str] = None
+        self.task_budget_line: Optional[str] = None
+        self.pending_decision: Optional[str] = None
 
     def restore(self, history: RestoredThread) -> None:
         """Project persisted thread records into a terminal-safe view model."""
@@ -103,6 +107,18 @@ class TerminalState:
             if isinstance(thread_id, str):
                 self.thread_id = thread_id
             self._update_status(event)
+        elif event.kind in {EventKind.TASK_CREATED, EventKind.TASK_STATUS_CHANGED, EventKind.TASK_PAUSED}:
+            task_id = event.payload.get("task_id")
+            status = event.payload.get("status")
+            if isinstance(task_id, str): self.task_id = task_id
+            if isinstance(status, str): self.task_status = status
+            self.status = status if isinstance(status, str) else "task"
+        elif event.kind is EventKind.TASK_BUDGET_WARNING:
+            reason = event.payload.get("reason")
+            self.task_budget_line = reason if isinstance(reason, str) else "budget warning"
+        elif event.kind is EventKind.TASK_DECISION_REQUIRED:
+            reason = event.payload.get("reason")
+            self.pending_decision = reason if isinstance(reason, str) else "decision required"
         elif event.kind is EventKind.MODEL_EVENT:
             self._apply_model_event(event)
         elif event.kind is EventKind.ACTION_REQUESTED:

@@ -27,8 +27,7 @@ TOOL_DEFINITIONS: tuple[ToolDefinition, ...] = (
         _object_schema({"path": _nonempty_text_schema()}, ("path",)),
     ),
     ToolDefinition(
-        "list_files",
-        "List visible workspace files.",
+        "list_files", "List visible workspace files.",
         _object_schema({"root": _nonempty_text_schema()}),
     ),
     ToolDefinition(

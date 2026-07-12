@@ -10,6 +10,7 @@ from code_agent.core.models import ModelEvent, ModelEventKind
 
 from .controller import AgentController
 from .windows_tui import WindowsTerminalApp
+from .task_controller import ForegroundTaskController
 
 
 class CommandKind(str, Enum):
@@ -17,6 +18,8 @@ class CommandKind(str, Enum):
     ASK = "ask"
     RESUME = "resume"
     RUN_JSON = "run_json"
+    TASK_LIST = "task_list"
+    TASK_RESUME = "task_resume"
 
 
 @dataclass(frozen=True)
@@ -49,6 +52,12 @@ def parse_command(arguments: Sequence[str]) -> Command:
         if len(values) < 3 or values[1] != "--json":
             raise ValueError("run requires --json followed by a prompt")
         return Command(CommandKind.RUN_JSON, prompt=_joined(values[2:], "run"))
+    if values[0] == "task":
+        if len(values) == 2 and values[1] == "list":
+            return Command(CommandKind.TASK_LIST)
+        if len(values) >= 3 and values[1] == "resume":
+            return Command(CommandKind.TASK_RESUME, thread_id=values[2], prompt=" ".join(values[3:]) or "continue safely")
+        raise ValueError("task requires list or resume <task-id>")
     raise ValueError(f"unknown command: {values[0]}")
 
 
@@ -57,10 +66,25 @@ async def execute_command(
     controller: AgentController,
     tui: WindowsTerminalApp,
     write: Callable[[str], object],
+    tasks: ForegroundTaskController | None = None,
 ) -> int:
     """Execute parsed command behavior using dependencies supplied at integration."""
     if command.kind is CommandKind.TUI:
         await tui.run(thread_id=command.thread_id)
+        return 0
+    if command.kind is CommandKind.TASK_LIST:
+        if tasks is None:
+            raise ValueError("task controls are unavailable")
+        for task in await tasks.list(include_terminal=True):
+            write(f"{task.id} {task.status.value} {task.contract.objective[:120]}\n")
+        return 0
+    if command.kind is CommandKind.TASK_RESUME:
+        if tasks is None:
+            raise ValueError("task controls are unavailable")
+        async for event in tasks.resume(command.thread_id or "", _required_prompt(command)):
+            line = _plain_event(event)
+            if line:
+                write(line)
         return 0
     if command.kind is CommandKind.RUN_JSON:
         async for line in controller.run_json(_required_prompt(command)):
