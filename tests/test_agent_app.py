@@ -14,7 +14,7 @@ SRC_ROOT = ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from code_agent_win.app import RootActionDispatcher, create_application  # noqa: E402
+from code_agent_win.app import RootActionDispatcher, _session_path, create_application  # noqa: E402
 from code_agent_win.cli import _split_global_options, _split_profile_option, run  # noqa: E402
 from code_agent.core.cancellation import CancellationToken  # noqa: E402
 from code_agent.core.engine import AgentEngine  # noqa: E402
@@ -266,6 +266,23 @@ class ApplicationConstructionTests(unittest.TestCase):
                     application = create_application(root)
 
         self.assertIs(application.tui.sessions, application.tui.history)
+
+    def test_session_path_falls_back_to_the_legacy_data_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            legacy = root / "code-agent" / "sessions.sqlite3"
+            legacy.parent.mkdir()
+            legacy.touch()
+
+            with patch("code_agent_win.app.os.getenv", return_value=str(root)):
+                self.assertEqual(_session_path(), legacy)
+
+    def test_session_path_uses_the_chaos_agent_directory_for_new_data(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+
+            with patch("code_agent_win.app.os.getenv", return_value=str(root)):
+                self.assertEqual(_session_path(), root / "chaos-agent" / "sessions.sqlite3")
 
 
 class FullStackTests(unittest.IsolatedAsyncioTestCase):

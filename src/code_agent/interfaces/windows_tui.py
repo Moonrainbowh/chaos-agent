@@ -43,6 +43,7 @@ class WindowsTerminalApp:
         self.current_thread_id: Optional[str] = None
         self.history_offset = 0
         self.show_diff = False
+        self.show_reasoning = False
         self.running = False
         self._run_task: Optional[asyncio.Task[None]] = None
         self._token: Optional[CancellationToken] = None
@@ -56,7 +57,7 @@ class WindowsTerminalApp:
         if thread_id is not None:
             await self.restore_thread(thread_id)
         self.running = True
-        self._write("\x1b[?1049h\x1b[?25l")
+        self._write("\x1b[?1049h\x1b[?25l\x1b[?1000h\x1b[?1006h")
         self._approval_task = asyncio.create_task(self._listen_approvals())
         try:
             while self.running:
@@ -64,7 +65,7 @@ class WindowsTerminalApp:
                 await self.handle_key(await asyncio.to_thread(_read_key))
         finally:
             await self._close_tasks()
-            self._write("\x1b[?25h\x1b[?1049l")
+            self._write("\x1b[?1000l\x1b[?1006l\x1b[?25h\x1b[?1049l")
     async def submit(self, text: str) -> bool:
         if not isinstance(text, str):
             raise TypeError("text must be a string")
@@ -114,12 +115,14 @@ class WindowsTerminalApp:
             self.input_text = self.input_text[:-1]
         elif key.casefold() == "d" and not self.input_text:
             self.show_diff = not self.show_diff
+        elif key.casefold() == "r" and not self.input_text:
+            self.show_reasoning = not self.show_reasoning
         elif key.casefold() == "s" and not self.input_text:
             await self._load_sessions()
         elif key.isdigit() and self._session_choices and not self.input_text:
             await self._select_session(int(key) - 1)
         elif (
-            key in {"page_up", "page_down", "home", "end"}
+            key in {"page_up", "page_down", "home", "end", "mouse_scroll_up", "mouse_scroll_down"}
             and self._pending_approval is None
             and not self.input_text
         ):
@@ -136,6 +139,7 @@ class WindowsTerminalApp:
                 columns,
                 rows,
                 show_diff=self.show_diff,
+                show_reasoning=self.show_reasoning,
                 pending_approval=self._pending_approval,
                 sessions=self._session_choices,
                 history_offset=self.history_offset,
@@ -236,14 +240,19 @@ class WindowsTerminalApp:
             self.state,
             rows,
             show_diff=self.show_diff,
+            show_reasoning=self.show_reasoning,
             pending_approval=self._pending_approval,
             sessions=self._session_choices,
         )
         max_offset = _history_max_offset(self.state.transcript, capacity)
         if key == "page_up":
             self.history_offset = min(max_offset, self.history_offset + 1)
+        elif key == "mouse_scroll_up":
+            self.history_offset = min(max_offset, self.history_offset + 3)
         elif key == "page_down":
             self.history_offset = max(0, self.history_offset - 1)
+        elif key == "mouse_scroll_down":
+            self.history_offset = max(0, self.history_offset - 3)
         elif key == "home":
             self.history_offset = max_offset
         elif key == "end":
@@ -266,6 +275,7 @@ def render_terminal(
     rows: int,
     *,
     show_diff: bool = False,
+    show_reasoning: bool = False,
     pending_approval: Optional[ApprovalRequest] = None,
     sessions: Sequence[object] = (),
     history_offset: int = 0,
@@ -276,9 +286,9 @@ def render_terminal(
     height = max(12, rows)
     thread = _safe_text(state.thread_id or "new")
     lines = [
-        _clip("code-agent | Windows Terminal | session: " + thread, width),
+        _clip("Chaos Agent | Windows Terminal | session: " + thread, width),
         _clip(_safe_text("status: " + state.status), width),
-        _clip("[s] sessions [d] diff [q] quit | history: PageUp/PageDown Home/End", width),
+        _clip("[s] sessions [d] diff [r] reasoning [q] quit | history: wheel/PageUp/PageDown Home/End", width),
     ]
     if state.task_id and state.task_status not in {"completed", "failed"}:
         lines.insert(2, _clip(f"{catalog.task} {state.task_id} · {state.task_status} · Esc {catalog.paused} · /任务", width))
@@ -293,6 +303,8 @@ def render_terminal(
         )
     if sessions:
         lines.append(_clip(_safe_text("Sessions: " + _session_line(sessions)), width))
+    reasoning_lines = _reasoning_lines(state, show_reasoning)
+    lines.extend(_clip(line, width) for line in reasoning_lines)
     diff_lines = _display_lines(state.diff)[:4] if show_diff and state.diff else []
     lines.append(_clip(_safe_text("recent: " + " | ".join(state.timeline[-4:])), width))
     lines.append("-" * width)
@@ -300,6 +312,7 @@ def render_terminal(
         state,
         height,
         show_diff=show_diff,
+        show_reasoning=show_reasoning,
         pending_approval=pending_approval,
         sessions=sessions,
     )
@@ -317,7 +330,20 @@ def _read_key() -> str:
         return {"I": "page_up", "Q": "page_down", "G": "home", "O": "end"}.get(
             msvcrt.getwch(), ""
         )
+    if key == "\x1b" and msvcrt.kbhit():
+        sequence = key
+        while msvcrt.kbhit():
+            sequence += msvcrt.getwch()
+        return _decode_ansi_input(sequence)
     return key
+
+
+def _decode_ansi_input(sequence: str) -> str:
+    if sequence.startswith("\x1b[<64;") and sequence.endswith("M"):
+        return "mouse_scroll_up"
+    if sequence.startswith("\x1b[<65;") and sequence.endswith("M"):
+        return "mouse_scroll_down"
+    return sequence
 def _stdout_write(value: str) -> None:
     sys.stdout.write(value)
     sys.stdout.flush()
@@ -334,13 +360,23 @@ def _transcript_capacity(
     rows: int,
     *,
     show_diff: bool,
+    show_reasoning: bool,
     pending_approval: Optional[ApprovalRequest],
     sessions: Sequence[object],
 ) -> int:
     summary_lines = len(_display_lines("\n".join(state.summary))[:3])
     diff_lines = len(_display_lines(state.diff)[:4]) if show_diff and state.diff else 0
-    fixed_lines = 7 + summary_lines + (3 if pending_approval else 0) + bool(sessions)
+    reasoning_lines = len(_reasoning_lines(state, show_reasoning))
+    fixed_lines = 7 + summary_lines + (1 if state.task_id and state.task_status not in {"completed", "failed"} else 0) + (3 if pending_approval else 0) + bool(sessions) + reasoning_lines
     return max(0, max(12, rows) - fixed_lines - diff_lines - bool(diff_lines))
+
+
+def _reasoning_lines(state: TerminalState, show_reasoning: bool) -> list[str]:
+    if not state.reasoning:
+        return []
+    if not show_reasoning:
+        return ["reasoning: hidden ([r] to expand)"]
+    return ["reasoning:", *_display_lines("\n".join(state.reasoning))[:3]]
 def _history_max_offset(transcript: Sequence[str], capacity: int) -> int:
     line_count = sum(len(_display_lines(entry)) for entry in transcript)
     return max(0, line_count - capacity)

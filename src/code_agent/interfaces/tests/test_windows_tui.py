@@ -18,6 +18,7 @@ from code_agent.interfaces.terminal_state import ApprovalBroker, TerminalState  
 from code_agent.interfaces.tests._support import FakeEngine  # noqa: E402
 from code_agent.interfaces.windows_tui import (  # noqa: E402
     WindowsTerminalApp,
+    _decode_ansi_input,
     render_terminal,
 )
 
@@ -34,11 +35,26 @@ class WindowsTerminalRendererTests(unittest.TestCase):
         rendered = render_terminal(state, "next input", 80, 24, show_diff=True)
 
         self.assertTrue(rendered.startswith("\x1b[2J\x1b[H"))
-        self.assertIn("code-agent", rendered)
+        self.assertIn("Chaos Agent", rendered)
         self.assertIn("assistant: reading", rendered)
         self.assertIn("requested read_file", rendered)
         self.assertIn("+++ b/x.py", rendered)
         self.assertIn("> next input", rendered)
+
+    def test_renderer_hides_reasoning_until_requested(self) -> None:
+        state = TerminalState()
+        state.reasoning = ["inspect the request carefully"]
+
+        collapsed = render_terminal(state, "", 80, 24)
+        expanded = render_terminal(state, "", 80, 24, show_reasoning=True)
+
+        self.assertIn("reasoning: hidden", collapsed)
+        self.assertNotIn("inspect the request carefully", collapsed)
+        self.assertIn("inspect the request carefully", expanded)
+
+    def test_decodes_sgr_mouse_wheel_sequences(self) -> None:
+        self.assertEqual(_decode_ansi_input("\x1b[<64;10;5M"), "mouse_scroll_up")
+        self.assertEqual(_decode_ansi_input("\x1b[<65;10;5M"), "mouse_scroll_down")
 
     def test_renderer_shows_an_older_transcript_window_at_history_offset(self) -> None:
         state = TerminalState()
@@ -118,6 +134,22 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
         with patch("code_agent.interfaces.windows_tui.shutil.get_terminal_size", return_value=(80, 12)):
             await app.handle_key("end")
         self.assertEqual(app.history_offset, 0)
+
+    async def test_mouse_wheel_moves_history_by_three_lines(self) -> None:
+        app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker())
+        app.state.transcript = [f"line {index}" for index in range(10)]
+
+        with patch("code_agent.interfaces.windows_tui.shutil.get_terminal_size", return_value=(80, 12)):
+            await app.handle_key("mouse_scroll_up")
+        self.assertEqual(app.history_offset, 3)
+
+    async def test_r_toggles_reasoning_visibility(self) -> None:
+        app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker())
+
+        await app.handle_key("r")
+        self.assertTrue(app.show_reasoning)
+        await app.handle_key("r")
+        self.assertFalse(app.show_reasoning)
 
     async def test_home_navigation_keeps_oldest_transcript_lines_visible(self) -> None:
         app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker())

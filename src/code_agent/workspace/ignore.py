@@ -7,7 +7,7 @@ from typing import Iterable, Union
 
 
 PathValue = Union[str, Path]
-_BUILTIN_PARTS = frozenset({".git", ".code-agent", "__pycache__"})
+_BUILTIN_PARTS = frozenset({".git", ".chaos-agent", ".code-agent", "__pycache__"})
 
 
 @dataclass(frozen=True)

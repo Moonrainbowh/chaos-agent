@@ -148,7 +148,7 @@ class TerminalStateTests(unittest.TestCase):
 
         self.assertEqual(state.transcript, ["assistant: hello world"])
 
-    def test_reasoning_delta_remains_visible_and_breaks_text_coalescing(self) -> None:
+    def test_reasoning_delta_is_separate_from_the_chat_transcript(self) -> None:
         state = TerminalState()
 
         for model_event in (
@@ -163,8 +163,9 @@ class TerminalStateTests(unittest.TestCase):
 
         self.assertEqual(
             state.transcript,
-            ["assistant: hello world", "reasoning: planning", "assistant: again"],
+            ["assistant: hello world", "assistant: again"],
         )
+        self.assertEqual(state.reasoning, ["planning"])
 
 
 class ApprovalBrokerTests(unittest.IsolatedAsyncioTestCase):

@@ -7,10 +7,11 @@
 - 不负责：执行任意 shell 命令、调用模型、决定是否批准动作或渲染 Diff。
 - 不负责：未获上层策略授权的工作区之外路径、符号链接/reparse 目标或敏感文件。
 - 不负责：访问默认本地 API 配置目录及其内容，即使该目录被选作工作区。
+- 依赖：Chaos Agent 和旧 code-agent 的本地配置目录均视为敏感路径。
 
 ## Units
 - `WorkspaceError` 及其专用子类：表达路径、敏感文件、文本类型、大小、扫描上限、超时与编辑冲突 | 无副作用
-- `WorkspacePathGuard(root).resolve(path): Path`：规范化路径并执行 containment 与敏感路径策略 | 检查路径元数据 | `allow_outside` 仅供已批准 dispatcher 使用；链接/reparse 组件及任意层级 `.git`、`.code-agent` 始终受保护
+- `WorkspacePathGuard(root).resolve(path): Path`：规范化路径并执行 containment 与敏感路径策略 | 检查路径元数据 | `allow_outside` 仅供已批准 dispatcher 使用；链接/reparse 组件及任意层级 `.git`、`.chaos-agent`、`.code-agent` 始终受保护
 - `IgnoreRules.from_workspace(root): IgnoreRules`：加载内置忽略项和根 `.gitignore` 的常用规则子集 | 读取根 `.gitignore` | 支持顺序反选，不是完整 Git parser
 - `WorkspaceFiles.list_files(root, ...): tuple[str, ...]`：在有限扫描预算内按全局路径顺序枚举可访问的非忽略文件；显式外部 `root` 可递归枚举 | 扫描超限显式失败，不返回伪完整结果
 - `WorkspaceFiles.read_text(...): TextDocument`：按包含式行范围读取 UTF-8/UTF-8 BOM 文本 | 读取单个文件 | 拒绝二进制与超限文件

@@ -110,7 +110,7 @@ class WorkspacePathGuardTests(unittest.TestCase):
             root = Path(temporary).resolve()
             guard = WorkspacePathGuard(root)
 
-            protected = (".git/config", ".code-agent/state.json")
+            protected = (".git/config", ".chaos-agent/state.json", ".code-agent/state.json")
             sensitive = (".env", ".env.production", "id_rsa", "server.pem")
             for path in protected + sensitive:
                 with self.subTest(path=path):
@@ -128,13 +128,27 @@ class WorkspacePathGuardTests(unittest.TestCase):
 
     def test_protects_local_api_config_directory_even_when_it_is_workspace(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            config_home = Path(temporary).resolve() / "code-agent"
+            config_home = Path(temporary).resolve() / "chaos-agent"
             config_home.mkdir()
             (config_home / "config.toml").write_text("api_key = 'x'", encoding="utf-8")
             with patch.dict(os.environ, {"LOCALAPPDATA": str(config_home.parent)}, clear=False):
                 guard = WorkspacePathGuard(config_home)
                 with self.assertRaises(SensitivePathError):
                     guard.resolve("config.toml")
+
+    def test_protects_explicit_chaos_configuration_outside_the_workspace(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary).resolve()
+            root = base / "workspace"
+            config = base / "private" / "config.toml"
+            root.mkdir()
+            config.parent.mkdir()
+            config.write_text("api_key = 'x'", encoding="utf-8")
+
+            with patch.dict(os.environ, {"CHAOS_CONFIG": str(config)}, clear=False):
+                guard = WorkspacePathGuard(root, allow_outside=True, allow_sensitive=True)
+                with self.assertRaises(SensitivePathError):
+                    guard.resolve(config)
 
     def test_parent_components_cannot_hide_a_protected_directory(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -152,7 +166,7 @@ class WorkspacePathGuardTests(unittest.TestCase):
             root = Path(temporary).resolve()
             guard = WorkspacePathGuard(root)
 
-            for path in ("nested/.GiT/config", "deep/pkg/.CODE-Agent/state.json"):
+            for path in ("nested/.GiT/config", "deep/pkg/.Chaos-Agent/state.json", "deep/pkg/.CODE-Agent/state.json"):
                 with self.subTest(path=path):
                     with self.assertRaises(SensitivePathError):
                         guard.resolve(path, for_write=True)
@@ -179,7 +193,7 @@ class IgnoreRulesTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             rules = IgnoreRules.from_workspace(Path(temporary))
 
-            for path in (".git/config", ".code-agent/log", "a/__pycache__/x.pyc"):
+            for path in (".git/config", ".chaos-agent/log", ".code-agent/log", "a/__pycache__/x.pyc"):
                 with self.subTest(path=path):
                     self.assertTrue(rules.is_ignored(path))
 

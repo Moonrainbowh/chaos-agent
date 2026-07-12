@@ -226,7 +226,10 @@ def _model_client(config: ProviderConfig, model_name: str | None = None) -> obje
 
 def _session_path() -> Path:
     base = os.getenv("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
-    directory = Path(base) / "code-agent"
+    directory = Path(base) / "chaos-agent"
+    legacy = Path(base) / "code-agent" / "sessions.sqlite3"
+    if not directory.exists() and legacy.exists():
+        return legacy
     directory.mkdir(parents=True, exist_ok=True)
     return directory / "sessions.sqlite3"
 

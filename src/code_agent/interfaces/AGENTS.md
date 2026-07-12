@@ -5,6 +5,7 @@
 - 负责：交互输入、流式时间线、审批提示、Diff 预览、状态显示、会话选择和 JSON 输出。
 - 负责：`agent`、`agent ask`、`agent resume` 与 `agent run --json` 的一致用户语义。
 - 负责：以 Windows Terminal 和 PowerShell 中的键盘输入、Unicode、颜色及窗口调整为首版交互验收基线。
+- 负责：在 Windows Terminal 中以鼠标滚轮和键盘浏览聊天历史，并将模型 reasoning 默认折叠为可按需查看的独立区域。
 - 不负责：复制 Agent 状态机、直接执行工具、直接访问 provider 或绕过权限决定。
 - 不负责：首版 Linux/macOS 端到端适配、IDE 插件、Web UI、远程多用户服务或桌面应用。
 
@@ -18,5 +19,5 @@
 - `TerminalState.apply(event)`: 从内核事件派生转录、工具时间线、状态和 Diff 预览 | 无副作用 | 不信任事件中的终端控制字符
 - `load_thread_history(reader, thread_id): RestoredThread`: 并发读取一个既存 thread 的消息、事件、目标与 checkpoint，供 TUI 恢复 | SQLite 读取 | 缺失或损坏会话不伪造摘要
 - `TerminalState.restore(history)`: 把持久消息和事件投影为固定任务摘要、近期操作与可滚动聊天记录 | 无副作用 | 工具原始输出不进入聊天区
-- `WindowsTerminalApp`: 基于 Windows Terminal ANSI 与 `msvcrt` 提供全屏输入、会话选择、审批、Diff 和流式重绘 | 终端 I/O | 首版仅支持 Windows
-- `render_terminal(state, input, columns, rows): str`: 生成单帧 ANSI 终端画面 | 无副作用 | 清除控制字符并约束行宽
+- `WindowsTerminalApp`: 基于 Windows Terminal ANSI 与 `msvcrt` 提供全屏输入、会话选择、审批、Diff、鼠标滚轮历史回滚、reasoning 折叠和流式重绘 | 终端 I/O | 首版仅支持 Windows；审批期间不响应历史导航
+- `render_terminal(state, input, columns, rows): str`: 生成单帧 ANSI 终端画面 | 无副作用 | 清除控制字符并约束行宽；reasoning 默认不进入聊天视口

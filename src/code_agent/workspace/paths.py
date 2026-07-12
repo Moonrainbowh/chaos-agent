@@ -10,7 +10,7 @@ from .errors import PathOutsideWorkspace, SensitivePathError
 
 PathInput = Union[str, os.PathLike[str]]
 
-_PROTECTED_ROOTS = frozenset({".git", ".code-agent"})
+_PROTECTED_ROOTS = frozenset({".git", ".chaos-agent", ".code-agent"})
 _NORMALIZED_PROTECTED = frozenset(os.path.normcase(name) for name in _PROTECTED_ROOTS)
 _ENV_EXEMPT_SUFFIXES = (".example", ".sample", ".template")
 _PRIVATE_KEY_NAMES = frozenset(
@@ -42,7 +42,7 @@ class WorkspacePathGuard:
         self.root = root_path.resolve(strict=True)
         self.allow_sensitive = bool(allow_sensitive)
         self.allow_outside = bool(allow_outside)
-        self._local_config_directory = _local_config_directory()
+        self._local_config_directories = _local_config_directories()
 
     def resolve(self, path: PathInput, *, for_write: bool = False) -> Path:
         """Return a canonical in-workspace path, including for new files."""
@@ -79,7 +79,7 @@ class WorkspacePathGuard:
             relative = resolved
 
         self._check_policy(relative)
-        if _is_within(resolved, self._local_config_directory):
+        if any(_is_within(resolved, directory) for directory in self._local_config_directories):
             raise SensitivePathError("local API configuration path is protected")
         return resolved
 
@@ -140,12 +140,16 @@ def _is_link_like(path: Path) -> bool:
     return bool(attributes & reparse_flag)
 
 
-def _local_config_directory() -> Path:
+def _local_config_directories() -> tuple[Path, ...]:
     base = os.getenv("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
-    configured = os.getenv("CODE_AGENT_CONFIG")
+    configured = os.getenv("CHAOS_CONFIG") or os.getenv("CODE_AGENT_CONFIG")
+    directories = [
+        (Path(base) / "chaos-agent").resolve(strict=False),
+        (Path(base) / "code-agent").resolve(strict=False),
+    ]
     if configured and Path(configured).is_absolute():
-        return Path(configured).expanduser().parent.resolve(strict=False)
-    return (Path(base) / "code-agent").resolve(strict=False)
+        directories.append(Path(configured).expanduser().parent.resolve(strict=False))
+    return tuple(dict.fromkeys(directories))
 
 
 def _is_within(path: Path, root: Path) -> bool:

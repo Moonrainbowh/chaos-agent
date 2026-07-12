@@ -3,14 +3,15 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "code-agent-win"
-version = "0.1.0"
-description = "Windows-first, policy-gated open-source coding agent"
+name = "chaos-agent"
+version = "1.0.0"
+description = "Chaos Agent: a Windows-first, policy-gated open-source coding agent"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
-authors = [{name = "code-agent contributors"}]
+authors = [{name = "lack"}]
 dependencies = ["httpx>=0.28,<0.29", "psutil>=5.9", "regex>=2024.0", "tomli>=2.0,<3"]
 
 [project.scripts]
+chaos-agent = "code_agent_win.cli:main"
 agent = "code_agent_win.cli:main"

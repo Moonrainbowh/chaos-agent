@@ -9,10 +9,48 @@ SRC_ROOT = Path(__file__).resolve().parents[3]
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from code_agent.config.loader import LocalConfigError, load_runtime_config
+from code_agent.config.loader import (  # noqa: E402
+    LocalConfigError,
+    default_config_path,
+    load_runtime_config,
+    resolve_config_path,
+)
 
 
 class LocalApiConfigTests(unittest.TestCase):
+    def test_prefers_chaos_configuration_and_falls_back_to_legacy_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            env = {"LOCALAPPDATA": str(base)}
+            legacy = base / "code-agent" / "config.toml"
+            legacy.parent.mkdir()
+            legacy.write_text("[default]", encoding="utf-8")
+
+            self.assertEqual(default_config_path(env), base / "chaos-agent" / "config.toml")
+            self.assertEqual(resolve_config_path(env), legacy)
+
+            current = base / "chaos-agent" / "config.toml"
+            current.parent.mkdir()
+            current.write_text("[default]", encoding="utf-8")
+            self.assertEqual(resolve_config_path(env), current)
+
+    def test_chaos_environment_variables_override_legacy_names(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = load_runtime_config(
+                env={
+                    "CHAOS_CONFIG": str(Path(directory) / "missing.toml"),
+                    "CHAOS_API": "responses",
+                    "CODE_AGENT_API": "chat_completions",
+                    "CHAOS_MODEL": "chaos-model",
+                    "CODE_AGENT_MODEL": "legacy-model",
+                    "CHAOS_API_KEY_ENV": "CHAOS_KEY",
+                    "CODE_AGENT_API_KEY_ENV": "LEGACY_KEY",
+                }
+            )
+
+        self.assertEqual(runtime.provider.api.value, "responses")
+        self.assertEqual(runtime.provider.model, "chaos-model")
+        self.assertEqual(runtime.provider.key_status, "environment (CHAOS_KEY)")
     def test_loads_default_provider_with_masked_local_key(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "config.toml"

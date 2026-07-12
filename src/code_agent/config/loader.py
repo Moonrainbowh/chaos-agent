@@ -36,17 +36,19 @@ class RuntimeConfig:
 def default_config_path(env: Mapping[str, str] | None = None) -> Path:
     source = os.environ if env is None else env
     base = source.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
-    return Path(base) / "code-agent" / "config.toml"
+    return Path(base) / "chaos-agent" / "config.toml"
 
 
 def resolve_config_path(env: Mapping[str, str] | None = None) -> Path:
     source = os.environ if env is None else env
-    value = source.get("CODE_AGENT_CONFIG")
+    value = _environment_value(source, "CHAOS_CONFIG", "CODE_AGENT_CONFIG")
     if value is None:
-        return default_config_path(source)
+        default = default_config_path(source)
+        legacy = _legacy_config_path(source)
+        return legacy if not default.exists() and legacy.exists() else default
     path = Path(value).expanduser()
     if not path.is_absolute():
-        raise LocalConfigError("CODE_AGENT_CONFIG must be an absolute path")
+        raise LocalConfigError("CHAOS_CONFIG must be an absolute path")
     return path
 
 
@@ -90,7 +92,7 @@ def _select_provider(
     default = _table(document, "default")
     providers = _table(document, "providers")
     configured = default.get("provider")
-    selected = cli_profile or env.get("CODE_AGENT_PROFILE") or configured
+    selected = cli_profile or _environment_value(env, "CHAOS_PROFILE", "CODE_AGENT_PROFILE") or configured
     if not isinstance(selected, str) or not selected.strip():
         raise LocalConfigError("default.provider must name a provider")
     values = providers.get(selected)
@@ -100,10 +102,10 @@ def _select_provider(
 
 
 def _provider_config(values: Mapping[str, Any], env: Mapping[str, str]) -> ProviderConfig:
-    api = _protocol(env.get("CODE_AGENT_API", values.get("api", "responses")))
-    base_url = _text(env.get("CODE_AGENT_BASE_URL", values.get("base_url", "https://api.openai.com")), "base_url")
-    model = _text(env.get("CODE_AGENT_MODEL", values.get("model", "gpt-4.1-mini")), "model")
-    override_key_env = env.get("CODE_AGENT_API_KEY_ENV")
+    api = _protocol(_environment_value(env, "CHAOS_API", "CODE_AGENT_API", values.get("api", "responses")))
+    base_url = _text(_environment_value(env, "CHAOS_BASE_URL", "CODE_AGENT_BASE_URL", values.get("base_url", "https://api.openai.com")), "base_url")
+    model = _text(_environment_value(env, "CHAOS_MODEL", "CODE_AGENT_MODEL", values.get("model", "gpt-4.1-mini")), "model")
+    override_key_env = _environment_value(env, "CHAOS_API_KEY_ENV", "CODE_AGENT_API_KEY_ENV")
     configured_key = values.get("api_key")
     profile_key_env = values.get("api_key_env")
     if override_key_env is not None:
@@ -113,7 +115,7 @@ def _provider_config(values: Mapping[str, Any], env: Mapping[str, str]) -> Provi
     try:
         if configured_key is not None:
             return ProviderConfig(base_url, model, api, api_key_source=ConfiguredApiKey(_text(configured_key, "api_key")))
-        key_env = profile_key_env or env.get("CODE_AGENT_API_KEY_ENV", "OPENAI_API_KEY")
+        key_env = profile_key_env or _environment_value(env, "CHAOS_API_KEY_ENV", "CODE_AGENT_API_KEY_ENV", "OPENAI_API_KEY")
         return ProviderConfig(base_url, model, api, _text(key_env, "api_key_env"))
     except ProviderConfigError as error:
         raise LocalConfigError(f"invalid provider configuration: {error}") from None
@@ -123,7 +125,7 @@ def _approval_mode(document: Mapping[str, Any], env: Mapping[str, str]) -> Appro
     agent = document.get("agent", {})
     if agent is not None and not isinstance(agent, dict):
         raise LocalConfigError("agent must be a table")
-    value = env.get("CODE_AGENT_APPROVAL_MODE", agent.get("approval_mode", "ask"))
+    value = _environment_value(env, "CHAOS_APPROVAL_MODE", "CODE_AGENT_APPROVAL_MODE", agent.get("approval_mode", "ask"))
     try:
         return ApprovalMode(_text(value, "approval_mode"))
     except ValueError:
@@ -136,7 +138,7 @@ def _allow_sensitive_paths(document: Mapping[str, Any], env: Mapping[str, str]) 
     agent = document.get("agent", {})
     if agent is not None and not isinstance(agent, dict):
         raise LocalConfigError("agent must be a table")
-    value = env.get("CODE_AGENT_ALLOW_SENSITIVE_PATHS", agent.get("allow_sensitive_paths", False))
+    value = _environment_value(env, "CHAOS_ALLOW_SENSITIVE_PATHS", "CODE_AGENT_ALLOW_SENSITIVE_PATHS", agent.get("allow_sensitive_paths", False))
     if isinstance(value, bool):
         return value
     if isinstance(value, str) and value.casefold() in {"1", "true", "yes"}:
@@ -151,6 +153,21 @@ def _table(document: Mapping[str, Any], name: str) -> Mapping[str, Any]:
     if not isinstance(value, dict):
         raise LocalConfigError(f"{name} must be a table")
     return value
+
+
+def _legacy_config_path(env: Mapping[str, str]) -> Path:
+    base = env.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
+    return Path(base) / "code-agent" / "config.toml"
+
+
+def _environment_value(
+    env: Mapping[str, str], primary: str, legacy: str, default: Any = None
+) -> Any:
+    if primary in env:
+        return env[primary]
+    if legacy in env:
+        return env[legacy]
+    return default
 
 
 def _protocol(value: object) -> ApiProtocol:

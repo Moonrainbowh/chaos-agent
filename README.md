@@ -1,6 +1,6 @@
-# code-agent-win
+# Chaos Agent
 
-`code-agent-win` is a Windows-first, open-source coding agent with a shared headless core, a full-screen terminal UI, and non-interactive CLI/JSON modes.
+`Chaos Agent` is a Windows-first, open-source coding agent with a shared headless core, a full-screen terminal UI, and non-interactive CLI/JSON modes.
 
 It is a clean-room implementation. It takes architectural lessons from projects such as uv-agent, Aider, Cline, OpenCode, mini-swe-agent, OpenHands, and Goose, but does not copy their source code.
 
@@ -10,7 +10,7 @@ It is a clean-room implementation. It takes architectural lessons from projects 
 - Keeps sessions, messages, events, goals, and checkpoints in a versioned SQLite database.
 - Discovers hierarchical `AGENTS.md` rules, builds a bounded repository map, and compacts history deterministically.
 - Routes file reads, edits, Git inspection, and PowerShell commands through typed tools, central policy checks, audit events, and explicit approval.
-- Provides a Windows Terminal TUI (`agent`), a text CLI (`agent ask`), session resume (`agent resume`), and machine-readable events (`agent run --json`).
+- Provides a Windows Terminal TUI (`chaos-agent`), a text CLI (`chaos-agent ask`), session resume (`chaos-agent resume`), and machine-readable events (`chaos-agent run --json`). The legacy `agent` command remains available during migration.
 
 ## Install
 
@@ -27,7 +27,7 @@ python -m unittest discover -s src\code_agent\core\tests -p 'test_*.py'
 
 ## Configure A Provider
 
-Create `%LOCALAPPDATA%\code-agent\config.toml` to configure a provider once for the current Windows user:
+Create `%LOCALAPPDATA%\chaos-agent\config.toml` to configure a provider once for the current Windows user. An existing `%LOCALAPPDATA%\code-agent\config.toml` is read when the new file is absent:
 
 ```toml
 [default]
@@ -46,7 +46,7 @@ approval_mode = "ask"
 # allow_sensitive_paths = true
 ```
 
-Multiple `[providers.<name>]` profiles are supported. Use `agent --profile <name>` or `CODE_AGENT_PROFILE` to choose one; `CODE_AGENT_CONFIG` may select another absolute config path. Existing `CODE_AGENT_API`, `CODE_AGENT_BASE_URL`, `CODE_AGENT_MODEL`, `CODE_AGENT_API_KEY_ENV`, and `CODE_AGENT_APPROVAL_MODE` override the selected profile. A profile may use either `api_key` or `api_key_env`, not both.
+Multiple `[providers.<name>]` profiles are supported. Use `chaos-agent --profile <name>` or `CHAOS_PROFILE` to choose one; `CHAOS_CONFIG` may select another absolute config path. `CHAOS_API`, `CHAOS_BASE_URL`, `CHAOS_MODEL`, `CHAOS_API_KEY_ENV`, and `CHAOS_APPROVAL_MODE` override the selected profile. Legacy `CODE_AGENT_*` names remain fallback aliases during migration. A profile may use either `api_key` or `api_key_env`, not both.
 
 The API key is never written to a session or project file. The local file is suitable only for a personal Windows user: another process running as the same user can theoretically read it after explicit approval. Windows Credential Manager is a possible future enhancement, not a current dependency. The file tool rejects the local configuration directory even when it is used as a workspace.
 
@@ -54,9 +54,9 @@ The environment-only flow remains supported:
 
 ```powershell
 $env:OPENAI_API_KEY = "..."
-$env:CODE_AGENT_API = "responses"
-$env:CODE_AGENT_BASE_URL = "https://api.openai.com"
-$env:CODE_AGENT_MODEL = "gpt-4.1-mini"
+$env:CHAOS_API = "responses"
+$env:CHAOS_BASE_URL = "https://api.openai.com"
+$env:CHAOS_MODEL = "gpt-4.1-mini"
 ```
 
 For named model configurations, set `CODE_AGENT_MODEL_PROFILES` to one JSON
@@ -70,36 +70,36 @@ $env:CODE_AGENT_DEFAULT_MODEL = "fast"
 
 Provider selection values:
 
-| `CODE_AGENT_API` | Protocol |
+| `CHAOS_API` | Protocol |
 | --- | --- |
 | `responses` | OpenAI Responses API |
 | `chat_completions` | OpenAI-compatible Chat Completions |
 | `anthropic_messages` | Anthropic Messages API |
 
-Use `CODE_AGENT_API_KEY_ENV` when the key variable is not `OPENAI_API_KEY`.
+Use `CHAOS_API_KEY_ENV` when the key variable is not `OPENAI_API_KEY`.
 
 ## Run
 
 ```powershell
-agent
-agent --model fast ask "inspect this repository"
-agent ask "inspect this repository and explain the test layout"
-agent resume <thread-id>
-agent resume <thread-id> "continue the previous task"
-agent run --json "list the relevant files"
+chaos-agent
+chaos-agent --model fast ask "inspect this repository"
+chaos-agent ask "inspect this repository and explain the test layout"
+chaos-agent resume <thread-id>
+chaos-agent resume <thread-id> "continue the previous task"
+chaos-agent run --json "list the relevant files"
 ```
 
-The Windows TUI supports typing, streaming transcript updates, and a tool timeline. Resuming or selecting a session restores a compact task summary and recent actions; `PageUp`/`PageDown` browse chat history, while `Home` and `End` jump to its oldest and newest visible positions. `D` retains Diff preview, `S` retains recent session selection, and `Y`/`N` retain approval for writes and commands. It is designed for Windows Terminal and PowerShell.
+The Windows TUI supports typing, streaming transcript updates, and a tool timeline. Resuming or selecting a session restores a compact task summary and recent actions; the mouse wheel and `PageUp`/`PageDown` browse chat history, while `Home` and `End` jump to its oldest and newest visible positions. Reasoning is hidden by default; press `R` to expand or collapse it. `D` retains Diff preview, `S` retains recent session selection, and `Y`/`N` retain approval for writes and commands. It is designed for Windows Terminal and PowerShell.
 
 ## Safety Defaults
 
-- `CODE_AGENT_APPROVAL_MODE=ask` is the default. Workspace reads run automatically; a single external file read requires TUI approval and external writes are denied.
+- `CHAOS_APPROVAL_MODE=ask` is the default. Workspace reads run automatically; a single external file read requires TUI approval and external writes are denied.
 - `plan` allows workspace reads only. `auto` remains compatible and requires approval for outside-workspace access. `elevated` requires approval for each external read, write, or recursive enumeration. `full-local` permits typed external file operations, while commands still require approval.
-- `allow_sensitive_paths = true` (or `CODE_AGENT_ALLOW_SENSITIVE_PATHS=true`) is a separate explicit opt-in for `.env` files and private-key names. `.git`, `.code-agent`, and symlink/reparse paths remain protected at every level.
+- `allow_sensitive_paths = true` (or `CHAOS_ALLOW_SENSITIVE_PATHS=true`) is a separate explicit opt-in for `.env` files and private-key names. `.git`, `.code-agent`, and symlink/reparse paths remain protected at every level.
 - Unknown and critical actions are denied. Destructive commands and unbounded output are rejected.
 - The local runtime is controlled process execution, not an OS-level sandbox. Docker is optional and uses no network and no image pulls.
 
-Sessions are stored at `%LOCALAPPDATA%\code-agent\sessions.sqlite3` by default.
+Sessions are stored at `%LOCALAPPDATA%\chaos-agent\sessions.sqlite3` by default. An existing legacy session database is reused until a new data directory is created.
 
 ## Foreground Tasks
 
@@ -111,7 +111,7 @@ blocked or require an explicit decision.
 
 Use `Esc` or `/暂停 <task-id>` to pause, `/继续 <task-id>` to resume, `/停止
 <task-id>` to stop, `/任务` to inspect tasks, and `/引导 <text>` to queue
-guidance. Process commands are `agent task list` and `agent task resume
+guidance. Process commands are `chaos-agent task list` and `chaos-agent task resume
 <task-id> [instruction]`. Chinese Windows uses Chinese task chrome by default;
 `/language en` selects English UI labels. Paths, commands, model names, Git
 refs, and raw tool data are never translated.

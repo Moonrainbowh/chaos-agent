@@ -81,6 +81,8 @@ class TerminalState:
         self.status = "idle"
         self.summary: list[str] = []
         self.transcript: list[str] = []
+        self.reasoning: list[str] = []
+        self._reasoning_since_text = False
         self.timeline: list[str] = []
         self.diff: Optional[str] = None
         self.task_id: Optional[str] = None
@@ -92,6 +94,8 @@ class TerminalState:
         """Project persisted thread records into a terminal-safe view model."""
         self.thread_id = history.thread_id
         self.transcript = _transcript_lines(history.messages)
+        self.reasoning = []
+        self._reasoning_since_text = False
         self.timeline = _action_timeline(history.events)
         self.diff = None
         self.status = "idle"
@@ -146,12 +150,21 @@ class TerminalState:
         except (KeyError, TypeError, ValueError):
             return
         if model_event.kind is ModelEventKind.TEXT_DELTA and model_event.text:
-            if self.transcript and self.transcript[-1].startswith("assistant: "):
+            if (
+                self.transcript
+                and self.transcript[-1].startswith("assistant: ")
+                and not self._reasoning_since_text
+            ):
                 self.transcript[-1] += model_event.text
             else:
                 self.transcript.append("assistant: " + model_event.text)
+            self._reasoning_since_text = False
         elif model_event.kind is ModelEventKind.REASONING_DELTA and model_event.text:
-            self.transcript.append("reasoning: " + model_event.text)
+            if self.reasoning:
+                self.reasoning[-1] += model_event.text
+            else:
+                self.reasoning.append(model_event.text)
+            self._reasoning_since_text = True
 
     def _capture_diff(self, event: AgentEvent) -> None:
         request = event.payload.get("request")
