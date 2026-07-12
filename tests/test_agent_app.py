@@ -6,7 +6,6 @@ import unittest
 from collections.abc import AsyncIterator, Sequence
 from io import StringIO
 from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import patch
 
 
@@ -15,11 +14,7 @@ SRC_ROOT = ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from code_agent_win.app import (  # noqa: E402
-    RootActionDispatcher,
-    _model_profiles,
-    create_application,
-)
+from code_agent_win.app import RootActionDispatcher, create_application  # noqa: E402
 from code_agent_win.cli import _split_global_options, _split_profile_option, run  # noqa: E402
 from code_agent.core.cancellation import CancellationToken  # noqa: E402
 from code_agent.core.engine import AgentEngine  # noqa: E402
@@ -247,16 +242,6 @@ class CliFailureTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ValueError):
             _split_global_options(("--model", "fast", "--model", "slow", "ask", "inspect"))
 
-    def test_model_profile_owns_endpoint_protocol_and_auth_reference(self) -> None:
-        profiles = '{"fast":{"model":"api-fast","base_url":"https://example.test/api","api":"chat_completions","api_key_env":"FAST_KEY","context_window":1000,"max_output_tokens":100}}'
-
-        with patch.dict("os.environ", {"CODE_AGENT_MODEL_PROFILES": profiles}, clear=True):
-            selected = _model_profiles().select("fast")
-
-        self.assertEqual(selected.provider.base_url, "https://example.test/api")
-        self.assertEqual(selected.provider.api.value, "chat_completions")
-        self.assertEqual(selected.provider.api_key_env, "FAST_KEY")
-
     async def test_cli_reports_safe_error_without_a_traceback(self) -> None:
         stderr = StringIO()
 
@@ -271,15 +256,9 @@ class CliFailureTests(unittest.IsolatedAsyncioTestCase):
 
 class ApplicationConstructionTests(unittest.TestCase):
     def test_tui_uses_the_session_repository_for_history(self) -> None:
-        profile = SimpleNamespace(
-            max_agent_rounds=1,
-            max_tool_calls=1,
-            max_tool_calls_per_round=1,
-            name="test-model",
-        )
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()
-            with patch("code_agent_win.app._model_client", return_value=(object(), profile)):
+            with patch("code_agent_win.app._model_client", return_value=object()):
                 with patch(
                     "code_agent_win.app._session_path",
                     return_value=root / "sessions.sqlite3",
