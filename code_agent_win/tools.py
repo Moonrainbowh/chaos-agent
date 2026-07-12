@@ -26,7 +26,11 @@ TOOL_DEFINITIONS: tuple[ToolDefinition, ...] = (
         "Read a UTF-8 workspace file.",
         _object_schema({"path": _nonempty_text_schema()}, ("path",)),
     ),
-    ToolDefinition("list_files", "List visible workspace files.", _object_schema({})),
+    ToolDefinition(
+        "list_files",
+        "List visible workspace files.",
+        _object_schema({"root": _nonempty_text_schema()}),
+    ),
     ToolDefinition(
         "search_text",
         "Search visible workspace text.",
