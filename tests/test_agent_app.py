@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import sys
 import tempfile
 import unittest
@@ -16,11 +17,15 @@ if str(SRC_ROOT) not in sys.path:
 
 from code_agent_win.app import RootActionDispatcher, _session_path, create_application  # noqa: E402
 from code_agent_win.cli import _split_global_options, _split_profile_option, run  # noqa: E402
-from code_agent.core.cancellation import CancellationToken  # noqa: E402
+from code_agent.core.cancellation import CancellationError, CancellationToken  # noqa: E402
 from code_agent.core.engine import AgentEngine  # noqa: E402
 from code_agent.core.events import EventKind  # noqa: E402
 from code_agent.core.models import ActionRequest  # noqa: E402
 from code_agent.core.models import ModelEvent, ModelEventKind, ToolCall, ToolDefinition  # noqa: E402
+from code_agent.core.task import TaskStatus  # noqa: E402
+from code_agent.interfaces.controller import AgentController  # noqa: E402
+from code_agent.interfaces.task_controller import ForegroundTaskController  # noqa: E402
+from code_agent.runtime.models import CommandResult, TerminationReason  # noqa: E402
 from code_agent.context.builder import WorkspaceContextBuilder  # noqa: E402
 from code_agent.context.compaction import DeterministicCompactor  # noqa: E402
 from code_agent.context.models import ContextConfig  # noqa: E402
@@ -328,6 +333,161 @@ class FullStackTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(events[-1].kind, EventKind.COMPLETED)
             self.assertEqual(messages[-1].content, "read complete")
             self.assertIn("hello", messages[-2].content)
+
+    async def test_foreground_task_repairs_a_failed_test_then_checkpoints_completion(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            (root / "note.txt").write_text("before\n", encoding="utf-8")
+            runtime = _RecordingRuntime((1, 0))
+            dispatcher = _task_dispatcher(root, runtime)
+            calls = (
+                ToolCall("read", "read_file", {"path": "note.txt"}),
+                ToolCall("write-1", "write_file", {"path": "note.txt", "content": "broken\n"}),
+                ToolCall("test-1", "run_command", {"command": "python -m unittest"}),
+                ToolCall("write-2", "write_file", {"path": "note.txt", "content": "fixed\n"}),
+                ToolCall("test-2", "run_command", {"command": "python -m unittest"}),
+            )
+            model = FakeModel(tuple(
+                (ModelEvent(ModelEventKind.TOOL_CALL, tool_call=call), ModelEvent(ModelEventKind.COMPLETED))
+                for call in calls
+            ) + ((ModelEvent(ModelEventKind.TEXT_DELTA, text="fixed and verified"), ModelEvent(ModelEventKind.COMPLETED)),))
+            sessions = SQLiteSessionRepository(root / "sessions.sqlite3")
+            controller = ForegroundTaskController(
+                AgentController(AgentEngine(model, _task_context(root), dispatcher, sessions)),
+                sessions,
+                root,
+            )
+            task = await controller.start("repair note")
+
+            events = [event async for event in controller.events(task.id)]
+            stored = await sessions.load_task(task.id)
+
+            self.assertEqual(stored.status, TaskStatus.COMPLETED)
+            self.assertEqual((root / "note.txt").read_text(encoding="utf-8"), "fixed\n")
+            self.assertIn("note.txt", (await sessions.load_task_state(task.thread_id)).files_changed)
+            self.assertGreaterEqual(len(await sessions.list_checkpoints(task.thread_id)), 3)
+            self.assertEqual((await sessions.load_task_budget(task.id)).repair_cycles, 1)
+            self.assertEqual(len(runtime.commands), 2)
+            self.assertEqual(events[-1].kind, EventKind.COMPLETED)
+
+    async def test_task_boundary_waits_for_decision_without_starting_network_command(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            runtime = _RecordingRuntime(())
+            dispatcher = _task_dispatcher(root, runtime)
+            model = FakeModel(((
+                ModelEvent(ModelEventKind.TOOL_CALL, tool_call=ToolCall("install", "run_command", {"command": "pip install package"})),
+                ModelEvent(ModelEventKind.COMPLETED),
+            ),))
+            sessions = SQLiteSessionRepository(root / "sessions.sqlite3")
+            controller = ForegroundTaskController(
+                AgentController(AgentEngine(model, _task_context(root), dispatcher, sessions)),
+                sessions,
+                root,
+            )
+            task = await controller.start("install package")
+
+            events = [event async for event in controller.events(task.id)]
+
+            self.assertEqual((await sessions.load_task(task.id)).status, TaskStatus.WAITING_DECISION)
+            self.assertEqual(runtime.commands, [])
+            self.assertIn(EventKind.TASK_DECISION_REQUIRED, [event.kind for event in events])
+
+    async def test_resume_never_replays_an_interrupted_command(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            database = root / "sessions.sqlite3"
+            first_runtime = _BlockingRuntime()
+            first_model = FakeModel(((
+                ModelEvent(ModelEventKind.TOOL_CALL, tool_call=ToolCall("test", "run_command", {"command": "python -m unittest"})),
+                ModelEvent(ModelEventKind.COMPLETED),
+            ),))
+            sessions = SQLiteSessionRepository(database)
+            first_controller = ForegroundTaskController(
+                AgentController(AgentEngine(first_model, _task_context(root), _task_dispatcher(root, first_runtime), sessions)),
+                sessions,
+                root,
+            )
+            task = await first_controller.start("run tests")
+            running = asyncio.create_task(_collect_events(first_controller.events(task.id)))
+            await first_runtime.started.wait()
+            await first_controller.pause(task.id, "terminal closed")
+            await running
+
+            resumed_runtime = _RecordingRuntime(())
+            resumed = ForegroundTaskController(
+                AgentController(AgentEngine(
+                    FakeModel(((ModelEvent(ModelEventKind.TEXT_DELTA, text="rechecked"), ModelEvent(ModelEventKind.COMPLETED)),)),
+                    _task_context(root), _task_dispatcher(root, resumed_runtime), SQLiteSessionRepository(database),
+                )),
+                SQLiteSessionRepository(database),
+                root,
+            )
+
+            events = [event async for event in resumed.resume(task.id, "recheck workspace safely")]
+
+            self.assertEqual(first_runtime.commands, ["python -m unittest"])
+            self.assertEqual(resumed_runtime.commands, [])
+            self.assertEqual((await sessions.load_task(task.id)).status, TaskStatus.COMPLETED)
+            self.assertGreaterEqual(len(await sessions.list_checkpoints(task.thread_id)), 2)
+            self.assertEqual(events[-1].kind, EventKind.COMPLETED)
+
+
+def _task_context(root: Path) -> WorkspaceContextBuilder:
+    guard = WorkspacePathGuard(root)
+    files = WorkspaceFiles(guard, IgnoreRules.from_workspace(root))
+    config = ContextConfig(root, root, "System", repo_scan=100)
+    return WorkspaceContextBuilder(
+        config,
+        RuleLoader(guard, files, config),
+        RepoMapBuilder(files, config),
+        DeterministicCompactor(config),
+    )
+
+
+def _task_dispatcher(root: Path, runtime: object) -> RootActionDispatcher:
+    guard = WorkspacePathGuard(root)
+    files = WorkspaceFiles(guard, IgnoreRules.from_workspace(root))
+    return RootActionDispatcher(
+        files,
+        WorkspaceEditor(guard),
+        ActionPolicy(PolicyConfig(ApprovalMode.AUTO, workspace_root=root)),
+        ApprovalBroker(),
+        runtime=runtime,  # type: ignore[arg-type]
+    )
+
+
+class _RecordingRuntime:
+    def __init__(self, returncodes: tuple[int, ...]) -> None:
+        self.returncodes = list(returncodes)
+        self.commands: list[str] = []
+
+    async def run(self, spec: object, cancellation: object, sink: object) -> CommandResult:
+        command = getattr(spec, "powershell_script")
+        self.commands.append(command)
+        returncode = self.returncodes.pop(0)
+        return CommandResult(
+            argv=("powershell",), display_command=command, returncode=returncode,
+            reason=TerminationReason.EXITED, stdout=b"", stderr=b"test failure" if returncode else b"",
+            duration_s=0, truncated=False, cwd=".",
+        )
+
+
+class _BlockingRuntime:
+    def __init__(self) -> None:
+        self.started = asyncio.Event()
+        self.commands: list[str] = []
+
+    async def run(self, spec: object, cancellation: CancellationToken, sink: object) -> CommandResult:
+        command = getattr(spec, "powershell_script")
+        self.commands.append(command)
+        self.started.set()
+        await cancellation.wait_async()
+        raise CancellationError(cancellation.reason)
+
+
+async def _collect_events(events: AsyncIterator[object]) -> list[object]:
+    return [event async for event in events]
 
 
 if __name__ == "__main__":

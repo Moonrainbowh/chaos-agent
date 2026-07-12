@@ -11,6 +11,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from code_agent.core.models import ActionRequest  # noqa: E402
+from code_agent.core.task import TaskAuthorization  # noqa: E402
 from code_agent.policy.engine import ActionPolicy, PolicyConfig  # noqa: E402
 from code_agent.policy.models import (  # noqa: E402
     ApprovalMode,
@@ -127,6 +128,25 @@ class ActionPolicyModeTests(unittest.TestCase):
 
         self.assertEqual(first, second)
         self.assertTrue(first.reason.strip())
+
+    def test_task_grant_cannot_bypass_network_outside_or_critical_boundaries(self) -> None:
+        policy = ActionPolicy(
+            PolicyConfig(ApprovalMode.AUTO, workspace_root=Path("C:/repo"))
+        )
+        grant = TaskAuthorization.local_workspace("C:/repo")
+        cases = (
+            request("run_command", command="pip install package"),
+            request("write_file", path="../outside.py", content="x"),
+            request("run_command", command="Remove-Item temp -Recurse -Force"),
+            request("unregistered_tool"),
+        )
+
+        for action in cases:
+            with self.subTest(action=action.name, arguments=action.arguments):
+                self.assertNotEqual(
+                    policy.evaluate(action, grant).outcome,
+                    DecisionOutcome.ALLOW,
+                )
 
 
 class PolicyConfigTests(unittest.TestCase):

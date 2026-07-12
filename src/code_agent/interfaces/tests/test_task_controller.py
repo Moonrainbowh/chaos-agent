@@ -29,3 +29,4 @@ class ForegroundTaskControllerTests(unittest.IsolatedAsyncioTestCase):
             task = await controller.start("repair tests")
             await controller.pause(task.id)
             self.assertEqual((await repository.load_task(task.id)).status, TaskStatus.PAUSED)
+            self.assertEqual(len(await repository.list_checkpoints(task.thread_id)), 2)

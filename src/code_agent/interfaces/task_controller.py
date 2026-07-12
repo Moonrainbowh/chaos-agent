@@ -19,7 +19,6 @@ class ForegroundTaskController:
         self._sessions = sessions
         self._root = str(Path(workspace_root).resolve())
         self._tokens: dict[str, CancellationToken] = {}
-        self._steering: dict[str, list[str]] = {}
 
     async def start(self, prompt: str) -> TaskRecord:
         thread_id = await self._sessions.create_thread()
@@ -59,7 +58,12 @@ class ForegroundTaskController:
         token = self._tokens.get(task_id)
         if token is not None:
             token.cancel(reason)
-        await self._sessions.transition_task(task_id, TaskStatus.PAUSED, reason)
+        task = await self._sessions.transition_task(task_id, TaskStatus.PAUSED, reason)
+        await self._sessions.create_checkpoint(
+            task.thread_id,
+            "task-paused",
+            {"task_id": task.id, "status": task.status.value, "reason": reason},
+        )
 
     async def stop(self, task_id: str) -> None:
         token = self._tokens.get(task_id)
@@ -76,4 +80,4 @@ class ForegroundTaskController:
             raise ValueError("instruction must be bounded non-blank text")
         task = await self._sessions.load_task(task_id)
         await self._sessions.append_message(task.thread_id, Message(role="user", content=instruction))
-        self._steering.setdefault(task_id, []).append(instruction)
+        await self._sessions.record_task_control(task_id, instruction)

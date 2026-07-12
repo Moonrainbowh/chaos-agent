@@ -11,7 +11,7 @@ from .history import ThreadHistoryReader, load_thread_history
 from .terminal_state import ApprovalBroker, ApprovalRequest, TerminalState
 from .task_controller import ForegroundTaskController
 from .tui_commands import TuiCommandKind, parse_tui_command
-from .i18n import EN_US, ZH_CN, UiCatalog
+from .i18n import EN_US, UiCatalog, catalog_for, localize_task_status, select_runtime_language
 class SessionBrowser(Protocol):
     async def list_threads(self, *, limit: int = 100) -> Sequence[object]: ...
 class WindowsTerminalApp:
@@ -35,7 +35,7 @@ class WindowsTerminalApp:
         self.sessions = sessions
         self.tasks = tasks
         self.active_task_id: str | None = None
-        self.catalog = ZH_CN
+        self.catalog = catalog_for(select_runtime_language())
         self.history = history
         self._write = write or _stdout_write
         self.state = TerminalState()
@@ -287,11 +287,11 @@ def render_terminal(
     thread = _safe_text(state.thread_id or "new")
     lines = [
         _clip("Chaos Agent | Windows Terminal | session: " + thread, width),
-        _clip(_safe_text("status: " + state.status), width),
+        _clip(_safe_text("status: " + localize_task_status(state.status, catalog)), width),
         _clip("[s] sessions [d] diff [r] reasoning [q] quit | history: wheel/PageUp/PageDown Home/End", width),
     ]
     if state.task_id and state.task_status not in {"completed", "failed"}:
-        lines.insert(2, _clip(f"{catalog.task} {state.task_id} · {state.task_status} · Esc {catalog.paused} · /任务", width))
+        lines.insert(2, _clip(f"{catalog.task} {state.task_id} · {localize_task_status(state.task_status, catalog)} · Esc {catalog.paused} · /任务", width))
     lines.extend(_display_lines("\n".join(state.summary))[:3])
     if pending_approval is not None:
         lines.extend(
