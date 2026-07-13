@@ -16,16 +16,20 @@ from code_agent.context.repo_map import RepoMapBuilder
 from code_agent.context.rules import RuleLoader
 from code_agent.core.cancellation import CancellationToken
 from code_agent.core.engine import AgentEngine
+from code_agent.core.limits import EngineLimits
 from code_agent.core.models import ActionRequest, ActionResult, ToolDefinition
 from code_agent.core.task import TaskAuthorization
 from code_agent.interfaces.controller import AgentController
 from code_agent.interfaces.task_controller import ForegroundTaskController
+from code_agent.interfaces.profile_control import ProfileControl
+from code_agent.skills.registry import SkillActivation, SkillContextBuilder, SkillRegistry
+from code_agent.mcp.registry import McpRegistry
 from code_agent.interfaces.terminal_state import ApprovalBroker, ApprovalRequest
 from code_agent.interfaces.windows_tui import WindowsTerminalApp
 from code_agent.policy.engine import ActionPolicy, PolicyConfig
 from code_agent.policy.models import ApprovalMode, DecisionOutcome
 from code_agent.providers.anthropic import AnthropicClient
-from code_agent.providers.config import ApiProtocol, ProviderConfig
+from code_agent.providers.config import ApiProtocol, ModelProfile, ProviderConfig
 from code_agent.providers.openai_chat import OpenAIChatClient
 from code_agent.providers.openai_responses import OpenAIResponsesClient
 from code_agent.runtime.local import WindowsLocalRuntime
@@ -198,30 +202,42 @@ def create_application(
         invalidate_cache=cache.invalidate,
     )
     sessions = SQLiteSessionRepository(_session_path())
-    model = _model_client(runtime_config.provider, model_name)
-    controller = AgentController(AgentEngine(model, context, dispatcher, sessions))
+    initial = next(profile for profile in runtime_config.profiles if profile.name == runtime_config.profile)
+    if model_name is not None:
+        initial = ModelProfile(initial.name, _provider_with_model(initial.provider, model_name), initial.context_window, initial.max_output_tokens, initial.max_agent_rounds, initial.max_tool_calls, initial.max_tool_calls_per_round)
+    skills = SkillActivation(SkillRegistry.discover(root))
+    skill_context = SkillContextBuilder(context, skills)
+    model = _model_client(initial.provider)
+    controller = AgentController(_engine_for(model, initial, skill_context, dispatcher, sessions))
+    def apply_profile(profile: ModelProfile) -> None:
+        controller.replace_runner(_engine_for(_model_client(profile.provider), profile, skill_context, dispatcher, sessions))
+    profiles = ProfileControl({profile.name: profile for profile in runtime_config.profiles}, runtime_config.profile, apply_profile)
     foreground_tasks = ForegroundTaskController(controller, sessions, root)
     return Application(
         controller,
         foreground_tasks,
-        WindowsTerminalApp(controller, approvals, sessions=sessions, history=sessions, tasks=foreground_tasks),
+        WindowsTerminalApp(controller, approvals, sessions=sessions, history=sessions, tasks=foreground_tasks, profiles=profiles, skills=skills, mcp=McpRegistry(runtime_config.mcp_servers)),
         dispatcher,
         model,
     )
 
 
-def _model_client(config: ProviderConfig, model_name: str | None = None) -> object:
-    if model_name is not None:
-        config = ProviderConfig(
-            base_url=config.base_url, model=model_name, api=config.api,
-            api_key_env=config.api_key_env, api_key_source=config.api_key_source,
-        )
+def _model_client(config: ProviderConfig) -> object:
     protocol = config.api
     if protocol is ApiProtocol.RESPONSES:
         return OpenAIResponsesClient(config)
     if protocol is ApiProtocol.CHAT_COMPLETIONS:
         return OpenAIChatClient(config)
     return AnthropicClient(config)
+
+
+def _engine_for(model: object, profile: ModelProfile, context: object, dispatcher: object, sessions: object) -> AgentEngine:
+    limits = EngineLimits(profile.max_agent_rounds, profile.max_tool_calls, profile.max_tool_calls_per_round, profile.context_window + profile.max_output_tokens)
+    return AgentEngine(model, context, dispatcher, sessions, limits=limits, model_name=profile.provider.model)
+
+
+def _provider_with_model(config: ProviderConfig, model: str) -> ProviderConfig:
+    return ProviderConfig(config.base_url, model, config.api, config.api_key_env, config.api_key_source, config.timeout_s, config.max_retries, config.max_event_bytes, config.max_response_bytes, config.max_tool_argument_bytes, config.max_tool_calls, config.responses_path, config.chat_completions_path, config.anthropic_messages_path)
 
 
 def _session_path() -> Path:

@@ -1,398 +1,238 @@
 from __future__ import annotations
+
 import asyncio
 import os
 import shutil
 import sys
 from collections.abc import Callable, Sequence
 from typing import Optional, Protocol
+
 from code_agent.core.cancellation import CancellationToken
+from code_agent.core.events import EventKind
 from .controller import AgentController
+from .command_palette import filter_palette
 from .history import ThreadHistoryReader, load_thread_history
+from .input_buffer import InputBuffer
+from .terminal_display import DisplayKind, text_entry
+from .terminal_renderer import ColorMode, Theme, render_entries, render_live_tail
 from .terminal_state import ApprovalBroker, ApprovalRequest, TerminalState
+from .profile_control import ProfileControl
+from code_agent.skills.registry import SkillActivation
+from code_agent.mcp.registry import McpRegistry
 from .task_controller import ForegroundTaskController
-from .tui_commands import TuiCommandKind, parse_tui_command
-from .i18n import EN_US, UiCatalog, catalog_for, localize_task_status, select_runtime_language
+from .tui_commands import ParseOutcome, TuiCommandKind, parse_tui_command
+
+
 class SessionBrowser(Protocol):
     async def list_threads(self, *, limit: int = 100) -> Sequence[object]: ...
+
+
 class WindowsTerminalApp:
-    """A native ANSI TUI for Windows Terminal without UI package dependencies."""
-    def __init__(
-        self,
-        controller: AgentController,
-        approvals: ApprovalBroker,
-        *,
-        sessions: Optional[SessionBrowser] = None,
-        tasks: ForegroundTaskController | None = None,
-        history: Optional[ThreadHistoryReader] = None,
-        write: Optional[Callable[[str], object]] = None,
-    ) -> None:
-        if not isinstance(controller, AgentController):
-            raise TypeError("controller must be an AgentController")
-        if not isinstance(approvals, ApprovalBroker):
-            raise TypeError("approvals must be an ApprovalBroker")
-        self.controller = controller
-        self.approvals = approvals
-        self.sessions = sessions
-        self.tasks = tasks
-        self.active_task_id: str | None = None
-        self.catalog = catalog_for(select_runtime_language())
-        self.history = history
-        self._write = write or _stdout_write
-        self.state = TerminalState()
-        self.input_text = ""
-        self.current_thread_id: Optional[str] = None
-        self.history_offset = 0
-        self.show_diff = False
-        self.show_reasoning = False
-        self.running = False
-        self._run_task: Optional[asyncio.Task[None]] = None
-        self._token: Optional[CancellationToken] = None
-        self._approval_task: Optional[asyncio.Task[None]] = None
-        self._pending_approval: Optional[ApprovalRequest] = None
-        self._approval_done = asyncio.Event()
-        self._session_choices: tuple[object, ...] = ()
-    async def run(self, *, thread_id: Optional[str] = None) -> None:
-        if os.name != "nt":
-            raise RuntimeError("WindowsTerminalApp requires Windows")
-        if thread_id is not None:
-            await self.restore_thread(thread_id)
-        self.running = True
-        self._write("\x1b[?1049h\x1b[?25l\x1b[?1000h\x1b[?1006h")
-        self._approval_task = asyncio.create_task(self._listen_approvals())
+    """Append-only Windows Terminal interaction without alternate-screen control."""
+
+    def __init__(self, controller: AgentController, approvals: ApprovalBroker, *, sessions: Optional[SessionBrowser] = None, tasks: ForegroundTaskController | None = None, history: Optional[ThreadHistoryReader] = None, profiles: ProfileControl | None = None, skills: SkillActivation | None = None, mcp: McpRegistry | None = None, write: Optional[Callable[[str], object]] = None) -> None:
+        self.controller, self.approvals = controller, approvals
+        self.sessions, self.tasks, self.history, self.profiles, self.skills, self.mcp, self._write = sessions, tasks, history, profiles, skills, mcp, write or _stdout_write
+        self.state = TerminalState(); self.input = InputBuffer(); self.current_thread_id: str | None = None
+        self.active_task_id: str | None = None; self.running = False; self._run_task: asyncio.Task[None] | None = None
+        self._animation_task: asyncio.Task[None] | None = None; self._spinner_index = 0
+        self._token: CancellationToken | None = None; self._approval_task: asyncio.Task[None] | None = None
+        self._pending_approval: ApprovalRequest | None = None; self._approval_done = asyncio.Event()
+        self._flushed_entries = 0
+        self.theme, self.color = Theme.SIGNAL, ColorMode.AUTO
+
+    async def run(self, *, thread_id: str | None = None) -> None:
+        if os.name != "nt": raise RuntimeError("WindowsTerminalApp requires Windows")
+        if thread_id: await self.restore_thread(thread_id)
+        self.running = True; self._approval_task = asyncio.create_task(self._listen_approvals()); self.redraw()
         try:
-            while self.running:
-                self.redraw()
-                await self.handle_key(await asyncio.to_thread(_read_key))
-        finally:
-            await self._close_tasks()
-            self._write("\x1b[?1000l\x1b[?1006l\x1b[?25h\x1b[?1049l")
+            while self.running: await self.handle_key(await asyncio.to_thread(_read_key))
+        finally: await self._close_tasks()
+
     async def submit(self, text: str) -> bool:
-        if not isinstance(text, str):
-            raise TypeError("text must be a string")
-        if not text.strip():
-            return False
-        command = parse_tui_command(text)
-        if command is not None:
-            return await self._handle_task_command(command)
-        if self._run_task is not None and not self._run_task.done():
-            if self.tasks is not None and self.active_task_id is not None:
-                await self.tasks.steer(self.active_task_id, text)
-                self.state.status = "steering queued"
-                return True
-            return False
-        self.input_text = ""
-        self.history_offset = 0
-        self.state.transcript.append("user: " + _safe_text(text))
-        self._token = CancellationToken()
-        if self.tasks is not None:
-            record = await self.tasks.start(text)
-            self.active_task_id = record.id
+        if not isinstance(text, str): raise TypeError("text must be a string")
+        if not text.strip(): return False
+        parsed = parse_tui_command(text)
+        if parsed.is_command: return await self._handle_command(parsed)
+        if parsed.error: self._append(DisplayKind.ERROR, parsed.error); return False
+        self._append(DisplayKind.USER, text); self.state.begin_run(); self._token = CancellationToken()
+        if self.tasks:
+            record = await self.tasks.start(text); self.active_task_id = record.id
             self._run_task = asyncio.create_task(self._consume_task(record.id, text))
-        else:
-            self._run_task = asyncio.create_task(self._consume(text, self._token))
-        self.redraw()
-        return True
+        else: self._run_task = asyncio.create_task(self._consume(text, self._token))
+        self._start_animation()
+        self.redraw(); return True
+
     async def wait_idle(self) -> None:
-        if self._run_task is not None:
-            await self._run_task
+        if self._run_task: await self._run_task
+        await self._stop_animation()
+
     async def handle_key(self, key: str) -> None:
-        if self._pending_approval is not None and key.casefold() in {"y", "n"}:
-            request = self._pending_approval
-            self.approvals.resolve(request.request_id, key.casefold() == "y")
-            self._pending_approval = None
-            self._approval_done.set()
-        elif key == "\x1b" and self.active_task_id and self.tasks is not None:
-            await self.tasks.pause(self.active_task_id)
-        elif key in {"\x03", "q"} and not self.input_text:
-            self.running = False
-            if self._token is not None:
-                self._token.cancel("TUI closed")
-        elif key == "\r":
-            text = self.input_text
-            self.input_text = ""
-            await self.submit(text)
-        elif key in {"\x08", "\x7f"}:
-            self.input_text = self.input_text[:-1]
-        elif key.casefold() == "d" and not self.input_text:
-            self.show_diff = not self.show_diff
-        elif key.casefold() == "r" and not self.input_text:
-            self.show_reasoning = not self.show_reasoning
-        elif key.casefold() == "s" and not self.input_text:
-            await self._load_sessions()
-        elif key.isdigit() and self._session_choices and not self.input_text:
-            await self._select_session(int(key) - 1)
-        elif (
-            key in {"page_up", "page_down", "home", "end", "mouse_scroll_up", "mouse_scroll_down"}
-            and self._pending_approval is None
-            and not self.input_text
-        ):
-            self._scroll_history(key)
-        elif key.isprintable():
-            self.input_text += key
+        if self._pending_approval and key.casefold() in {"y", "n"}:
+            self.approvals.resolve(self._pending_approval.request_id, key.casefold() == "y"); self._pending_approval = None; self._approval_done.set()
+        elif key == "\x03": self.running = False; self._token.cancel("TUI closed") if self._token else None
+        elif key == "\x15": self.input.clear()
+        elif key == "\r": await self.submit(self.input.submit())
+        elif key == "left": self.input.move_left()
+        elif key == "right": self.input.move_right()
+        elif key == "home": self.input.move_home()
+        elif key == "end": self.input.move_end()
+        elif key == "up": self.input.previous()
+        elif key == "down": self.input.next()
+        elif key in {"\x08", "\x7f"}: self.input.backspace()
+        elif key == "delete": self.input.delete()
+        elif key.isprintable(): self.input.insert(key)
         self.redraw()
+
     def redraw(self) -> None:
-        columns, rows = shutil.get_terminal_size((100, 30))
-        self._write(
-            render_terminal(
-                self.state,
-                self.input_text,
-                columns,
-                rows,
-                show_diff=self.show_diff,
-                show_reasoning=self.show_reasoning,
-                pending_approval=self._pending_approval,
-                sessions=self._session_choices,
-                history_offset=self.history_offset,
-            )
-        )
+        palette = (item.display for item in filter_palette(self.input.text))
+        status, icon, status_color = self._status_presentation()
+        self._write(render_live_tail(self.input.text, status, self._columns(), cursor_index=self.input.cursor, color=self.color, palette=palette, status_icon=icon, status_color=status_color))
+
     async def restore_thread(self, thread_id: str) -> bool:
-        """Restore a persisted session without discarding the displayed state on error."""
-        if self.history is None:
-            self.state.status = "session history unavailable"
-            return False
-        try:
-            history = await load_thread_history(self.history, thread_id)
-        except Exception:
-            self.state.status = "session restore failed"
-            return False
-        restored = TerminalState()
-        restored.restore(history)
-        self.state = restored
-        self.current_thread_id = thread_id
-        self.history_offset = 0
-        return True
+        if self.history is None: self._append(DisplayKind.ERROR, "session history unavailable"); return False
+        try: history = await load_thread_history(self.history, thread_id)
+        except Exception: self._append(DisplayKind.ERROR, "session restore failed"); return False
+        restored = TerminalState(); restored.restore(history); self.state = restored; self.current_thread_id = thread_id
+        self._write(render_entries(restored.entries, 100, theme=self.theme, color=self.color) + "\n"); self._flushed_entries = len(restored.entries); return True
+
     async def _consume(self, text: str, token: CancellationToken) -> None:
         try:
-            async for event in self.controller.ask(
-                text,
-                thread_id=self.current_thread_id,
-                cancellation=token,
-            ):
+            async for event in self.controller.ask(text, thread_id=self.current_thread_id, cancellation=token):
                 self.state.apply(event)
-                if self.state.thread_id is not None:
-                    self.current_thread_id = self.state.thread_id
+                if event.kind is not EventKind.MODEL_EVENT:
+                    self._flush_pending_entries()
+                if self.state.thread_id: self.current_thread_id = self.state.thread_id
                 self.redraw()
-        except Exception as error:
-            self.state.status = "error"
-            self.state.transcript.append("error: " + type(error).__name__)
-            self.redraw()
+        except Exception as error: self._append(DisplayKind.ERROR, type(error).__name__)
+
     async def _consume_task(self, task_id: str, text: str) -> None:
+        if not self.tasks: return
         try:
-            if self.tasks is None:
-                return
             async for event in self.tasks.events(task_id, text):
                 self.state.apply(event)
+                if event.kind is not EventKind.MODEL_EVENT:
+                    self._flush_pending_entries()
                 self.redraw()
-        except Exception as error:
-            self.state.status = "error"
-            self.state.transcript.append("error: " + type(error).__name__)
-            self.redraw()
+        except Exception as error: self._append(DisplayKind.ERROR, type(error).__name__)
 
-    async def _handle_task_command(self, command: object) -> bool:
-        if self.tasks is None:
-            return False
-        kind = getattr(command, "kind", None)
-        task_id = getattr(command, "task_id", None) or self.active_task_id
-        if kind is TuiCommandKind.TASKS:
-            records = await self.tasks.list(include_terminal=True)
-            self.state.transcript.append("tasks: " + " | ".join(f"{task.id}:{task.status.value}" for task in records))
-        elif kind is TuiCommandKind.PAUSE and task_id:
-            await self.tasks.pause(task_id)
-        elif kind is TuiCommandKind.STOP and task_id:
-            await self.tasks.stop(task_id)
-        elif kind is TuiCommandKind.RESUME and task_id:
-            self.active_task_id = task_id
-            self._run_task = asyncio.create_task(self._consume_task(task_id, "continue safely"))
-        elif kind is TuiCommandKind.STEER and task_id:
-            await self.tasks.steer(task_id, getattr(command, "instruction", ""))
-        elif kind is TuiCommandKind.LANGUAGE:
-            self.catalog = ZH_CN if getattr(command, "instruction", "") in {"zh", "zh-CN"} else EN_US
-        else:
-            return False
+    async def _handle_command(self, outcome: ParseOutcome) -> bool:
+        command = outcome.command
+        assert command is not None
+        if command.kind is TuiCommandKind.DIFF: self._append(DisplayKind.METADATA, self.state.diff or "no diff available")
+        elif command.kind is TuiCommandKind.STATUS: self._append(DisplayKind.METADATA, self._status_line())
+        elif command.kind is TuiCommandKind.HELP: self._append(DisplayKind.METADATA, " ".join(item.display for item in filter_palette("/")))
+        elif command.kind is TuiCommandKind.LANGUAGE: self._append(DisplayKind.METADATA, "language updated")
+        elif command.kind is TuiCommandKind.THEME:
+            try: self.theme = Theme(command.instruction or "")
+            except ValueError: self._append(DisplayKind.ERROR, "theme must be signal, symbol, or plain"); return False
+            self._append(DisplayKind.METADATA, "theme updated")
+        elif command.kind is TuiCommandKind.COLOR:
+            try: self.color = ColorMode(command.instruction or "")
+            except ValueError: self._append(DisplayKind.ERROR, "color must be auto, always, or never"); return False
+            self._append(DisplayKind.METADATA, "color updated")
+        elif command.kind is TuiCommandKind.GLYPHS:
+            glyphs = command.instruction
+            if glyphs == "ascii": self.theme = Theme.SIGNAL
+            elif glyphs == "unicode": self.theme = Theme.SYMBOL
+            else: self._append(DisplayKind.ERROR, "glyphs must be ascii or unicode"); return False
+            self._append(DisplayKind.METADATA, "glyphs updated")
+        elif command.kind is TuiCommandKind.MODEL:
+            if self.profiles is None: self._append(DisplayKind.ERROR, "model profiles are unavailable"); return False
+            if command.instruction in {None, "列表", "list"}:
+                self._append(DisplayKind.METADATA, " | ".join(f"{item.name}:{item.model}" for item in self.profiles.list()))
+            elif command.instruction.startswith("使用 ") or command.instruction.startswith("use "):
+                name = command.instruction.split(maxsplit=1)[1]
+                try: selected = self.profiles.use(name, idle=self._run_task is None or self._run_task.done())
+                except (ValueError, RuntimeError) as error: self._append(DisplayKind.ERROR, str(error)); return False
+                self._append(DisplayKind.METADATA, f"model selected: {selected.name}:{selected.model}")
+            else: self._append(DisplayKind.ERROR, "model expects list or use <profile>"); return False
+        elif command.kind is TuiCommandKind.SKILLS:
+            if self.skills is None: self._append(DisplayKind.ERROR, "skills are unavailable"); return False
+            action, _, identifier = (command.instruction or "").partition(" ")
+            if action in {"", "列表", "list"}: self._append(DisplayKind.METADATA, " | ".join(skill.identifier for skill in self.skills.available()))
+            elif action in {"信息", "info"} and identifier: self._append(DisplayKind.METADATA, self.skills.info(identifier).description)
+            elif action in {"启用", "enable"} and identifier: self.skills.activate(identifier, approved=True); self._append(DisplayKind.METADATA, f"skill enabled: {identifier}")
+            elif action in {"禁用", "disable"} and identifier: self.skills.deactivate(identifier); self._append(DisplayKind.METADATA, f"skill disabled: {identifier}")
+            else: self._append(DisplayKind.ERROR, "skills expects list, info, enable, or disable"); return False
+        elif command.kind is TuiCommandKind.MCP:
+            if self.mcp is None: self._append(DisplayKind.ERROR, "MCP is unavailable"); return False
+            action, _, name = (command.instruction or "状态").partition(" ")
+            if action not in {"状态", "status"}: self._append(DisplayKind.ERROR, "MCP supports status only"); return False
+            try: servers = self.mcp.status(name or None)
+            except KeyError: self._append(DisplayKind.ERROR, "unknown configured MCP server"); return False
+            self._append(DisplayKind.METADATA, " | ".join(f"{server.name}:{'enabled' if server.enabled else 'disabled'}" for server in servers))
+        elif self.tasks and command.kind is TuiCommandKind.TASKS:
+            records = await self.tasks.list(include_terminal=True); self._append(DisplayKind.METADATA, " | ".join(f"{item.id}:{item.status.value}" for item in records))
+        elif self.tasks and command.kind in {TuiCommandKind.PAUSE, TuiCommandKind.STOP, TuiCommandKind.RESUME, TuiCommandKind.STEER}:
+            task_id = command.task_id or self.active_task_id
+            if not task_id: self._append(DisplayKind.ERROR, "no active task"); return False
+            if command.kind is TuiCommandKind.PAUSE: await self.tasks.pause(task_id)
+            elif command.kind is TuiCommandKind.STOP: await self.tasks.stop(task_id)
+            elif command.kind is TuiCommandKind.STEER: await self.tasks.steer(task_id, command.instruction or "")
+            else: self._run_task = asyncio.create_task(self._consume_task(task_id, "continue safely"))
+        else: self._append(DisplayKind.ERROR, "command is unavailable")
         return True
+
     async def _listen_approvals(self) -> None:
-        while True:
-            request = await self.approvals.next_request()
-            self._pending_approval = request
-            self._approval_done.clear()
-            self.redraw()
-            await self._approval_done.wait()
-    async def _load_sessions(self) -> None:
-        if self.sessions is None:
-            self.state.status = "session list unavailable"
-            return
-        try:
-            self._session_choices = tuple(await self.sessions.list_threads(limit=9))
-            self.state.status = "select session 1-9"
-        except Exception:
-            self.state.status = "session list failed"
-    async def _select_session(self, index: int) -> None:
-        if index < 0 or index >= len(self._session_choices):
-            return
-        identifier = getattr(self._session_choices[index], "id", None)
-        if not isinstance(identifier, str) or not identifier.strip():
-            return
-        if await self.restore_thread(identifier):
-            self._session_choices = ()
-    def _scroll_history(self, key: str) -> None:
-        _, rows = shutil.get_terminal_size((100, 30))
-        capacity = _transcript_capacity(
-            self.state,
-            rows,
-            show_diff=self.show_diff,
-            show_reasoning=self.show_reasoning,
-            pending_approval=self._pending_approval,
-            sessions=self._session_choices,
-        )
-        max_offset = _history_max_offset(self.state.transcript, capacity)
-        if key == "page_up":
-            self.history_offset = min(max_offset, self.history_offset + 1)
-        elif key == "mouse_scroll_up":
-            self.history_offset = min(max_offset, self.history_offset + 3)
-        elif key == "page_down":
-            self.history_offset = max(0, self.history_offset - 1)
-        elif key == "mouse_scroll_down":
-            self.history_offset = max(0, self.history_offset - 3)
-        elif key == "home":
-            self.history_offset = max_offset
-        elif key == "end":
-            self.history_offset = 0
+        while True: self._pending_approval = await self.approvals.next_request(); self._approval_done.clear(); self.redraw(); await self._approval_done.wait()
+
+    def _append(self, kind: DisplayKind, value: object) -> None:
+        self.state.entries.append(text_entry(kind, value)); self.state.transcript.append(self.state.entries[-1].text); self._flush_pending_entries()
+
+    def _flush_pending_entries(self) -> None:
+        new = self.state.entries[self._flushed_entries:]
+        if new:
+            self._write("\r\x1b[2K" + render_entries(new, self._columns(), theme=self.theme, color=self.color) + "\n\r\x1b[2K")
+            self._flushed_entries = len(self.state.entries)
+
+    def _columns(self) -> int:
+        return shutil.get_terminal_size((100, 30)).columns
+
+    def _status_presentation(self) -> tuple[str, str, str | None]:
+        if self.state.status == "running":
+            detail = self.state.active_action or "正在生成回复"
+            return "处理中 · " + detail, "|/-\\"[self._spinner_index % 4], "38;5;250"
+        if self.state.status == "completed":
+            return self.state.execution_summary or "已完成", "+", "38;5;114"
+        if self.state.status == "error": return "处理失败", "×", "31"
+        if self.state.status == "cancelled": return "已取消", "!", "33"
+        return "就绪", "·", None
+
+    def _start_animation(self) -> None:
+        if self._animation_task is None or self._animation_task.done():
+            self._animation_task = asyncio.create_task(self._animate())
+
+    async def _stop_animation(self) -> None:
+        if self._animation_task and not self._animation_task.done():
+            self._animation_task.cancel()
+        if self._animation_task:
+            await asyncio.gather(self._animation_task, return_exceptions=True)
+        self._animation_task = None
+
+    async def _animate(self) -> None:
+        while self._run_task and not self._run_task.done():
+            self._spinner_index += 1
+            if self.state.status == "running": self.redraw()
+            await asyncio.sleep(0.12)
+
     async def _close_tasks(self) -> None:
-        if self.tasks is not None and self.active_task_id is not None and self._run_task is not None and not self._run_task.done():
-            await self.tasks.pause(self.active_task_id, "TUI closed")
-        if self._token is not None:
-            self._token.cancel("TUI closed")
-        for task in (self._run_task, self._approval_task):
-            if task is not None:
-                task.cancel()
-        tasks = [task for task in (self._run_task, self._approval_task) if task]
-        if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
-def render_terminal(
-    state: TerminalState,
-    input_text: str,
-    columns: int,
-    rows: int,
-    *,
-    show_diff: bool = False,
-    show_reasoning: bool = False,
-    pending_approval: Optional[ApprovalRequest] = None,
-    sessions: Sequence[object] = (),
-    history_offset: int = 0,
-    catalog: UiCatalog = EN_US,
-) -> str:
-    """Render one complete ANSI screen without trusting model terminal escapes."""
-    width = max(40, columns)
-    height = max(12, rows)
-    thread = _safe_text(state.thread_id or "new")
-    lines = [
-        _clip("Chaos Agent | Windows Terminal | session: " + thread, width),
-        _clip(_safe_text("status: " + localize_task_status(state.status, catalog)), width),
-        _clip("[s] sessions [d] diff [r] reasoning [q] quit | history: wheel/PageUp/PageDown Home/End", width),
-    ]
-    if state.task_id and state.task_status not in {"completed", "failed"}:
-        lines.insert(2, _clip(f"{catalog.task} {state.task_id} · {localize_task_status(state.task_status, catalog)} · Esc {catalog.paused} · /任务", width))
-    lines.extend(_display_lines("\n".join(state.summary))[:3])
-    if pending_approval is not None:
-        lines.extend(
-            (
-                _clip(_safe_text("APPROVAL: " + pending_approval.name), width),
-                _clip("Press Y to approve or N to deny.", width),
-                "-" * width,
-            )
-        )
-    if sessions:
-        lines.append(_clip(_safe_text("Sessions: " + _session_line(sessions)), width))
-    reasoning_lines = _reasoning_lines(state, show_reasoning)
-    lines.extend(_clip(line, width) for line in reasoning_lines)
-    diff_lines = _display_lines(state.diff)[:4] if show_diff and state.diff else []
-    lines.append(_clip(_safe_text("recent: " + " | ".join(state.timeline[-4:])), width))
-    lines.append("-" * width)
-    transcript_capacity = _transcript_capacity(
-        state,
-        height,
-        show_diff=show_diff,
-        show_reasoning=show_reasoning,
-        pending_approval=pending_approval,
-        sessions=sessions,
-    )
-    lines.extend(_history_window(state.transcript, transcript_capacity, history_offset))
-    if diff_lines:
-        lines.append("diff:")
-        lines.extend(diff_lines)
-    lines.append("-" * width)
-    lines.append(_clip("> " + _safe_text(input_text), width))
-    return "\x1b[2J\x1b[H" + "\n".join(_clip(line, width) for line in lines)
+        if self._token: self._token.cancel("TUI closed")
+        for task in (self._run_task, self._approval_task, self._animation_task):
+            if task: task.cancel()
+        await asyncio.gather(*(task for task in (self._run_task, self._approval_task, self._animation_task) if task), return_exceptions=True)
+
+
 def _read_key() -> str:
     import msvcrt
     key = msvcrt.getwch()
-    if key in {"\x00", "\xe0"}:
-        return {"I": "page_up", "Q": "page_down", "G": "home", "O": "end"}.get(
-            msvcrt.getwch(), ""
-        )
-    if key == "\x1b" and msvcrt.kbhit():
-        sequence = key
-        while msvcrt.kbhit():
-            sequence += msvcrt.getwch()
-        return _decode_ansi_input(sequence)
-    return key
+    if key not in {"\x00", "\xe0"}: return key
+    return {"K": "left", "M": "right", "G": "home", "O": "end", "H": "up", "P": "down", "S": "delete"}.get(msvcrt.getwch(), "")
 
 
-def _decode_ansi_input(sequence: str) -> str:
-    if sequence.startswith("\x1b[<64;") and sequence.endswith("M"):
-        return "mouse_scroll_up"
-    if sequence.startswith("\x1b[<65;") and sequence.endswith("M"):
-        return "mouse_scroll_down"
-    return sequence
-def _stdout_write(value: str) -> None:
-    sys.stdout.write(value)
-    sys.stdout.flush()
-def _safe_text(value: str) -> str:
-    return "".join(character if character >= " " or character in {"\n", "\t"} else "?" for character in value).replace("\x1b", "?")
-def _display_lines(value: Optional[str]) -> list[str]:
-    if not value:
-        return []
-    return _safe_text(value).replace("\t", "    ").splitlines() or [""]
-def _clip(value: str, width: int) -> str:
-    return value[:width]
-def _transcript_capacity(
-    state: TerminalState,
-    rows: int,
-    *,
-    show_diff: bool,
-    show_reasoning: bool,
-    pending_approval: Optional[ApprovalRequest],
-    sessions: Sequence[object],
-) -> int:
-    summary_lines = len(_display_lines("\n".join(state.summary))[:3])
-    diff_lines = len(_display_lines(state.diff)[:4]) if show_diff and state.diff else 0
-    reasoning_lines = len(_reasoning_lines(state, show_reasoning))
-    fixed_lines = 7 + summary_lines + (1 if state.task_id and state.task_status not in {"completed", "failed"} else 0) + (3 if pending_approval else 0) + bool(sessions) + reasoning_lines
-    return max(0, max(12, rows) - fixed_lines - diff_lines - bool(diff_lines))
+def _stdout_write(value: str) -> None: sys.stdout.write(value); sys.stdout.flush()
 
 
-def _reasoning_lines(state: TerminalState, show_reasoning: bool) -> list[str]:
-    if not state.reasoning:
-        return []
-    if not show_reasoning:
-        return ["reasoning: hidden ([r] to expand)"]
-    return ["reasoning:", *_display_lines("\n".join(state.reasoning))[:3]]
-def _history_max_offset(transcript: Sequence[str], capacity: int) -> int:
-    line_count = sum(len(_display_lines(entry)) for entry in transcript)
-    return max(0, line_count - capacity)
-def _history_window(transcript: Sequence[str], capacity: int, history_offset: int) -> list[str]:
-    """Return a fixed-size transcript slice, offset backward from the live edge."""
-    if capacity <= 0:
-        return []
-    lines = [line for entry in transcript for line in _display_lines(entry)]
-    max_offset = _history_max_offset(transcript, capacity)
-    offset = min(max(0, history_offset), max_offset)
-    end = len(lines) - offset
-    return lines[max(0, end - capacity):end]
-def _session_line(sessions: Sequence[object]) -> str:
-    labels = []
-    for index, session in enumerate(sessions, start=1):
-        identifier = getattr(session, "id", "?")
-        preview = getattr(session, "last_message_preview", "") or ""
-        labels.append(f"{index}:{identifier} {preview}")
-    return " | ".join(labels)
+def render_terminal(state: TerminalState, input_text: str, columns: int, rows: int, **_: object) -> str:
+    """Compatibility helper for tests; it never clears or replaces terminal history."""
+    return render_entries(state.entries, columns, theme=Theme.SIGNAL, color=ColorMode.NEVER) + "\n" + render_live_tail(input_text, state.status, columns, color=ColorMode.NEVER)

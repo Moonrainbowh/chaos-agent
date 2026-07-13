@@ -20,6 +20,7 @@ from code_agent.core.models import (  # noqa: E402
     ModelEventKind,
 )
 from code_agent.interfaces.history import RestoredThread  # noqa: E402
+from code_agent.interfaces.terminal_display import DisplayKind  # noqa: E402
 from code_agent.interfaces.terminal_state import (  # noqa: E402
     ApprovalBroker,
     ApprovalRequest,
@@ -48,13 +49,16 @@ class TerminalStateTests(unittest.TestCase):
                 {"request": {"id": "call-1", "name": "write_file", "arguments": {"diff": "--- a/x\n+++ b/x"}}},
             )
         )
+        state.apply(AgentEvent(EventKind.ACTION_COMPLETED, {"result": ActionResult("call-1", "write_file", {}).to_dict()}))
+        state.apply(AgentEvent(EventKind.MODEL_EVENT, {"event": ModelEvent(ModelEventKind.TEXT_DELTA, text="done").to_dict()}))
         state.apply(AgentEvent(EventKind.COMPLETED, {"thread_id": "thread-1"}))
 
         self.assertEqual(state.thread_id, "thread-1")
-        self.assertEqual(state.transcript, ["assistant: hello"])
-        self.assertIn("write_file", state.timeline[-2])
+        self.assertEqual(state.transcript, ["assistant: done"])
+        self.assertTrue(any("write_file" in line for line in state.timeline))
         self.assertEqual(state.diff, "--- a/x\n+++ b/x")
         self.assertEqual(state.status, "completed")
+        self.assertEqual(state.execution_summary, "已完成 1 项操作")
 
     def test_restore_projects_persisted_thread_state(self) -> None:
         state = TerminalState()
@@ -130,7 +134,7 @@ class TerminalStateTests(unittest.TestCase):
 
         self.assertEqual(state.summary[0], "goal: recover this task")
 
-    def test_adjacent_text_deltas_append_to_one_assistant_line(self) -> None:
+    def test_adjacent_text_deltas_become_one_final_answer(self) -> None:
         state = TerminalState()
 
         state.apply(
@@ -146,9 +150,29 @@ class TerminalStateTests(unittest.TestCase):
             )
         )
 
+        state.apply(AgentEvent(EventKind.COMPLETED, {}))
         self.assertEqual(state.transcript, ["assistant: hello world"])
 
-    def test_reasoning_delta_is_separate_from_the_chat_transcript(self) -> None:
+    def test_begin_run_does_not_keep_the_previous_action_summary(self) -> None:
+        state = TerminalState()
+        state.execution_summary = "已完成 3 项操作"
+        state.active_action = "write_file"
+
+        state.begin_run()
+
+        self.assertEqual(state.status, "running")
+        self.assertEqual(state.execution_summary, "")
+        self.assertIsNone(state.active_action)
+
+    def test_completed_action_adds_a_compact_static_result_entry(self) -> None:
+        state = TerminalState()
+        state.apply(AgentEvent(EventKind.ACTION_REQUESTED, {"request": {"id": "call-1", "name": "read_file", "arguments": {}}}))
+        state.apply(AgentEvent(EventKind.ACTION_COMPLETED, {"result": ActionResult("call-1", "read_file", {}).to_dict()}))
+
+        self.assertEqual(state.entries[-1].kind, DisplayKind.SUCCESS)
+        self.assertEqual(state.entries[-1].text, "read_file completed")
+
+    def test_reasoning_delta_is_not_retained_or_rendered(self) -> None:
         state = TerminalState()
 
         for model_event in (
@@ -161,11 +185,9 @@ class TerminalStateTests(unittest.TestCase):
                 AgentEvent(EventKind.MODEL_EVENT, {"event": model_event.to_dict()})
             )
 
-        self.assertEqual(
-            state.transcript,
-            ["assistant: hello world", "assistant: again"],
-        )
-        self.assertEqual(state.reasoning, ["planning"])
+        state.apply(AgentEvent(EventKind.COMPLETED, {}))
+        self.assertEqual(state.transcript, ["assistant: hello worldagain"])
+        self.assertNotIn("planning", "\n".join(entry.text for entry in state.entries))
 
 
 class ApprovalBrokerTests(unittest.IsolatedAsyncioTestCase):

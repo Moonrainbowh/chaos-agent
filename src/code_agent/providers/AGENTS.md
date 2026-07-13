@@ -5,8 +5,10 @@
 - 负责：OpenAI-compatible Responses、Chat Completions 与 Anthropic Messages 适配。
 - 负责：流式事件规范化、超时与有限重试、能力声明、用量统计和配置校验。
 - 负责：按名称解析模型 profile；profile 声明模型上下文、输出、协议、认证引用及 Agent 预算。
+- 负责：向上层提供只读的已配置 profile 目录与当前 profile 信息；只在空闲或下一任务边界构造不可变 provider 配置和 client。
 - 不负责：Agent 回合决策、工具执行、上下文裁剪或界面渲染。
 - 不负责：把 API key 写入会话、日志或项目文件。
+- 不负责：接受 UI 提供的任意 URL、协议或 API key；不在活动流或任务中途重建 provider。
 - 依赖：运行时使用 `httpx`；测试只能使用 `MockTransport` 或自定义内存字节流。
 - 密钥边界：配置保存环境变量名或私有、本地配置密钥来源；请求时才读取密钥，公开表示、序列化和异常不得包含认证头或明文密钥。
 - 资源边界：事件、完整响应、单个工具参数和工具调用总数分别受独立正数配置限制。

@@ -4,266 +4,178 @@ import asyncio
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import patch
-
 
 SRC_ROOT = Path(__file__).resolve().parents[3]
-if str(SRC_ROOT) not in sys.path:
-    sys.path.insert(0, str(SRC_ROOT))
+if str(SRC_ROOT) not in sys.path: sys.path.insert(0, str(SRC_ROOT))
 
-from code_agent.core.events import AgentEvent, EventKind  # noqa: E402
-from code_agent.core.models import Message, ModelEvent, ModelEventKind  # noqa: E402
-from code_agent.interfaces.controller import AgentController  # noqa: E402
-from code_agent.interfaces.terminal_state import ApprovalBroker, TerminalState  # noqa: E402
-from code_agent.interfaces.tests._support import FakeEngine  # noqa: E402
-from code_agent.interfaces.windows_tui import (  # noqa: E402
-    WindowsTerminalApp,
-    _decode_ansi_input,
-    render_terminal,
-)
+from code_agent.core.events import AgentEvent, EventKind
+from code_agent.core.models import ModelEvent, ModelEventKind
+from code_agent.interfaces.controller import AgentController
+from code_agent.interfaces.input_buffer import InputBuffer
+from code_agent.interfaces.terminal_display import DisplayKind, clip_display, display_width, text_entry
+from code_agent.interfaces.terminal_renderer import ColorMode, Theme, render_entry, render_live_tail
+from code_agent.interfaces.terminal_state import ApprovalBroker
+from code_agent.interfaces.tests._support import FakeEngine
+from code_agent.interfaces.windows_tui import WindowsTerminalApp, render_terminal
 
 
-class WindowsTerminalRendererTests(unittest.TestCase):
-    def test_renderer_exposes_transcript_timeline_diff_and_input_without_escape_sequences(self) -> None:
-        state = TerminalState()
-        state.thread_id = "thread-1"
-        state.status = "running"
-        state.transcript = ["user: inspect", "assistant: reading"]
-        state.timeline = ["turn started", "requested read_file"]
-        state.diff = "--- a/x.py\n+++ b/x.py\n+new"
+class TerminalFirstRendererTests(unittest.TestCase):
+    def test_entry_uses_local_ansi_only_and_strips_model_controls(self) -> None:
+        rendered = render_entry(text_entry(DisplayKind.ERROR, "bad\x1b[2J\x00"), 80, color=ColorMode.ALWAYS)
+        self.assertIn("\x1b[31m", rendered)
+        self.assertNotIn("\x1b[2J", rendered)
+        self.assertIn("bad?[2J?", rendered)
 
-        rendered = render_terminal(state, "next input", 80, 24, show_diff=True)
+    def test_never_color_has_ascii_fallback(self) -> None:
+        rendered = render_entry(text_entry(DisplayKind.SUCCESS, "saved"), 80, theme=Theme.SIGNAL, color=ColorMode.NEVER)
+        self.assertEqual(rendered, "+ saved")
+        self.assertNotIn("\x1b", rendered)
 
-        self.assertTrue(rendered.startswith("\x1b[2J\x1b[H"))
-        self.assertIn("Chaos Agent", rendered)
-        self.assertIn("assistant: reading", rendered)
-        self.assertIn("requested read_file", rendered)
-        self.assertIn("+++ b/x.py", rendered)
-        self.assertIn("> next input", rendered)
+    def test_user_agent_and_tool_rows_have_distinct_semantic_colors(self) -> None:
+        user = render_entry(text_entry(DisplayKind.USER, "request"), 80, color=ColorMode.ALWAYS)
+        agent = render_entry(text_entry(DisplayKind.AGENT, "answer"), 80, color=ColorMode.ALWAYS)
+        tool = render_entry(text_entry(DisplayKind.TOOL, "read_file"), 80, color=ColorMode.ALWAYS)
 
-    def test_renderer_hides_reasoning_until_requested(self) -> None:
-        state = TerminalState()
-        state.reasoning = ["inspect the request carefully"]
+        self.assertIn("38;5;80", user)
+        self.assertIn("38;5;121", agent)
+        self.assertIn("38;5;153", tool)
 
-        collapsed = render_terminal(state, "", 80, 24)
-        expanded = render_terminal(state, "", 80, 24, show_reasoning=True)
+    def test_cjk_clipping_uses_display_columns(self) -> None:
+        self.assertEqual(display_width("ab中文"), 6)
+        self.assertEqual(clip_display("ab中文", 5), "ab中")
 
-        self.assertIn("reasoning: hidden", collapsed)
-        self.assertNotIn("inspect the request carefully", collapsed)
-        self.assertIn("inspect the request carefully", expanded)
+    def test_live_tail_does_not_clear_screen_or_enable_mouse_tracking(self) -> None:
+        tail = render_live_tail("next", "idle", 80, color=ColorMode.NEVER)
+        self.assertIn("> next", tail)
+        self.assertIn(". idle", tail)
+        self.assertNotIn("[2J", tail)
+        self.assertNotIn("[?100", tail)
 
-    def test_decodes_sgr_mouse_wheel_sequences(self) -> None:
-        self.assertEqual(_decode_ansi_input("\x1b[<64;10;5M"), "mouse_scroll_up")
-        self.assertEqual(_decode_ansi_input("\x1b[<65;10;5M"), "mouse_scroll_down")
+    def test_live_tail_returns_cursor_to_the_end_of_the_input(self) -> None:
+        tail = render_live_tail("中文", "idle", 80, color=ColorMode.NEVER)
+        self.assertTrue(tail.endswith("\x1b[7C"))
 
-    def test_renderer_shows_an_older_transcript_window_at_history_offset(self) -> None:
-        state = TerminalState()
-        state.summary = ["goal: recover"]
-        state.timeline = ["requested read_file"]
-        state.transcript = [f"line {index}" for index in range(6)]
+    def test_empty_composer_has_a_bordered_placeholder_with_cursor_after_prompt(self) -> None:
+        tail = render_live_tail("", "idle", 80, color=ColorMode.NEVER)
+        self.assertIn("[> 输入任务、编辑请求，或输入 / 查看命令", tail)
+        self.assertTrue(tail.endswith("\x1b[3C"))
 
-        rendered = render_terminal(state, "", 80, 12, history_offset=2)
+    def test_palette_is_rendered_in_the_status_line_not_as_scrollback_rows(self) -> None:
+        tail = render_live_tail("/", "idle", 80, color=ColorMode.NEVER, palette=("/帮助", "/状态"))
+        self.assertEqual(tail.count("\n"), 1)
+        self.assertIn("/帮助  /状态", tail)
 
-        self.assertIn("line 0", rendered)
-        self.assertIn("line 3", rendered)
-        self.assertNotIn("line 4", rendered)
-        self.assertNotIn("line 5", rendered)
-        self.assertIn("goal: recover", rendered)
-        self.assertIn("recent: requested read_file", rendered)
+    def test_compatibility_renderer_is_append_only(self) -> None:
+        app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker())
+        app.state.entries.append(text_entry(DisplayKind.AGENT, "done"))
+        rendered = render_terminal(app.state, "", 80, 24)
+        self.assertIn("* done", rendered)
+        self.assertNotIn("[2J", rendered)
 
-    def test_renderer_clamps_home_offset_to_an_oldest_visible_window(self) -> None:
-        state = TerminalState()
-        state.transcript = [f"line {index}" for index in range(6)]
+    def test_markdown_heading_and_paragraphs_render_on_separate_lines(self) -> None:
+        rendered = render_entry(text_entry(DisplayKind.AGENT, "说明\n\n### 功能说明\n\n- 项目"), 80, color=ColorMode.NEVER)
+        self.assertIn("* 说明", rendered)
+        self.assertIn("  功能说明", rendered)
+        self.assertIn("  - 项目", rendered)
+        self.assertNotIn("###", rendered)
 
-        rendered = render_terminal(state, "", 80, 12, history_offset=len(state.transcript))
+    def test_markdown_table_has_borders_headers_and_column_widths(self) -> None:
+        rendered = render_entry(text_entry(DisplayKind.AGENT, "| 位置 | 原来 | 现在 |\n| --- | --- | --- |\n| 函数名 | add(a, b) | multiply(a, b) |"), 44, color=ColorMode.NEVER)
 
-        self.assertIn("line 0", rendered)
-        self.assertIn("line 4", rendered)
+        self.assertIn("+", rendered)
+        self.assertIn("函数名", rendered)
+        self.assertNotIn("| ---", rendered)
+        self.assertTrue(all(display_width(line) <= 44 for line in rendered.splitlines()))
 
-    def test_renderer_limits_multiline_live_transcript_to_physical_row_capacity(self) -> None:
-        state = TerminalState()
-        state.transcript = [
-            "user: first\ncontinued",
-            "assistant: second\ncontinued",
-            "reasoning: third\ncontinued",
-        ]
+    def test_markdown_table_header_and_border_use_distinct_local_colors(self) -> None:
+        rendered = render_entry(text_entry(DisplayKind.AGENT, "| A | B |\n| --- | --- |\n| 1 | 2 |"), 40, color=ColorMode.ALWAYS)
 
-        rendered = render_terminal(state, "", 80, 12)
-        frame_lines = rendered.removeprefix("\x1b[2J\x1b[H").splitlines()
+        self.assertIn("\x1b[1;96m", rendered)
+        self.assertIn("\x1b[2m", rendered)
 
-        self.assertLessEqual(len(frame_lines), 12)
-        self.assertIn("continued", frame_lines)
-        self.assertNotIn("user: first", frame_lines)
+
+class InputBufferTests(unittest.TestCase):
+    def test_editing_history_and_clear_shortcut_state(self) -> None:
+        buffer = InputBuffer()
+        buffer.insert("abc"); buffer.move_left(); buffer.insert("X")
+        self.assertEqual(buffer.text, "abXc")
+        self.assertEqual(buffer.submit(), "abXc")
+        buffer.previous(); self.assertEqual(buffer.text, "abXc")
+        buffer.clear(); self.assertEqual(buffer.text, "")
 
 
 class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
-    async def test_submit_consumes_engine_events_and_redraws(self) -> None:
+    async def test_submit_appends_user_and_completed_agent_entries(self) -> None:
         events = (
             AgentEvent(EventKind.RUN_STARTED, {"thread_id": "thread-1"}),
-            AgentEvent(
-                EventKind.MODEL_EVENT,
-                {"event": ModelEvent(ModelEventKind.TEXT_DELTA, text="hello").to_dict()},
-            ),
+            AgentEvent(EventKind.MODEL_EVENT, {"event": ModelEvent(ModelEventKind.TEXT_DELTA, text="hello").to_dict()}),
             AgentEvent(EventKind.COMPLETED, {"thread_id": "thread-1"}),
         )
         output: list[str] = []
-        app = WindowsTerminalApp(
-            AgentController(FakeEngine(events)),
-            ApprovalBroker(),
-            write=output.append,
-        )
-
-        self.assertTrue(await app.submit("inspect"))
-        await app.wait_idle()
-
-        self.assertEqual(app.state.thread_id, "thread-1")
+        app = WindowsTerminalApp(AgentController(FakeEngine(events)), ApprovalBroker(), write=output.append)
+        self.assertTrue(await app.submit("inspect")); await app.wait_idle()
+        self.assertEqual([entry.kind for entry in app.state.entries], [DisplayKind.USER, DisplayKind.AGENT])
         self.assertEqual(app.state.status, "completed")
-        self.assertIn("assistant: hello", app.state.transcript)
-        self.assertGreaterEqual(len(output), 3)
-        self.assertFalse(await app.submit("   "))
+        self.assertNotIn("[2J", "".join(output))
         await asyncio.sleep(0)
 
-    async def test_history_navigation_changes_and_resets_the_offset(self) -> None:
-        app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker())
-        app.state.transcript = [f"line {index}" for index in range(6)]
-
-        with patch("code_agent.interfaces.windows_tui.shutil.get_terminal_size", return_value=(80, 12)):
-            await app.handle_key("page_up")
-
-        self.assertGreater(app.history_offset, 0)
-        with patch("code_agent.interfaces.windows_tui.shutil.get_terminal_size", return_value=(80, 12)):
-            await app.handle_key("end")
-        self.assertEqual(app.history_offset, 0)
-
-    async def test_mouse_wheel_moves_history_by_three_lines(self) -> None:
-        app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker())
-        app.state.transcript = [f"line {index}" for index in range(10)]
-
-        with patch("code_agent.interfaces.windows_tui.shutil.get_terminal_size", return_value=(80, 12)):
-            await app.handle_key("mouse_scroll_up")
-        self.assertEqual(app.history_offset, 3)
-
-    async def test_r_toggles_reasoning_visibility(self) -> None:
-        app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker())
-
-        await app.handle_key("r")
-        self.assertTrue(app.show_reasoning)
-        await app.handle_key("r")
-        self.assertFalse(app.show_reasoning)
-
-    async def test_home_navigation_keeps_oldest_transcript_lines_visible(self) -> None:
-        app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker())
-        app.state.transcript = [f"line {index}" for index in range(6)]
-
-        with patch("code_agent.interfaces.windows_tui.shutil.get_terminal_size", return_value=(80, 12)):
-            await app.handle_key("home")
-        rendered = render_terminal(app.state, "", 80, 12, history_offset=app.history_offset)
-
-        self.assertIn("line 0", rendered)
-
-    async def test_page_down_after_home_moves_to_a_newer_history_window(self) -> None:
+    async def test_streamed_answer_is_written_once_after_completion(self) -> None:
+        events = (
+            AgentEvent(EventKind.MODEL_EVENT, {"event": ModelEvent(ModelEventKind.TEXT_DELTA, text="full ").to_dict()}),
+            AgentEvent(EventKind.MODEL_EVENT, {"event": ModelEvent(ModelEventKind.TEXT_DELTA, text="answer").to_dict()}),
+            AgentEvent(EventKind.COMPLETED, {}),
+        )
         output: list[str] = []
-        app = WindowsTerminalApp(
-            AgentController(FakeEngine(())), ApprovalBroker(), write=output.append
+        app = WindowsTerminalApp(AgentController(FakeEngine(events)), ApprovalBroker(), write=output.append)
+        await app.submit("inspect"); await app.wait_idle()
+        rendered = "".join(output)
+        self.assertEqual(rendered.count("* full answer"), 1)
+        self.assertNotIn("* full \n", rendered)
+
+    async def test_raw_reasoning_is_not_written(self) -> None:
+        events = (
+            AgentEvent(EventKind.MODEL_EVENT, {"event": ModelEvent(ModelEventKind.REASONING_DELTA, text="private work").to_dict()}),
+            AgentEvent(EventKind.COMPLETED, {}),
         )
-        app.state.transcript = [f"line {index}" for index in range(6)]
+        app = WindowsTerminalApp(AgentController(FakeEngine(events)), ApprovalBroker(), write=lambda _: None)
+        await app.submit("inspect"); await app.wait_idle()
+        self.assertNotIn("private work", "\n".join(entry.text for entry in app.state.entries))
 
-        with patch("code_agent.interfaces.windows_tui.shutil.get_terminal_size", return_value=(80, 12)):
-            await app.handle_key("home")
-            oldest_window = output[-1]
-            await app.handle_key("page_down")
-            newer_window = output[-1]
-            await app.handle_key("page_up")
+    async def test_new_prompt_clears_the_old_status_before_appending_it(self) -> None:
+        output: list[str] = []
+        app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker(), write=output.append)
+        app.state.status = "completed"; app.state.execution_summary = "已完成 3 项操作"
+        app.redraw()
 
-        self.assertNotEqual(oldest_window, newer_window)
-        self.assertIn("line 1", newer_window)
-        self.assertNotIn("line 0", newer_window)
-        self.assertEqual(oldest_window, output[-1])
+        await app.submit("修改成乘法函数吧")
 
-    async def test_home_navigation_uses_physical_lines_for_multiline_transcript(self) -> None:
-        app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker())
-        app.state.transcript = [
-            "\n".join(f"entry {entry} line {line}" for line in range(10))
-            for entry in range(6)
-        ]
+        appended_prompt = output[1]
+        self.assertIn("> 修改成乘法函数吧", appended_prompt)
+        self.assertNotIn("已完成 3 项操作", appended_prompt)
+        self.assertNotIn("\x1b[1B", appended_prompt)
+        await app.wait_idle()
 
-        with patch("code_agent.interfaces.windows_tui.shutil.get_terminal_size", return_value=(80, 12)):
-            await app.handle_key("home")
-        rendered = render_terminal(app.state, "", 80, 12, history_offset=app.history_offset)
+    async def test_running_icon_changes_but_completion_icon_is_static(self) -> None:
+        app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker(), write=lambda _: None)
+        app.state.begin_run(); first = app._status_presentation()
+        app._spinner_index = 1; second = app._status_presentation()
+        app.state.status = "completed"; app.state.execution_summary = "已完成 1 项操作"
 
-        self.assertIn("entry 0 line 0", rendered)
-        self.assertIn("entry 0 line 4", rendered)
-        self.assertNotIn("entry 0 line 5", rendered)
+        self.assertNotEqual(first[1], second[1])
+        self.assertEqual(app._status_presentation()[1], "+")
 
-    async def test_restore_thread_replaces_state_from_history_reader(self) -> None:
-        reader = _HistoryReader((Message("user", "resume task"), Message("assistant", "restored")))
-        app = WindowsTerminalApp(
-            AgentController(FakeEngine(())), ApprovalBroker(), history=reader
-        )
+    async def test_arrow_keys_and_ctrl_u_edit_instead_of_printing_escape_bytes(self) -> None:
+        app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker(), write=lambda _: None)
+        for key in ("a", "b", "left", "X"):
+            await app.handle_key(key)
+        self.assertEqual(app.input.text, "aXb")
+        await app.handle_key("\x15")
+        self.assertEqual(app.input.text, "")
 
-        restored = await app.restore_thread("thread-1")
-
-        self.assertTrue(restored)
-        self.assertEqual(app.current_thread_id, "thread-1")
-        self.assertIn("goal: resume task", app.state.summary)
-        self.assertIn("assistant: restored", app.state.transcript)
-
-    async def test_restored_multiline_transcript_respects_physical_row_capacity(self) -> None:
-        reader = _HistoryReader(
-            (
-                Message("user", "first\ncontinued"),
-                Message("assistant", "second\ncontinued"),
-                Message("assistant", "third\ncontinued"),
-            )
-        )
-        app = WindowsTerminalApp(
-            AgentController(FakeEngine(())), ApprovalBroker(), history=reader
-        )
-
-        self.assertTrue(await app.restore_thread("thread-1"))
-        rendered = render_terminal(app.state, "", 80, 12)
-
-        self.assertLessEqual(
-            len(rendered.removeprefix("\x1b[2J\x1b[H").splitlines()), 12
-        )
-
-    async def test_restore_thread_failure_keeps_previous_state(self) -> None:
-        app = WindowsTerminalApp(
-            AgentController(FakeEngine(())), ApprovalBroker(), history=_FailingHistoryReader()
-        )
-        app.state.transcript = ["assistant: keep this"]
-
-        restored = await app.restore_thread("thread-1")
-
-        self.assertFalse(restored)
-        self.assertEqual(app.state.transcript, ["assistant: keep this"])
-        self.assertEqual(app.state.status, "session restore failed")
+    async def test_malformed_slash_command_is_in_band_error(self) -> None:
+        app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker(), write=lambda _: None)
+        self.assertFalse(await app.submit("/does-not-exist"))
+        self.assertEqual(app.state.entries[-1].kind, DisplayKind.ERROR)
 
 
-class _HistoryReader:
-    def __init__(self, messages: tuple[Message, ...]) -> None:
-        self.messages = messages
-
-    async def load_messages(self, thread_id: str) -> tuple[Message, ...]:
-        return self.messages
-
-    async def load_events(self, thread_id: str) -> tuple[AgentEvent, ...]:
-        return ()
-
-    async def list_goals(self, thread_id: str) -> tuple[object, ...]:
-        return ()
-
-    async def list_checkpoints(self, thread_id: str) -> tuple[object, ...]:
-        return ()
-
-
-class _FailingHistoryReader(_HistoryReader):
-    def __init__(self) -> None:
-        super().__init__(())
-
-    async def load_messages(self, thread_id: str) -> tuple[Message, ...]:
-        raise RuntimeError("storage unavailable")
-
-
-if __name__ == "__main__":
-    unittest.main()
+if __name__ == "__main__": unittest.main()

@@ -28,6 +28,12 @@ class AgentController:
             raise TypeError("engine must provide run")
         self._engine = engine
 
+    def replace_runner(self, engine: AgentRunner) -> None:
+        """Replace the provider-bound runner only after the caller establishes idleness."""
+        if not hasattr(engine, "run"):
+            raise TypeError("engine must provide run")
+        self._engine = engine
+
     async def ask(
         self,
         user_input: str,

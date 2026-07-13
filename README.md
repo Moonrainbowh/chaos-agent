@@ -1,6 +1,6 @@
 # Chaos Agent
 
-`Chaos Agent` is a Windows-first, open-source coding agent with a shared headless core, a full-screen terminal UI, and non-interactive CLI/JSON modes.
+`Chaos Agent` is a Windows-first, open-source coding agent with a shared headless core, an append-only Windows Terminal UI, and non-interactive CLI/JSON modes.
 
 It is a clean-room implementation. It takes architectural lessons from projects such as uv-agent, Aider, Cline, OpenCode, mini-swe-agent, OpenHands, and Goose, but does not copy their source code.
 
@@ -59,14 +59,9 @@ $env:CHAOS_BASE_URL = "https://api.openai.com"
 $env:CHAOS_MODEL = "gpt-4.1-mini"
 ```
 
-For named model configurations, set `CODE_AGENT_MODEL_PROFILES` to one JSON
-object. Every profile declares its model limits, protocol and API-key variable;
-the key value itself remains in its environment variable.
-
-```powershell
-$env:CODE_AGENT_MODEL_PROFILES = '{"fast":{"model":"gpt-4.1-mini","api":"responses","api_key_env":"OPENAI_API_KEY","context_window":128000,"max_output_tokens":16384,"max_agent_rounds":50,"max_tool_calls":128,"max_tool_calls_per_round":50}}'
-$env:CODE_AGENT_DEFAULT_MODEL = "fast"
-```
+Profile limits belong in the TOML provider table. The terminal `/模型 列表` and
+`/模型 使用 <profile>` commands expose only configured profiles; switching is
+allowed only while idle and never accepts a URL, protocol, or API key.
 
 Provider selection values:
 
@@ -89,7 +84,19 @@ chaos-agent resume <thread-id> "continue the previous task"
 chaos-agent run --json "list the relevant files"
 ```
 
-The Windows TUI supports typing, streaming transcript updates, and a tool timeline. Resuming or selecting a session restores a compact task summary and recent actions; the mouse wheel and `PageUp`/`PageDown` browse chat history, while `Home` and `End` jump to its oldest and newest visible positions. Reasoning is hidden by default; press `R` to expand or collapse it. `D` retains Diff preview, `S` retains recent session selection, and `Y`/`N` retain approval for writes and commands. It is designed for Windows Terminal and PowerShell.
+The Windows UI appends completed user, agent, tool, diff, warning, and error
+entries to the normal Windows Terminal buffer. Windows Terminal owns selection,
+copying, and scrollback. The live tail is an input line plus one status line;
+typing `/` filters its command palette. `/主题`, `/字形`, and `/颜色` change only
+application rendering and never modify the terminal font or profile.
+
+Skills use an explicit, context-only manifest at either
+`%USERPROFILE%\.chaos-agent\skills\<id>` or
+`<workspace>\.chaos-agent\skills\<id>`, containing `skill.toml` and
+`SKILL.md`. Workspace Skills require explicit activation and cannot register
+tools, execute scripts, call the network, or change policy. Configured MCP
+servers currently support `/mcp 状态 [server]` inventory only; no server is
+started and no MCP action is exposed until a separate policy bridge exists.
 
 ## Safety Defaults
 

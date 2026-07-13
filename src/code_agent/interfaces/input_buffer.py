@@ -1,0 +1,44 @@
+from __future__ import annotations
+
+
+class InputBuffer:
+    """A small line editor for raw Windows console key events."""
+
+    def __init__(self) -> None:
+        self.text = ""
+        self.cursor = 0
+        self._history: list[str] = []
+        self._history_index: int | None = None
+        self._draft = ""
+
+    def insert(self, value: str) -> None:
+        self.text = self.text[:self.cursor] + value + self.text[self.cursor:]
+        self.cursor += len(value)
+
+    def move_left(self) -> None: self.cursor = max(0, self.cursor - 1)
+    def move_right(self) -> None: self.cursor = min(len(self.text), self.cursor + 1)
+    def move_home(self) -> None: self.cursor = 0
+    def move_end(self) -> None: self.cursor = len(self.text)
+    def backspace(self) -> None:
+        if self.cursor: self.text = self.text[:self.cursor - 1] + self.text[self.cursor:]; self.cursor -= 1
+    def delete(self) -> None: self.text = self.text[:self.cursor] + self.text[self.cursor + 1:]
+    def clear(self) -> None: self.text = ""; self.cursor = 0; self._history_index = None
+
+    def previous(self) -> None:
+        if not self._history: return
+        if self._history_index is None: self._draft = self.text; self._history_index = len(self._history) - 1
+        else: self._history_index = max(0, self._history_index - 1)
+        self._set(self._history[self._history_index])
+
+    def next(self) -> None:
+        if self._history_index is None: return
+        if self._history_index >= len(self._history) - 1: self._history_index = None; self._set(self._draft)
+        else: self._history_index += 1; self._set(self._history[self._history_index])
+
+    def submit(self) -> str:
+        value = self.text
+        if value.strip() and (not self._history or self._history[-1] != value): self._history.append(value)
+        self.clear()
+        return value
+
+    def _set(self, value: str) -> None: self.text = value; self.cursor = len(value)

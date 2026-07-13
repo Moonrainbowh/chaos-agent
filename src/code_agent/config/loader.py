@@ -12,8 +12,9 @@ except ModuleNotFoundError:  # pragma: no cover - exercised on Python 3.10.
     import tomli as tomllib
 
 from code_agent.policy.models import ApprovalMode
-from code_agent.providers.config import ApiProtocol, ConfiguredApiKey, ProviderConfig
+from code_agent.providers.config import ApiProtocol, ConfiguredApiKey, ModelProfile, ProviderConfig
 from code_agent.providers.errors import ProviderConfigError
+from code_agent.mcp.registry import McpServer
 
 
 class LocalConfigError(ValueError):
@@ -27,6 +28,8 @@ class RuntimeConfig:
     approval_mode: ApprovalMode
     allow_sensitive_paths: bool
     config_path: Path
+    profiles: tuple[ModelProfile, ...] = ()
+    mcp_servers: tuple[McpServer, ...] = ()
 
     @property
     def key_status(self) -> str:
@@ -65,8 +68,41 @@ def load_runtime_config(
         profile=selected,
         approval_mode=_approval_mode(document, source),
         allow_sensitive_paths=_allow_sensitive_paths(document, source),
-        config_path=path,
+        config_path=path, profiles=_profiles(document, source, selected, provider), mcp_servers=_mcp_servers(document),
     )
+
+
+def _profiles(document: Mapping[str, Any], env: Mapping[str, str], selected: str, provider: ProviderConfig) -> tuple[ModelProfile, ...]:
+    if not document:
+        return (ModelProfile("environment", provider, 128_000, 16_384),)
+    configured = _table(document, "providers")
+    values: list[ModelProfile] = []
+    for name, raw in configured.items():
+        if not isinstance(name, str) or not isinstance(raw, dict): raise LocalConfigError("providers must map names to tables")
+        current = provider if name == selected else _provider_config(raw, env)
+        values.append(ModelProfile(name, current, _positive(raw.get("context_window", 128_000), "context_window"), _positive(raw.get("max_output_tokens", 16_384), "max_output_tokens"), _positive(raw.get("max_agent_rounds", 50), "max_agent_rounds"), _positive(raw.get("max_tool_calls", 128), "max_tool_calls"), _positive(raw.get("max_tool_calls_per_round", 50), "max_tool_calls_per_round")))
+    return tuple(values)
+
+
+def _positive(value: object, name: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0: raise LocalConfigError(f"{name} must be a positive integer")
+    return value
+
+
+def _mcp_servers(document: Mapping[str, Any]) -> tuple[McpServer, ...]:
+    mcp = document.get("mcp", {})
+    if not isinstance(mcp, dict): raise LocalConfigError("mcp must be a table")
+    servers = mcp.get("servers", {})
+    if not isinstance(servers, dict): raise LocalConfigError("mcp.servers must be a table")
+    try:
+        items: list[McpServer] = []
+        for name, raw in servers.items():
+            if not isinstance(name, str) or not isinstance(raw, dict): raise LocalConfigError("mcp.servers must map names to tables")
+            enabled, approved = raw.get("enabled", False), raw.get("approved", False)
+            if not isinstance(enabled, bool) or not isinstance(approved, bool): raise LocalConfigError("MCP enabled and approved must be boolean")
+            items.append(McpServer(name, _text(raw.get("transport"), "mcp transport"), _text(raw.get("reference"), "mcp reference"), enabled, approved))
+        return tuple(items)
+    except ValueError as error: raise LocalConfigError(f"invalid MCP configuration: {error}") from None
 
 
 def _read_document(path: Path) -> Mapping[str, Any]:

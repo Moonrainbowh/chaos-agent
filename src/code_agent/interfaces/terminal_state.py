@@ -9,6 +9,7 @@ from code_agent.core.events import AgentEvent, EventKind
 from code_agent.core.models import ActionResult, Message, ModelEvent, ModelEventKind
 from code_agent.interfaces.history import RestoredThread
 from code_agent.sessions.models import GoalStatus
+from code_agent.interfaces.terminal_display import DisplayKind, DisplayEntry, text_entry
 
 
 @dataclass(frozen=True)
@@ -81,8 +82,12 @@ class TerminalState:
         self.status = "idle"
         self.summary: list[str] = []
         self.transcript: list[str] = []
-        self.reasoning: list[str] = []
-        self._reasoning_since_text = False
+        self.entries: list[DisplayEntry] = []
+        self._answer_parts: list[str] = []
+        self._actions: list[str] = []
+        self._failed_actions: list[str] = []
+        self.active_action: str | None = None
+        self.execution_summary = ""
         self.timeline: list[str] = []
         self.diff: Optional[str] = None
         self.task_id: Optional[str] = None
@@ -94,8 +99,12 @@ class TerminalState:
         """Project persisted thread records into a terminal-safe view model."""
         self.thread_id = history.thread_id
         self.transcript = _transcript_lines(history.messages)
-        self.reasoning = []
-        self._reasoning_since_text = False
+        self.entries = [text_entry(DisplayKind.USER if line.startswith("user:") else DisplayKind.AGENT, line.split(": ", 1)[-1]) for line in self.transcript]
+        self._answer_parts = []
+        self._actions = []
+        self._failed_actions = []
+        self.active_action = None
+        self.execution_summary = ""
         self.timeline = _action_timeline(history.events)
         self.diff = None
         self.status = "idle"
@@ -104,13 +113,22 @@ class TerminalState:
             self._update_status(event)
         self.summary = _summary_lines(history, self.status)
 
+    def begin_run(self) -> None:
+        """Reset transient progress so a new prompt cannot inherit the prior result."""
+        self.status = "running"
+        self._answer_parts = []
+        self._actions = []
+        self._failed_actions = []
+        self.active_action = None
+        self.execution_summary = ""
+
     def apply(self, event: AgentEvent) -> None:
         self.timeline.append(_timeline_line(event))
         if event.kind is EventKind.RUN_STARTED:
             thread_id = event.payload.get("thread_id")
             if isinstance(thread_id, str):
                 self.thread_id = thread_id
-            self._update_status(event)
+            self.begin_run()
         elif event.kind in {EventKind.TASK_CREATED, EventKind.TASK_STATUS_CHANGED, EventKind.TASK_PAUSED}:
             task_id = event.payload.get("task_id")
             status = event.payload.get("status")
@@ -127,8 +145,22 @@ class TerminalState:
             self._apply_model_event(event)
         elif event.kind is EventKind.ACTION_REQUESTED:
             self._capture_diff(event)
+            self._answer_parts = []
+            self.active_action = _action_name(event)
+        elif event.kind is EventKind.ACTION_COMPLETED:
+            line = _timeline_line(event)
+            name = _action_name(event)
+            self._actions.append(name)
+            if line.startswith("failed "):
+                self._failed_actions.append(name)
+                self.entries.append(text_entry(DisplayKind.ERROR, name + " failed"))
+            else:
+                self.entries.append(text_entry(DisplayKind.SUCCESS, name + " completed"))
+            self.active_action = None
         else:
             self._update_status(event)
+        if event.kind is EventKind.COMPLETED:
+            self._finish_display()
 
     def _update_status(self, event: AgentEvent) -> None:
         statuses = {
@@ -150,21 +182,15 @@ class TerminalState:
         except (KeyError, TypeError, ValueError):
             return
         if model_event.kind is ModelEventKind.TEXT_DELTA and model_event.text:
-            if (
-                self.transcript
-                and self.transcript[-1].startswith("assistant: ")
-                and not self._reasoning_since_text
-            ):
-                self.transcript[-1] += model_event.text
-            else:
-                self.transcript.append("assistant: " + model_event.text)
-            self._reasoning_since_text = False
-        elif model_event.kind is ModelEventKind.REASONING_DELTA and model_event.text:
-            if self.reasoning:
-                self.reasoning[-1] += model_event.text
-            else:
-                self.reasoning.append(model_event.text)
-            self._reasoning_since_text = True
+            self._answer_parts.append(model_event.text)
+
+    def _finish_display(self) -> None:
+        answer = _compact_response("".join(self._answer_parts))
+        if answer:
+            self.transcript.append("assistant: " + answer)
+            self.entries.append(text_entry(DisplayKind.AGENT, answer))
+        if self._actions:
+            self.execution_summary = _action_summary(self._actions, self._failed_actions)
 
     def _capture_diff(self, event: AgentEvent) -> None:
         request = event.payload.get("request")
@@ -194,6 +220,27 @@ def _timeline_line(event: AgentEvent) -> str:
                 return "failed " + action_result.name
             return "completed " + action_result.name
     return event.kind.value.replace("_", " ")
+
+
+def _action_name(event: AgentEvent) -> str:
+    if event.kind is EventKind.ACTION_REQUESTED:
+        request = event.payload.get("request")
+        if isinstance(request, Mapping) and isinstance(request.get("name"), str): return request["name"]
+    result = event.payload.get("result")
+    if isinstance(result, Mapping) and isinstance(result.get("name"), str): return result["name"]
+    return "action"
+
+
+def _action_summary(actions: list[str], failed: list[str]) -> str:
+    return f"已完成 {len(actions)} 项操作" + (f" · {len(failed)} 项失败" if failed else "")
+
+
+def _compact_response(value: str) -> str:
+    lines, result = value.splitlines(), []
+    for raw in lines:
+        line = raw.rstrip()
+        if line.strip() or (result and result[-1]): result.append(line)
+    return "\n".join(result).strip()
 
 
 def _transcript_lines(messages: tuple[Message, ...]) -> list[str]:
