@@ -54,10 +54,10 @@ class CommandParsingTests(unittest.TestCase):
 
 
 class CommandExecutionTests(unittest.IsolatedAsyncioTestCase):
-    async def test_ask_writes_model_text_from_frozen_core_events(self) -> None:
+    async def test_ask_renders_markdown_instead_of_printing_source_markers(self) -> None:
         event = AgentEvent(
             EventKind.MODEL_EVENT,
-            {"event": ModelEvent(ModelEventKind.TEXT_DELTA, text="answer").to_dict()},
+            {"event": ModelEvent(ModelEventKind.TEXT_DELTA, text="### Result\n\n**answer**").to_dict()},
         )
         output: list[str] = []
 
@@ -69,7 +69,11 @@ class CommandExecutionTests(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertEqual(status, 0)
-        self.assertEqual(output, ["answer", "\n"])
+        rendered = "".join(output)
+        self.assertIn("Result", rendered)
+        self.assertIn("answer", rendered)
+        self.assertNotIn("###", rendered)
+        self.assertNotIn("**", rendered)
 
 
 if __name__ == "__main__":

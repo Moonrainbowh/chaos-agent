@@ -100,6 +100,8 @@ class TaskState:
     verified_facts: tuple[str, ...] = ()
     working_notes: tuple[str, ...] = ()
     open_questions: tuple[str, ...] = ()
+    code_generation: int = 0
+    subject_hash: str = ""
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "objective", _text(self.objective, "objective", allow_empty=True))
@@ -114,6 +116,9 @@ class TaskState:
         if len(commands) > _MAX_VALUES:
             raise ValueError(f"failed_commands must contain at most {_MAX_VALUES} values")
         object.__setattr__(self, "failed_commands", commands)
+        if isinstance(self.code_generation, bool) or not isinstance(self.code_generation, int) or self.code_generation < 0:
+            raise ValueError("code_generation must be non-negative")
+        object.__setattr__(self, "subject_hash", _text(self.subject_hash, "subject_hash", allow_empty=True))
 
     @classmethod
     def empty(cls) -> TaskState:
@@ -138,6 +143,8 @@ class TaskState:
             "verified_facts": list(self.verified_facts),
             "working_notes": list(self.working_notes),
             "open_questions": list(self.open_questions),
+            "code_generation": self.code_generation,
+            "subject_hash": self.subject_hash,
         }
 
     @classmethod
@@ -151,6 +158,8 @@ class TaskState:
             verified_facts=cast(Sequence[str], data.get("verified_facts", ())),
             working_notes=cast(Sequence[str], data.get("working_notes", ())),
             open_questions=cast(Sequence[str], data.get("open_questions", ())),
+            code_generation=cast(int, data.get("code_generation", 0)),
+            subject_hash=cast(str, data.get("subject_hash", "")),
         )
 
 

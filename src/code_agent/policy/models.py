@@ -19,6 +19,9 @@ class Capability(str, Enum):
     EXECUTE = "execute"
     NETWORK = "network"
     OUTSIDE_WORKSPACE = "outside_workspace"
+    RAW_SHELL = "raw_shell"
+    VERIFICATION = "verification"
+    PROTECTED_PATH = "protected_path"
 
 
 class DecisionOutcome(str, Enum):

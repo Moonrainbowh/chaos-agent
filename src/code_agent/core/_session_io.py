@@ -105,6 +105,15 @@ class SessionJournal:
         except Exception:
             raise SessionPersistenceError("could not persist task usage") from None
 
+    async def mark_task_budget_warnings(self, task_id: str) -> tuple[int, ...]:
+        try:
+            thresholds = await self._repository.mark_task_budget_warnings(task_id)
+            if not all(value in {80, 90} for value in thresholds):
+                raise TypeError("session returned invalid budget warning thresholds")
+            return thresholds
+        except Exception:
+            raise SessionPersistenceError("could not persist task budget warnings") from None
+
     async def observe_task_validation(self, task_id: str, fingerprint: str | None, changed_files: int) -> TaskBudget:
         try:
             return await self._repository.observe_task_validation(task_id, fingerprint, changed_files)

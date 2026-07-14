@@ -148,6 +148,22 @@ class ActionPolicyModeTests(unittest.TestCase):
                     DecisionOutcome.ALLOW,
                 )
 
+    def test_task_grant_requires_approval_for_raw_shell_and_protected_paths(self) -> None:
+        policy = ActionPolicy(PolicyConfig(ApprovalMode.AUTO, workspace_root=Path("C:/repo")))
+        grant = TaskAuthorization.local_workspace("C:/repo")
+
+        for action in (request("run_command", command="Get-Content C:/Users/lack/.ssh/id_rsa"), request("read_file", path=".env")):
+            with self.subTest(action=action.name):
+                self.assertEqual(policy.evaluate(action, grant).outcome, DecisionOutcome.ASK)
+
+    def test_task_grant_allows_only_structured_local_verification(self) -> None:
+        policy = ActionPolicy(PolicyConfig(ApprovalMode.AUTO, workspace_root=Path("C:/repo")))
+        grant = TaskAuthorization.local_workspace("C:/repo")
+
+        decision = policy.evaluate(request("run_verification", kind="pytest", cwd=".", targets=[]), grant)
+
+        self.assertEqual(decision.outcome, DecisionOutcome.ALLOW)
+
 
 class PolicyConfigTests(unittest.TestCase):
     def test_configuration_is_immutable(self) -> None:

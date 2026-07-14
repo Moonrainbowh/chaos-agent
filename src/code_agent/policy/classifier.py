@@ -19,6 +19,8 @@ _READ_TOOLS = frozenset(
 _WRITE_TOOLS = frozenset(
     {"write_file", "replace_text", "create_checkpoint", "restore_checkpoint"}
 )
+_PROTECTED_PATH_NAMES = frozenset({".env", ".git", ".chaos-agent", ".code-agent"})
+_PRIVATE_KEY_NAMES = re.compile(r"(?:^|[_-])(?:id_rsa|id_ecdsa|id_ed25519|private(?:[_-]?key)?)(?:\.[a-z0-9]+)?$", re.IGNORECASE)
 
 _NETWORK_PATTERNS = tuple(
     re.compile(pattern, re.IGNORECASE)
@@ -195,6 +197,30 @@ def _targets_outside_workspace(
     return False
 
 
+def _targets_protected(arguments: Mapping[str, object]) -> bool:
+    for key, value in arguments.items():
+        if _is_path_key(key) and _path_value_is_protected(value):
+            return True
+        if isinstance(value, Mapping) and _targets_protected(value):
+            return True
+        if isinstance(value, Sequence) and not isinstance(value, (str, bytes)) and any(
+            isinstance(item, Mapping) and _targets_protected(item) for item in value
+        ):
+            return True
+    return False
+
+
+def _path_value_is_protected(value: object) -> bool:
+    if isinstance(value, str):
+        parts = PureWindowsPath(value).parts
+        return any(part.casefold() in _PROTECTED_PATH_NAMES for part in parts) or bool(_PRIVATE_KEY_NAMES.search(PureWindowsPath(value).name))
+    if isinstance(value, Mapping):
+        return _targets_protected(value)
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+        return any(_path_value_is_protected(item) for item in value)
+    return False
+
+
 def classify_action(
     request: ActionRequest, workspace_root: Optional[Path] = None
 ) -> ActionClassification:
@@ -207,6 +233,7 @@ def classify_action(
 
     name = request.name.casefold()
     outside = _targets_outside_workspace(request.arguments, workspace_root)
+    protected = _targets_protected(request.arguments)
 
     if name in _READ_TOOLS:
         capabilities = {Capability.READ}
@@ -217,7 +244,7 @@ def classify_action(
         risk = RiskLevel.MEDIUM
         reason = "recognized workspace write tool"
     elif name == "run_command":
-        capabilities = {Capability.EXECUTE}
+        capabilities = {Capability.EXECUTE, Capability.RAW_SHELL}
         command = request.arguments.get("command")
         if not isinstance(command, str) or not command.strip():
             return ActionClassification(
@@ -239,6 +266,10 @@ def classify_action(
         else:
             risk = RiskLevel.HIGH
             reason = "command execution always requires approval"
+    elif name == "run_verification":
+        capabilities = {Capability.EXECUTE, Capability.VERIFICATION}
+        risk = RiskLevel.MEDIUM
+        reason = "recognized structured local verification"
     else:
         return ActionClassification(
             risk=RiskLevel.CRITICAL,
@@ -250,5 +281,9 @@ def classify_action(
         capabilities.add(Capability.OUTSIDE_WORKSPACE)
         risk = RiskLevel.HIGH
         reason = "request explicitly targets outside the workspace"
+    if protected:
+        capabilities.add(Capability.PROTECTED_PATH)
+        risk = RiskLevel.HIGH
+        reason = "request targets a protected path"
 
     return ActionClassification(frozenset(capabilities), risk, reason)

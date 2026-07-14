@@ -68,6 +68,22 @@ def _tool_payload(tool: ToolDefinition) -> dict[str, object]:
     }
 
 
+def _request_messages(
+    system_prompt: str, messages: Sequence[Message]
+) -> list[dict[str, object]]:
+    system_parts = [system_prompt] if system_prompt else []
+    request_messages: list[dict[str, object]] = []
+    for message in messages:
+        if message.role == "developer":
+            if message.content:
+                system_parts.append(message.content)
+            continue
+        request_messages.append(_message_payload(message))
+    if system_parts:
+        request_messages.insert(0, {"role": "system", "content": "\n\n".join(system_parts)})
+    return request_messages
+
+
 def _load_event(data: str) -> Mapping[str, object]:
     try:
         value = json.loads(data)
@@ -119,9 +135,7 @@ class OpenAIChatClient:
         messages: Sequence[Message],
         tools: Sequence[ToolDefinition],
     ) -> AsyncIterator[ModelEvent]:
-        request_messages = [_message_payload(message) for message in messages]
-        if system_prompt:
-            request_messages.insert(0, {"role": "system", "content": system_prompt})
+        request_messages = _request_messages(system_prompt, messages)
         payload: dict[str, object] = {
             "model": self._config.model,
             "stream": True,

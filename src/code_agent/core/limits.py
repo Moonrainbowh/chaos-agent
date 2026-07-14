@@ -66,6 +66,8 @@ class TaskBudget:
     repeated_failures: int = 0
     last_failure_signature: str | None = None
     active_seconds: int = 0
+    warned_at_80: bool = False
+    warned_at_90: bool = False
 
     def __post_init__(self) -> None:
         if not isinstance(self.model_name, str) or not self.model_name.strip():
@@ -84,6 +86,8 @@ class TaskBudget:
             raise ValueError("token usage exceeds task limit")
         if self.last_failure_signature is not None and (not isinstance(self.last_failure_signature, str) or len(self.last_failure_signature) > 1024):
             raise ValueError("last_failure_signature must be bounded text or None")
+        if not isinstance(self.warned_at_80, bool) or not isinstance(self.warned_at_90, bool):
+            raise TypeError("budget warning flags must be booleans")
 
 
 def add_usage(left: Usage, right: Usage) -> Usage:

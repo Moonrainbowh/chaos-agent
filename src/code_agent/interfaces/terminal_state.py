@@ -143,6 +143,8 @@ class TerminalState:
             self.pending_decision = reason if isinstance(reason, str) else "decision required"
         elif event.kind is EventKind.MODEL_EVENT:
             self._apply_model_event(event)
+        elif event.kind is EventKind.MESSAGE_ADDED:
+            self._apply_completed_message(event)
         elif event.kind is EventKind.ACTION_REQUESTED:
             self._capture_diff(event)
             self._answer_parts = []
@@ -155,7 +157,7 @@ class TerminalState:
                 self._failed_actions.append(name)
                 self.entries.append(text_entry(DisplayKind.ERROR, name + " failed"))
             else:
-                self.entries.append(text_entry(DisplayKind.SUCCESS, name + " completed"))
+                self.entries.append(text_entry(DisplayKind.TOOL, name + " completed"))
             self.active_action = None
         else:
             self._update_status(event)
@@ -184,8 +186,20 @@ class TerminalState:
         if model_event.kind is ModelEventKind.TEXT_DELTA and model_event.text:
             self._answer_parts.append(model_event.text)
 
-    def _finish_display(self) -> None:
-        answer = _compact_response("".join(self._answer_parts))
+    def _apply_completed_message(self, event: AgentEvent) -> None:
+        raw = event.payload.get("message")
+        if not isinstance(raw, Mapping):
+            return
+        try:
+            message = Message.from_dict(raw)
+        except (KeyError, TypeError, ValueError):
+            return
+        if message.role == "assistant" and message.content and not message.tool_calls:
+            self._finish_display(message.content)
+
+    def _finish_display(self, completed_text: str | None = None) -> None:
+        answer = _compact_response(completed_text if completed_text is not None else "".join(self._answer_parts))
+        self._answer_parts = []
         if answer:
             self.transcript.append("assistant: " + answer)
             self.entries.append(text_entry(DisplayKind.AGENT, answer))

@@ -33,7 +33,7 @@ class PolicyModelTests(unittest.TestCase):
         )
         self.assertEqual(
             [item.value for item in Capability],
-            ["read", "write", "execute", "network", "outside_workspace"],
+            ["read", "write", "execute", "network", "outside_workspace", "raw_shell", "verification", "protected_path"],
         )
         self.assertEqual(
             [item.value for item in DecisionOutcome], ["allow", "ask", "deny"]
@@ -95,7 +95,7 @@ class ActionClassifierTests(unittest.TestCase):
                 classified = classify_action(request("run_command", command=command))
                 self.assertEqual(
                     classified.capabilities,
-                    frozenset({Capability.EXECUTE, Capability.NETWORK}),
+                    frozenset({Capability.EXECUTE, Capability.NETWORK, Capability.RAW_SHELL}),
                 )
                 self.assertEqual(classified.risk, RiskLevel.HIGH)
 
@@ -147,6 +147,15 @@ class ActionClassifierTests(unittest.TestCase):
         self.assertFalse(unknown.known_tool)
         self.assertEqual(unknown.risk, RiskLevel.CRITICAL)
         self.assertEqual(malformed.risk, RiskLevel.CRITICAL)
+
+    def test_raw_shell_verification_and_protected_paths_have_distinct_capabilities(self) -> None:
+        raw = classify_action(request("run_command", command="python -m unittest"))
+        verification = classify_action(request("run_verification", kind="pytest", cwd=".", targets=[]))
+        protected = classify_action(request("read_file", path=".env"))
+
+        self.assertIn(Capability.RAW_SHELL, raw.capabilities)
+        self.assertIn(Capability.VERIFICATION, verification.capabilities)
+        self.assertIn(Capability.PROTECTED_PATH, protected.capabilities)
 
 
 if __name__ == "__main__":

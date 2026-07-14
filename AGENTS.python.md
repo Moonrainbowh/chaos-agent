@@ -6,7 +6,7 @@
 ## 目录约定
 - Feature 源码：`src/code_agent/<feature>/`
 - Feature 测试：`src/code_agent/<feature>/tests/`
-- 集成入口与组合逻辑：根目录 `agent_app.py`、`agent_cli.py`
+- 集成入口与组合逻辑：`code_agent_win/app.py`、`code_agent_win/cli.py`、`code_agent_win/tools.py`
 - 集成测试：`tests/`
 
 ## 命名规范

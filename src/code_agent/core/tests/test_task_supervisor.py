@@ -44,3 +44,10 @@ class TaskSupervisorTests(unittest.TestCase):
             supervisor.observe_validation("pytest:1:abc", 1).kind,
             SupervisionKind.PAUSE,
         )
+
+    def test_exhausted_restored_token_budget_pauses_before_model_turn(self) -> None:
+        contract = TaskContract("repair", TaskAuthorization.local_workspace("C:/repo"))
+        limits = EngineLimits(max_total_tokens=10)
+        budget = TaskBudget("model", limits, input_tokens=6, output_tokens=4)
+
+        self.assertEqual(TaskSupervisor(contract, budget).before_model_turn().kind, SupervisionKind.PAUSE)

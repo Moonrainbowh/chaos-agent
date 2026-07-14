@@ -15,7 +15,7 @@ from .errors import (
 )
 
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 9
 _BUSY_TIMEOUT_MS = 5_000
 _SQLITE_CORRUPT = 11
 _SQLITE_NOTADB = 26
@@ -57,6 +57,23 @@ _MIGRATIONS: dict[int, tuple[str, ...]] = {
         "CREATE TABLE task_controls (sequence INTEGER PRIMARY KEY AUTOINCREMENT, task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE, instruction TEXT NOT NULL, created_at TEXT NOT NULL)",
         "CREATE INDEX task_controls_task_sequence ON task_controls(task_id, sequence)",
     ),
+    7: (
+        "CREATE TABLE task_executions (task_id TEXT PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE, instance_id TEXT NOT NULL, owner_pid INTEGER NOT NULL, owner_create_time REAL NOT NULL, started_at TEXT NOT NULL)",
+        "CREATE INDEX task_executions_owner ON task_executions(owner_pid, owner_create_time)",
+    ),
+    8: (
+        "ALTER TABLE task_budgets ADD COLUMN max_total_tokens INTEGER NOT NULL DEFAULT 200000",
+        "ALTER TABLE task_budgets ADD COLUMN warned_at_80 INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE task_budgets ADD COLUMN warned_at_90 INTEGER NOT NULL DEFAULT 0",
+    ),
+    9: (
+        "CREATE TABLE task_contract_revisions (task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE, revision INTEGER NOT NULL, payload TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(task_id, revision))",
+        "CREATE TABLE verification_runs (id TEXT PRIMARY KEY, task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE, generation INTEGER NOT NULL, subject_hash TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, completed_at TEXT)",
+        "CREATE TABLE verification_evidence (id TEXT PRIMARY KEY, run_id TEXT NOT NULL REFERENCES verification_runs(id) ON DELETE CASCADE, task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE, payload TEXT NOT NULL, created_at TEXT NOT NULL)",
+        "CREATE TABLE task_completions (task_id TEXT PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE, revision INTEGER NOT NULL, generation INTEGER NOT NULL, subject_hash TEXT NOT NULL, assessment TEXT NOT NULL, created_at TEXT NOT NULL)",
+        "CREATE INDEX verification_runs_task_created ON verification_runs(task_id, created_at)",
+        "CREATE INDEX verification_evidence_task_created ON verification_evidence(task_id, created_at)",
+    ),
 }
 
 _REQUIRED_COLUMNS = {
@@ -68,10 +85,15 @@ _REQUIRED_COLUMNS = {
         "updated_at",
     },
     "checkpoints": {"id", "thread_id", "label", "metadata", "created_at"},
-    "task_budgets": {"thread_id", "model_name", "max_agent_rounds", "max_tool_calls", "max_tool_calls_per_round", "model_turns", "tool_calls", "input_tokens", "output_tokens", "repair_cycles", "repeated_failures", "last_failure_signature", "active_seconds"},
+    "task_budgets": {"thread_id", "model_name", "max_agent_rounds", "max_tool_calls", "max_tool_calls_per_round", "max_total_tokens", "model_turns", "tool_calls", "input_tokens", "output_tokens", "repair_cycles", "repeated_failures", "last_failure_signature", "active_seconds", "warned_at_80", "warned_at_90"},
     "task_states": {"thread_id", "payload", "updated_at"},
     "tasks": {"id", "thread_id", "contract", "status", "stop_reason", "created_at", "updated_at"},
     "task_controls": {"sequence", "task_id", "instruction", "created_at"},
+    "task_executions": {"task_id", "instance_id", "owner_pid", "owner_create_time", "started_at"},
+    "task_contract_revisions": {"task_id", "revision", "payload", "created_at"},
+    "verification_runs": {"id", "task_id", "generation", "subject_hash", "status", "created_at", "completed_at"},
+    "verification_evidence": {"id", "run_id", "task_id", "payload", "created_at"},
+    "task_completions": {"task_id", "revision", "generation", "subject_hash", "assessment", "created_at"},
 }
 
 

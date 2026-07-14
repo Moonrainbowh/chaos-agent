@@ -26,6 +26,8 @@ def _sections(state: TaskState) -> tuple[str, ...]:
     high = []
     if state.objective:
         high.append(f"Objective: {state.objective}")
+    if state.subject_hash:
+        high.append(f"Current verification subject: generation {state.code_generation} ({state.subject_hash[:16]})")
     high.extend(
         f"Failed command: {fact.command} (exit {fact.returncode}): {fact.reason}"
         for fact in state.failed_commands

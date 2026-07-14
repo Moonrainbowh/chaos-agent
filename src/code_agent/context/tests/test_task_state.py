@@ -54,6 +54,14 @@ class RenderTaskStateTests(unittest.TestCase):
         self.assertIn("Repair startup regression", rendered)
         self.assertLessEqual(estimate_tokens(rendered), 1_001)
 
+    def test_renderer_prioritizes_current_verification_generation(self) -> None:
+        rendered = render_task_state(
+            TaskState(objective="repair", code_generation=2, subject_hash="a" * 64),
+            token_budget=200,
+        )
+
+        self.assertIn("Current verification subject: generation 2 (aaaaaaaaaaaaaaaa)", rendered)
+
 
 if __name__ == "__main__":
     unittest.main()

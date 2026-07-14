@@ -17,6 +17,15 @@ class TaskTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             completed.transition(TaskStatus.RUNNING)
 
+    def test_partial_acceptance_is_terminal_and_requires_verification_or_decision(self) -> None:
+        task = TaskRecord.new("thread-1", "inspect", TaskAuthorization.local_workspace("C:/repo"))
+        accepted = task.transition(TaskStatus.RUNNING).transition(TaskStatus.VERIFYING).transition(TaskStatus.ACCEPTED_PARTIAL)
+        self.assertEqual(accepted.status, TaskStatus.ACCEPTED_PARTIAL)
+        with self.assertRaises(ValueError):
+            accepted.transition(TaskStatus.RUNNING)
+        with self.assertRaises(ValueError):
+            task.transition(TaskStatus.ACCEPTED_PARTIAL)
+
     def test_default_authorization_never_enables_network_or_outside_workspace(self) -> None:
         authorization = TaskAuthorization.local_workspace("C:/repo")
         self.assertTrue(authorization.allow_workspace_write)

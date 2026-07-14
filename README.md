@@ -9,7 +9,7 @@ It is a clean-room implementation. It takes architectural lessons from projects 
 - Uses OpenAI Responses, OpenAI Chat Completions, or Anthropic Messages through one streaming model protocol.
 - Keeps sessions, messages, events, goals, and checkpoints in a versioned SQLite database.
 - Discovers hierarchical `AGENTS.md` rules, builds a bounded repository map, and compacts history deterministically.
-- Routes file reads, edits, Git inspection, and PowerShell commands through typed tools, central policy checks, audit events, and explicit approval.
+- Routes file reads, edits, Git inspection, structured local verification, and PowerShell commands through typed tools, central policy checks, audit events, and explicit approval.
 - Provides a Windows Terminal TUI (`chaos-agent`), a text CLI (`chaos-agent ask`), session resume (`chaos-agent resume`), and machine-readable events (`chaos-agent run --json`). The legacy `agent` command remains available during migration.
 
 ## Install
@@ -86,9 +86,14 @@ chaos-agent run --json "list the relevant files"
 
 The Windows UI appends completed user, agent, tool, diff, warning, and error
 entries to the normal Windows Terminal buffer. Windows Terminal owns selection,
-copying, and scrollback. The live tail is an input line plus one status line;
-typing `/` filters its command palette. `/主题`, `/字形`, and `/颜色` change only
-application rendering and never modify the terminal font or profile.
+copying, and scrollback. The default visual profile uses Unicode symbols,
+medium transcript spacing, cyan emphasis, dim-gray tool records, and green
+only for task-level completion. The live tail keeps a single bordered composer;
+typing `/` places up to five command candidates above it, while the status row
+keeps dynamic work on the left and model/elapsed context on the right when
+space allows. `/主题 signal|symbol|plain`, `/字形`, and `/颜色` change only
+application rendering and never modify the terminal font or profile. `signal`
+and `plain` retain ASCII-compatible fallbacks; `NO_COLOR` disables ANSI color.
 
 Skills use an explicit, context-only manifest at either
 `%USERPROFILE%\.chaos-agent\skills\<id>` or
@@ -104,7 +109,8 @@ started and no MCP action is exposed until a separate policy bridge exists.
 - `plan` allows workspace reads only. `auto` remains compatible and requires approval for outside-workspace access. `elevated` requires approval for each external read, write, or recursive enumeration. `full-local` permits typed external file operations, while commands still require approval.
 - `allow_sensitive_paths = true` (or `CHAOS_ALLOW_SENSITIVE_PATHS=true`) is a separate explicit opt-in for `.env` files and private-key names. `.git`, `.code-agent`, and symlink/reparse paths remain protected at every level.
 - Unknown and critical actions are denied. Destructive commands and unbounded output are rejected.
-- The local runtime is controlled process execution, not an OS-level sandbox. Docker is optional and uses no network and no image pulls.
+- `run_command` always represents model-provided raw PowerShell and requires explicit approval, including inside a foreground task. `run_verification` only accepts a registered kind plus constrained relative paths; the local adapter generates its fixed argv for Python unittest, pytest, compileall, or build.
+- The local runtime is controlled process execution, not an OS-level sandbox. Typed verification executes user-authorized project code under the current Windows user and therefore does not isolate that code's indirect filesystem or network effects. Docker is optional and uses no network and no image pulls.
 
 Sessions are stored at `%LOCALAPPDATA%\chaos-agent\sessions.sqlite3` by default. An existing legacy session database is reused until a new data directory is created.
 

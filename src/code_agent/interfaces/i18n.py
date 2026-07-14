@@ -53,6 +53,7 @@ def localize_task_status(status: str, catalog: UiCatalog) -> str:
         "waiting_decision": "等待决定",
         "paused": "已暂停",
         "completed": "已完成",
+        "accepted_partial": "已接受部分交付",
         "failed": "失败",
         "interrupted": "已中断",
     }.get(status, status)

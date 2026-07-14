@@ -7,6 +7,7 @@ from enum import Enum
 from typing import Mapping, cast
 
 from ._json import JSONValue
+from .completion_contract import TaskIntent
 
 
 class TaskStatus(str, Enum):
@@ -16,18 +17,19 @@ class TaskStatus(str, Enum):
     WAITING_DECISION = "waiting_decision"
     PAUSED = "paused"
     COMPLETED = "completed"
+    ACCEPTED_PARTIAL = "accepted_partial"
     FAILED = "failed"
     INTERRUPTED = "interrupted"
 
 
-_TERMINAL = {TaskStatus.COMPLETED, TaskStatus.FAILED}
+_TERMINAL = {TaskStatus.COMPLETED, TaskStatus.ACCEPTED_PARTIAL, TaskStatus.FAILED}
 _ALLOWED = {
     TaskStatus.CREATED: {TaskStatus.RUNNING, TaskStatus.PAUSED, TaskStatus.FAILED, TaskStatus.INTERRUPTED},
     TaskStatus.RUNNING: {TaskStatus.VERIFYING, TaskStatus.PAUSED, TaskStatus.WAITING_DECISION, TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.INTERRUPTED},
-    TaskStatus.VERIFYING: {TaskStatus.RUNNING, TaskStatus.PAUSED, TaskStatus.WAITING_DECISION, TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.INTERRUPTED},
+    TaskStatus.VERIFYING: {TaskStatus.RUNNING, TaskStatus.PAUSED, TaskStatus.WAITING_DECISION, TaskStatus.ACCEPTED_PARTIAL, TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.INTERRUPTED},
     TaskStatus.PAUSED: {TaskStatus.RUNNING},
     TaskStatus.INTERRUPTED: {TaskStatus.RUNNING},
-    TaskStatus.WAITING_DECISION: {TaskStatus.RUNNING},
+    TaskStatus.WAITING_DECISION: {TaskStatus.RUNNING, TaskStatus.ACCEPTED_PARTIAL, TaskStatus.FAILED},
 }
 
 
@@ -78,20 +80,23 @@ class TaskContract:
     max_active_seconds: int = 1_200
     max_repair_cycles: int = 3
     max_repeated_failure_signatures: int = 3
+    intent: TaskIntent = TaskIntent.MODIFY
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "objective", cast(str, _text(self.objective, "objective")))
         if not isinstance(self.authorization, TaskAuthorization):
             raise TypeError("authorization must be a TaskAuthorization")
+        if not isinstance(self.intent, TaskIntent):
+            raise TypeError("intent must be a TaskIntent")
         for name in ("max_active_seconds", "max_repair_cycles", "max_repeated_failure_signatures"):
             object.__setattr__(self, name, _positive(getattr(self, name), name))
 
     def to_dict(self) -> dict[str, JSONValue]:
-        return {"objective": self.objective, "authorization": self.authorization.to_dict(), "max_active_seconds": self.max_active_seconds, "max_repair_cycles": self.max_repair_cycles, "max_repeated_failure_signatures": self.max_repeated_failure_signatures}
+        return {"objective": self.objective, "authorization": self.authorization.to_dict(), "max_active_seconds": self.max_active_seconds, "max_repair_cycles": self.max_repair_cycles, "max_repeated_failure_signatures": self.max_repeated_failure_signatures, "intent": self.intent.value}
 
     @classmethod
     def from_dict(cls, data: Mapping[str, object]) -> TaskContract:
-        return cls(objective=cast(str, data["objective"]), authorization=TaskAuthorization.from_dict(cast(Mapping[str, object], data["authorization"])), max_active_seconds=cast(int, data.get("max_active_seconds", 1200)), max_repair_cycles=cast(int, data.get("max_repair_cycles", 3)), max_repeated_failure_signatures=cast(int, data.get("max_repeated_failure_signatures", 3)))
+        return cls(objective=cast(str, data["objective"]), authorization=TaskAuthorization.from_dict(cast(Mapping[str, object], data["authorization"])), max_active_seconds=cast(int, data.get("max_active_seconds", 1200)), max_repair_cycles=cast(int, data.get("max_repair_cycles", 3)), max_repeated_failure_signatures=cast(int, data.get("max_repeated_failure_signatures", 3)), intent=TaskIntent(cast(str, data.get("intent", TaskIntent.MODIFY.value))))
 
 
 @dataclass(frozen=True)

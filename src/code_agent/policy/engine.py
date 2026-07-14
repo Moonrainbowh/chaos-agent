@@ -71,6 +71,13 @@ class ActionPolicy:
                 "denied because critical-risk actions are never approved",
             )
 
+        if Capability.PROTECTED_PATH in classified.capabilities:
+            return self._decision(
+                DecisionOutcome.ASK,
+                classified,
+                "approval required for a protected path",
+            )
+
         read_only = (
             classified.capabilities - frozenset({Capability.OUTSIDE_WORKSPACE})
             == frozenset({Capability.READ})
@@ -93,7 +100,13 @@ class ActionPolicy:
             local = configured is not None and configured == authorized_root
             blocked = Capability.NETWORK in classified.capabilities or Capability.OUTSIDE_WORKSPACE in classified.capabilities
             if local and not blocked:
-                if Capability.EXECUTE in classified.capabilities and task_authorization.allow_local_execute:
+                if Capability.RAW_SHELL in classified.capabilities:
+                    return self._decision(
+                        DecisionOutcome.ASK,
+                        classified,
+                        "approval required for model-provided raw shell text",
+                    )
+                if Capability.VERIFICATION in classified.capabilities and task_authorization.allow_local_execute:
                     return self._decision(DecisionOutcome.ALLOW, classified, "allowed by foreground task authorization")
                 if Capability.WRITE in classified.capabilities and task_authorization.allow_workspace_write:
                     return self._decision(DecisionOutcome.ALLOW, classified, "allowed by foreground task authorization")

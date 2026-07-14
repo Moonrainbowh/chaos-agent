@@ -120,6 +120,32 @@ class OpenAIChatClientTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(http_client.is_closed)
         await http_client.aclose()
 
+    async def test_developer_checkpoint_is_merged_into_the_leading_system_message(self) -> None:
+        requests: list[httpx.Request] = []
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            requests.append(request)
+            return httpx.Response(200, content=sse("[DONE]"))
+
+        http_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        client = OpenAIChatClient(self.make_config(), http_client=http_client)
+        messages = (
+            Message(role="developer", content="Conversation checkpoint: compacted"),
+            Message(role="user", content="continue"),
+        )
+
+        with patch.dict("os.environ", {"CHAT_KEY": "chat-secret"}, clear=True):
+            _ = [event async for event in client.stream("Be precise.", messages, ())]
+
+        body = json.loads(requests[0].read())
+        self.assertEqual(body["messages"][0], {
+            "role": "system",
+            "content": "Be precise.\n\nConversation checkpoint: compacted",
+        })
+        self.assertNotIn("developer", [message["role"] for message in body["messages"]])
+        await client.aclose()
+        await http_client.aclose()
+
     async def test_malformed_tool_arguments_raise_protocol_error(self) -> None:
         content = sse({"choices": [{"delta": {"tool_calls": [
             {"index": 0, "id": "call-1", "function": {"name": "read_file", "arguments": "[]"}},

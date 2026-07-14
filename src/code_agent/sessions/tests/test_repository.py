@@ -22,6 +22,9 @@ from code_agent.sessions.repository import SQLiteSessionRepository  # noqa: E402
 from code_agent.core.limits import EngineLimits  # noqa: E402
 from code_agent.core.models import Usage  # noqa: E402
 from code_agent.core.task import TaskAuthorization, TaskContract  # noqa: E402
+from code_agent.core.task import TaskStatus  # noqa: E402
+from code_agent.core.completion_contract import AcceptanceCriterion, CriterionRequirement, CriterionStrength, TaskContractRevision, TaskIntent  # noqa: E402
+from code_agent.verification.evidence import EvidenceOutcome, EvidenceProvenance, EvidenceRecord  # noqa: E402
 
 
 class SQLiteSessionRepositoryTests(unittest.IsolatedAsyncioTestCase):
@@ -80,6 +83,16 @@ class SQLiteSessionRepositoryTests(unittest.IsolatedAsyncioTestCase):
         archived = await self.repository.list_threads(include_archived=True)
         self.assertEqual(len(archived), 1)
         self.assertEqual(archived[0].status, ThreadStatus.ARCHIVED)
+
+    async def test_accepted_partial_task_is_terminal_for_default_task_list(self) -> None:
+        thread_id = await self.repository.create_thread()
+        task = await self.repository.create_task(thread_id, TaskContract("repair", TaskAuthorization.local_workspace(self.temporary.name)))
+        await self.repository.transition_task(task.id, TaskStatus.RUNNING)
+        await self.repository.transition_task(task.id, TaskStatus.WAITING_DECISION)
+        await self.repository.transition_task(task.id, TaskStatus.ACCEPTED_PARTIAL, "user accepted limitation")
+
+        self.assertEqual(await self.repository.list_tasks(), ())
+        self.assertEqual((await self.repository.list_tasks(include_terminal=True))[0].status, TaskStatus.ACCEPTED_PARTIAL)
 
     async def test_goals_and_checkpoints_persist_structured_metadata(self) -> None:
         thread_id = await self.repository.create_thread()
@@ -172,6 +185,89 @@ class SQLiteSessionRepositoryTests(unittest.IsolatedAsyncioTestCase):
             ("stop editing and inspect tests",),
         )
         self.assertEqual(await reopened.consume_task_controls(task.id), ())
+
+    async def test_token_limit_and_warning_thresholds_survive_restart(self) -> None:
+        thread_id = await self.repository.create_thread()
+        task = await self.repository.create_task(thread_id, TaskContract("repair", TaskAuthorization.local_workspace(self.temporary.name)))
+        await self.repository.get_or_create_task_budget(thread_id, "model-a", EngineLimits(max_total_tokens=10))
+        await self.repository.consume_task_usage(task.id, Usage(8, 0))
+
+        self.assertEqual(await self.repository.mark_task_budget_warnings(task.id), (80,))
+        self.assertEqual(await self.repository.mark_task_budget_warnings(task.id), ())
+        await self.repository.consume_task_usage(task.id, Usage(1, 0))
+        self.assertEqual(await self.repository.mark_task_budget_warnings(task.id), (90,))
+        reopened = SQLiteSessionRepository(self.database)
+        self.assertEqual((await reopened.load_task_budget(task.id)).limits.max_total_tokens, 10)
+
+    async def test_reconciliation_interrupts_only_a_stale_execution_once(self) -> None:
+        thread_id = await self.repository.create_thread()
+        task = await self.repository.create_task(thread_id, TaskContract("repair", TaskAuthorization.local_workspace(self.temporary.name)))
+        running = await self.repository.transition_task(task.id, TaskStatus.RUNNING)
+        await self.repository.register_task_execution(running.id, "instance-a", 123, 45.0)
+
+        self.assertEqual(await self.repository.reconcile_stale_tasks(lambda _pid, _created: False), (running.id,))
+        self.assertEqual((await self.repository.load_task(running.id)).status, TaskStatus.INTERRUPTED)
+        self.assertEqual(len(await self.repository.list_checkpoints(thread_id)), 1)
+        self.assertEqual(await self.repository.reconcile_stale_tasks(lambda _pid, _created: False), ())
+
+    async def test_contract_revisions_and_evidence_ledger_survive_restart(self) -> None:
+        thread_id = await self.repository.create_thread()
+        task = await self.repository.create_task(thread_id, TaskContract("repair", TaskAuthorization.local_workspace(self.temporary.name)))
+        contract = TaskContractRevision(1, TaskIntent.MODIFY, (AcceptanceCriterion("tests", "tests pass", CriterionRequirement.REQUIRED, CriterionStrength.USER),))
+        await self.repository.save_task_contract_revision(task.id, contract)
+        await self.repository.begin_verification_run("run-1", task.id, 1, "subject")
+        evidence = EvidenceRecord.from_output("evidence-1", "tests", EvidenceOutcome.PASS, EvidenceProvenance.SYSTEM_VERIFIER, 1, "subject", "ok", "passed")
+        await self.repository.append_verification_evidence("run-1", task.id, evidence)
+        await self.repository.close_verification_run("run-1", "completed")
+        reopened = SQLiteSessionRepository(self.database)
+        self.assertEqual((await reopened.load_task_contract_revision(task.id)).revision, 1)
+        self.assertEqual(await reopened.list_verification_evidence(task.id), (evidence,))
+
+    async def test_finalize_task_requires_current_completed_required_evidence(self) -> None:
+        thread_id = await self.repository.create_thread()
+        task = await self.repository.create_task(thread_id, TaskContract("repair", TaskAuthorization.local_workspace(self.temporary.name)))
+        contract = TaskContractRevision(1, TaskIntent.MODIFY, (AcceptanceCriterion("tests", "tests pass", CriterionRequirement.REQUIRED, CriterionStrength.USER),))
+        await self.repository.save_task_contract_revision(task.id, contract)
+        await self.repository.transition_task(task.id, TaskStatus.RUNNING)
+        await self.repository.transition_task(task.id, TaskStatus.VERIFYING)
+        await self.repository.begin_verification_run("run-final", task.id, 1, "subject")
+        evidence = EvidenceRecord.from_output("evidence-final", "tests", EvidenceOutcome.PASS, EvidenceProvenance.SYSTEM_VERIFIER, 1, "subject", "ok", "passed")
+        await self.repository.append_verification_evidence("run-final", task.id, evidence)
+        await self.repository.close_verification_run("run-final", "completed")
+
+        completed = await self.repository.finalize_task(task.id, "run-final", contract, 1, "subject")
+
+        self.assertEqual(completed.status, TaskStatus.COMPLETED)
+        with self.assertRaises(ValueError):
+            await self.repository.finalize_task(task.id, "run-final", contract, 1, "subject")
+
+    async def test_recovery_marks_open_verification_runs_interrupted(self) -> None:
+        thread_id = await self.repository.create_thread()
+        task = await self.repository.create_task(thread_id, TaskContract("repair", TaskAuthorization.local_workspace(self.temporary.name)))
+        await self.repository.begin_verification_run("run-open", task.id, 0, "subject")
+
+        self.assertEqual(await self.repository.interrupt_open_verification_runs(task.id), 1)
+        self.assertEqual(await self.repository.interrupt_open_verification_runs(task.id), 0)
+
+    async def test_finalize_task_accepts_current_required_evidence_from_completed_runs(self) -> None:
+        thread_id = await self.repository.create_thread()
+        task = await self.repository.create_task(thread_id, TaskContract("repair", TaskAuthorization.local_workspace(self.temporary.name)))
+        contract = TaskContractRevision(1, TaskIntent.MODIFY, (
+            AcceptanceCriterion("tests", "tests pass", CriterionRequirement.REQUIRED, CriterionStrength.USER),
+            AcceptanceCriterion("build", "build passes", CriterionRequirement.REQUIRED, CriterionStrength.INTEGRITY),
+        ))
+        await self.repository.save_task_contract_revision(task.id, contract)
+        await self.repository.transition_task(task.id, TaskStatus.RUNNING)
+        await self.repository.transition_task(task.id, TaskStatus.VERIFYING)
+        for run_id, criterion in (("run-tests", "tests"), ("run-build", "build")):
+            await self.repository.begin_verification_run(run_id, task.id, 1, "subject")
+            evidence = EvidenceRecord.from_output(run_id, criterion, EvidenceOutcome.PASS, EvidenceProvenance.SYSTEM_VERIFIER, 1, "subject", "ok", "passed")
+            await self.repository.append_verification_evidence(run_id, task.id, evidence)
+            await self.repository.close_verification_run(run_id, "completed")
+
+        completed = await self.repository.finalize_task(task.id, "run-build", contract, 1, "subject")
+
+        self.assertEqual(completed.status, TaskStatus.COMPLETED)
 
 
 if __name__ == "__main__":

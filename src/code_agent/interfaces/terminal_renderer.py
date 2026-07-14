@@ -1,18 +1,24 @@
 from __future__ import annotations
 
-import os
 import re
 from dataclasses import dataclass
 from enum import Enum
 from typing import Iterable
 
-from .terminal_display import DisplayEntry, DisplayKind, clip_display, display_width, safe_text
-
-
-class ColorMode(str, Enum):
-    AUTO = "auto"
-    ALWAYS = "always"
-    NEVER = "never"
+from .terminal_display import DisplayEntry, DisplayKind, display_width, safe_text
+from .terminal_style import (
+    BODY_WHITE,
+    BRAND_CYAN,
+    BRIGHT_CYAN,
+    DIM_GRAY,
+    ERROR_RED,
+    SUCCESS_GREEN,
+    TOOL_GRAY,
+    WARNING_YELLOW,
+    ColorMode,
+    colorize,
+)
+from .terminal_tail import render_live_tail
 
 
 class Theme(str, Enum):
@@ -28,10 +34,11 @@ _MARKERS = {
 }
 _SYMBOLS = {**_MARKERS, DisplayKind.USER: "›", DisplayKind.AGENT: "◆", DisplayKind.TOOL: "↳", DisplayKind.SUCCESS: "✓", DisplayKind.ERROR: "×"}
 _COLORS = {
-    DisplayKind.USER: "38;5;80", DisplayKind.AGENT: "38;5;121",
-    DisplayKind.TOOL: "38;5;153", DisplayKind.SUCCESS: "38;5;114",
-    DisplayKind.WARNING: "33", DisplayKind.ERROR: "31", DisplayKind.METADATA: "38;5;245",
-    DisplayKind.DIFF_ADD: "32", DisplayKind.DIFF_REMOVE: "31",
+    DisplayKind.USER: BRAND_CYAN, DisplayKind.AGENT: BRAND_CYAN,
+    DisplayKind.TOOL: TOOL_GRAY, DisplayKind.SUCCESS: SUCCESS_GREEN,
+    DisplayKind.WARNING: WARNING_YELLOW, DisplayKind.ERROR: ERROR_RED,
+    DisplayKind.METADATA: DIM_GRAY, DisplayKind.DIFF_ADD: BRAND_CYAN,
+    DisplayKind.DIFF_REMOVE: ERROR_RED,
 }
 
 
@@ -41,32 +48,35 @@ class _RenderLine:
     role: str = "body"
 
 
-def color_enabled(mode: ColorMode, env: dict[str, str] | None = None) -> bool:
-    source = os.environ if env is None else env
-    return mode is ColorMode.ALWAYS or (mode is ColorMode.AUTO and not source.get("NO_COLOR"))
-
-
-def render_entry(entry: DisplayEntry, width: int, *, theme: Theme = Theme.SIGNAL, color: ColorMode = ColorMode.AUTO) -> str:
+def render_entry(entry: DisplayEntry, width: int, *, theme: Theme = Theme.SYMBOL, color: ColorMode = ColorMode.AUTO) -> str:
     marker = (_SYMBOLS if theme is Theme.SYMBOL else _MARKERS)[entry.kind]
     prefix = f"[{marker}]" if theme is Theme.PLAIN else marker
     code = _COLORS.get(entry.kind)
     content_width = max(1, width - display_width(prefix) - 1)
-    lines = _markdown_lines(entry.text, content_width) if entry.kind is DisplayKind.AGENT else [_RenderLine(line) for line in entry.text.splitlines() or [""]]
+    lines = _markdown_lines(entry.text, content_width, theme) if entry.kind is DisplayKind.AGENT else [_RenderLine(line) for line in entry.text.splitlines() or [""]]
     rendered = []
     for index, line in enumerate(lines):
         leader = prefix if index == 0 else " " * display_width(prefix)
         for part in _wrap_display(line.text, max(1, width - display_width(leader) - 1)):
-            value = f"{leader} {part}"
-            rendered.append(_style_line(value, code, color, role=line.role))
+            rendered.append(_style_line(leader, part, code, color, role=line.role, kind=entry.kind))
             leader = " " * display_width(prefix)
     return "\n".join(rendered)
 
 
-def render_entries(entries: Iterable[DisplayEntry], width: int, *, theme: Theme, color: ColorMode) -> str:
-    return "\n".join(render_entry(entry, width, theme=theme, color=color) for entry in entries)
+def render_entries(
+    entries: Iterable[DisplayEntry], width: int, *, theme: Theme, color: ColorMode, previous: DisplayEntry | None = None
+) -> str:
+    rendered: list[str] = []
+    prior = previous
+    for entry in entries:
+        if prior is not None and _needs_gap(prior, entry):
+            rendered.append("")
+        rendered.append(render_entry(entry, width, theme=theme, color=color))
+        prior = entry
+    return "\n".join(rendered)
 
 
-def _markdown_lines(value: str, width: int) -> list[_RenderLine]:
+def _markdown_lines(value: str, width: int, theme: Theme) -> list[_RenderLine]:
     source = safe_text(value).splitlines()
     lines: list[_RenderLine] = []
     in_code = False
@@ -77,7 +87,7 @@ def _markdown_lines(value: str, width: int) -> list[_RenderLine]:
         table = _parse_table(source, index)
         if not in_code and table is not None:
             rows, index = table
-            lines.extend(_format_table(rows, width))
+            lines.extend(_format_table(rows, width, theme))
             continue
         if stripped.startswith("```"):
             in_code = not in_code
@@ -130,7 +140,7 @@ def _is_table_divider(value: str, columns: int) -> bool:
     return bool(cells and len(cells) == columns and all(re.fullmatch(r":?-{3,}:?", cell) for cell in cells))
 
 
-def _format_table(rows: list[list[str]], width: int) -> list[_RenderLine]:
+def _format_table(rows: list[list[str]], width: int, theme: Theme) -> list[_RenderLine]:
     columns = len(rows[0])
     available = max(columns, width - columns - 1)
     if available < columns * 3:
@@ -142,17 +152,22 @@ def _format_table(rows: list[list[str]], width: int) -> list[_RenderLine]:
         if widths[widest] <= minimum:
             break
         widths[widest] -= 1
-    border = lambda: "+" + "+".join("-" * item for item in widths) + "+"
-    lines = [_RenderLine(border(), "table_border")]
+    if theme is Theme.SYMBOL:
+        border = lambda left, joint, right: left + joint.join("─" * item for item in widths) + right
+        vertical, top, middle, bottom = "│", border("┌", "┬", "┐"), border("├", "┼", "┤"), border("└", "┴", "┘")
+    else:
+        border = lambda left, joint, right: "+" + "+".join("-" * item for item in widths) + "+"
+        vertical, top, middle, bottom = "|", border("", "", ""), border("", "", ""), border("", "", "")
+    lines = [_RenderLine(top, "table_border")]
     for row_index, row in enumerate(rows):
         cells = [_wrap_display(cell, widths[column] - 2) for column, cell in enumerate(row)]
         height = max(len(cell) for cell in cells)
         for line_index in range(height):
             padded = [" " + _pad_display(cell[line_index] if line_index < len(cell) else "", widths[column] - 2) + " " for column, cell in enumerate(cells)]
-            lines.append(_RenderLine("|" + "|".join(padded) + "|", "table_header" if row_index == 0 else "body"))
+            lines.append(_RenderLine(vertical + vertical.join(padded) + vertical, "table_header" if row_index == 0 else "body"))
         if row_index == 0:
-            lines.append(_RenderLine(border(), "table_border"))
-    lines.append(_RenderLine(border(), "table_border"))
+            lines.append(_RenderLine(middle, "table_border"))
+    lines.append(_RenderLine(bottom, "table_border"))
     return lines
 
 
@@ -178,32 +193,26 @@ def _pad_display(value: str, width: int) -> str:
     return value + " " * max(0, width - display_width(value))
 
 
-def _style_line(value: str, code: str | None, color: ColorMode, *, role: str) -> str:
-    if not color_enabled(color): return value
-    if role in {"heading", "table_header"}: return f"\x1b[1;96m{value}\x1b[0m"
-    if role == "table_border": return f"\x1b[2m{value}\x1b[0m"
-    if role == "code": return f"\x1b[38;5;153m{value}\x1b[0m"
-    return f"\x1b[{code}m{value}\x1b[0m" if code else value
+def _style_line(leader: str, value: str, code: str | None, color: ColorMode, *, role: str, kind: DisplayKind) -> str:
+    plain = f"{leader} {value}"
+    styled_leader = colorize(leader, code, color) if leader.strip() else leader
+    if role in {"heading", "table_header"}:
+        body_code = BRIGHT_CYAN
+    elif role == "table_border":
+        body_code = DIM_GRAY
+    elif role == "code":
+        body_code = BRAND_CYAN
+    elif kind is DisplayKind.SUCCESS:
+        body_code = SUCCESS_GREEN
+    elif kind in {DisplayKind.USER, DisplayKind.AGENT}:
+        body_code = BODY_WHITE
+    elif kind is DisplayKind.TOOL:
+        body_code = TOOL_GRAY
+    else:
+        body_code = code
+    styled_value = colorize(value, body_code, color)
+    return f"{styled_leader} {styled_value}"
 
 
-def render_live_tail(input_text: str, status: str, width: int, *, cursor_index: int | None = None, color: ColorMode = ColorMode.AUTO, palette: Iterable[str] = (), status_icon: str = ".", status_color: str | None = None) -> str:
-    """Redraw only the current input and its single status line, never screen history."""
-    inner_width = max(1, width - 4)
-    supplied = clip_display(safe_text(input_text), inner_width)
-    placeholder = "输入任务、编辑请求，或输入 / 查看命令"
-    visible = supplied or clip_display(placeholder, inner_width)
-    padding = " " * max(0, inner_width - display_width(visible))
-    plain_input = "[> " + visible + padding + "]"
-    suggestions = "  ".join(clip_display(safe_text(item), width) for item in palette)
-    plain_status = safe_text(status_icon) + " " + safe_text(status)
-    if suggestions:
-        plain_status += " | " + suggestions
-    input_line = plain_input
-    status_line = clip_display(plain_status, width)
-    if color_enabled(color):
-        content = supplied or f"\x1b[2m{visible}\x1b[0m"
-        input_line = f"\x1b[36m[> \x1b[0m{content}\x1b[36m{padding}]\x1b[0m"
-        status_line = f"\x1b[{status_color}m{status_line}\x1b[0m" if status_color else f"\x1b[2m{status_line}\x1b[0m"
-    index = len(supplied) if cursor_index is None else min(max(0, cursor_index), len(supplied))
-    cursor = 3 + display_width(supplied[:index])
-    return "\r\x1b[2K" + input_line + "\n\r\x1b[2K" + status_line + f"\x1b[1A\r\x1b[{cursor}C"
+def _needs_gap(previous: DisplayEntry, current: DisplayEntry) -> bool:
+    return current.kind is DisplayKind.USER or (previous.kind is DisplayKind.TOOL and current.kind is DisplayKind.AGENT)

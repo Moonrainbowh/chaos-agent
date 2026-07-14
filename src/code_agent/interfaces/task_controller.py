@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import os
+import uuid
 from collections.abc import AsyncIterator
 from pathlib import Path
+
+import psutil
 
 from code_agent.core.cancellation import CancellationToken
 from code_agent.core.events import AgentEvent, EventKind
@@ -21,6 +25,13 @@ class ForegroundTaskController:
         self._tokens: dict[str, CancellationToken] = {}
 
     async def start(self, prompt: str) -> TaskRecord:
+        active = await self._sessions.list_tasks()
+        if any(
+            task.status in {TaskStatus.CREATED, TaskStatus.RUNNING}
+            and os.path.normcase(task.contract.authorization.workspace_root) == os.path.normcase(self._root)
+            for task in active
+        ):
+            raise RuntimeError("a foreground task is already active")
         thread_id = await self._sessions.create_thread()
         task = await self._sessions.create_task(thread_id, TaskContract(prompt, TaskAuthorization.local_workspace(self._root)))
         await self._sessions.create_checkpoint(thread_id, "task-created", {"task_id": task.id, "status": task.status.value})
@@ -31,8 +42,16 @@ class ForegroundTaskController:
 
     async def events(self, task_id: str, prompt: str | None = None) -> AsyncIterator[AgentEvent]:
         task = await self._sessions.load_task(task_id)
+        if task.status is TaskStatus.INTERRUPTED:
+            interrupt_runs = getattr(self._sessions, "interrupt_open_verification_runs", None)
+            if callable(interrupt_runs):
+                await interrupt_runs(task.id)
         if task.status is not TaskStatus.RUNNING:
             task = await self._sessions.transition_task(task.id, TaskStatus.RUNNING)
+        register = getattr(self._sessions, "register_task_execution", None)
+        if callable(register):
+            process = psutil.Process(os.getpid())
+            await register(task.id, uuid.uuid4().hex, process.pid, process.create_time())
         started = AgentEvent(EventKind.TASK_STATUS_CHANGED, {"task_id": task.id, "status": task.status.value})
         await self._sessions.append_event(task.thread_id, started)
         yield started
@@ -42,10 +61,6 @@ class ForegroundTaskController:
         try:
             async for event in self._controller.ask(instruction, thread_id=task.thread_id, cancellation=token, task=task):
                 yield event
-            current = await self._sessions.load_task(task.id)
-            if current.status is TaskStatus.RUNNING:
-                completed = await self._sessions.transition_task(task.id, TaskStatus.COMPLETED)
-                yield AgentEvent(EventKind.TASK_STATUS_CHANGED, {"task_id": completed.id, "status": completed.status.value})
         except Exception:
             current = await self._sessions.load_task(task.id)
             if current.status is TaskStatus.RUNNING:
@@ -71,6 +86,33 @@ class ForegroundTaskController:
             token.cancel("user stopped task")
         await self._sessions.transition_task(task_id, TaskStatus.FAILED, "user stopped task")
 
+    async def accept_partial(self, task_id: str, reason: str = "user accepted partial delivery") -> TaskRecord:
+        """Record explicit user acceptance without claiming verified completion."""
+        task = await self._sessions.load_task(task_id)
+        if task.status not in {TaskStatus.VERIFYING, TaskStatus.WAITING_DECISION}:
+            raise RuntimeError("only verifying or waiting tasks can be accepted partially")
+        accepted = await self._sessions.transition_task(task_id, TaskStatus.ACCEPTED_PARTIAL, reason)
+        await self._sessions.create_checkpoint(
+            accepted.thread_id,
+            "task-accepted-partial",
+            {"task_id": accepted.id, "status": accepted.status.value, "reason": reason},
+        )
+        return accepted
+
+    async def interrupt(self, task_id: str, reason: str = "TUI closed") -> None:
+        """Persist an interrupt before the terminal stops its helper coroutines."""
+        token = self._tokens.get(task_id)
+        if token is not None:
+            token.cancel(reason)
+        task = await self._sessions.load_task(task_id)
+        if task.status in {TaskStatus.RUNNING, TaskStatus.VERIFYING}:
+            interrupted = await self._sessions.transition_task(task_id, TaskStatus.INTERRUPTED, reason)
+            await self._sessions.create_checkpoint(
+                interrupted.thread_id,
+                "task-interrupted",
+                {"task_id": interrupted.id, "status": interrupted.status.value, "reason": reason},
+            )
+
     async def resume(self, task_id: str, instruction: str = "continue safely") -> AsyncIterator[AgentEvent]:
         async for event in self.events(task_id, instruction):
             yield event
@@ -81,3 +123,16 @@ class ForegroundTaskController:
         task = await self._sessions.load_task(task_id)
         await self._sessions.append_message(task.thread_id, Message(role="user", content=instruction))
         await self._sessions.record_task_control(task_id, instruction)
+
+    async def reconcile_stale_tasks(self) -> tuple[str, ...]:
+        reconcile = getattr(self._sessions, "reconcile_stale_tasks", None)
+        if not callable(reconcile):
+            return ()
+        return await reconcile(_owner_is_alive)
+
+
+def _owner_is_alive(owner_pid: int, owner_create_time: float) -> bool:
+    try:
+        return abs(psutil.Process(owner_pid).create_time() - owner_create_time) < 0.01
+    except (psutil.Error, OSError):
+        return False

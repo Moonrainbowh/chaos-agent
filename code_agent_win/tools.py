@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping, Sequence
 
 from code_agent.core.models import ToolDefinition
@@ -18,6 +19,10 @@ def _object_schema(
 
 def _nonempty_text_schema() -> dict[str, object]:
     return {"type": "string", "minLength": 1}
+
+
+def _integer_schema(minimum: int, maximum: int) -> dict[str, object]:
+    return {"type": "integer", "minimum": minimum, "maximum": maximum}
 
 
 TOOL_DEFINITIONS: tuple[ToolDefinition, ...] = (
@@ -71,18 +76,47 @@ TOOL_DEFINITIONS: tuple[ToolDefinition, ...] = (
         ),
     ),
     ToolDefinition(
+        "run_verification",
+        "Run a registered local verification with fixed arguments.",
+        _object_schema(
+            {
+                "kind": {"type": "string", "enum": ["python_unittest", "pytest", "python_compileall", "python_build", "node_test", "node_build", "node_lint", "dotnet_test", "dotnet_build"]},
+                "cwd": _nonempty_text_schema(),
+                "targets": {"type": "array", "items": _nonempty_text_schema()},
+                "timeout_s": _integer_schema(1, 900),
+            },
+            ("kind",),
+        ),
+    ),
+    ToolDefinition(
         "run_command",
-        "Run an approved PowerShell command.",
+        "Run an approved Windows PowerShell command. Use PowerShell syntax only; "
+        "pipe multiple stdin lines with @('line1', 'line2') | command and never "
+        "use the Bash here-string operator <<<.",
         _object_schema({"command": _nonempty_text_schema()}, ("command",)),
     ),
 )
 
 _TOOLS_BY_NAME = {tool.name: tool for tool in TOOL_DEFINITIONS}
+_GIT_TOOLS = {"git_status", "git_diff"}
+_BASH_HERE_STRING = re.compile(r"(?<![\w'\"`])<<<(?=\s|['\"])")
 
 
-def tool_definitions() -> tuple[ToolDefinition, ...]:
+def tool_definitions(*, include_git: bool = True) -> tuple[ToolDefinition, ...]:
     """Return the provider-facing definitions used by the action dispatcher."""
-    return TOOL_DEFINITIONS
+    if include_git:
+        return TOOL_DEFINITIONS
+    return tuple(tool for tool in TOOL_DEFINITIONS if tool.name not in _GIT_TOOLS)
+
+
+def powershell_compatibility_error(command: str) -> str | None:
+    """Reject an unambiguous Bash here-string before policy or execution."""
+    if _BASH_HERE_STRING.search(command):
+        return (
+            "Bash here-string operator <<< is not supported by PowerShell. "
+            "Pipe input with @('line1', 'line2') | command."
+        )
+    return None
 
 
 def validate_tool_arguments(name: str, arguments: Mapping[str, object]) -> str | None:
@@ -112,12 +146,17 @@ def _matches_schema(value: object, schema: Mapping[str, object]) -> bool:
     schema_type = schema.get("type")
     if schema_type == "string":
         minimum = schema.get("minLength", 0)
-        return (
+        matches = (
             isinstance(value, str)
             and isinstance(minimum, int)
             and not isinstance(minimum, bool)
             and len(value) >= minimum
         )
+        options = schema.get("enum")
+        return matches and (not isinstance(options, Sequence) or value in options)
+    if schema_type == "integer":
+        minimum, maximum = schema.get("minimum"), schema.get("maximum")
+        return isinstance(value, int) and not isinstance(value, bool) and isinstance(minimum, int) and isinstance(maximum, int) and minimum <= value <= maximum
     if schema_type == "boolean":
         return isinstance(value, bool)
     if schema_type == "array":

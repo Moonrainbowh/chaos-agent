@@ -153,6 +153,18 @@ class TerminalStateTests(unittest.TestCase):
         state.apply(AgentEvent(EventKind.COMPLETED, {}))
         self.assertEqual(state.transcript, ["assistant: hello world"])
 
+    def test_persisted_final_message_is_visible_before_task_completion(self) -> None:
+        state = TerminalState()
+        state.apply(AgentEvent(EventKind.MODEL_EVENT, {"event": ModelEvent(ModelEventKind.TEXT_DELTA, text="answer").to_dict()}))
+
+        state.apply(AgentEvent(EventKind.MESSAGE_ADDED, {"message": Message(role="assistant", content="answer").to_dict()}))
+        state.apply(AgentEvent(EventKind.TASK_STATUS_CHANGED, {"task_id": "task-1", "status": "verifying"}))
+
+        self.assertEqual(state.transcript, ["assistant: answer"])
+        self.assertEqual(state.entries[-1].text, "answer")
+        state.apply(AgentEvent(EventKind.COMPLETED, {}))
+        self.assertEqual(state.transcript, ["assistant: answer"])
+
     def test_begin_run_does_not_keep_the_previous_action_summary(self) -> None:
         state = TerminalState()
         state.execution_summary = "已完成 3 项操作"
@@ -169,7 +181,7 @@ class TerminalStateTests(unittest.TestCase):
         state.apply(AgentEvent(EventKind.ACTION_REQUESTED, {"request": {"id": "call-1", "name": "read_file", "arguments": {}}}))
         state.apply(AgentEvent(EventKind.ACTION_COMPLETED, {"result": ActionResult("call-1", "read_file", {}).to_dict()}))
 
-        self.assertEqual(state.entries[-1].kind, DisplayKind.SUCCESS)
+        self.assertEqual(state.entries[-1].kind, DisplayKind.TOOL)
         self.assertEqual(state.entries[-1].text, "read_file completed")
 
     def test_reasoning_delta_is_not_retained_or_rendered(self) -> None:

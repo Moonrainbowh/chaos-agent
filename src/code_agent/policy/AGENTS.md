@@ -6,9 +6,12 @@
 - 负责：记录决策依据，并保证只读、写入、命令和外部访问使用一致的策略入口。
 - 不负责：执行文件或进程操作、保存会话、调用模型或实现交互界面。
 - 不负责：把本机执行描述为操作系统级沙箱；强隔离由 Runtime adapter 提供。
+- 任务授权不得自动允许模型提供的任意 PowerShell 文本；只有参数受限、由本地 adapter 生成 argv 的 typed verification 可在匹配的本地授权下自动执行。
+- 明确受保护路径、网络、工作区外路径、critical 动作和未知工具始终保持拒绝或逐次审批，不能由任务授权降级。
 
 ## Units
 - `ApprovalMode`、`Capability`、`DecisionOutcome`、`RiskLevel`、`PolicyDecision`: 表达稳定的审批、能力、结果与风险词汇以及不可变决定 | 无副作用 | `plan`、`ask`、`auto`、`elevated`、`full-local` 是本地访问级别；外部路径能力必须由策略明确决策
+- `RAW_SHELL`、`VERIFICATION`、`PROTECTED_PATH`: 区分模型原始 shell、受信验证和受保护路径 | 无副作用 | task grant 只可自动允许 `VERIFICATION`
 - `classify_action(request, workspace_root): ActionClassification`: 从工具名、递归路径参数和命令信号生成能力与风险提示 | 解析路径但不写入 | 路径执行 workspace containment；命令检查是保守启发式，不是 shell parser
 - `PolicyConfig`、`ActionPolicy.evaluate(request): PolicyDecision`: 以不可变模式、网络开关和 workspace root 执行访问级别决策表 | 无副作用 | `ask` 只可确认外部读取，`elevated` 外部动作逐次确认，`full-local` 允许非 critical typed 外部动作；所有 execute 仍必须询问
 - `ActionPolicy.evaluate(request, task_authorization)`: 在有效任务授权下允许普通工作区写入和本地非网络命令 | 无副作用 | unknown、critical、network、outside-workspace 仍按硬边界处理

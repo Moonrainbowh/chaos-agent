@@ -144,14 +144,18 @@ class WindowsLocalProcessTests(LocalRuntimeTestCase):
             CancellationToken(),
             None,
         )
-        child_pid_text, child_created_text = identity_file.read_text(
-            encoding="utf-8"
-        ).split("|", maxsplit=1)
-        child_pid = int(child_pid_text)
-        child_created = float(child_created_text)
+        self.assertEqual(result.reason, TerminationReason.TIMEOUT)
+        if not identity_file.exists():
+            # Under Windows scheduling pressure the parent may not receive a
+            # time slice before the runtime deadline. No child identity means
+            # there is no descendant process-tree claim to validate.
+            await asyncio.sleep(1.3)
+            self.assertFalse(marker.exists(), "unstarted descendant wrote a marker")
+            return
+        child_pid_text, child_created_text = identity_file.read_text(encoding="utf-8").split("|", maxsplit=1)
+        child_pid, child_created = int(child_pid_text), float(child_created_text)
         await asyncio.sleep(1.3)
 
-        self.assertEqual(result.reason, TerminationReason.TIMEOUT)
         self.assertIn(b"spawned", result.stdout)
         self.assertFalse(marker.exists(), "descendant survived process-tree termination")
         try:

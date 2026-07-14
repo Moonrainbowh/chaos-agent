@@ -21,6 +21,48 @@ class _IdleRunner:
 
 
 class ForegroundTaskControllerTests(unittest.IsolatedAsyncioTestCase):
+    async def test_interrupted_task_does_not_block_a_new_foreground_task(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = SQLiteSessionRepository(root / "sessions.sqlite3")
+            controller = ForegroundTaskController(AgentController(_IdleRunner()), repository, root)
+            interrupted = await controller.start("first task")
+            await repository.transition_task(interrupted.id, TaskStatus.RUNNING)
+            await repository.transition_task(interrupted.id, TaskStatus.INTERRUPTED)
+
+            next_task = await controller.start("second task")
+
+            self.assertNotEqual(next_task.id, interrupted.id)
+            self.assertEqual(next_task.status, TaskStatus.CREATED)
+
+    async def test_running_task_still_blocks_a_concurrent_foreground_task(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = SQLiteSessionRepository(root / "sessions.sqlite3")
+            controller = ForegroundTaskController(AgentController(_IdleRunner()), repository, root)
+            running = await controller.start("first task")
+            await repository.transition_task(running.id, TaskStatus.RUNNING)
+
+            with self.assertRaisesRegex(RuntimeError, "already active"):
+                await controller.start("second task")
+
+    async def test_running_task_in_another_workspace_does_not_block_start(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            first_root = base / "first"
+            second_root = base / "second"
+            first_root.mkdir()
+            second_root.mkdir()
+            repository = SQLiteSessionRepository(base / "sessions.sqlite3")
+            first = ForegroundTaskController(AgentController(_IdleRunner()), repository, first_root)
+            second = ForegroundTaskController(AgentController(_IdleRunner()), repository, second_root)
+            running = await first.start("first task")
+            await repository.transition_task(running.id, TaskStatus.RUNNING)
+
+            next_task = await second.start("second task")
+
+            self.assertEqual(next_task.contract.authorization.workspace_root, str(second_root.resolve()))
+
     async def test_pause_persists_task_state(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -30,3 +72,17 @@ class ForegroundTaskControllerTests(unittest.IsolatedAsyncioTestCase):
             await controller.pause(task.id)
             self.assertEqual((await repository.load_task(task.id)).status, TaskStatus.PAUSED)
             self.assertEqual(len(await repository.list_checkpoints(task.thread_id)), 2)
+
+    async def test_explicit_partial_acceptance_is_not_completed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = SQLiteSessionRepository(root / "sessions.sqlite3")
+            controller = ForegroundTaskController(AgentController(_IdleRunner()), repository, root)
+            task = await controller.start("repair tests")
+            await repository.transition_task(task.id, TaskStatus.RUNNING)
+            await repository.transition_task(task.id, TaskStatus.VERIFYING)
+
+            accepted = await controller.accept_partial(task.id, "user accepts known limitation")
+
+            self.assertEqual(accepted.status, TaskStatus.ACCEPTED_PARTIAL)
+            self.assertEqual((await repository.load_task(task.id)).status, TaskStatus.ACCEPTED_PARTIAL)

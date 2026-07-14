@@ -40,6 +40,8 @@ from code_agent.workspace.files import WorkspaceFiles  # noqa: E402
 from code_agent.workspace.ignore import IgnoreRules  # noqa: E402
 from code_agent.workspace.paths import WorkspacePathGuard  # noqa: E402
 from code_agent.workspace.edits import WorkspaceEditor  # noqa: E402
+from code_agent.verification.python_adapter import PythonVerificationAdapter  # noqa: E402
+from code_agent.verification.task_service import LedgerTaskVerificationService  # noqa: E402
 
 
 class FakeModel:
@@ -56,178 +58,6 @@ class FakeModel:
                 yield event
 
         return generate()
-
-
-class RootActionDispatcherTests(unittest.IsolatedAsyncioTestCase):
-    def setUp(self) -> None:
-        self.temporary = tempfile.TemporaryDirectory()
-        self.root = Path(self.temporary.name).resolve()
-        (self.root / "note.txt").write_bytes(b"before\n")
-        guard = WorkspacePathGuard(self.root)
-        files = WorkspaceFiles(guard, IgnoreRules.from_workspace(self.root))
-        self.dispatcher = RootActionDispatcher(
-            files,
-            WorkspaceEditor(guard),
-            ActionPolicy(PolicyConfig(ApprovalMode.AUTO, workspace_root=self.root)),
-            ApprovalBroker(),
-        )
-
-    def tearDown(self) -> None:
-        self.temporary.cleanup()
-
-    async def test_read_file_uses_typed_workspace_tool(self) -> None:
-        result = await self.dispatcher.dispatch(
-            ActionRequest("call-1", "read_file", {"path": "note.txt"}),
-            CancellationToken(),
-        )
-
-        self.assertFalse(result.is_error)
-        self.assertEqual(result.output["text"], "before\n")
-        self.assertIn("read_file", [tool.name for tool in self.dispatcher.tools()])
-
-    async def test_full_local_reads_and_writes_explicit_external_file(self) -> None:
-        outside = self.root.parent / "outside.txt"
-        outside.write_bytes(b"external\n")
-        guard = WorkspacePathGuard(self.root, allow_outside=True)
-        dispatcher = RootActionDispatcher(
-            WorkspaceFiles(guard, IgnoreRules.from_workspace(self.root)),
-            WorkspaceEditor(guard),
-            ActionPolicy(
-                PolicyConfig(ApprovalMode.FULL_LOCAL, workspace_root=self.root)
-            ),
-            ApprovalBroker(),
-        )
-
-        read = await dispatcher.dispatch(
-            ActionRequest("read", "read_file", {"path": str(outside)}),
-            CancellationToken(),
-        )
-        write = await dispatcher.dispatch(
-            ActionRequest(
-                "write", "write_file", {"path": str(outside), "content": "changed\n"}
-            ),
-            CancellationToken(),
-        )
-
-        self.assertFalse(read.is_error)
-        self.assertEqual(read.output["text"], "external\n")
-        self.assertFalse(write.is_error)
-        self.assertEqual(outside.read_text(encoding="utf-8"), "changed\n")
-
-    async def test_full_local_recursively_lists_an_explicit_external_root(self) -> None:
-        outside = self.root.parent / f"{self.root.name}-external-tree"
-        (outside / "nested").mkdir(parents=True)
-        (outside / "top.txt").write_text("top", encoding="utf-8")
-        (outside / "nested" / "child.txt").write_text("child", encoding="utf-8")
-        guard = WorkspacePathGuard(self.root, allow_outside=True)
-        dispatcher = RootActionDispatcher(
-            WorkspaceFiles(guard, IgnoreRules.from_workspace(self.root)),
-            WorkspaceEditor(guard),
-            ActionPolicy(
-                PolicyConfig(ApprovalMode.FULL_LOCAL, workspace_root=self.root)
-            ),
-            ApprovalBroker(),
-        )
-
-        result = await dispatcher.dispatch(
-            ActionRequest("list", "list_files", {"root": str(outside)}),
-            CancellationToken(),
-        )
-
-        self.assertFalse(result.is_error)
-        self.assertEqual(result.output["files"], ("nested/child.txt", "top.txt"))
-
-    async def test_write_file_returns_previewed_diff_and_applies_after_policy(self) -> None:
-        result = await self.dispatcher.dispatch(
-            ActionRequest(
-                "call-1",
-                "write_file",
-                {"path": "note.txt", "content": "after\n"},
-            ),
-            CancellationToken(),
-        )
-
-        self.assertFalse(result.is_error)
-        self.assertIn("--- a/note.txt", result.metadata["diff"])
-        self.assertEqual((self.root / "note.txt").read_text(encoding="utf-8"), "after\n")
-
-    async def test_successful_write_invalidates_the_exact_relative_cache_path(self) -> None:
-        invalidated: list[tuple[str, ...]] = []
-        guard = WorkspacePathGuard(self.root)
-        dispatcher = RootActionDispatcher(
-            WorkspaceFiles(guard, IgnoreRules.from_workspace(self.root)),
-            WorkspaceEditor(guard),
-            ActionPolicy(PolicyConfig(ApprovalMode.AUTO, workspace_root=self.root)),
-            ApprovalBroker(),
-            invalidate_cache=lambda paths: invalidated.append(tuple(paths)),
-        )
-
-        result = await dispatcher.dispatch(
-            ActionRequest("call-1", "write_file", {"path": "note.txt", "content": "after\n"}),
-            CancellationToken(),
-        )
-
-        self.assertFalse(result.is_error)
-        self.assertEqual(invalidated, [("note.txt",)])
-
-    async def test_successful_replace_invalidates_the_exact_relative_cache_path(self) -> None:
-        invalidated: list[tuple[str, ...]] = []
-        guard = WorkspacePathGuard(self.root)
-        dispatcher = RootActionDispatcher(
-            WorkspaceFiles(guard, IgnoreRules.from_workspace(self.root)),
-            WorkspaceEditor(guard),
-            ActionPolicy(PolicyConfig(ApprovalMode.AUTO, workspace_root=self.root)),
-            ApprovalBroker(),
-            invalidate_cache=lambda paths: invalidated.append(tuple(paths)),
-        )
-
-        result = await dispatcher.dispatch(
-            ActionRequest(
-                "call-1",
-                "replace_text",
-                {"path": "note.txt", "old_text": "before", "new_text": "after"},
-            ),
-            CancellationToken(),
-        )
-
-        self.assertFalse(result.is_error)
-        self.assertEqual(invalidated, [("note.txt",)])
-
-    async def test_denied_write_does_not_invalidate_cache(self) -> None:
-        invalidated: list[tuple[str, ...]] = []
-        guard = WorkspacePathGuard(self.root)
-        dispatcher = RootActionDispatcher(
-            WorkspaceFiles(guard, IgnoreRules.from_workspace(self.root)),
-            WorkspaceEditor(guard),
-            ActionPolicy(PolicyConfig(ApprovalMode.ASK, workspace_root=self.root)),
-            ApprovalBroker(),
-            invalidate_cache=lambda paths: invalidated.append(tuple(paths)),
-        )
-
-        result = await dispatcher.dispatch(
-            ActionRequest("call-1", "write_file", {"path": "note.txt", "content": "after\n"}),
-            CancellationToken(),
-        )
-
-        self.assertTrue(result.is_error)
-        self.assertEqual(invalidated, [])
-
-    async def test_ask_mode_rejects_noninteractive_write_without_waiting(self) -> None:
-        guard = WorkspacePathGuard(self.root)
-        dispatcher = RootActionDispatcher(
-            WorkspaceFiles(guard, IgnoreRules.from_workspace(self.root)),
-            WorkspaceEditor(guard),
-            ActionPolicy(PolicyConfig(ApprovalMode.ASK, workspace_root=self.root)),
-            ApprovalBroker(),
-        )
-
-        result = await dispatcher.dispatch(
-            ActionRequest("call-1", "write_file", {"path": "note.txt", "content": "x"}),
-            CancellationToken(),
-        )
-
-        self.assertTrue(result.is_error)
-        self.assertEqual(result.output["error"], "approval required in TUI")
 
 
 class CliFailureTests(unittest.IsolatedAsyncioTestCase):
@@ -271,6 +101,7 @@ class ApplicationConstructionTests(unittest.TestCase):
                     application = create_application(root)
 
         self.assertIs(application.tui.sessions, application.tui.history)
+        self.assertIs(application.tui.evidence, application.tui.sessions)
 
     def test_session_path_falls_back_to_the_legacy_data_file(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -343,9 +174,9 @@ class FullStackTests(unittest.IsolatedAsyncioTestCase):
             calls = (
                 ToolCall("read", "read_file", {"path": "note.txt"}),
                 ToolCall("write-1", "write_file", {"path": "note.txt", "content": "broken\n"}),
-                ToolCall("test-1", "run_command", {"command": "python -m unittest"}),
+                ToolCall("test-1", "run_verification", {"kind": "python_unittest"}),
                 ToolCall("write-2", "write_file", {"path": "note.txt", "content": "fixed\n"}),
-                ToolCall("test-2", "run_command", {"command": "python -m unittest"}),
+                ToolCall("test-2", "run_verification", {"kind": "python_unittest"}),
             )
             model = FakeModel(tuple(
                 (ModelEvent(ModelEventKind.TOOL_CALL, tool_call=call), ModelEvent(ModelEventKind.COMPLETED))
@@ -353,7 +184,13 @@ class FullStackTests(unittest.IsolatedAsyncioTestCase):
             ) + ((ModelEvent(ModelEventKind.TEXT_DELTA, text="fixed and verified"), ModelEvent(ModelEventKind.COMPLETED)),))
             sessions = SQLiteSessionRepository(root / "sessions.sqlite3")
             controller = ForegroundTaskController(
-                AgentController(AgentEngine(model, _task_context(root), dispatcher, sessions)),
+                AgentController(AgentEngine(
+                    model,
+                    _task_context(root),
+                    dispatcher,
+                    sessions,
+                    verification=LedgerTaskVerificationService(root, sessions),
+                )),
                 sessions,
                 root,
             )
@@ -368,6 +205,65 @@ class FullStackTests(unittest.IsolatedAsyncioTestCase):
             self.assertGreaterEqual(len(await sessions.list_checkpoints(task.thread_id)), 3)
             self.assertEqual((await sessions.load_task_budget(task.id)).repair_cycles, 1)
             self.assertEqual(len(runtime.commands), 2)
+            self.assertEqual(events[-1].kind, EventKind.COMPLETED)
+
+    async def test_current_verification_evidence_expires_after_a_later_write(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            (root / "note.txt").write_text("before\n", encoding="utf-8")
+            runtime = _RecordingRuntime((0,))
+            sessions = SQLiteSessionRepository(root / "sessions.sqlite3")
+            model = FakeModel((
+                (ModelEvent(ModelEventKind.TOOL_CALL, tool_call=ToolCall("verify", "run_verification", {"kind": "python_unittest"})), ModelEvent(ModelEventKind.COMPLETED)),
+                (ModelEvent(ModelEventKind.TOOL_CALL, tool_call=ToolCall("write", "write_file", {"path": "note.txt", "content": "after\n"})), ModelEvent(ModelEventKind.COMPLETED)),
+                (ModelEvent(ModelEventKind.TEXT_DELTA, text="done"), ModelEvent(ModelEventKind.COMPLETED)),
+            ))
+            controller = ForegroundTaskController(
+                AgentController(AgentEngine(
+                    model,
+                    _task_context(root),
+                    _task_dispatcher(root, runtime),
+                    sessions,
+                    verification=LedgerTaskVerificationService(root, sessions),
+                )),
+                sessions,
+                root,
+            )
+            task = await controller.start("verify then edit")
+
+            events = [event async for event in controller.events(task.id)]
+
+            self.assertEqual((await sessions.load_task(task.id)).status, TaskStatus.VERIFYING)
+            self.assertNotIn(EventKind.COMPLETED, [event.kind for event in events])
+
+    async def test_model_completion_automatically_runs_discovered_project_tests(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            (root / "pyproject.toml").write_text("[project]\nname = 'demo'\nversion = '0.0.0'\n", encoding="utf-8")
+            runtime = _RecordingRuntime((0,))
+            sessions = SQLiteSessionRepository(root / "sessions.sqlite3")
+            model = FakeModel((
+                (ModelEvent(ModelEventKind.TEXT_DELTA, text="done"), ModelEvent(ModelEventKind.COMPLETED)),
+                (ModelEvent(ModelEventKind.TEXT_DELTA, text="verified"), ModelEvent(ModelEventKind.COMPLETED)),
+            ))
+            controller = ForegroundTaskController(
+                AgentController(AgentEngine(
+                    model,
+                    _task_context(root),
+                    _task_dispatcher(root, runtime),
+                    sessions,
+                    verification=LedgerTaskVerificationService(root, sessions),
+                )),
+                sessions,
+                root,
+            )
+            task = await controller.start("repair project")
+
+            events = [event async for event in controller.events(task.id)]
+
+            self.assertEqual((await sessions.load_task(task.id)).status, TaskStatus.COMPLETED)
+            self.assertEqual(len(runtime.commands), 1)
+            self.assertIn("-m unittest discover", runtime.commands[0])
             self.assertEqual(events[-1].kind, EventKind.COMPLETED)
 
     async def test_task_boundary_waits_for_decision_without_starting_network_command(self) -> None:
@@ -399,7 +295,7 @@ class FullStackTests(unittest.IsolatedAsyncioTestCase):
             database = root / "sessions.sqlite3"
             first_runtime = _BlockingRuntime()
             first_model = FakeModel(((
-                ModelEvent(ModelEventKind.TOOL_CALL, tool_call=ToolCall("test", "run_command", {"command": "python -m unittest"})),
+                ModelEvent(ModelEventKind.TOOL_CALL, tool_call=ToolCall("test", "run_verification", {"kind": "python_unittest"})),
                 ModelEvent(ModelEventKind.COMPLETED),
             ),))
             sessions = SQLiteSessionRepository(database)
@@ -426,11 +322,12 @@ class FullStackTests(unittest.IsolatedAsyncioTestCase):
 
             events = [event async for event in resumed.resume(task.id, "recheck workspace safely")]
 
-            self.assertEqual(first_runtime.commands, ["python -m unittest"])
+            self.assertEqual(len(first_runtime.commands), 1)
+            self.assertIn("-m unittest discover -s .", first_runtime.commands[0])
             self.assertEqual(resumed_runtime.commands, [])
-            self.assertEqual((await sessions.load_task(task.id)).status, TaskStatus.COMPLETED)
+            self.assertEqual((await sessions.load_task(task.id)).status, TaskStatus.VERIFYING)
             self.assertGreaterEqual(len(await sessions.list_checkpoints(task.thread_id)), 2)
-            self.assertEqual(events[-1].kind, EventKind.COMPLETED)
+            self.assertNotEqual(events[-1].kind, EventKind.COMPLETED)
 
 
 def _task_context(root: Path) -> WorkspaceContextBuilder:
@@ -454,6 +351,7 @@ def _task_dispatcher(root: Path, runtime: object) -> RootActionDispatcher:
         ActionPolicy(PolicyConfig(ApprovalMode.AUTO, workspace_root=root)),
         ApprovalBroker(),
         runtime=runtime,  # type: ignore[arg-type]
+        verification=PythonVerificationAdapter(root),
     )
 
 
@@ -463,7 +361,7 @@ class _RecordingRuntime:
         self.commands: list[str] = []
 
     async def run(self, spec: object, cancellation: object, sink: object) -> CommandResult:
-        command = getattr(spec, "powershell_script")
+        command = " ".join(getattr(spec, "argv") or ())
         self.commands.append(command)
         returncode = self.returncodes.pop(0)
         return CommandResult(
@@ -479,7 +377,7 @@ class _BlockingRuntime:
         self.commands: list[str] = []
 
     async def run(self, spec: object, cancellation: CancellationToken, sink: object) -> CommandResult:
-        command = getattr(spec, "powershell_script")
+        command = " ".join(getattr(spec, "argv") or ())
         self.commands.append(command)
         self.started.set()
         await cancellation.wait_async()

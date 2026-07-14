@@ -4,12 +4,16 @@
 ## 边界
 - 负责：路径规范化与 containment、忽略规则、文件读取、目录浏览、文本搜索和原子补丁。
 - 负责：生成可审阅 Diff，并在 Git 仓库中提供 checkpoint 与 revert 所需的工作区能力。
+- 负责：以无副作用能力探测区分 Git 仓库与普通目录，供集成层决定是否暴露 Git 工具。
 - 不负责：执行任意 shell 命令、调用模型、决定是否批准动作或渲染 Diff。
 - 不负责：未获上层策略授权的工作区之外路径、符号链接/reparse 目标或敏感文件。
 - 不负责：访问默认本地 API 配置目录及其内容，即使该目录被选作工作区。
+- 不负责：在普通目录中伪造 Git 状态、自动初始化仓库或决定上层是否注册 Git 工具。
 - 依赖：Chaos Agent 和旧 code-agent 的本地配置目录均视为敏感路径。
+- 负责为成功 typed 写入记录 `ActionEffect` 所需的改动路径与内容 hash，并在有界扫描内计算当前 subject snapshot/hash；不判断业务正确性。
 
 ## Units
+- `SubjectSnapshot`、`snapshot_subject(...)`: 为改动文件和关键 manifest 生成有界、确定性的 subject hash | 读取受 guard 保护的工作区文件 | 不判断业务正确性或扫描工作区外路径
 - `WorkspaceError` 及其专用子类：表达路径、敏感文件、文本类型、大小、扫描上限、超时与编辑冲突 | 无副作用
 - `WorkspacePathGuard(root).resolve(path): Path`：规范化路径并执行 containment 与敏感路径策略 | 检查路径元数据 | `allow_outside` 仅供已批准 dispatcher 使用；链接/reparse 组件及任意层级 `.git`、`.chaos-agent`、`.code-agent` 始终受保护
 - `IgnoreRules.from_workspace(root): IgnoreRules`：加载内置忽略项和根 `.gitignore` 的常用规则子集 | 读取根 `.gitignore` | 支持顺序反选，不是完整 Git parser

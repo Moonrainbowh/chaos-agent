@@ -34,13 +34,26 @@ from code_agent.providers.openai_chat import OpenAIChatClient
 from code_agent.providers.openai_responses import OpenAIResponsesClient
 from code_agent.runtime.local import WindowsLocalRuntime
 from code_agent.runtime.models import CommandSpec
+from code_agent.verification.models import VerificationKind, VerificationRequest, VerificationUnavailable
+from code_agent.verification.local_adapter import LocalVerificationAdapter
+from code_agent.verification.task_service import LedgerTaskVerificationService
 from code_agent.sessions.repository import SQLiteSessionRepository
 from code_agent.workspace.edits import WorkspaceEditor
 from code_agent.workspace.files import WorkspaceFiles
-from code_agent.workspace.git import GitWorkspace
+from code_agent.workspace.git import GitCommandError, GitWorkspace
 from code_agent.workspace.ignore import IgnoreRules
 from code_agent.workspace.paths import WorkspacePathGuard
-from code_agent_win.tools import tool_definitions, validate_tool_arguments
+from code_agent_win.tool_support import (
+    command_action_result,
+    discover_git_workspace,
+    git_error_result,
+    windows_system_prompt,
+)
+from code_agent_win.tools import (
+    powershell_compatibility_error,
+    tool_definitions,
+    validate_tool_arguments,
+)
 
 
 class RootActionDispatcher:
@@ -55,6 +68,7 @@ class RootActionDispatcher:
         *,
         git: Optional[GitWorkspace] = None,
         runtime: Optional[WindowsLocalRuntime] = None,
+        verification: LocalVerificationAdapter | None = None,
         invalidate_cache: Callable[[Sequence[str]], None] | None = None,
     ) -> None:
         self.files = files
@@ -63,11 +77,12 @@ class RootActionDispatcher:
         self.approvals = approvals
         self.git = git
         self.runtime = runtime
+        self.verification = verification
         self.invalidate_cache = invalidate_cache
         self.interactive = False
 
     def tools(self) -> Sequence[ToolDefinition]:
-        return tool_definitions()
+        return tool_definitions(include_git=self.git is not None)
 
     async def dispatch(
         self, request: ActionRequest, cancellation: CancellationToken,
@@ -76,12 +91,20 @@ class RootActionDispatcher:
         validation_error = validate_tool_arguments(request.name, request.arguments)
         if validation_error is not None:
             return _error(request, "invalid tool arguments", validation_error)
+        if request.name == "run_command":
+            compatibility_error = powershell_compatibility_error(
+                _text(request.arguments, "command")
+            )
+            if compatibility_error is not None:
+                return _error(
+                    request, "shell syntax mismatch", compatibility_error
+                )
         decision = self.policy.evaluate(request, task_authorization)
         if decision.outcome is DecisionOutcome.DENY:
             return _error(request, "action denied", decision.reason)
         if decision.outcome is DecisionOutcome.ASK:
             if not self.interactive:
-                return _error(request, "approval required in TUI")
+                return _error(request, "approval required in TUI", error_code="approval_required")
             approved = await self.approvals.request(
                 ApprovalRequest(request.id, request.name, dict(request.arguments)),
                 cancellation,
@@ -90,6 +113,8 @@ class RootActionDispatcher:
                 return _error(request, "action denied by user")
         try:
             return await self._execute(request, cancellation)
+        except GitCommandError as error:
+            return git_error_result(request, error)
         except Exception as error:
             return _error(request, "action failed", type(error).__name__)
 
@@ -141,7 +166,33 @@ class RootActionDispatcher:
                 cancellation,
                 None,
             )
-            return _ok(request, {"returncode": result.returncode, "stdout": result.stdout.decode("utf-8", "replace"), "stderr": result.stderr.decode("utf-8", "replace"), "reason": result.reason.value})
+            return command_action_result(request, result)
+        if request.name == "run_verification":
+            if self.runtime is None or self.verification is None:
+                return _error(request, "verification unavailable")
+            command = self.verification.build(
+                VerificationRequest(
+                    VerificationKind(_text(arguments, "kind")),
+                    cwd=str(arguments.get("cwd", ".")),
+                    targets=tuple(arguments.get("targets", ())),
+                    timeout_s=int(arguments.get("timeout_s", 300)),
+                )
+            )
+            if isinstance(command, VerificationUnavailable):
+                return _error(request, "verification unavailable", command.reason)
+            result = await self.runtime.run(
+                CommandSpec(cwd=Path(command.cwd), argv=command.argv, timeout_s=command.timeout_s),
+                cancellation,
+                None,
+            )
+            action_result = command_action_result(request, result)
+            return ActionResult(
+                action_result.request_id,
+                action_result.name,
+                {**action_result.output, "kind": _text(arguments, "kind")},
+                action_result.is_error,
+                action_result.metadata,
+            )
         return _error(request, "tool is not implemented")
 
     def _edit_plan(self, request: ActionRequest):
@@ -180,7 +231,8 @@ def create_application(
     root = (workspace_root or Path.cwd()).resolve()
     guard = WorkspacePathGuard(root)
     files = WorkspaceFiles(guard, IgnoreRules.from_workspace(root))
-    config = ContextConfig(root, root, "You are a careful coding agent.")
+    git = discover_git_workspace(root)
+    config = ContextConfig(root, root, windows_system_prompt(git is not None))
     cache = RepoMapCache(root)
     context = WorkspaceContextBuilder(
         config,
@@ -197,8 +249,9 @@ def create_application(
         WorkspaceEditor(guard),
         policy,
         approvals,
-        git=GitWorkspace(root),
+        git=git,
         runtime=WindowsLocalRuntime(root),
+        verification=LocalVerificationAdapter(root),
         invalidate_cache=cache.invalidate,
     )
     sessions = SQLiteSessionRepository(_session_path())
@@ -208,15 +261,15 @@ def create_application(
     skills = SkillActivation(SkillRegistry.discover(root))
     skill_context = SkillContextBuilder(context, skills)
     model = _model_client(initial.provider)
-    controller = AgentController(_engine_for(model, initial, skill_context, dispatcher, sessions))
+    controller = AgentController(_engine_for(model, initial, skill_context, dispatcher, sessions, root))
     def apply_profile(profile: ModelProfile) -> None:
-        controller.replace_runner(_engine_for(_model_client(profile.provider), profile, skill_context, dispatcher, sessions))
+        controller.replace_runner(_engine_for(_model_client(profile.provider), profile, skill_context, dispatcher, sessions, root))
     profiles = ProfileControl({profile.name: profile for profile in runtime_config.profiles}, runtime_config.profile, apply_profile)
     foreground_tasks = ForegroundTaskController(controller, sessions, root)
     return Application(
         controller,
         foreground_tasks,
-        WindowsTerminalApp(controller, approvals, sessions=sessions, history=sessions, tasks=foreground_tasks, profiles=profiles, skills=skills, mcp=McpRegistry(runtime_config.mcp_servers)),
+        WindowsTerminalApp(controller, approvals, sessions=sessions, evidence=sessions, history=sessions, tasks=foreground_tasks, profiles=profiles, skills=skills, mcp=McpRegistry(runtime_config.mcp_servers)),
         dispatcher,
         model,
     )
@@ -231,9 +284,17 @@ def _model_client(config: ProviderConfig) -> object:
     return AnthropicClient(config)
 
 
-def _engine_for(model: object, profile: ModelProfile, context: object, dispatcher: object, sessions: object) -> AgentEngine:
+def _engine_for(model: object, profile: ModelProfile, context: object, dispatcher: object, sessions: object, workspace_root: Path) -> AgentEngine:
     limits = EngineLimits(profile.max_agent_rounds, profile.max_tool_calls, profile.max_tool_calls_per_round, profile.context_window + profile.max_output_tokens)
-    return AgentEngine(model, context, dispatcher, sessions, limits=limits, model_name=profile.provider.model)
+    return AgentEngine(
+        model,
+        context,
+        dispatcher,
+        sessions,
+        limits=limits,
+        model_name=profile.provider.model,
+        verification=LedgerTaskVerificationService(workspace_root, sessions),
+    )
 
 
 def _provider_with_model(config: ProviderConfig, model: str) -> ProviderConfig:
@@ -265,8 +326,10 @@ def _ok(
     return ActionResult(request.id, request.name, dict(output), metadata=metadata or {})
 
 
-def _error(request: ActionRequest, message: str, detail: str | None = None) -> ActionResult:
+def _error(request: ActionRequest, message: str, detail: str | None = None, *, error_code: str | None = None) -> ActionResult:
     output = {"error": message}
     if detail is not None:
         output["detail"] = detail
+    if error_code is not None:
+        output["error_code"] = error_code
     return ActionResult(request.id, request.name, output, is_error=True)

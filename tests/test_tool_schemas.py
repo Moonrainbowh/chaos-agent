@@ -41,6 +41,7 @@ class ToolSchemaTests(unittest.TestCase):
                 "replace_text",
                 "git_status",
                 "git_diff",
+                "run_verification",
                 "run_command",
             },
         )
@@ -55,6 +56,7 @@ class ToolSchemaTests(unittest.TestCase):
         self.assertEqual(definitions["write_file"]["required"], ["path", "content"])
         self.assertEqual(definitions["replace_text"]["required"], ["path", "old_text", "new_text"])
         self.assertEqual(definitions["run_command"]["required"], ["command"])
+        self.assertEqual(definitions["run_verification"]["required"], ["kind"])
         self.assertEqual(definitions["git_diff"]["properties"]["paths"]["type"], "array")
         self.assertEqual(definitions["git_diff"]["properties"]["paths"]["items"]["type"], "string")
         self.assertEqual(definitions["git_diff"]["properties"]["paths"]["items"]["minLength"], 1)

@@ -149,5 +149,8 @@ class MemorySessionRepository:
     async def record_task_active_seconds(self, task_id: str, active_seconds: int) -> TaskBudget:
         raise KeyError(task_id)
 
+    async def mark_task_budget_warnings(self, task_id: str) -> tuple[int, ...]:
+        return ()
+
     async def consume_task_controls(self, task_id: str) -> tuple[str, ...]:
         return ()

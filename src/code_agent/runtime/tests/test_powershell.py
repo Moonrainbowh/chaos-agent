@@ -185,7 +185,10 @@ class PowerShellRuntimeTests(unittest.IsolatedAsyncioTestCase):
             del kwargs
             observed_path = Path(str(args[-1]))
             self.assertTrue(observed_path.exists())
-            self.assertEqual(observed_path.read_text(encoding="utf-8-sig"), secret)
+            rendered = observed_path.read_text(encoding="utf-8-sig")
+            self.assertTrue(rendered.startswith(secret + "\n"))
+            self.assertIn("$__ChaosAgent_CommandSucceeded = $?", rendered)
+            self.assertIn("exit $__ChaosAgent_NativeExitCode", rendered)
             self.assertNotIn(secret, repr(args))
             return process
 
@@ -205,6 +208,29 @@ class PowerShellRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.display_command, "<powershell-script>")
         self.assertNotIn(secret, result.argv)
         self.assertNotIn(secret, result.display_command)
+
+    async def test_native_command_exit_code_is_propagated(self) -> None:
+        result = await self.runtime.run(
+            CommandSpec(cwd=".", powershell_script="cmd.exe /d /c exit 7"),
+            CancellationToken(),
+            None,
+        )
+
+        self.assertEqual(result.reason, TerminationReason.EXITED)
+        self.assertEqual(result.returncode, 7)
+
+    async def test_powershell_failure_state_becomes_nonzero_exit(self) -> None:
+        result = await self.runtime.run(
+            CommandSpec(
+                cwd=".",
+                powershell_script="Write-Error 'expected runtime test failure'",
+            ),
+            CancellationToken(),
+            None,
+        )
+
+        self.assertEqual(result.reason, TerminationReason.EXITED)
+        self.assertEqual(result.returncode, 1)
 
     async def test_start_error_does_not_leak_script_and_removes_temp(self) -> None:
         secret = "Write-Output 'start-secret-456'"

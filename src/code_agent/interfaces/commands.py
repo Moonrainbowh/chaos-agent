@@ -1,14 +1,15 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
+import shutil
+from collections.abc import AsyncIterator, Callable, Sequence
 from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
 
-from code_agent.core.events import AgentEvent, EventKind
-from code_agent.core.models import ModelEvent, ModelEventKind
-
+from code_agent.core.events import AgentEvent
 from .controller import AgentController
+from .terminal_renderer import ColorMode, Theme, render_entries
+from .terminal_state import TerminalState
 from .windows_tui import WindowsTerminalApp
 from .task_controller import ForegroundTaskController
 
@@ -81,10 +82,9 @@ async def execute_command(
     if command.kind is CommandKind.TASK_RESUME:
         if tasks is None:
             raise ValueError("task controls are unavailable")
-        async for event in tasks.resume(command.thread_id or "", _required_prompt(command)):
-            line = _plain_event(event)
-            if line:
-                write(line)
+        await _write_rendered_events(
+            tasks.resume(command.thread_id or "", _required_prompt(command)), write
+        )
         return 0
     if command.kind is CommandKind.RUN_JSON:
         async for line in controller.run_json(_required_prompt(command)):
@@ -95,10 +95,7 @@ async def execute_command(
         if command.kind is CommandKind.RESUME
         else controller.ask(_required_prompt(command))
     )
-    async for event in events:
-        line = _plain_event(event)
-        if line:
-            write(line)
+    await _write_rendered_events(events, write)
     return 0
 
 
@@ -115,17 +112,19 @@ def _required_prompt(command: Command) -> str:
     return command.prompt
 
 
-def _plain_event(event: AgentEvent) -> str:
-    if event.kind is EventKind.MODEL_EVENT:
-        raw = event.payload.get("event")
-        if isinstance(raw, Mapping):
-            model_event = ModelEvent.from_dict(raw)
-            if model_event.kind is ModelEventKind.TEXT_DELTA:
-                return model_event.text or ""
-    if event.kind is EventKind.ERROR:
-        return "\nerror: " + str(event.payload.get("code", "agent error")) + "\n"
-    if event.kind is EventKind.CANCELLED:
-        return "\ncancelled\n"
-    if event.kind is EventKind.COMPLETED:
-        return "\n"
-    return ""
+async def _write_rendered_events(
+    events: AsyncIterator[AgentEvent], write: Callable[[str], object]
+) -> None:
+    state = TerminalState()
+    try:
+        async for event in events:
+            state.apply(event)
+    finally:
+        rendered = render_entries(
+            state.entries,
+            shutil.get_terminal_size((100, 30)).columns,
+            theme=Theme.SYMBOL,
+            color=ColorMode.AUTO,
+        )
+        if rendered:
+            write(rendered + "\n")
