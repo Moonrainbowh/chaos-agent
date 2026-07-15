@@ -105,7 +105,8 @@ class AgentEngineActionMixin:
         reserved = await self._journal.reserve_task_budget(thread_id, tool_calls=1)
         if reserved is None:
             raise EngineLimitError("tool call budget exceeded")
-        events = tuple(
+        _, declared = await self._persist_assistant_message(thread_id, [], [suggestion])
+        events = (declared,) + tuple(
             [event async for event in self._dispatch(
                 thread_id, suggestion, token, is_available=suggestion.name in tool_names,
                 task=task, supervisor=supervisor,

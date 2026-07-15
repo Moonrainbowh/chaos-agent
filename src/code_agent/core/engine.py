@@ -220,6 +220,14 @@ class AgentEngine(AgentEngineCompletionMixin, AgentEngineActionMixin):
                                 yield action_event
                             if self._should_stop_after_action(automatic_events):
                                 return
+                            next_task = await self._resolve_task_completion(task, active_thread)
+                            if next_task.status is not TaskStatus.RUNNING:
+                                for completion_event in self._task_completion_events(
+                                    active_thread, next_task, task_budget, total_usage
+                                ):
+                                    await self._journal.append_event(active_thread, completion_event)
+                                    yield completion_event
+                                return
                             continue
                         next_task = await self._resolve_task_completion(task, active_thread)
                         for completion_event in self._task_completion_events(

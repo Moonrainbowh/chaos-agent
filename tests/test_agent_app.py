@@ -242,10 +242,10 @@ class FullStackTests(unittest.IsolatedAsyncioTestCase):
             (root / "pyproject.toml").write_text("[project]\nname = 'demo'\nversion = '0.0.0'\n", encoding="utf-8")
             runtime = _RecordingRuntime((0,))
             sessions = SQLiteSessionRepository(root / "sessions.sqlite3")
-            model = FakeModel((
-                (ModelEvent(ModelEventKind.TEXT_DELTA, text="done"), ModelEvent(ModelEventKind.COMPLETED)),
-                (ModelEvent(ModelEventKind.TEXT_DELTA, text="verified"), ModelEvent(ModelEventKind.COMPLETED)),
-            ))
+            model = FakeModel(((
+                ModelEvent(ModelEventKind.TEXT_DELTA, text="done"),
+                ModelEvent(ModelEventKind.COMPLETED),
+            ),))
             controller = ForegroundTaskController(
                 AgentController(AgentEngine(
                     model,
@@ -265,6 +265,10 @@ class FullStackTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(len(runtime.commands), 1)
             self.assertIn("-m unittest discover", runtime.commands[0])
             self.assertEqual(events[-1].kind, EventKind.COMPLETED)
+            messages = await sessions.load_messages(task.thread_id)
+            self.assertEqual([message.role for message in messages[-3:]], ["assistant", "assistant", "tool"])
+            self.assertEqual(messages[-2].tool_calls[0].id, messages[-1].tool_call_id)
+            self.assertEqual(model.streams, [])
 
     async def test_task_boundary_waits_for_decision_without_starting_network_command(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
