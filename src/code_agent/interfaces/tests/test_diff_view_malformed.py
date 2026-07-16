@@ -17,6 +17,10 @@ def unified(path: str) -> str:
     )
 
 
+def git_unified(path: str) -> str:
+    return f"diff --git a/{path} b/{path}\n{unified(path)}"
+
+
 class StaticSource:
     def __init__(self, result: object) -> None:
         self.result = result
@@ -26,6 +30,43 @@ class StaticSource:
 
 
 class MalformedParserTests(unittest.TestCase):
+    def test_invalid_hunk_header_drops_the_file(self) -> None:
+        patch = (
+            "diff --git a/bad.txt b/bad.txt\n"
+            "--- a/bad.txt\n+++ b/bad.txt\n"
+            "@@ garbage @@\n-old\n+new\n"
+        )
+
+        view = DiffView.parse(patch, DiffScope.UNSTAGED, True)
+
+        self.assertEqual(view.files, ())
+
+    def test_hunk_body_requires_a_unified_diff_prefix(self) -> None:
+        for body, expected in (("garbage", ()), (" same", ("file.txt",))):
+            with self.subTest(body=body):
+                patch = (
+                    "diff --git a/file.txt b/file.txt\n"
+                    "--- a/file.txt\n+++ b/file.txt\n"
+                    f"@@ -1 +1 @@\n{body}\n"
+                )
+
+                view = DiffView.parse(patch, DiffScope.UNSTAGED, True)
+
+                self.assertEqual(tuple(file.path for file in view.files), expected)
+
+    def test_unclosed_quoted_paths_are_dropped_before_explicit_resync(self) -> None:
+        malformed_documents = (
+            '--- "a/unclosed\n+++ "b/unclosed\n@@ -1 +1 @@\n-old\n+new\n',
+            'diff --git a/unclosed "b/unclosed\n',
+        )
+        for malformed in malformed_documents:
+            with self.subTest(malformed=malformed.splitlines()[0]):
+                view = DiffView.parse(
+                    malformed + git_unified("good.txt"), DiffScope.UNSTAGED, True
+                )
+
+                self.assertEqual(tuple(file.path for file in view.files), ("good.txt",))
+
     def test_overconsumed_hunk_is_dropped_and_explicit_next_file_resyncs(self) -> None:
         patch = (
             "diff --git a/bad.txt b/bad.txt\n"

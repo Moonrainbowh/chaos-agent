@@ -129,15 +129,22 @@ class _ParseState:
             return
         match = _HUNK_HEADER.match(raw)
         if match is None:
+            self.valid = False
+            self.old_remaining = self.new_remaining = None
             return
         self.old_remaining = int(match.group(1) or "1")
         self.new_remaining = int(match.group(2) or "1")
         self._finish_hunk_if_complete()
 
     def consume_hunk(self, raw: str) -> None:
-        self.lines.append(DiffLine(_line_kind(raw), raw))
         if raw == "\\ No newline at end of file":
+            self.lines.append(DiffLine(_line_kind(raw), raw))
             return
+        if not raw.startswith(("-", "+", " ")):
+            self.valid = False
+            self.old_remaining = self.new_remaining = None
+            return
+        self.lines.append(DiffLine(_line_kind(raw), raw))
         assert self.old_remaining is not None and self.new_remaining is not None
         if raw.startswith("-"):
             self.old_remaining -= 1
@@ -230,6 +237,8 @@ def _quoted_token(value: str, index: int) -> tuple[str, int] | None:
             else:
                 data.append(escapes.get(escaped, ord(escaped)))
                 index += 1
-        return data.decode("utf-8"), min(index + 1, len(value))
+        if index >= len(value) or value[index] != '"':
+            return None
+        return data.decode("utf-8"), index + 1
     except (ValueError, UnicodeDecodeError):
         return None
