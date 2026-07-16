@@ -234,7 +234,12 @@ git commit -m "feat: carry real context request identity"
 - Create: `code_agent_win/context_runtime.py`
 - Modify: `code_agent_win/AGENTS.md`
 - Modify: `code_agent_win/app.py`
-- Modify: `tests/test_agent_app.py`
+- Create: `tests/test_context_runtime.py`
+- Test: `tests/test_agent_app.py`
+
+`tests/test_agent_app.py` was already 421 lines at the branch baseline, so the
+new persistence cases live in a focused test module instead of expanding that
+existing size violation.
 
 - [ ] **Step 1: Write failing deterministic-summary and builder tests**
 
@@ -326,6 +331,7 @@ The payload contains stable IDs, source range/digest, model, usage, and version.
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s src/code_agent/thread_intelligence/tests -p 'test_*.py' -v
 .\.venv\Scripts\python.exe -m unittest discover -s src/code_agent/context/tests -p 'test_*.py' -v
+.\.venv\Scripts\python.exe -m unittest tests.test_context_runtime -v
 .\.venv\Scripts\python.exe -m unittest tests.test_agent_app -v
 ```
 
@@ -334,7 +340,7 @@ The payload contains stable IDs, source range/digest, model, usage, and version.
 ```powershell
 git add src/code_agent/thread_intelligence src/code_agent/context src/code_agent/core/models.py
 git commit -m "feat: build source anchored context checkpoints"
-git add code_agent_win tests/test_agent_app.py
+git add code_agent_win tests/test_context_runtime.py
 git commit -m "feat: persist semantic checkpoint facts"
 ```
 
