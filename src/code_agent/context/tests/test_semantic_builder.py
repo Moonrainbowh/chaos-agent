@@ -51,8 +51,8 @@ class RecordingSemanticCompactor:
         self.raise_cancelled = raise_cancelled
         self.error = error
 
-    async def compact(self, thread_id, messages, **kwargs):
-        self.calls.append((thread_id, tuple(messages), kwargs))
+    async def compact(self, thread_id, revision, messages, **kwargs):
+        self.calls.append((thread_id, revision, tuple(messages), kwargs))
         if self.error is not None:
             raise self.error
         if self.cancel_reason is not None:
@@ -157,8 +157,9 @@ class SemanticWorkspaceContextBuilderTests(unittest.IsolatedAsyncioTestCase):
             )
         )
 
-        thread_id, working, options = semantic.calls[0]
+        thread_id, revision, working, options = semantic.calls[0]
         self.assertEqual(thread_id, "thread-a")
+        self.assertEqual(revision, 2)
         self.assertIs(options["cancellation"], cancellation)
         self.assertEqual(
             working, history + (Message(role="user", content="inspect tool"),)

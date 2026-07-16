@@ -25,6 +25,7 @@ class _SemanticCompactor(Protocol):
     async def compact(
         self,
         thread_id: str,
+        revision: int,
         messages: Sequence[Message],
         *,
         context_tokens: int,
@@ -135,6 +136,7 @@ class WorkspaceContextBuilder:
             )
         result = await self.semantic_compactor.compact(
             request.thread_id,
+            request.revision,
             plan.working,
             context_tokens=context_tokens,
             context_limit=context_limit,
