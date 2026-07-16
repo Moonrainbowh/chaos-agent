@@ -91,7 +91,6 @@ class AgentEngine(AgentEngineCompletionMixin, AgentEngineActionMixin):
             messages = prior_messages + (user_message,)
             used_call_ids: set[str] = set()
             total_usage = Usage()
-
             for turn in range(1, task_budget.limits.max_agent_rounds + 1):
                 token.raise_if_cancelled()
                 if supervisor is not None:
@@ -119,7 +118,6 @@ class AgentEngine(AgentEngineCompletionMixin, AgentEngineActionMixin):
                 )
                 await self._journal.append_event(active_thread, turn_started)
                 yield turn_started
-
                 source_messages = (
                     await self._journal.load_messages(active_thread)
                     if task is not None
@@ -129,9 +127,12 @@ class AgentEngine(AgentEngineCompletionMixin, AgentEngineActionMixin):
                 try:
                     task_state = await self._journal.load_task_state(active_thread)
                     bundle = await self._context.build(ContextRequest(
-                        active_thread, turn, source_messages, source_input, tools,
-                        task_state, token, self._context_mode_snapshot,
-                        self._context_permission_snapshot, budget_lease=budget_lease(task_budget),
+                        thread_id=active_thread, revision=task_budget.model_turns,
+                        messages=source_messages, user_input=source_input, tools=tools,
+                        task_state=task_state, cancellation=token,
+                        mode_snapshot=self._context_mode_snapshot,
+                        permission_snapshot=self._context_permission_snapshot,
+                        budget_lease=budget_lease(task_budget),
                     ))
                     if not isinstance(bundle, ContextBundle):
                         raise TypeError("context builder returned an invalid bundle")
@@ -199,7 +200,6 @@ class AgentEngine(AgentEngineCompletionMixin, AgentEngineActionMixin):
                     raise
                 except Exception:
                     raise ModelStreamError("model stream failed") from None
-
                 if not completed:
                     raise ModelStreamError("model stream ended before completion")
 

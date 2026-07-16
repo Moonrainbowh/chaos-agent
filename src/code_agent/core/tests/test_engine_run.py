@@ -58,11 +58,9 @@ class AgentEngineRunTests(unittest.IsolatedAsyncioTestCase):
         modes["selection"].append("changed")
         permissions["paths"] = ["elsewhere"]
 
-        _ = [
-            event
-            async for event in engine.run("new", thread_id=thread_id, cancellation=token)
-        ]
-
+        _ = [event async for event in engine.run(
+            "new", thread_id=thread_id, cancellation=token
+        )]
         request = context.requests[0]
         self.assertEqual((request.thread_id, request.revision), (thread_id, 1))
         self.assertEqual(request.messages, (Message("user", "old"),))
@@ -90,11 +88,20 @@ class AgentEngineRunTests(unittest.IsolatedAsyncioTestCase):
             FakeActionDispatcher((ActionResult("call-1", "read_file", None),)),
             MemorySessionRepository(),
         )
-
         _ = [event async for event in engine.run("inspect")]
-
         self.assertEqual([request.revision for request in context.requests], [1, 2])
         self.assertEqual(context.requests[1].user_input, "")
+
+    async def test_context_request_revision_persists_across_runs(self) -> None:
+        context, sessions = FakeContextBuilder(), MemorySessionRepository()
+        thread_id = await sessions.create_thread()
+        completed = (model_event(ModelEventKind.COMPLETED),)
+        engine = AgentEngine(FakeModelClient((completed, completed)), context,
+                             FakeActionDispatcher(), sessions)
+        for user_input in ("first", "second"):
+            _ = [event async for event in engine.run(user_input, thread_id=thread_id)]
+        self.assertEqual([request.revision for request in context.requests], [1, 2])
+        self.assertEqual(context.requests[1].budget_lease["model_turns"], 2)
 
     async def test_context_event_records_numeric_measurements_without_prompt_text(self) -> None:
         measurements = {

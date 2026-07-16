@@ -34,6 +34,18 @@ def budget_lease(budget: TaskBudget) -> dict[str, int]:
     }
 
 
+def _freeze_budget_lease(
+    value: Mapping[str, JSONValue],
+) -> Mapping[str, JSONValue]:
+    frozen = freeze_mapping(value, "budget_lease")
+    for name, item in frozen.items():
+        if isinstance(item, bool) or not isinstance(item, int):
+            raise TypeError(f"budget_lease.{name} must be an integer")
+        if item < 0:
+            raise ValueError(f"budget_lease.{name} must not be negative")
+    return frozen
+
+
 @dataclass(frozen=True)
 class ContextRequest:
     """Immutable input for one context-building revision."""
@@ -75,8 +87,9 @@ class ContextRequest:
         if not isinstance(self.cancellation, CancellationToken):
             raise TypeError("cancellation must be a CancellationToken")
         self._validate_limits()
-        for name in ("mode_snapshot", "permission_snapshot", "budget_lease"):
+        for name in ("mode_snapshot", "permission_snapshot"):
             object.__setattr__(self, name, freeze_mapping(getattr(self, name), name))
+        object.__setattr__(self, "budget_lease", _freeze_budget_lease(self.budget_lease))
 
     def _validate_limits(self) -> None:
         if self.context_pressure is not None:

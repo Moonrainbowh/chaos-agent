@@ -184,7 +184,7 @@ class ProtocolImplementationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(context_request(timeout_seconds=10**1_000).timeout_seconds, 10**1_000)
 
     def test_context_request_freezes_and_validates_json_mappings(self) -> None:
-        for field in ("mode_snapshot", "permission_snapshot", "budget_lease"):
+        for field in ("mode_snapshot", "permission_snapshot"):
             source = {"nested": [1, {"enabled": True}]}
             request = context_request(**{field: source})
             source["nested"].append(2)
@@ -195,6 +195,20 @@ class ProtocolImplementationTests(unittest.IsolatedAsyncioTestCase):
             for invalid in ([], {"bad": object()}, {"bad": float("inf")}):
                 with self.subTest(field=field, invalid=invalid), self.assertRaises((TypeError, ValueError)):
                     context_request(**{field: invalid})
+
+        source = {"model_turns": 1}
+        request = context_request(budget_lease=source)
+        source["model_turns"] = 2
+        self.assertEqual(request.budget_lease["model_turns"], 1)
+        with self.assertRaises(TypeError):
+            request.budget_lease["model_turns"] = 2
+
+    def test_context_request_rejects_non_integer_budget_values(self) -> None:
+        with self.assertRaises(TypeError):
+            context_request(budget_lease=[])  # type: ignore[arg-type]
+        for value in ("1", [1], {"value": 1}, 1.0, True, -1):
+            with self.subTest(value=value), self.assertRaises((TypeError, ValueError)):
+                context_request(budget_lease={"model_turns": value})
 
     async def test_action_dispatcher_fake_dispatches_request(self) -> None:
         dispatcher: ActionDispatcher = FakeActionDispatcher()
