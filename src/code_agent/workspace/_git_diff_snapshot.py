@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import difflib
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Callable, Protocol
 
+from ._guarded_read import read_guarded_file
 from .errors import WorkspaceError
 from .paths import WorkspacePathGuard
 
@@ -71,8 +71,10 @@ def render_untracked_diff(
     """Render bounded untracked text or metadata-only binary markers."""
     rendered: list[str] = []
     for path in paths:
-        absolute = guard.resolve(path)
-        data = _read_bounded(absolute, budget)
+        data = read_guarded_file(path, guard, budget.remaining)
+        if len(data) > budget.remaining:
+            raise SnapshotBudgetExceeded
+        budget.consume(len(data))
         facet = _render_file(path, data)
         budget.consume(len(facet.encode("utf-8")))
         rendered.append(facet)
@@ -86,23 +88,17 @@ def collect_diff_facets(
     budget: SnapshotBudget,
     paths: tuple[str, ...],
 ) -> tuple[bytes, bytes, str, tuple[str, ...]]:
-    staged_names = _command(
-        invoke, require_success, "diff_staged_paths",
-        ("diff", "--no-ext-diff", "--no-textconv", "--cached", "--name-only", "-z", "--no-renames", "--", *paths), budget,
+    staged_paths = _tracked_paths(
+        invoke, require_success, guard, budget, "diff_staged_paths", True, paths
     )
-    unstaged_names = _command(
-        invoke, require_success, "diff_unstaged_paths",
-        ("diff", "--no-ext-diff", "--no-textconv", "--name-only", "-z", "--no-renames", "--", *paths), budget,
+    unstaged_paths = _tracked_paths(
+        invoke, require_success, guard, budget, "diff_unstaged_paths", False, paths
     )
-    decode_guarded_paths(staged_names, guard, budget)
-    decode_guarded_paths(unstaged_names, guard, budget)
-    staged = _command(
-        invoke, require_success, "diff_staged",
-        ("diff", "--no-ext-diff", "--no-textconv", "--cached", "--", *paths), budget,
+    staged = _tracked_patch(
+        invoke, require_success, budget, "diff_staged", True, staged_paths
     )
-    unstaged = _command(
-        invoke, require_success, "diff_unstaged",
-        ("diff", "--no-ext-diff", "--no-textconv", "--", *paths), budget,
+    unstaged = _tracked_patch(
+        invoke, require_success, budget, "diff_unstaged", False, unstaged_paths
     )
     raw_paths = _command(
         invoke, require_success, "untracked_paths",
@@ -111,6 +107,53 @@ def collect_diff_facets(
     untracked_paths = decode_guarded_paths(raw_paths, guard, budget)
     untracked = render_untracked_diff(untracked_paths, guard, budget)
     return staged, unstaged, untracked, untracked_paths
+
+
+def _tracked_paths(
+    invoke: Callable[[str, tuple[str, ...], int | None], GitResult],
+    require_success: Callable[[str, GitResult], None],
+    guard: WorkspacePathGuard,
+    budget: SnapshotBudget,
+    operation: str,
+    cached: bool,
+    filters: tuple[str, ...],
+) -> tuple[str, ...]:
+    cached_option = ("--cached",) if cached else ()
+    arguments = (
+        "diff", "--no-ext-diff", "--no-textconv", *cached_option,
+        "--name-only", "-z", "--no-renames", "--",
+    )
+    raw = _command(invoke, require_success, operation, arguments, budget)
+    return _filter_paths(decode_guarded_paths(raw, guard, budget), filters)
+
+
+def _tracked_patch(
+    invoke: Callable[[str, tuple[str, ...], int | None], GitResult],
+    require_success: Callable[[str, GitResult], None],
+    budget: SnapshotBudget,
+    operation: str,
+    cached: bool,
+    paths: tuple[str, ...],
+) -> bytes:
+    if not paths:
+        return b""
+    cached_option = ("--cached",) if cached else ()
+    arguments = (
+        "diff", "--no-ext-diff", "--no-textconv", *cached_option,
+        "--no-renames", "--", *paths,
+    )
+    return _command(invoke, require_success, operation, arguments, budget)
+
+
+def _filter_paths(changed: tuple[str, ...], filters: tuple[str, ...]) -> tuple[str, ...]:
+    if not filters or any(item in ("", ".") for item in filters):
+        return changed
+    prefixes = tuple(item.rstrip("/") + "/" for item in filters)
+    return tuple(
+        path
+        for path in changed
+        if path in filters or any(path.startswith(prefix) for prefix in prefixes)
+    )
 
 
 def _command(
@@ -126,18 +169,6 @@ def _command(
     return result.stdout
 
 
-def _read_bounded(path: Path, budget: SnapshotBudget) -> bytes:
-    try:
-        with path.open("rb") as stream:
-            data = stream.read(budget.remaining + 1)
-    except OSError as error:
-        raise WorkspaceError(f"cannot read untracked file: {path.name}") from error
-    if len(data) > budget.remaining:
-        raise SnapshotBudgetExceeded
-    budget.consume(len(data))
-    return data
-
-
 def _render_file(path: str, data: bytes) -> str:
     display = _header_path(path)
     if b"\0" in data:
@@ -146,20 +177,23 @@ def _render_file(path: str, data: bytes) -> str:
         text = data.decode("utf-8")
     except UnicodeDecodeError:
         return _binary_marker(display)
+    header = f"diff --git a/{display} b/{display}\nnew file mode 100644\n"
+    if not data:
+        return header + "index 0000000..e69de29\n"
     lines = text.splitlines(keepends=True)
     rendered = "".join(
         difflib.unified_diff(
             (), lines, fromfile="/dev/null", tofile=f"b/{display}", lineterm="\n"
         )
     )
-    if not rendered:
-        return f"--- /dev/null\n+++ b/{display}\n"
-    return rendered if rendered.endswith("\n") else rendered + "\n"
+    if not data.endswith(b"\n"):
+        rendered += "\n\\ No newline at end of file\n"
+    return header + rendered
 
 
 def _binary_marker(path: str) -> str:
     return (
-        f"--- /dev/null\n+++ b/{path}\n"
+        f"diff --git a/{path} b/{path}\nnew file mode 100644\n"
         f"Binary files /dev/null and b/{path} differ\n"
     )
 

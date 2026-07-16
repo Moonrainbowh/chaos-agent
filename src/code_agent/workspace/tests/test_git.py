@@ -217,10 +217,9 @@ class GitRepositoryTests(GitWorkspaceTestCase):
 
         commands = [call.args[0] for call in invoked.call_args_list]
         expected = [
-            ["diff", "--no-ext-diff", "--no-textconv", "--cached", "--name-only", "-z", "--no-renames", "--", "tracked.txt"],
-            ["diff", "--no-ext-diff", "--no-textconv", "--name-only", "-z", "--no-renames", "--", "tracked.txt"],
-            ["diff", "--no-ext-diff", "--no-textconv", "--cached", "--", "tracked.txt"],
-            ["diff", "--no-ext-diff", "--no-textconv", "--", "tracked.txt"],
+            ["diff", "--no-ext-diff", "--no-textconv", "--cached", "--name-only", "-z", "--no-renames", "--"],
+            ["diff", "--no-ext-diff", "--no-textconv", "--name-only", "-z", "--no-renames", "--"],
+            ["diff", "--no-ext-diff", "--no-textconv", "--no-renames", "--", "tracked.txt"],
             ["ls-files", "--others", "--exclude-standard", "-z", "--", "tracked.txt"],
         ]
         self.assertEqual([command[4:] for command in commands], expected)
@@ -286,7 +285,7 @@ class GitRepositoryTests(GitWorkspaceTestCase):
             listed = SimpleNamespace(argv=("git",), returncode=0, stdout=raw, stderr=b"")
             with self.subTest(raw=raw):
                 with patch.object(
-                    workspace, "_invoke", side_effect=(empty, empty, empty, empty, listed)
+                    workspace, "_invoke", side_effect=(empty, empty, listed)
                 ):
                     with self.assertRaises(expected):
                         workspace.diff_snapshot()

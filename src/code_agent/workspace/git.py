@@ -123,8 +123,10 @@ class GitWorkspace:
             )
         except SnapshotBudgetExceeded as error:
             raise self._snapshot_limit_error() from error
+        staged_text = _decode_snapshot_facet("staged", staged)
+        unstaged_text = _decode_snapshot_facet("unstaged", unstaged)
         return GitDiffSnapshot(
-            _decode(staged), _decode(unstaged), untracked, untracked_paths
+            staged_text, unstaged_text, untracked, untracked_paths
         )
 
     def _snapshot_limit_error(self) -> GitOutputLimitError:
@@ -222,3 +224,10 @@ class GitWorkspace:
             stdout_bytes=result.stdout,
             stderr_bytes=result.stderr,
         )
+
+
+def _decode_snapshot_facet(facet: str, raw: bytes) -> str:
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise WorkspaceError(f"git returned a non-UTF-8 {facet} diff") from error

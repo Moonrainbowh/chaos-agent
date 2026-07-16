@@ -229,18 +229,18 @@ class GitOutputLimitTests(unittest.TestCase):
 
     def test_diff_snapshot_shares_one_budget_across_command_outputs(self) -> None:
         workspace = GitWorkspace(self.root, max_output_bytes=10)
-        empty = type("Result", (), {
-            "argv": ("git",), "returncode": 0, "stdout": b"", "stderr": b""
+        staged_names = type("Result", (), {
+            "argv": ("git",), "returncode": 0, "stdout": b"a\0", "stderr": b""
+        })()
+        unstaged_names = type("Result", (), {
+            "argv": ("git",), "returncode": 0, "stdout": b"b\0", "stderr": b""
         })()
         staged = type("Result", (), {
             "argv": ("git",), "returncode": 0, "stdout": b"123456", "stderr": b""
         })()
-        unstaged = type("Result", (), {
-            "argv": ("git",), "returncode": 0, "stdout": b"abcdef", "stderr": b""
-        })()
 
         with patch.object(
-            workspace, "_invoke", side_effect=(empty, empty, staged, unstaged)
+            workspace, "_invoke", side_effect=(staged_names, unstaged_names, staged)
         ):
             with self.assertRaises(GitOutputLimitError) as raised:
                 workspace.diff_snapshot()
@@ -270,7 +270,7 @@ class GitOutputLimitTests(unittest.TestCase):
         subprocess.run(["git", "add", "tracked.txt"], cwd=self.root, check=True, shell=False)
         raw = subprocess.run(
             ["git", "-c", "core.pager=cat", "--literal-pathspecs", "diff",
-             "--no-ext-diff", "--no-textconv", "--cached", "--"],
+             "--no-ext-diff", "--no-textconv", "--cached", "--no-renames", "--", "tracked.txt"],
             cwd=self.root, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=False,
         )
         self.assertEqual(raw.stderr, b"")
