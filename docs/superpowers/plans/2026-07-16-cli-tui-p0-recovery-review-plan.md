@@ -424,9 +424,11 @@ git commit -m "feat: expose complete git diff facets"
 **Stage:** Interfaces Feature implementation
 
 **Files:**
+- Create: `src/code_agent/interfaces/_diff_parser.py`
 - Modify: `src/code_agent/interfaces/diff_view.py`
 - Modify: `src/code_agent/interfaces/tui_interactions.py`
 - Modify: `src/code_agent/interfaces/AGENTS.md`
+- Create: `src/code_agent/interfaces/tests/test_diff_view.py`
 - Modify: `src/code_agent/interfaces/tests/test_interaction_v2.py`
 
 - [ ] **Step 1: Write failing scope and stale-source tests**
@@ -436,6 +438,7 @@ Assert working-tree view contains staged, unstaged, and untracked sections; per-
 - [ ] **Step 2: Verify RED**
 
 ```powershell
+.\.venv\Scripts\python.exe -m unittest src.code_agent.interfaces.tests.test_diff_view -v
 .\.venv\Scripts\python.exe -m unittest src.code_agent.interfaces.tests.test_interaction_v2.DiffViewTests -v
 ```
 
@@ -458,6 +461,11 @@ class DiffSourceDocument:
 ```
 
 Each `FileDiff` stores its scope. `DiffController.load(scope, recorded_diff, paths)` consults live Git only for working-tree/staged/unstaged/untracked scopes. Rendered headers include scope and `fresh`/`recorded` provenance.
+
+The private parser also accepts metadata-only empty/binary patches and decodes
+Git C-style quoted paths, so every Task 4 facet remains visible. Legacy live
+sources that return one string remain an unstaged working-tree document; rich
+sources may return scoped documents without changing the Host adapter yet.
 
 - [ ] **Step 4: Verify Interfaces GREEN and commit**
 
