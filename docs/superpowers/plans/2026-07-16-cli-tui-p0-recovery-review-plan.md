@@ -408,7 +408,8 @@ regular-file handle whose final target and identity pass the workspace guard.
 Text is rendered as an applicable new-file patch, including empty files and the
 standard no-final-newline marker; binary content becomes metadata only. All
 command output, validated paths, file reads, and rendered facets share the
-existing global output ceiling.
+existing global output ceiling. Literal filtering follows platform path-case
+semantics, and rendered path tokens use Git-compatible C-style quoting.
 
 - [ ] **Step 4: Verify Workspace GREEN and commit**
 
