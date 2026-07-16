@@ -4,12 +4,13 @@ import asyncio
 import json
 from typing import Sequence
 
+from code_agent.core.context_request import ContextRequest
 from code_agent.core.models import ContextBundle, Message, ToolDefinition
-from code_agent.core.task_state import TaskState
 
+from .budget import PromptAllocation
 from .compaction import DeterministicCompactor
 from .errors import ContextBudgetError, RuleLimitError
-from .models import ContextConfig
+from .models import CompactionResult, ContextConfig
 from .repo_map import RepoMapBuilder
 from .rules import RuleLoader
 from .tokens import estimate_tokens
@@ -45,47 +46,26 @@ class WorkspaceContextBuilder:
         self.repo_map = repo_map
         self.compactor = compactor
 
-    async def build(
-        self,
-        messages: Sequence[Message],
-        user_input: str,
-        tools: Sequence[ToolDefinition],
-        task_state: TaskState,
-    ) -> ContextBundle:
+    async def build(self, request: ContextRequest) -> ContextBundle:
         """Build a stable prompt and compacted messages for one model turn."""
-        checked = tuple(messages)
-        if not all(isinstance(message, Message) for message in checked):
-            raise TypeError("messages must contain only Message values")
-        if not isinstance(user_input, str):
-            raise TypeError("user_input must be text")
-        checked_tools = tuple(tools)
-        if not all(isinstance(tool, ToolDefinition) for tool in checked_tools):
-            raise TypeError("tools must contain only ToolDefinition values")
-        if not isinstance(task_state, TaskState):
-            raise TypeError("task_state must be a TaskState")
-        return await asyncio.to_thread(
-            self._build_sync, checked, user_input, checked_tools, task_state
-        )
+        if not isinstance(request, ContextRequest):
+            raise TypeError("request must be a ContextRequest")
+        request.cancellation.raise_if_cancelled()
+        return await asyncio.to_thread(self._build_sync, request)
 
-    def _build_sync(
-        self,
-        messages: tuple[Message, ...],
-        user_input: str,
-        tools: tuple[ToolDefinition, ...],
-        task_state: TaskState,
-    ) -> ContextBundle:
-        working = messages
-        if user_input:
-            working += (Message(role="user", content=user_input),)
+    def _build_sync(self, request: ContextRequest) -> ContextBundle:
+        working = request.messages
+        if request.user_input:
+            working += (Message(role="user", content=request.user_input),)
         rendered_rules = self.rules.render(self.rules.load())
         rule_tokens = estimate_tokens(rendered_rules)
         if rule_tokens > self.config.prompt_budget.max_rule_tokens:
             raise RuleLimitError(
                 f"project rules exceed {self.config.prompt_budget.max_rule_tokens:,} tokens"
             )
-        rendered_tools = _render_tools(tools)
+        rendered_tools = _render_tools(request.tools)
         rendered_state = render_task_state(
-            task_state, self.config.prompt_budget.max_task_state_tokens
+            request.task_state, self.config.prompt_budget.max_task_state_tokens
         )
         state_tokens = estimate_tokens(rendered_state)
         if state_tokens > self.config.prompt_budget.max_task_state_tokens:
@@ -101,7 +81,7 @@ class WorkspaceContextBuilder:
             task_state_tokens=state_tokens,
         )
         compacted = self.compactor.compact(working, allocation.message_tokens)
-        query = user_input or _latest_user_text(compacted.messages)
+        query = request.user_input or _latest_user_text(compacted.messages)
         rendered_map, cache_hits, cache_misses = self.repo_map.cache.measure_operation(
             lambda: self.repo_map.render(
                 query,
@@ -110,31 +90,50 @@ class WorkspaceContextBuilder:
             )
         )
         system_prompt = prefix + rendered_map
-        prompt_tokens = (
-            estimate_tokens(system_prompt)
-            + estimate_tokens(rendered_tools)
-            + _message_tokens(compacted.messages)
+        return _context_bundle(
+            self.config,
+            system_prompt,
+            rendered_tools,
+            compacted,
+            allocation,
+            cache_hits,
+            cache_misses,
         )
-        if prompt_tokens > (
-            self.config.prompt_budget.max_prompt_tokens
-            - self.config.prompt_budget.safety_tokens
-        ):
-            raise ContextBudgetError("rendered prompt exceeds its token budget")
-        return ContextBundle(
-            system_prompt=system_prompt,
-            messages=compacted.messages,
-            measurements={
-                "prompt_tokens": self.config.prompt_budget.max_prompt_tokens,
-                "rule_tokens": allocation.rule_tokens,
-                "tool_tokens": allocation.tool_tokens,
-                "task_state_tokens": allocation.task_state_tokens,
-                "repo_map_tokens": allocation.repo_map_tokens,
-                "message_tokens": allocation.message_tokens,
-                "removed_message_count": compacted.removed_count,
-                "cache_hits": cache_hits,
-                "cache_misses": cache_misses,
-            },
-        )
+
+
+def _context_bundle(
+    config: ContextConfig,
+    system_prompt: str,
+    rendered_tools: str,
+    compacted: CompactionResult,
+    allocation: PromptAllocation,
+    cache_hits: int,
+    cache_misses: int,
+) -> ContextBundle:
+    prompt_tokens = (
+        estimate_tokens(system_prompt)
+        + estimate_tokens(rendered_tools)
+        + _message_tokens(compacted.messages)
+    )
+    if prompt_tokens > (
+        config.prompt_budget.max_prompt_tokens - config.prompt_budget.safety_tokens
+    ):
+        raise ContextBudgetError("rendered prompt exceeds its token budget")
+    return ContextBundle(
+        system_prompt=system_prompt,
+        messages=compacted.messages,
+        measurements={
+            "prompt_tokens": config.prompt_budget.max_prompt_tokens,
+            "rule_tokens": allocation.rule_tokens,
+            "tool_tokens": allocation.tool_tokens,
+            "task_state_tokens": allocation.task_state_tokens,
+            "repo_map_tokens": allocation.repo_map_tokens,
+            "message_tokens": allocation.message_tokens,
+            "removed_message_count": compacted.removed_count,
+            "cache_hits": cache_hits,
+            "cache_misses": cache_misses,
+        },
+    )
 
 
 def _latest_user_text(messages: Sequence[Message]) -> str:
