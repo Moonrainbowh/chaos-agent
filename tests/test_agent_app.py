@@ -95,13 +95,21 @@ class ApplicationConstructionTests(unittest.TestCase):
                 "CHAOS_BASE_URL": "https://api.example.test", "CHAOS_MODEL": "test",
                 "CHAOS_API_KEY_ENV": "KEY",
             })
-            with patch("code_agent_win.app._model_client", return_value=object()):
-                with patch(
-                    "code_agent_win.app._session_path",
-                    return_value=root / "sessions.sqlite3",
-                ):
-                    with patch("code_agent_win.app.load_runtime_config", return_value=runtime):
-                        application = create_application(root)
+            with patch.dict(
+                "os.environ",
+                {
+                    "USERPROFILE": str(root / "profile"),
+                    "LOCALAPPDATA": str(root / "localappdata"),
+                },
+                clear=True,
+            ):
+                with patch("code_agent_win.app._model_client", return_value=object()):
+                    with patch(
+                        "code_agent_win.app._session_path",
+                        return_value=root / "sessions.sqlite3",
+                    ):
+                        with patch("code_agent_win.app.load_runtime_config", return_value=runtime):
+                            application = create_application(root)
 
         self.assertIs(application.tui.sessions, application.tui.history)
         self.assertIs(application.tui.evidence, application.tui.sessions)
