@@ -351,10 +351,13 @@ git commit -m "feat: persist semantic checkpoint facts"
 **Files:**
 - Create: `src/code_agent/workspace/_git_diff_snapshot.py`
 - Create: `src/code_agent/workspace/_git_errors.py`
+- Create: `src/code_agent/workspace/_guarded_read.py`
 - Modify: `src/code_agent/workspace/git.py`
 - Modify: `src/code_agent/workspace/AGENTS.md`
 - Modify: `src/code_agent/workspace/tests/test_git.py`
 - Modify: `src/code_agent/workspace/tests/test_git_limits.py`
+- Create: `src/code_agent/workspace/tests/test_git_snapshot_safety.py`
+- Create: `src/code_agent/workspace/tests/test_git_snapshot_render.py`
 
 - [ ] **Step 1: Write failing staged/untracked tests**
 
@@ -390,18 +393,22 @@ class GitDiffSnapshot:
 `GitWorkspace.diff_snapshot(paths=())` uses only fixed argv:
 
 ```text
-git diff --no-ext-diff --no-textconv --cached --name-only -z --no-renames -- <paths>
-git diff --no-ext-diff --no-textconv --name-only -z --no-renames -- <paths>
-git diff --no-ext-diff --no-textconv --cached -- <paths>
-git diff --no-ext-diff --no-textconv -- <paths>
+git diff --no-ext-diff --no-textconv --cached --name-only -z --no-renames --
+git diff --no-ext-diff --no-textconv --name-only -z --no-renames --
+git diff --no-ext-diff --no-textconv --cached --no-renames -- <validated paths>
+git diff --no-ext-diff --no-textconv --no-renames -- <validated paths>
 git ls-files --others --exclude-standard -z -- <paths>
 ```
 
-The two name-only preflights validate every tracked path before either patch is
-read, including both sides of renames. Untracked text is converted to a bounded
-`/dev/null -> b/path` unified diff with Python `difflib`; binary content is not
-decoded. All command output, validated paths, file reads, and rendered facets
-share the existing global output ceiling.
+The two global name-only preflights fail closed on every dirty tracked path.
+Literal file/directory filters are then applied in Python and each patch receives
+only the frozen validated paths; an empty facet skips its patch command. Tracked
+patches decode as strict UTF-8. Untracked bytes are read only from an opened
+regular-file handle whose final target and identity pass the workspace guard.
+Text is rendered as an applicable new-file patch, including empty files and the
+standard no-final-newline marker; binary content becomes metadata only. All
+command output, validated paths, file reads, and rendered facets share the
+existing global output ceiling.
 
 - [ ] **Step 4: Verify Workspace GREEN and commit**
 
