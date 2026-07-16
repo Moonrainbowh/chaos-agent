@@ -165,6 +165,33 @@ class SemanticCompactorTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertFalse(result.triggered)
 
+    async def test_revision_does_not_change_derived_semantics(self) -> None:
+        summarizer = RecordingSummarizer()
+        compactor = SemanticCompactor(summarizer, RecordingFallback(), keep_recent=2)
+        messages = _messages()
+        results = []
+
+        for revision in (1, 2):
+            results.append(
+                await compactor.compact(
+                    "thread-a",
+                    revision,
+                    messages,
+                    context_tokens=900,
+                    context_limit=1_000,
+                    target_tokens=500,
+                )
+            )
+
+        first_checkpoint = results[0].checkpoint
+        second_checkpoint = results[1].checkpoint
+        self.assertIsNotNone(first_checkpoint)
+        self.assertIsNotNone(second_checkpoint)
+        self.assertEqual(summarizer.requests[0], summarizer.requests[1])
+        self.assertEqual(first_checkpoint.id, second_checkpoint.id)
+        self.assertEqual(first_checkpoint.source_digest, second_checkpoint.source_digest)
+        self.assertEqual(results[0].messages, results[1].messages)
+
     async def test_request_identity_is_validated_below_threshold(self) -> None:
         compactor = SemanticCompactor(RecordingSummarizer(), RecordingFallback())
         arguments = {"context_tokens": 1, "context_limit": 100, "target_tokens": 50}

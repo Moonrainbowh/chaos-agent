@@ -19,7 +19,7 @@
 - `DeterministicSummaryService.summarize(request, cancellation): SummaryResponse` / `render_bounded_source_summary(sources, max_tokens): str`：按来源顺序生成有界且不可信的确定性摘要 | 无 provider 或网络副作用 | 仅渲染公开消息内容与工具 action 名称，不读取独立隐藏推理字段。
 - `SemanticCheckpoint.create(sources, response): SemanticCheckpoint`：固化摘要来源范围、模型、用量、版本和范围 digest | 无副作用 | checkpoint 始终是不可信派生上下文。
 - `semantic_checkpoint_payload(checkpoint): dict`：输出稳定且可 JSON 序列化的 checkpoint 元数据 | 无副作用 | 排除摘要、原消息文本和来源集合。
-- `SemanticCompactor.compact(thread_id, revision, messages, *, context_tokens, context_limit, target_tokens, cancellation): SemanticCompactionResult`：在上下文压力达到阈值时压缩闭合旧区间并保留最近原文 | 调用注入的摘要服务 | 接收 thread、revision 和取消边界；revision 仅标识请求身份与审计边界，不进入 checkpoint 或摘要，取消向上传播，失败、超时、孤立工具消息或预算超限时使用确定性回退。
+- `SemanticCompactor.compact(thread_id, revision, messages, *, context_tokens, context_limit, target_tokens, cancellation): SemanticCompactionResult`：在上下文压力达到阈值时压缩闭合旧区间并保留最近原文 | 调用注入的摘要服务 | 接收 thread、revision 和取消边界；revision 是由调用方持有的身份/审计字段，本 Unit 仅验证且有意不写入 checkpoint、summary 或 prompt；取消向上传播，失败、超时、孤立工具消息或预算超限时使用确定性回退。
 - `BoundedThreadIndex.add(entry): None`：在显式授权的 thread tree 内维护容量受限的来源索引 | 超限时淘汰最旧条目 | stable ID 冲突会被拒绝。
 - `BoundedThreadIndex.search(query, ...): tuple[SearchHit, ...]`：对授权消息、事件、checkpoint 与 evidence 文本执行有界检索 | 无副作用 | 不接受任意 thread ID 越权查询。
 - `ThreadReader.read_thread(anchor, ...): ThreadRead`：读取稳定来源及其后续替代、回滚和实际工具结果 | 无副作用 | 推翻仅标记为冲突候选，不改写原始事实。
