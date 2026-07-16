@@ -4,9 +4,8 @@ import asyncio
 import json
 from dataclasses import dataclass
 from math import ceil
-from typing import Protocol, Sequence
+from typing import Sequence
 
-from code_agent.core.cancellation import CancellationToken
 from code_agent.core.context_request import ContextRequest
 from code_agent.core.models import ContextBundle, Message, ToolDefinition
 from code_agent.thread_intelligence.compaction import SemanticCompactionResult
@@ -17,27 +16,15 @@ from .errors import ContextBudgetError, RuleLimitError
 from .models import CompactionResult, ContextConfig
 from .repo_map import RepoMapBuilder
 from .rules import RuleLoader
+from .semantic import SemanticCompactor, compact_with_cancellation
 from .tokens import estimate_tokens
 from .task_state import render_task_state
-
-
-class _SemanticCompactor(Protocol):
-    async def compact(
-        self,
-        thread_id: str,
-        revision: int,
-        messages: Sequence[Message],
-        *,
-        context_tokens: int,
-        context_limit: int,
-        target_tokens: int,
-        cancellation: CancellationToken | None = None,
-    ) -> SemanticCompactionResult: ...
 
 
 @dataclass(frozen=True)
 class _BuildPlan:
     working: tuple[Message, ...]
+    working_tokens: int
     prefix: str
     rendered_tools: str
     allocation: PromptAllocation
@@ -53,7 +40,7 @@ class WorkspaceContextBuilder:
         repo_map: RepoMapBuilder,
         compactor: DeterministicCompactor,
         *,
-        semantic_compactor: _SemanticCompactor | None = None,
+        semantic_compactor: SemanticCompactor | None = None,
     ) -> None:
         if not isinstance(config, ContextConfig):
             raise TypeError("config must be a ContextConfig")
@@ -97,6 +84,7 @@ class WorkspaceContextBuilder:
         working = request.messages
         if request.user_input:
             working += (Message(role="user", content=request.user_input),)
+        working_tokens = _message_tokens(working)
         rendered_rules = self.rules.render(self.rules.load())
         request.cancellation.raise_if_cancelled()
         rule_tokens = estimate_tokens(rendered_rules)
@@ -121,7 +109,7 @@ class WorkspaceContextBuilder:
             tool_tokens=estimate_tokens(rendered_tools),
             task_state_tokens=state_tokens,
         )
-        return _BuildPlan(working, prefix, rendered_tools, allocation)
+        return _BuildPlan(working, working_tokens, prefix, rendered_tools, allocation)
 
     async def _compact_semantic(
         self, request: ContextRequest, plan: _BuildPlan
@@ -129,12 +117,13 @@ class WorkspaceContextBuilder:
         if self.semantic_compactor is None:
             return None
         context_limit = plan.allocation.message_tokens
-        context_tokens = _message_tokens(plan.working)
+        context_tokens = plan.working_tokens
         if request.context_pressure is not None:
             context_tokens = max(
                 context_tokens, ceil(request.context_pressure * context_limit)
             )
-        result = await self.semantic_compactor.compact(
+        return await compact_with_cancellation(
+            self.semantic_compactor,
             request.thread_id,
             request.revision,
             plan.working,
@@ -143,9 +132,6 @@ class WorkspaceContextBuilder:
             target_tokens=plan.allocation.message_tokens,
             cancellation=request.cancellation,
         )
-        if not isinstance(result, SemanticCompactionResult):
-            raise TypeError("semantic_compactor returned an invalid result")
-        return result
 
     def _finish_sync(
         self,

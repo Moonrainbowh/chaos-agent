@@ -16,6 +16,7 @@ from code_agent.context.compaction import DeterministicCompactor  # noqa: E402
 from code_agent.context.models import ContextConfig  # noqa: E402
 from code_agent.context.repo_map import RepoMapBuilder  # noqa: E402
 from code_agent.context.rules import RuleLoader  # noqa: E402
+from code_agent.context.tokens import estimate_tokens  # noqa: E402
 from code_agent.core.cancellation import (  # noqa: E402
     CancellationError,
     CancellationToken,
@@ -187,23 +188,33 @@ class SemanticWorkspaceContextBuilderTests(unittest.IsolatedAsyncioTestCase):
             sources,
             SummaryResponse("private summary", "summary-model", Usage(10, 3)),
         )
+        latest_intent = "latest intent " + "details " * 100
         semantic_messages = (
-            Message(role="developer", content="Anchored checkpoint prompt."),
-            Message(role="user", content="latest tail"),
+            Message(
+                role="developer",
+                content="Anchored checkpoint prompt. " + "summary " * 100,
+            ),
+            Message(role="user", content=latest_intent),
         )
         semantic = RecordingSemanticCompactor(
-            SemanticCompactionResult(
-                semantic_messages, checkpoint, True, False
-            )
+            SemanticCompactionResult(semantic_messages, checkpoint, True, False)
         )
         deterministic = RecordingDeterministicCompactor(self.config)
 
         bundle = await self.builder(semantic, deterministic).build(
-            self.request(messages=history, user_input="latest tail")
+            self.request(messages=history, user_input=latest_intent)
         )
 
         self.assertEqual(deterministic.calls, [(semantic_messages, 30)])
-        self.assertEqual(bundle.messages, semantic_messages)
+        rendered_tokens = sum(
+            1 + estimate_tokens(message.content) for message in bundle.messages
+        )
+        self.assertLessEqual(
+            rendered_tokens, bundle.measurements["message_tokens"]
+        )
+        self.assertEqual(bundle.messages[-1].role, "user")
+        self.assertTrue(bundle.messages[-1].content.startswith("latest intent"))
+        self.assertTrue(latest_intent.startswith(bundle.messages[-1].content))
         self.assertEqual(bundle.measurements["semantic_triggered"], 1)
         self.assertEqual(bundle.measurements["semantic_fallback"], 0)
         self.assertEqual(bundle.measurements["semantic_source_count"], 2)
@@ -250,7 +261,7 @@ class SemanticWorkspaceContextBuilderTests(unittest.IsolatedAsyncioTestCase):
                 self.request(user_input="latest request")
             )
 
-    async def test_cancellation_during_or_after_semantic_never_returns_bundle(self) -> None:
+    async def test_boundary_cancellation_never_returns_bundle(self) -> None:
         for raise_inside in (True, False):
             with self.subTest(raise_inside=raise_inside):
                 deterministic = RecordingDeterministicCompactor(self.config)
