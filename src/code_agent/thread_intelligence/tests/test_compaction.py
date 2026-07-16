@@ -50,7 +50,7 @@ class SemanticCompactorTests(unittest.IsolatedAsyncioTestCase):
         messages = _messages()
 
         result = await SemanticCompactor(summarizer, fallback).compact(
-            "thread-a", messages, context_tokens=899, context_limit=1_000, target_tokens=500
+            "thread-a", 1, messages, context_tokens=899, context_limit=1_000, target_tokens=500
         )
 
         self.assertFalse(result.triggered)
@@ -65,7 +65,7 @@ class SemanticCompactorTests(unittest.IsolatedAsyncioTestCase):
         compactor = SemanticCompactor(summarizer, fallback, keep_recent=2)
 
         result = await compactor.compact(
-            "thread-a", messages, context_tokens=900, context_limit=1_000, target_tokens=500
+            "thread-a", 1, messages, context_tokens=900, context_limit=1_000, target_tokens=500
         )
 
         self.assertTrue(result.triggered)
@@ -83,7 +83,7 @@ class SemanticCompactorTests(unittest.IsolatedAsyncioTestCase):
         result = await SemanticCompactor(
             RecordingSummarizer(fail=True), fallback, keep_recent=2
         ).compact(
-            "thread-a", _messages(), context_tokens=950, context_limit=1_000, target_tokens=77
+            "thread-a", 1, _messages(), context_tokens=950, context_limit=1_000, target_tokens=77
         )
 
         self.assertTrue(result.fallback_used)
@@ -101,7 +101,7 @@ class SemanticCompactorTests(unittest.IsolatedAsyncioTestCase):
         )
 
         result = await SemanticCompactor(summarizer, fallback, keep_recent=1).compact(
-            "thread-a", messages, context_tokens=950, context_limit=1_000, target_tokens=20
+            "thread-a", 1, messages, context_tokens=950, context_limit=1_000, target_tokens=20
         )
 
         self.assertTrue(result.fallback_used)
@@ -121,7 +121,7 @@ class SemanticCompactorTests(unittest.IsolatedAsyncioTestCase):
             summary_tokens=20,
             model_token_budget=100,
         ).compact(
-            "thread-a", _messages(), context_tokens=950, context_limit=1_000, target_tokens=77
+            "thread-a", 1, _messages(), context_tokens=950, context_limit=1_000, target_tokens=77
         )
 
         self.assertTrue(result.fallback_used)
@@ -134,7 +134,7 @@ class SemanticCompactorTests(unittest.IsolatedAsyncioTestCase):
         messages = (trusted,) + _messages()
 
         result = await SemanticCompactor(summarizer, fallback, keep_recent=2).compact(
-            "thread-a", messages, context_tokens=950, context_limit=1_000, target_tokens=77
+            "thread-a", 1, messages, context_tokens=950, context_limit=1_000, target_tokens=77
         )
 
         self.assertIs(result.messages[0], trusted)
@@ -149,6 +149,7 @@ class SemanticCompactorTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(CancellationError):
             await SemanticCompactor(RecordingSummarizer(), fallback).compact(
                 "thread-a",
+                1,
                 _messages(),
                 context_tokens=950,
                 context_limit=1_000,
@@ -156,6 +157,34 @@ class SemanticCompactorTests(unittest.IsolatedAsyncioTestCase):
                 cancellation=cancellation,
             )
         self.assertEqual(fallback.calls, [])
+
+    async def test_revision_two_is_accepted_below_threshold(self) -> None:
+        result = await SemanticCompactor(RecordingSummarizer(), RecordingFallback()).compact(
+            "thread-a", 2, _messages(), context_tokens=1, context_limit=100, target_tokens=50
+        )
+
+        self.assertFalse(result.triggered)
+
+    async def test_request_identity_is_validated_below_threshold(self) -> None:
+        compactor = SemanticCompactor(RecordingSummarizer(), RecordingFallback())
+        arguments = {"context_tokens": 1, "context_limit": 100, "target_tokens": 50}
+
+        with self.assertRaisesRegex(ValueError, "thread_id must not be blank"):
+            await compactor.compact("   ", 1, _messages(), **arguments)
+        with self.assertRaisesRegex(ValueError, "revision must be positive"):
+            await compactor.compact("thread-a", 0, _messages(), **arguments)
+        for revision in (True, "1"):
+            with self.subTest(revision=revision):
+                with self.assertRaisesRegex(TypeError, "revision must be an integer"):
+                    await compactor.compact("thread-a", revision, _messages(), **arguments)
+
+    async def test_non_string_thread_id_is_rejected_below_threshold(self) -> None:
+        compactor = SemanticCompactor(RecordingSummarizer(), RecordingFallback())
+
+        with self.assertRaisesRegex(TypeError, "thread_id must be a string"):
+            await compactor.compact(
+                None, 1, _messages(), context_tokens=1, context_limit=100, target_tokens=50
+            )
 
 
 if __name__ == "__main__":
