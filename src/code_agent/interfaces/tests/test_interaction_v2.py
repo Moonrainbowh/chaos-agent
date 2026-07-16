@@ -5,7 +5,7 @@ import unittest
 from dataclasses import replace
 
 from code_agent.core.cancellation import CancellationError, CancellationToken
-from code_agent.interfaces.diff_view import DiffController, DiffView
+from code_agent.interfaces.diff_view import DiffController, DiffScope, DiffView
 from code_agent.interfaces.interaction import (
     HostInteraction,
     InteractionBroker,
@@ -190,9 +190,14 @@ class DiffViewTests(unittest.IsolatedAsyncioTestCase):
         view.filter("missing")
         self.assertIsNone(view.current)
 
-        loaded = await DiffController(Source()).load(recorded, ("live.py",))
+        loaded = await DiffController(Source()).load(
+            DiffScope.WORKING_TREE, recorded, ("live.py",)
+        )
         self.assertEqual(loaded.current.path, "live.py")  # type: ignore[union-attr]
-        self.assertEqual(loaded.render()[0].text, "live.py · +1 -0 · file 1/1")
+        self.assertEqual(
+            loaded.render()[0].text,
+            "live.py · unstaged · fresh · stale · +1 -0 · file 1/1",
+        )
 
 
 class ModePermissionViewTests(unittest.TestCase):
