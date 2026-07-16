@@ -3,6 +3,7 @@
 
 ## 边界
 - 负责：线程生命周期、消息与事件存储、持久目标、checkpoint 元数据、恢复和 schema migration。
+- 负责：checkpoint 记录 message/event bounds 与 opaque artifact handles。
 - 负责：持久化任务预算快照与累计使用量，使恢复同一 thread 不重置限制。
 - 负责：提供事务边界和稳定 ID，支持 TUI 与非交互 CLI 共享同一会话。
 - 不负责：执行回合、调用模型、运行命令、决定权限或保存明文密钥。

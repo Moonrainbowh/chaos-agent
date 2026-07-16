@@ -4,6 +4,7 @@
 ## 边界
 - 负责：稳定系统前缀、分层 `AGENTS.md` 规则发现、repo map、相关文件选择和 token 预算。
 - 负责：保留近期原文的确定性压缩，并为后续实验性压缩策略提供接口。
+- 负责：压缩接收请求的 `thread_id`、`revision` 与 cancellation，但绝不持久化 checkpoint。
 - 不负责：发起模型请求、修改文件、运行命令或持久化完整会话。
 - 不负责：将整个仓库或所有扩展说明无条件注入提示词。
 - 负责有界渲染目标、未满足 required criteria、当前 generation 与最新有效 evidence 摘要；已失效证据和模型工作笔记不得作为通过事实呈现。
