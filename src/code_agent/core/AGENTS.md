@@ -21,6 +21,7 @@
 - `AgentEngineCompletionMixin._resolve_task_completion(...)`: 将模型停调用后的 assessment 交给持久验证门 | 调用抽象验证与 sessions 协议 | 只有 sessions 原子 finalize 可产生 `COMPLETED`
 - `decide_verification_transition(...)`: 将 assessment 与 verifier outcome 映射为 `VERIFYING`、修复、等待或完成 | 无副作用 | 所有状态先持久化再由集成层发布
 - `Message`、`ToolCall`: 表达对话内容与模型工具调用 | 无副作用 | 输入在构造时校验并冻结
+- `ContextRequest`: 以不可变快照携带单次上下文构建的 thread、revision、输入、控制与纯数值预算 | 无副作用 | JSON 快照深复制并冻结
 - `ActionRequest`、`ActionResult`、`ToolDefinition`: 定义动作请求、结果与工具元数据 | 无副作用 | 仅承载 JSON 兼容数据
 - `ModelEvent`、`Usage`、`ContextBundle`: 表达模型流事件、用量和构建后的上下文 | 无副作用 | 上下文度量只允许固定名称的非负整数计数
 - `AgentEvent`: 发布可持久化的内核生命周期事件 | 生成 UTC 时间戳 | `CONTEXT_BUILT` 仅记录本地数值预算、压缩和缓存计数，不含提示或工具输出

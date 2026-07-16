@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import AsyncIterator, Protocol, Sequence
 
 from .cancellation import CancellationToken
+from .context_request import ContextRequest
 from .events import AgentEvent
 from .models import (
     ActionRequest,
@@ -28,13 +29,7 @@ class ModelClient(Protocol):
 
 
 class ContextBuilder(Protocol):
-    async def build(
-        self,
-        messages: Sequence[Message],
-        user_input: str,
-        tools: Sequence[ToolDefinition],
-        task_state: TaskState,
-    ) -> ContextBundle: ...
+    async def build(self, request: ContextRequest) -> ContextBundle: ...
 
 
 class ActionDispatcher(Protocol):

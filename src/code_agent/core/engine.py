@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
-from typing import AsyncIterator, Optional
+from typing import AsyncIterator, Mapping, Optional
 
+from ._json import JSONValue, freeze_mapping
 from ._session_io import SessionJournal
 from .cancellation import CancellationError, CancellationToken
+from .context_request import ContextRequest, budget_lease
 from .errors import AgentEngineError, ContextBuildError, EngineLimitError, ModelStreamError
 from .events import AgentEvent, EventKind
 from .limits import EngineLimits, add_usage
@@ -27,6 +29,8 @@ class AgentEngine(AgentEngineCompletionMixin, AgentEngineActionMixin):
         limits: Optional[EngineLimits] = None,
         model_name: str = "configured-model",
         verification: TaskVerificationService | None = None,
+        context_mode_snapshot: Mapping[str, JSONValue] | None = None,
+        context_permission_snapshot: Mapping[str, JSONValue] | None = None,
     ) -> None:
         self._model = model
         self._context = context
@@ -37,6 +41,8 @@ class AgentEngine(AgentEngineCompletionMixin, AgentEngineActionMixin):
             raise ValueError("model_name must be non-blank text")
         self._model_name = model_name
         self._verification = verification
+        self._context_mode_snapshot = freeze_mapping({} if context_mode_snapshot is None else context_mode_snapshot, "context_mode_snapshot")
+        self._context_permission_snapshot = freeze_mapping({} if context_permission_snapshot is None else context_permission_snapshot, "context_permission_snapshot")
 
     async def run(
         self,
@@ -82,7 +88,6 @@ class AgentEngine(AgentEngineCompletionMixin, AgentEngineActionMixin):
             added = self._journal.message_added(user_message)
             await self._journal.append_event(active_thread, added)
             yield added
-
             messages = prior_messages + (user_message,)
             used_call_ids: set[str] = set()
             total_usage = Usage()
@@ -123,12 +128,11 @@ class AgentEngine(AgentEngineCompletionMixin, AgentEngineActionMixin):
                 source_input = user_input if turn == 1 else ""
                 try:
                     task_state = await self._journal.load_task_state(active_thread)
-                    bundle = await self._context.build(
-                        source_messages,
-                        source_input,
-                        tools,
-                        task_state,
-                    )
+                    bundle = await self._context.build(ContextRequest(
+                        active_thread, turn, source_messages, source_input, tools,
+                        task_state, token, self._context_mode_snapshot,
+                        self._context_permission_snapshot, budget_lease=budget_lease(task_budget),
+                    ))
                     if not isinstance(bundle, ContextBundle):
                         raise TypeError("context builder returned an invalid bundle")
                 except CancellationError:
