@@ -15,7 +15,7 @@
 - 不负责解析 verifier 输出、执行验证或把模型消息提升为 evidence。
 
 ## Units
-- `ThreadStatus`、`GoalStatus`、`ThreadSummary`、`GoalRecord`、`CheckpointRecord`: 表达不可变的会话、目标和 checkpoint 状态 | 无副作用 | 时间统一归一化为 UTC，元数据深度冻结
+- `ThreadStatus`、`GoalStatus`、`ThreadSummary`、`GoalRecord`、`CheckpointRecord`: 表达不可变的会话、目标和 checkpoint 状态 | 无副作用 | 时间统一归一化为 UTC，元数据深度冻结；旧 checkpoint 的 message/event bounds 为 `None`
 - `SQLiteSessionRepository`: 实现内核会话协议并提供线程列表、归档与事件恢复读取 | SQLite I/O | 每个异步操作使用独立的短事务连接
 - `SQLiteSessionRepository.load_task_state`、`save_task_state`、`reduce_task_state`: 读取、保存并在单事务中归约有界任务事实 | SQLite I/O | 可验证事实与模型工作笔记分离，笔记始终作为未验证内容；缺失状态返回空状态，缺失线程失败闭合
 - `SQLiteSessionRepository.get_or_create_task_budget`、`reserve_task_budget`: 创建、读取并原子保留模型回合和工具调用额度 | SQLite I/O | 同一 thread 的预算快照不可被恢复操作重置
@@ -25,7 +25,7 @@
 - `register_task_execution`、`reconcile_stale_tasks`: 记录任务 owner 身份并原子中断失效 owner 的活动任务 | SQLite I/O | 调用方提供 PID/create_time 身份判定，活 owner 不得被接管
 - `save_task_contract_revision`、`begin_verification_run`、`append_verification_evidence`: 保存 revision 与 append-only verification ledger | SQLite I/O | 未结束 run 不能被当作成功 evidence
 - `finalize_task`、`interrupt_open_verification_runs`: 在一个事务内复核当前 revision/run/required evidence 后完成，或把恢复前在途 run 标为 interrupted | SQLite I/O | 不存在通用的 evidence-free completed 路径
-- `RecordRepositoryMixin`: 保存、更新和读取目标与 checkpoint | SQLite I/O | 所有记录必须归属于存在的线程
+- `RecordRepositoryMixin`: 保存、更新和读取目标与 checkpoint，并在创建 checkpoint 的同一事务内记录 thread-scoped message/event maxima | SQLite I/O | 所有记录必须归属于存在的线程；空流边界为 `0`，中断 checkpoint 保留 nullable legacy 语义
 - `SessionDatabase`: 执行版本化 schema migration、连接配置、事务和完整性校验 | SQLite I/O | 未来版本、缺表和损坏数据均失败闭合
 - `migrate_legacy_session_database`: 使用 SQLite backup API 复制旧库并校验计数与完整性 | SQLite I/O | 临时目标原子替换，旧库始终保留
 - `encode_message`、`decode_message`、`encode_event`、`decode_event`: 在核心模型与稳定 JSON 记录间转换 | JSON 编解码 | 不能信任的持久化内容抛出专用损坏错误

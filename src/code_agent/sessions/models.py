@@ -54,6 +54,16 @@ def _metadata(value: object) -> Mapping[str, JSONValue]:
     return freeze_mapping(value, "metadata")
 
 
+def _optional_sequence(value: object, name: str) -> Optional[int]:
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise TypeError(f"{name} must be an integer or None")
+    if value < 0:
+        raise ValueError(f"{name} must not be negative")
+    return value
+
+
 @dataclass(frozen=True)
 class ThreadSummary:
     id: str
@@ -126,6 +136,8 @@ class CheckpointRecord:
     label: str
     metadata: Mapping[str, JSONValue] = field(default_factory=dict)
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    message_sequence: int | None = None
+    event_sequence: int | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "id", _required_text(self.id, "id"))
@@ -136,4 +148,14 @@ class CheckpointRecord:
         object.__setattr__(self, "metadata", _metadata(self.metadata))
         object.__setattr__(
             self, "created_at", _utc(self.created_at, "created_at")
+        )
+        object.__setattr__(
+            self,
+            "message_sequence",
+            _optional_sequence(self.message_sequence, "message_sequence"),
+        )
+        object.__setattr__(
+            self,
+            "event_sequence",
+            _optional_sequence(self.event_sequence, "event_sequence"),
         )

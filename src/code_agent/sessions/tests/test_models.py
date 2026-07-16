@@ -84,6 +84,43 @@ class SessionModelTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             goal.metadata["priority"] = "low"  # type: ignore[index]
 
+    def test_checkpoint_bounds_accept_none_or_nonnegative_integers(self) -> None:
+        legacy = CheckpointRecord(
+            id="legacy",
+            thread_id="thread-1",
+            label="old",
+            created_at=self.now,
+        )
+        bounded = CheckpointRecord(
+            id="bounded",
+            thread_id="thread-1",
+            label="new",
+            created_at=self.now,
+            message_sequence=0,
+            event_sequence=7,
+        )
+
+        self.assertIsNone(legacy.message_sequence)
+        self.assertIsNone(legacy.event_sequence)
+        self.assertEqual((bounded.message_sequence, bounded.event_sequence), (0, 7))
+
+    def test_checkpoint_bounds_reject_invalid_values(self) -> None:
+        for field, value, error in (
+            ("message_sequence", True, TypeError),
+            ("event_sequence", "1", TypeError),
+            ("message_sequence", -1, ValueError),
+        ):
+            with self.subTest(field=field, value=value):
+                arguments = {field: value}
+                with self.assertRaises(error):
+                    CheckpointRecord(
+                        id="checkpoint",
+                        thread_id="thread-1",
+                        label="invalid",
+                        created_at=self.now,
+                        **arguments,
+                    )
+
 
 if __name__ == "__main__":
     unittest.main()

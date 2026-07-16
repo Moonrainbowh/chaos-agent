@@ -15,7 +15,7 @@ from .errors import (
 )
 
 
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 10
 _BUSY_TIMEOUT_MS = 5_000
 _SQLITE_CORRUPT = 11
 _SQLITE_NOTADB = 26
@@ -74,6 +74,10 @@ _MIGRATIONS: dict[int, tuple[str, ...]] = {
         "CREATE INDEX verification_runs_task_created ON verification_runs(task_id, created_at)",
         "CREATE INDEX verification_evidence_task_created ON verification_evidence(task_id, created_at)",
     ),
+    10: (
+        "ALTER TABLE checkpoints ADD COLUMN message_sequence INTEGER",
+        "ALTER TABLE checkpoints ADD COLUMN event_sequence INTEGER",
+    ),
 }
 
 _REQUIRED_COLUMNS = {
@@ -84,7 +88,10 @@ _REQUIRED_COLUMNS = {
         "id", "thread_id", "objective", "status", "metadata", "created_at",
         "updated_at",
     },
-    "checkpoints": {"id", "thread_id", "label", "metadata", "created_at"},
+    "checkpoints": {
+        "id", "thread_id", "label", "metadata", "created_at",
+        "message_sequence", "event_sequence",
+    },
     "task_budgets": {"thread_id", "model_name", "max_agent_rounds", "max_tool_calls", "max_tool_calls_per_round", "max_total_tokens", "model_turns", "tool_calls", "input_tokens", "output_tokens", "repair_cycles", "repeated_failures", "last_failure_signature", "active_seconds", "warned_at_80", "warned_at_90"},
     "task_states": {"thread_id", "payload", "updated_at"},
     "tasks": {"id", "thread_id", "contract", "status", "stop_reason", "created_at", "updated_at"},
