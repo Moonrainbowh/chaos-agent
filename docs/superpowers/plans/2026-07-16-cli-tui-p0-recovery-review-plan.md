@@ -429,6 +429,7 @@ git commit -m "feat: expose complete git diff facets"
 - Modify: `src/code_agent/interfaces/tui_interactions.py`
 - Modify: `src/code_agent/interfaces/AGENTS.md`
 - Create: `src/code_agent/interfaces/tests/test_diff_view.py`
+- Create: `src/code_agent/interfaces/tests/test_diff_view_malformed.py`
 - Modify: `src/code_agent/interfaces/tests/test_interaction_v2.py`
 
 - [ ] **Step 1: Write failing scope and stale-source tests**
@@ -439,6 +440,7 @@ Assert working-tree view contains staged, unstaged, and untracked sections; per-
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest src.code_agent.interfaces.tests.test_diff_view -v
+.\.venv\Scripts\python.exe -m unittest src.code_agent.interfaces.tests.test_diff_view_malformed -v
 .\.venv\Scripts\python.exe -m unittest src.code_agent.interfaces.tests.test_interaction_v2.DiffViewTests -v
 ```
 
@@ -466,6 +468,8 @@ The private parser also accepts metadata-only empty/binary patches and decodes
 Git C-style quoted paths, so every Task 4 facet remains visible. Legacy live
 sources that return one string remain an unstaged working-tree document; rich
 sources may return scoped documents without changing the Host adapter yet.
+Malformed hunk ranges and quoted paths fail closed, and a non-empty live payload
+that parses to no files cannot suppress a valid recorded fallback.
 
 - [ ] **Step 4: Verify Interfaces GREEN and commit**
 
