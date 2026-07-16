@@ -178,8 +178,7 @@ def _normalize_payload(
     payload: DiffSourcePayload, requested: DiffScope
 ) -> tuple[DiffSourceDocument, ...]:
     if isinstance(payload, str):
-        scope = DiffScope.UNSTAGED if requested is DiffScope.WORKING_TREE else requested
-        return (DiffSourceDocument(scope, payload, True),)
+        return (DiffSourceDocument(DiffScope.UNSTAGED, payload, True),)
     if isinstance(payload, DiffSourceDocument):
         return (payload,)
     if not isinstance(payload, Sequence):

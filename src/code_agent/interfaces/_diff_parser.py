@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -53,7 +54,9 @@ def parse_files(
     files: list[FileDiff] = []
     state = _ParseState(scope, fresh)
     for raw in unified.splitlines():
-        if raw.startswith("diff --git "):
+        if state.in_hunk:
+            state.consume_hunk(raw)
+        elif raw.startswith("diff --git "):
             state.finish(files)
             state.start_git(raw[11:])
         elif raw.startswith("--- "):
@@ -61,7 +64,7 @@ def parse_files(
         elif raw.startswith("+++ ") and state.old_path is not None:
             state.new_path = _header_path(raw[4:])
         elif state.old_path is not None and state.new_path is not None:
-            state.lines.append(DiffLine(_line_kind(raw), raw))
+            state.append_line(raw)
     state.finish(files)
     return tuple(files)
 
@@ -74,6 +77,12 @@ class _ParseState:
     new_path: str | None = None
     lines: list[DiffLine] = field(default_factory=list)
     git_header: bool = False
+    old_remaining: int | None = None
+    new_remaining: int | None = None
+
+    @property
+    def in_hunk(self) -> bool:
+        return self.old_remaining is not None
 
     def finish(self, files: list[FileDiff]) -> None:
         if self.old_path is not None and self.new_path is not None:
@@ -83,6 +92,7 @@ class _ParseState:
         self.old_path = self.new_path = None
         self.lines = []
         self.git_header = False
+        self.old_remaining = self.new_remaining = None
 
     def start_git(self, value: str) -> None:
         tokens = _git_tokens(value)
@@ -95,6 +105,40 @@ class _ParseState:
         if not self.git_header:
             self.finish(files)
         self.old_path = _header_path(value)
+
+    def append_line(self, raw: str) -> None:
+        self.lines.append(DiffLine(_line_kind(raw), raw))
+        if not raw.startswith("@@"):
+            return
+        match = _HUNK_HEADER.match(raw)
+        if match is None:
+            return
+        self.old_remaining = int(match.group(1) or "1")
+        self.new_remaining = int(match.group(2) or "1")
+        self._finish_hunk_if_complete()
+
+    def consume_hunk(self, raw: str) -> None:
+        self.lines.append(DiffLine(_line_kind(raw), raw))
+        if raw == "\\ No newline at end of file":
+            return
+        assert self.old_remaining is not None and self.new_remaining is not None
+        if raw.startswith("-"):
+            self.old_remaining -= 1
+        elif raw.startswith("+"):
+            self.new_remaining -= 1
+        else:
+            self.old_remaining -= 1
+            self.new_remaining -= 1
+        self._finish_hunk_if_complete()
+
+    def _finish_hunk_if_complete(self) -> None:
+        if self.old_remaining == 0 and self.new_remaining == 0:
+            self.old_remaining = self.new_remaining = None
+
+
+_HUNK_HEADER = re.compile(
+    r"^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@(?: .*)?$"
+)
 
 
 def _line_kind(raw: str) -> DiffLineKind:

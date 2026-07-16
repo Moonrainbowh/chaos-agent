@@ -5,6 +5,7 @@ from dataclasses import FrozenInstanceError
 
 from code_agent.interfaces.diff_view import (
     DiffController,
+    DiffLineKind,
     DiffScope,
     DiffSourceDocument,
     DiffView,
@@ -34,6 +35,26 @@ class FailingSource:
 
 
 class DiffViewDocumentTests(unittest.TestCase):
+    def test_hunk_content_that_looks_like_headers_stays_in_original_file(self) -> None:
+        patch = (
+            "--- a/first.txt\n+++ b/first.txt\n"
+            "@@ -1 +1 @@\n--- old-content\n+++ new-content\n"
+            "--- a/second.txt\n+++ b/second.txt\n"
+            "@@ -1 +1 @@\n-old\n+new\n"
+        )
+
+        view = DiffView.parse(patch, DiffScope.UNSTAGED, True)
+
+        self.assertEqual(tuple(file.path for file in view.files), ("first.txt", "second.txt"))
+        content = view.files[0].lines[1:3]
+        self.assertEqual(
+            tuple((line.kind, line.text) for line in content),
+            (
+                (DiffLineKind.REMOVE, "--- old-content"),
+                (DiffLineKind.ADD, "+++ new-content"),
+            ),
+        )
+
     def test_metadata_only_empty_and_binary_documents_create_file_diffs(self) -> None:
         empty = (
             'diff --git "a/empty file.txt" "b/empty file.txt"\n'
@@ -197,6 +218,16 @@ class DiffControllerScopeTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(view.current.scope, DiffScope.UNSTAGED)  # type: ignore[union-attr]
         self.assertTrue(view.current.fresh)  # type: ignore[union-attr]
+
+    async def test_legacy_string_source_only_satisfies_unstaged_scope(self) -> None:
+        for scope in (DiffScope.UNSTAGED, DiffScope.STAGED, DiffScope.UNTRACKED):
+            with self.subTest(scope=scope):
+                view = await DiffController(RichSource(unified("legacy.py"))).load(scope)
+                if scope is DiffScope.UNSTAGED:
+                    self.assertEqual(view.current.scope, DiffScope.UNSTAGED)  # type: ignore[union-attr]
+                    self.assertEqual(view.current.path, "legacy.py")  # type: ignore[union-attr]
+                else:
+                    self.assertEqual(view.files, ())
 
 
 if __name__ == "__main__":
