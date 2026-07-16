@@ -90,7 +90,9 @@ class DiffView:
         current = self.current
         if current is None:
             raise ValueError("no file is selected")
-        if isinstance(line_index, bool) or line_index < 0 or line_index >= len(current.lines):
+        if not isinstance(line_index, int) or isinstance(line_index, bool) or line_index < 0:
+            raise ValueError("line_index is outside the selected diff")
+        if line_index >= len(current.lines):
             raise ValueError("line_index is outside the selected diff")
         if not isinstance(text, str) or not text.strip() or len(text) > 2_048:
             raise ValueError("comment must be bounded non-blank text")
@@ -103,6 +105,8 @@ class DiffView:
         return tuple(self._comments)
 
     def render(self, *, max_lines: int = 200) -> tuple[DisplayEntry, ...]:
+        if not isinstance(max_lines, int) or isinstance(max_lines, bool) or max_lines < 0:
+            raise ValueError("max_lines must be a non-negative integer")
         current = self.current
         if current is None:
             return (text_entry(DisplayKind.METADATA, "no diff available"),)
@@ -145,13 +149,14 @@ class DiffController:
             payload = await self._source.read_diff(paths)
         documents = _select_live_documents(_normalize_payload(payload, scope), scope)
         live = "".join(document.unified for document in documents)
-        if live.strip():
-            stale = bool(recorded.strip()) and _normalized(live) != _normalized(recorded)
-            return DiffView.from_documents(documents, stale=stale)
+        stale = bool(recorded.strip()) and _normalized(live) != _normalized(recorded)
+        live_view = DiffView.from_documents(documents, stale=stale)
+        if live_view.files:
+            return live_view
         if recorded.strip():
             fallback = DiffSourceDocument(scope, recorded, False)
             return DiffView.from_documents((fallback,), stale=True)
-        return DiffView.from_documents(documents)
+        return live_view
 
 
 _RECORDED_SCOPES = frozenset({DiffScope.PER_TURN, DiffScope.SINCE_CHECKPOINT})
