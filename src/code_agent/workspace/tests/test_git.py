@@ -216,19 +216,14 @@ class GitRepositoryTests(GitWorkspaceTestCase):
             GitWorkspace(self.root).diff_snapshot(("tracked.txt",))
 
         commands = [call.args[0] for call in invoked.call_args_list]
-        self.assertEqual(len(commands), 3)
-        self.assertEqual(
-            commands[0][4:],
+        expected = [
+            ["diff", "--no-ext-diff", "--no-textconv", "--cached", "--name-only", "-z", "--no-renames", "--", "tracked.txt"],
+            ["diff", "--no-ext-diff", "--no-textconv", "--name-only", "-z", "--no-renames", "--", "tracked.txt"],
             ["diff", "--no-ext-diff", "--no-textconv", "--cached", "--", "tracked.txt"],
-        )
-        self.assertEqual(
-            commands[1][4:],
             ["diff", "--no-ext-diff", "--no-textconv", "--", "tracked.txt"],
-        )
-        self.assertEqual(
-            commands[2][4:],
             ["ls-files", "--others", "--exclude-standard", "-z", "--", "tracked.txt"],
-        )
+        ]
+        self.assertEqual([command[4:] for command in commands], expected)
         for call in invoked.call_args_list:
             self.assertEqual(call.args[0][1:4], ["-c", "core.pager=cat", "--literal-pathspecs"])
             self.assertIs(call.kwargs["shell"], False)
@@ -257,6 +252,28 @@ class GitRepositoryTests(GitWorkspaceTestCase):
                 workspace.diff_snapshot((self.root.parent / "outside.txt",))
         invoked.assert_not_called()
 
+    def test_diff_snapshot_rejects_binary_sensitive_tracked_facets(self) -> None:
+        self.initialize_repository()
+        secret = self.root / ".env"
+        secret.write_bytes(b"old\x00")
+        run_git(self.root, "add", ".env")
+        run_git(self.root, "commit", "-q", "-m", "add sensitive baseline")
+        secret.write_bytes(b"SECRET_UNSTAGED\x00")
+        workspace = GitWorkspace(self.root)
+
+        with self.subTest(facet="unstaged"):
+            with self.assertRaises(SensitivePathError):
+                workspace.diff_snapshot()
+        run_git(self.root, "add", ".env")
+        with self.subTest(facet="staged"):
+            with self.assertRaises(SensitivePathError):
+                workspace.diff_snapshot()
+        run_git(self.root, "commit", "-q", "-m", "update sensitive baseline")
+        run_git(self.root, "mv", ".env", "safe.bin")
+        with self.subTest(facet="rename"):
+            with self.assertRaises(SensitivePathError):
+                workspace.diff_snapshot()
+
     def test_diff_snapshot_reguards_every_path_reported_by_git(self) -> None:
         self.initialize_repository()
         workspace = GitWorkspace(self.root)
@@ -268,7 +285,9 @@ class GitRepositoryTests(GitWorkspaceTestCase):
         ):
             listed = SimpleNamespace(argv=("git",), returncode=0, stdout=raw, stderr=b"")
             with self.subTest(raw=raw):
-                with patch.object(workspace, "_invoke", side_effect=(empty, empty, listed)):
+                with patch.object(
+                    workspace, "_invoke", side_effect=(empty, empty, empty, empty, listed)
+                ):
                     with self.assertRaises(expected):
                         workspace.diff_snapshot()
 

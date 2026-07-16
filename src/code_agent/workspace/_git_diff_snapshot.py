@@ -37,28 +37,26 @@ class SnapshotBudget:
         self.used += byte_count
 
     def command_limit(self) -> int:
-        if self.remaining <= 0:
-            raise SnapshotBudgetExceeded
         return self.remaining
 
 
-def decode_untracked_paths(
+def decode_guarded_paths(
     raw: bytes,
     guard: WorkspacePathGuard,
     budget: SnapshotBudget,
 ) -> tuple[str, ...]:
-    """Decode, re-guard, and sort Git's NUL-delimited untracked paths."""
+    """Decode, re-guard, and sort Git's NUL-delimited paths."""
     if raw and not raw.endswith(b"\0"):
-        raise WorkspaceError("git returned a malformed untracked path list")
+        raise WorkspaceError("git returned a malformed path list")
     try:
         decoded = raw.decode("utf-8")
     except UnicodeDecodeError as error:
-        raise WorkspaceError("git returned non-UTF-8 untracked paths") from error
+        raise WorkspaceError("git returned non-UTF-8 paths") from error
     entries = decoded.split("\0")[:-1] if decoded else ()
     paths: list[str] = []
     for supplied in entries:
         if not supplied:
-            raise WorkspaceError("git returned an empty untracked path")
+            raise WorkspaceError("git returned an empty path")
         relative = guard.relative(supplied).as_posix()
         budget.consume(len(relative.encode("utf-8")) + 1)
         paths.append(relative)
@@ -88,6 +86,16 @@ def collect_diff_facets(
     budget: SnapshotBudget,
     paths: tuple[str, ...],
 ) -> tuple[bytes, bytes, str, tuple[str, ...]]:
+    staged_names = _command(
+        invoke, require_success, "diff_staged_paths",
+        ("diff", "--no-ext-diff", "--no-textconv", "--cached", "--name-only", "-z", "--no-renames", "--", *paths), budget,
+    )
+    unstaged_names = _command(
+        invoke, require_success, "diff_unstaged_paths",
+        ("diff", "--no-ext-diff", "--no-textconv", "--name-only", "-z", "--no-renames", "--", *paths), budget,
+    )
+    decode_guarded_paths(staged_names, guard, budget)
+    decode_guarded_paths(unstaged_names, guard, budget)
     staged = _command(
         invoke, require_success, "diff_staged",
         ("diff", "--no-ext-diff", "--no-textconv", "--cached", "--", *paths), budget,
@@ -100,7 +108,7 @@ def collect_diff_facets(
         invoke, require_success, "untracked_paths",
         ("ls-files", "--others", "--exclude-standard", "-z", "--", *paths), budget,
     )
-    untracked_paths = decode_untracked_paths(raw_paths, guard, budget)
+    untracked_paths = decode_guarded_paths(raw_paths, guard, budget)
     untracked = render_untracked_diff(untracked_paths, guard, budget)
     return staged, unstaged, untracked, untracked_paths
 
