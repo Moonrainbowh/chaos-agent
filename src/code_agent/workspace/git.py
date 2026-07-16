@@ -8,87 +8,23 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
+from ._git_diff_snapshot import (
+    SnapshotBudget,
+    SnapshotBudgetExceeded,
+    collect_diff_facets,
+)
+from ._git_errors import (
+    GitCommandError,
+    GitOutputLimitError,
+    GitTimeoutError,
+    decode_git_output as _decode,
+)
 from .errors import WorkspaceError
-from ._git_process import collect_bounded_output
+from ._git_process import ProcessCapture, collect_bounded_output
 from .paths import PathInput, WorkspacePathGuard
 
 
 DEFAULT_MAX_OUTPUT_BYTES = 1_000_000
-
-
-class GitCommandError(WorkspaceError):
-    """A structured failure from one of the fixed Git workspace operations."""
-
-    def __init__(
-        self,
-        operation: str,
-        argv: tuple[str, ...],
-        returncode: int | None,
-        stderr: str,
-        message: str,
-        *,
-        stdout_bytes: bytes = b"",
-        stderr_bytes: bytes | None = None,
-    ) -> None:
-        self.operation = operation
-        self.argv = argv
-        self.returncode = returncode
-        self.stderr = stderr
-        self.stdout_bytes = stdout_bytes
-        self.stderr_bytes = (
-            stderr.encode("utf-8", errors="replace")
-            if stderr_bytes is None
-            else stderr_bytes
-        )
-        super().__init__(message)
-
-
-class GitOutputLimitError(GitCommandError):
-    """Raised after a Git child is stopped at the shared output budget."""
-
-    def __init__(
-        self,
-        operation: str,
-        argv: tuple[str, ...],
-        returncode: int | None,
-        stdout: bytes,
-        stderr: bytes,
-        max_output_bytes: int,
-    ) -> None:
-        self.max_output_bytes = max_output_bytes
-        super().__init__(
-            operation,
-            argv,
-            returncode,
-            _decode(stderr),
-            f"git {operation} exceeded output limit of {max_output_bytes} bytes",
-            stdout_bytes=stdout,
-            stderr_bytes=stderr,
-        )
-
-
-class GitTimeoutError(GitCommandError):
-    """Raised after a Git child exceeds its execution timeout."""
-
-    def __init__(
-        self,
-        operation: str,
-        argv: tuple[str, ...],
-        returncode: int | None,
-        stdout: bytes,
-        stderr: bytes,
-        timeout_s: float,
-    ) -> None:
-        self.timeout_s = timeout_s
-        super().__init__(
-            operation,
-            argv,
-            returncode,
-            _decode(stderr),
-            f"git {operation} exceeded timeout of {timeout_s:g} seconds",
-            stdout_bytes=stdout,
-            stderr_bytes=stderr,
-        )
 
 
 @dataclass(frozen=True)
@@ -97,6 +33,14 @@ class _GitResult:
     returncode: int
     stdout: bytes
     stderr: bytes
+
+
+@dataclass(frozen=True)
+class GitDiffSnapshot:
+    staged: str = ""
+    unstaged: str = ""
+    untracked: str = ""
+    untracked_paths: tuple[str, ...] = ()
 
 
 class GitWorkspace:
@@ -159,7 +103,42 @@ class GitWorkspace:
         self._require_success("diff", result)
         return _decode(result.stdout)
 
-    def _invoke(self, operation: str, arguments: tuple[str, ...]) -> _GitResult:
+    def diff_snapshot(
+        self, paths: Iterable[PathInput] = ()
+    ) -> GitDiffSnapshot:
+        """Return staged, unstaged, and untracked diff facets under one budget."""
+        if isinstance(paths, (str, os.PathLike)):
+            supplied_paths: Iterable[PathInput] = (paths,)
+        else:
+            supplied_paths = paths
+        relative = tuple(self.guard.relative(path).as_posix() for path in supplied_paths)
+        budget = SnapshotBudget(self.max_output_bytes)
+        try:
+            staged, unstaged, untracked, untracked_paths = collect_diff_facets(
+                self._invoke,
+                self._require_success,
+                self.guard,
+                budget,
+                relative,
+            )
+        except SnapshotBudgetExceeded as error:
+            raise self._snapshot_limit_error() from error
+        return GitDiffSnapshot(
+            _decode(staged), _decode(unstaged), untracked, untracked_paths
+        )
+
+    def _snapshot_limit_error(self) -> GitOutputLimitError:
+        argv = (self._git_executable, "diff_snapshot")
+        return GitOutputLimitError(
+            "diff_snapshot", argv, None, b"", b"", self.max_output_bytes
+        )
+
+    def _invoke(
+        self,
+        operation: str,
+        arguments: tuple[str, ...],
+        max_output_bytes: int | None = None,
+    ) -> _GitResult:
         argv = (
             self._git_executable,
             "-c",
@@ -167,8 +146,16 @@ class GitWorkspace:
             "--literal-pathspecs",
             *arguments,
         )
+        process = self._start_process(operation, argv)
+        output_limit = self.max_output_bytes if max_output_bytes is None else max_output_bytes
+        capture = collect_bounded_output(process, output_limit, self.timeout_s)
+        return self._finish_invoke(operation, argv, capture)
+
+    def _start_process(
+        self, operation: str, argv: tuple[str, ...]
+    ) -> subprocess.Popen[bytes]:
         try:
-            process = subprocess.Popen(
+            return subprocess.Popen(
                 list(argv),
                 cwd=self.root,
                 stdin=subprocess.DEVNULL,
@@ -185,9 +172,10 @@ class GitWorkspace:
                 str(error),
                 f"git {operation} could not start: {error}",
             ) from error
-        capture = collect_bounded_output(
-            process, self.max_output_bytes, self.timeout_s
-        )
+
+    def _finish_invoke(
+        self, operation: str, argv: tuple[str, ...], capture: ProcessCapture
+    ) -> _GitResult:
         if capture.exceeded:
             raise GitOutputLimitError(
                 operation,
@@ -217,9 +205,7 @@ class GitWorkspace:
                 stderr_bytes=capture.stderr,
             ) from capture.read_error
         assert capture.returncode is not None
-        return _GitResult(
-            argv, capture.returncode, capture.stdout, capture.stderr
-        )
+        return _GitResult(argv, capture.returncode, capture.stdout, capture.stderr)
 
     @staticmethod
     def _require_success(operation: str, result: _GitResult) -> None:
@@ -236,7 +222,3 @@ class GitWorkspace:
             stdout_bytes=result.stdout,
             stderr_bytes=result.stderr,
         )
-
-
-def _decode(value: bytes) -> str:
-    return value.decode("utf-8", errors="replace")

@@ -16,6 +16,7 @@ if str(SRC_ROOT) not in sys.path:
 
 from code_agent.workspace.git import (  # noqa: E402
     GitCommandError,
+    GitOutputLimitError,
     GitTimeoutError,
     GitWorkspace,
 )
@@ -225,6 +226,30 @@ class GitOutputLimitTests(unittest.TestCase):
         self.assertEqual(process.wait_timeouts[-1], 0.0)
         self.assertEqual(first.join_timeouts, [0.0])
         self.assertEqual(second.join_timeouts, [0.0])
+
+    def test_diff_snapshot_shares_one_budget_across_command_outputs(self) -> None:
+        workspace = GitWorkspace(self.root, max_output_bytes=10)
+        staged = type("Result", (), {
+            "argv": ("git",), "returncode": 0, "stdout": b"123456", "stderr": b""
+        })()
+        unstaged = type("Result", (), {
+            "argv": ("git",), "returncode": 0, "stdout": b"abcdef", "stderr": b""
+        })()
+
+        with patch.object(workspace, "_invoke", side_effect=(staged, unstaged)):
+            with self.assertRaises(GitOutputLimitError) as raised:
+                workspace.diff_snapshot()
+
+        self.assertEqual(raised.exception.max_output_bytes, 10)
+
+    def test_diff_snapshot_charges_paths_reads_and_rendered_untracked_diff(self) -> None:
+        subprocess.run(["git", "init", "-q"], cwd=self.root, check=True, shell=False)
+        (self.root / "a.txt").write_text("hello\n", encoding="utf-8")
+
+        with self.assertRaises(GitOutputLimitError) as raised:
+            GitWorkspace(self.root, max_output_bytes=64).diff_snapshot()
+
+        self.assertEqual(raised.exception.max_output_bytes, 64)
 
 
 if __name__ == "__main__":
