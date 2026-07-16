@@ -29,6 +29,9 @@ _CONTEXT_MEASUREMENT_KEYS = frozenset(
         "removed_message_count",
         "cache_hits",
         "cache_misses",
+        "semantic_triggered",
+        "semantic_fallback",
+        "semantic_source_count",
     }
 )
 
