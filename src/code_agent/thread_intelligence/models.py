@@ -6,6 +6,7 @@ import re
 from dataclasses import dataclass, field
 from enum import Enum
 
+from code_agent.core._json import JSONValue
 from code_agent.core.models import Message, Usage
 
 
@@ -53,6 +54,15 @@ class SourceAnchor:
         object.__setattr__(self, "stable_id", _text(self.stable_id, "stable_id", 512))
         if not isinstance(self.digest, str) or not _DIGEST.fullmatch(self.digest):
             raise ValueError("digest must be a SHA-256 hex digest")
+
+    def to_dict(self) -> dict[str, JSONValue]:
+        return {
+            "thread_id": self.thread_id,
+            "kind": self.kind.value,
+            "sequence": self.sequence,
+            "stable_id": self.stable_id,
+            "digest": self.digest,
+        }
 
 
 @dataclass(frozen=True)
@@ -216,3 +226,21 @@ def message_digest(message: Message) -> str:
 def source_range_digest(sources: tuple[AnchoredMessage, ...]) -> str:
     payload = "\n".join(item.anchor.digest for item in sources)
     return hashlib.sha256(payload.encode("ascii")).hexdigest()
+
+
+def semantic_checkpoint_payload(
+    checkpoint: SemanticCheckpoint,
+) -> dict[str, JSONValue]:
+    """Return stable checkpoint metadata without derived or source text."""
+    if not isinstance(checkpoint, SemanticCheckpoint):
+        raise TypeError("checkpoint must be SemanticCheckpoint")
+    return {
+        "id": checkpoint.id,
+        "thread_id": checkpoint.thread_id,
+        "source_start": checkpoint.source_start.to_dict(),
+        "source_end": checkpoint.source_end.to_dict(),
+        "source_digest": checkpoint.source_digest,
+        "model": checkpoint.model,
+        "usage": checkpoint.usage.to_dict(),
+        "version": checkpoint.version,
+    }
