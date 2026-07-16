@@ -349,6 +349,8 @@ git commit -m "feat: persist semantic checkpoint facts"
 **Stage:** Workspace Feature implementation
 
 **Files:**
+- Create: `src/code_agent/workspace/_git_diff_snapshot.py`
+- Create: `src/code_agent/workspace/_git_errors.py`
 - Modify: `src/code_agent/workspace/git.py`
 - Modify: `src/code_agent/workspace/AGENTS.md`
 - Modify: `src/code_agent/workspace/tests/test_git.py`
@@ -388,12 +390,18 @@ class GitDiffSnapshot:
 `GitWorkspace.diff_snapshot(paths=())` uses only fixed argv:
 
 ```text
+git diff --no-ext-diff --no-textconv --cached --name-only -z --no-renames -- <paths>
+git diff --no-ext-diff --no-textconv --name-only -z --no-renames -- <paths>
 git diff --no-ext-diff --no-textconv --cached -- <paths>
 git diff --no-ext-diff --no-textconv -- <paths>
 git ls-files --others --exclude-standard -z -- <paths>
 ```
 
-Untracked text is converted to a bounded `/dev/null -> b/path` unified diff with Python `difflib`; binary content is not decoded. All facets share the existing global output ceiling.
+The two name-only preflights validate every tracked path before either patch is
+read, including both sides of renames. Untracked text is converted to a bounded
+`/dev/null -> b/path` unified diff with Python `difflib`; binary content is not
+decoded. All command output, validated paths, file reads, and rendered facets
+share the existing global output ceiling.
 
 - [ ] **Step 4: Verify Workspace GREEN and commit**
 
