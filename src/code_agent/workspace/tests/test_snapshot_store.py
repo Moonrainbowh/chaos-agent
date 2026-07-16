@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import sys
 import tempfile
 import unittest
 from dataclasses import FrozenInstanceError
 from pathlib import Path
+from unittest.mock import patch
 
 
 SRC_ROOT = Path(__file__).resolve().parents[3]
@@ -148,6 +150,40 @@ class SnapshotStoreBoundaryTests(SnapshotStoreTestCase):
             with self.subTest(root=root):
                 with self.assertRaises(ValueError):
                     WorkspaceSnapshotStore(self.guard, root)
+
+    def test_authorized_local_config_state_root_round_trips(self) -> None:
+        local_app_data = self.base / "local-app-data"
+        product_state = local_app_data / "chaos-agent" / "snapshots"
+        with patch.dict(os.environ, {"LOCALAPPDATA": str(local_app_data)}, clear=False):
+            guard = WorkspacePathGuard(self.root)
+            editor = WorkspaceEditor(guard)
+            store = WorkspaceSnapshotStore(guard, product_state)
+            (self.root / "authorized.bin").write_bytes(b"authorized")
+            snapshot = editor.snapshot(("authorized.bin",))
+
+            handle = store.save(snapshot)
+
+            self.assertEqual(store.load(handle), snapshot)
+
+    def test_external_git_artifact_roots_are_always_rejected(self) -> None:
+        roots = (
+            self.base / "outside" / ".git",
+            self.base / "outside" / ".GiT" / "snapshots",
+        )
+        for root in roots:
+            with self.subTest(root=root):
+                with self.assertRaises((ValueError, WorkspaceError)):
+                    WorkspaceSnapshotStore(self.guard, root)
+
+    def test_artifact_root_rejects_link_like_parent_components(self) -> None:
+        parent = self.base / "linked-parent"
+        parent.mkdir()
+        with patch(
+            "code_agent.workspace._snapshot_artifacts._is_link_like",
+            side_effect=lambda path: path == parent,
+        ):
+            with self.assertRaises(WorkspaceError):
+                WorkspaceSnapshotStore(self.guard, parent / "snapshots")
 
     def test_absolute_sensitive_and_traversal_paths_fail_closed(self) -> None:
         for path in (str(self.root / "absolute.bin"), ".env", "../outside.bin"):

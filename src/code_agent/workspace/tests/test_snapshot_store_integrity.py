@@ -19,7 +19,7 @@ if str(SRC_ROOT) not in sys.path:
 from code_agent.workspace.edits import WorkspaceEditor  # noqa: E402
 from code_agent.workspace.errors import FileTooLargeError, WorkspaceError  # noqa: E402
 from code_agent.workspace.paths import WorkspacePathGuard  # noqa: E402
-import code_agent.workspace._snapshot_artifacts as artifact_module  # noqa: E402
+import code_agent.workspace._atomic_artifact_write as writer_module  # noqa: E402
 from code_agent.workspace.snapshot_store import (  # noqa: E402
     SnapshotHandle,
     WorkspaceSnapshotStore,
@@ -165,13 +165,52 @@ class SnapshotIntegrityTests(unittest.TestCase):
                 raise OSError("busy")
             real_replace(source, target)
 
-        with patch.object(artifact_module.os, "replace", side_effect=fail_manifest):
+        if os.name == "nt":
+            failure = patch(
+                "code_agent.workspace._windows_artifact_write.rename_relative",
+                side_effect=OSError("busy"),
+            )
+        else:
+            failure = patch.object(writer_module.os, "replace", side_effect=fail_manifest)
+
+        with failure:
             with self.assertRaises(WorkspaceError):
                 self.store.save(self.snapshot)
 
         after = {path.name for path in (self.artifacts / "manifests").iterdir()}
         self.assertEqual(after, before)
         self.assertFalse(any(name.startswith(".snapshot-") for name in after))
+
+    @unittest.skipUnless(os.name == "nt", "Windows directory sharing semantics only")
+    def test_atomic_write_stays_on_verified_directory_during_swap(self) -> None:
+        manifests = self.artifacts / "manifests"
+        moved = self.artifacts / "moved-manifests"
+        renamed: list[bool] = []
+
+        def race_directory(parent_handle: int, parent: Path) -> None:
+            del parent_handle
+            if parent != manifests:
+                return
+            try:
+                manifests.rename(moved)
+            except OSError:
+                renamed.append(False)
+            else:
+                renamed.append(True)
+                manifests.mkdir()
+
+        with patch(
+            "code_agent.workspace._windows_artifact_write._before_relative_write",
+            side_effect=race_directory,
+        ):
+            handle = self.store.save(self.snapshot)
+
+        self.assertEqual(len(renamed), 1)
+        manifest_name = f"{handle.identifier}.json"
+        expected = moved if renamed[0] else manifests
+        replacement = manifests if renamed[0] else moved
+        self.assertTrue((expected / manifest_name).is_file())
+        self.assertFalse((replacement / manifest_name).exists())
 
 
 if __name__ == "__main__":
