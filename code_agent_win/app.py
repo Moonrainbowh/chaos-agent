@@ -6,9 +6,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from code_agent.config.loader import load_runtime_config
-from code_agent.context.builder import WorkspaceContextBuilder
 from code_agent.context.cache import RepoMapCache
-from code_agent.context.compaction import DeterministicCompactor
 from code_agent.context.models import ContextConfig
 from code_agent.context.repo_map import RepoMapBuilder
 from code_agent.context.rules import RuleLoader
@@ -30,7 +28,7 @@ from code_agent.providers.runtime_manager import ProviderRuntime, ProviderRuntim
 from code_agent.runtime.local import WindowsLocalRuntime
 from code_agent.sessions.legacy_migration import migrate_legacy_session_database
 from code_agent.sessions.repository import SQLiteSessionRepository
-from code_agent.skills.registry import SkillActivation, SkillContextBuilder, SkillRegistry
+from code_agent.skills.registry import SkillActivation, SkillRegistry
 from code_agent.verification.local_adapter import LocalVerificationAdapter
 from code_agent.verification.task_service import LedgerTaskVerificationService
 from code_agent.workspace.edits import WorkspaceEditor
@@ -50,6 +48,7 @@ from code_agent_win.app_ui import (
     IntegratedForegroundTaskController,
     ModeAwareWindowsTerminalApp,
 )
+from code_agent_win.context_runtime import build_context_runtime
 from code_agent_win.plugin_runtime import PluginToolBridge, load_plugins
 from code_agent_win.runtime_support import host_risks, model_client, replace_model
 from code_agent_win.subagents import EngineChildRunner, RestrictedDispatcher, SubagentRuntime
@@ -112,13 +111,13 @@ def create_application(
     def context_for(mode: ModeSnapshot) -> object:
         prompt = windows_system_prompt(git is not None) + "\n\n" + mode_prompt(mode)
         config = ContextConfig(root, root, prompt)
-        context = WorkspaceContextBuilder(
+        return build_context_runtime(
             config,
             RuleLoader(guard, files, config),
             RepoMapBuilder(files, config, cache=cache),
-            DeterministicCompactor(config),
+            skills,
+            sessions,
         )
-        return SkillContextBuilder(context, skills)
 
     approvals = ApprovalBroker()
     mcp_risks: dict[str, str] = {"delegate_agent": "write"}
