@@ -51,13 +51,17 @@ class WorkspaceContextBuilder:
         if not isinstance(request, ContextRequest):
             raise TypeError("request must be a ContextRequest")
         request.cancellation.raise_if_cancelled()
-        return await asyncio.to_thread(self._build_sync, request)
+        bundle = await asyncio.to_thread(self._build_sync, request)
+        request.cancellation.raise_if_cancelled()
+        return bundle
 
     def _build_sync(self, request: ContextRequest) -> ContextBundle:
+        request.cancellation.raise_if_cancelled()
         working = request.messages
         if request.user_input:
             working += (Message(role="user", content=request.user_input),)
         rendered_rules = self.rules.render(self.rules.load())
+        request.cancellation.raise_if_cancelled()
         rule_tokens = estimate_tokens(rendered_rules)
         if rule_tokens > self.config.prompt_budget.max_rule_tokens:
             raise RuleLimitError(
@@ -82,6 +86,7 @@ class WorkspaceContextBuilder:
         )
         compacted = self.compactor.compact(working, allocation.message_tokens)
         query = request.user_input or _latest_user_text(compacted.messages)
+        request.cancellation.raise_if_cancelled()
         rendered_map, cache_hits, cache_misses = self.repo_map.cache.measure_operation(
             lambda: self.repo_map.render(
                 query,
@@ -89,6 +94,7 @@ class WorkspaceContextBuilder:
                 allocation.repo_map_tokens,
             )
         )
+        request.cancellation.raise_if_cancelled()
         system_prompt = prefix + rendered_map
         return _context_bundle(
             self.config,

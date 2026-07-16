@@ -6,6 +6,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from threading import Event
 
 
 SRC_ROOT = Path(__file__).resolve().parents[3]
@@ -118,6 +119,42 @@ class WorkspaceContextBuilderTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(raised.exception.reason, "stop context build")
         self.assertEqual(self.builder.repo_map.cache.counters(), (0, 0))
+
+    async def test_build_propagates_cancellation_during_background_work(self) -> None:
+        entered = Event()
+        release = Event()
+
+        class BlockingRepoMapBuilder(RepoMapBuilder):
+            def render(
+                self, query: str, touched_files: tuple[str, ...], token_budget: int
+            ) -> str:
+                entered.set()
+                if not release.wait(5):
+                    raise TimeoutError("test did not release repo map render")
+                return super().render(query, touched_files, token_budget)
+
+        guard = WorkspacePathGuard(self.root)
+        files = WorkspaceFiles(guard, IgnoreRules.from_workspace(self.root))
+        builder = WorkspaceContextBuilder(
+            self.config,
+            RuleLoader(guard, files, self.config),
+            BlockingRepoMapBuilder(files, self.config),
+            DeterministicCompactor(self.config),
+        )
+        cancellation = CancellationToken()
+        request = _context_request(cancellation=cancellation)
+        build_task = asyncio.create_task(builder.build(request))
+
+        try:
+            self.assertTrue(await asyncio.to_thread(entered.wait, 5))
+            cancellation.cancel("cancel during context build")
+            release.set()
+            with self.assertRaises(CancellationError) as raised:
+                await build_task
+            self.assertEqual(raised.exception.reason, "cancel during context build")
+        finally:
+            release.set()
+            await asyncio.gather(build_task, return_exceptions=True)
 
     async def test_empty_user_input_rebuilds_history_without_adding_empty_message(self) -> None:
         history = (
