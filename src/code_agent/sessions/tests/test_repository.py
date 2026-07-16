@@ -216,7 +216,10 @@ class SQLiteSessionRepositoryTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(await self.repository.reconcile_stale_tasks(lambda _pid, _created: False), (running.id,))
         self.assertEqual((await self.repository.load_task(running.id)).status, TaskStatus.INTERRUPTED)
-        self.assertEqual(len(await self.repository.list_checkpoints(thread_id)), 1)
+        checkpoints = await self.repository.list_checkpoints(thread_id)
+        self.assertEqual(len(checkpoints), 1)
+        self.assertIsNone(checkpoints[0].message_sequence)
+        self.assertIsNone(checkpoints[0].event_sequence)
         self.assertEqual(await self.repository.reconcile_stale_tasks(lambda _pid, _created: False), ())
 
     async def test_contract_revisions_and_evidence_ledger_survive_restart(self) -> None:
