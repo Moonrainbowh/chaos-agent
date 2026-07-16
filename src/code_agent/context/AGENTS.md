@@ -21,5 +21,5 @@
 - `RepoMapBuilder.build(query, touched_files): tuple[RepoEntry, ...]`: 在有界扫描内提取 Python AST 与常见语言声明并按关联性排序 | 读取工作区文件 | 不是完整语言解析器；缓存不跳过当前查询重排
 - `RepoMapBuilder.render(query, touched_files, token_budget): str`: 渲染并截断代码地图 | 无副作用 | 不超过 token 预算
 - `DeterministicCompactor.compact(messages): CompactionResult`: 以确定规则压缩旧消息，同时保留最近消息与工具调用/结果配对 | 无副作用 | 不依赖模型摘要
-- `WorkspaceContextBuilder.build(request): ContextBundle`: 按请求身份、cancellation、规则、工具、任务状态、repo map 和消息的动态预算组装稳定系统提示词及本地数值度量 | 在线程池中读取工作区 | Context 不持久化；规则超出 3,000 token 立即失败；度量不含提示、规则或源码；非空输入只追加一个 user 消息
+- `WorkspaceContextBuilder.build(request): ContextBundle`: 按动态预算组装规则、工具、任务状态、repo map 与消息，可选执行 source-anchored semantic compaction，并始终以确定性压缩施加最终硬边界 | 在线程池中读取工作区 | 透传真实 thread identity 与 cancellation；Context 不持久化；规则超出 3,000 token 立即失败；语义度量仅含触发、fallback 与 source count 数值；非空输入只追加一个 user 消息
 - `render_task_state(state, token_budget): str`: 按优先级渲染有界持久任务事实 | 无副作用 | 事实在工作笔记之前，工作笔记始终标记为未验证
