@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import json
+import threading
 import unittest
+from unittest.mock import patch
 
 from code_agent.context.tokens import estimate_tokens
 from code_agent.core.cancellation import CancellationError, CancellationToken
@@ -120,6 +123,45 @@ class DeterministicSummaryServiceTests(unittest.IsolatedAsyncioTestCase):
 
         with self.assertRaises(CancellationError):
             await DeterministicSummaryService().summarize(request, cancellation)
+
+    async def test_cancellation_during_rendering_is_propagated(self) -> None:
+        request = SummaryRequest(
+            _sources(Message(role="user", content="render slowly")),
+            max_output_tokens=40,
+            max_total_tokens=100,
+        )
+        cancellation = CancellationToken()
+        entered = threading.Event()
+        release = threading.Event()
+        original_renderer = render_bounded_source_summary
+
+        def blocking_renderer(sources, max_tokens):
+            entered.set()
+            if not release.wait(timeout=2):
+                raise TimeoutError("test renderer was not released")
+            return original_renderer(sources, max_tokens)
+
+        def run_service():
+            return asyncio.run(
+                DeterministicSummaryService().summarize(request, cancellation)
+            )
+
+        with patch(
+            "code_agent.thread_intelligence.deterministic_summary."
+            "render_bounded_source_summary",
+            blocking_renderer,
+        ):
+            task = asyncio.create_task(asyncio.to_thread(run_service))
+            try:
+                self.assertTrue(await asyncio.to_thread(entered.wait, 2))
+                cancellation.cancel("stop during rendering")
+                release.set()
+                with self.assertRaises(CancellationError):
+                    await asyncio.wait_for(task, timeout=2)
+            finally:
+                release.set()
+                if not task.done():
+                    await asyncio.wait_for(task, timeout=2)
 
     async def test_rejects_invalid_request_or_cancellation_types(self) -> None:
         service = DeterministicSummaryService()

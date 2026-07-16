@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 from code_agent.context.tokens import truncate_to_tokens
 from code_agent.core.cancellation import CancellationToken
 from code_agent.core.models import Usage
@@ -54,10 +56,14 @@ class DeterministicSummaryService:
         if not isinstance(cancellation, CancellationToken):
             raise TypeError("cancellation must be CancellationToken")
         cancellation.raise_if_cancelled()
+        summary = await asyncio.to_thread(
+            render_bounded_source_summary,
+            request.sources,
+            request.max_output_tokens,
+        )
+        cancellation.raise_if_cancelled()
         return SummaryResponse(
-            render_bounded_source_summary(
-                request.sources, request.max_output_tokens
-            ),
+            summary,
             "deterministic-anchor-v1",
             Usage(),
         )
