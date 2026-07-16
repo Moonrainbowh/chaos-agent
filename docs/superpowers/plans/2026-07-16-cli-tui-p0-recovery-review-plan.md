@@ -47,7 +47,7 @@ Keymap remapping, `@`/`@@` pickers, Transcript Inspector, background jobs, daemo
 - Modify: `tests/test_agent_app.py`
 - Test: `tests/test_agent_app.py`
 
-- [ ] **Step 1: Preserve the observed RED evidence**
+- [x] **Step 1: Preserve the observed RED evidence**
 
 Run with ambient `CHAOS_MODE_*_PROFILE` values:
 
@@ -57,7 +57,7 @@ Run with ambient `CHAOS_MODE_*_PROFILE` values:
 
 Expected: ERROR with `mode profile is not configured: low -> deepseek` or the machine's configured low-profile name.
 
-- [ ] **Step 2: Isolate only the application-construction call**
+- [x] **Step 2: Isolate only the application-construction call**
 
 Wrap the existing `create_application(root)` block with:
 
@@ -74,7 +74,7 @@ with patch.dict("os.environ", {}, clear=True):
 
 Do not change `build_mode_registry`: real missing profile bindings must continue to fail closed.
 
-- [ ] **Step 3: Verify GREEN and the complete root suite**
+- [x] **Step 3: Verify GREEN and the complete root suite**
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest tests.test_agent_app.ApplicationConstructionTests.test_tui_uses_the_session_repository_for_history -v
@@ -83,7 +83,7 @@ Do not change `build_mode_registry`: real missing profile bindings must continue
 
 Expected: both commands pass.
 
-- [ ] **Step 4: Commit the baseline repair**
+- [x] **Step 4: Commit the baseline repair**
 
 ```powershell
 git add tests/test_agent_app.py
@@ -102,7 +102,7 @@ git commit -m "test: isolate ambient mode bindings"
 - Modify: `src/code_agent/interfaces/AGENTS.md`
 - Modify: `src/code_agent/sessions/AGENTS.md`
 
-- [ ] **Step 1: Add only boundary statements**
+- [x] **Step 1: Add only boundary statements**
 
 Record these contracts without adding implementation or new Unit entries:
 
@@ -115,11 +115,11 @@ Sessions: checkpoints record message/event bounds and opaque artifact handles.
 Interfaces: diff and rewind views are read-only projections; preview is distinct from apply.
 ```
 
-- [ ] **Step 2: Contract review**
+- [x] **Step 2: Contract review**
 
 Verify each Feature remains at ten or fewer principal Unit groups and that no boundary grants permission, runs Git, or rewrites user history.
 
-- [ ] **Step 3: Commit requirements**
+- [x] **Step 3: Commit requirements**
 
 ```powershell
 git add src/code_agent/core/AGENTS.md src/code_agent/context/AGENTS.md src/code_agent/thread_intelligence/AGENTS.md src/code_agent/workspace/AGENTS.md src/code_agent/interfaces/AGENTS.md src/code_agent/sessions/AGENTS.md
@@ -139,7 +139,7 @@ git commit -m "docs: define p0 recovery and review contracts"
 - Modify: `src/code_agent/core/tests/test_engine_run.py`
 - Modify: `src/code_agent/core/tests/test_protocols.py`
 
-- [ ] **Step 1: Write failing request-identity tests**
+- [x] **Step 1: Write failing request-identity tests**
 
 Add a recording builder and assert the request has the actual thread, current positive turn revision, same cancellation token, mode/permission snapshots, and a bounded budget lease:
 
@@ -158,7 +158,7 @@ self.assertIs(builder.requests[0].cancellation, token)
 self.assertEqual(builder.requests[0].budget_lease["model_turns"], 1)
 ```
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest src.code_agent.core.tests.test_engine_run src.code_agent.core.tests.test_protocols -v
@@ -166,7 +166,7 @@ self.assertEqual(builder.requests[0].budget_lease["model_turns"], 1)
 
 Expected: FAIL because `ContextRequest` and the one-argument protocol do not exist.
 
-- [ ] **Step 3: Implement the immutable request**
+- [x] **Step 3: Implement the immutable request**
 
 Create the public shape:
 
@@ -189,7 +189,7 @@ class ContextRequest:
 
 `__post_init__` must validate non-blank `thread_id`, positive non-boolean revision, tuple contents, finite `context_pressure` in `[0, 1]`, positive finite timeout, and freeze all JSON mappings.
 
-- [ ] **Step 4: Change the protocol and engine call**
+- [x] **Step 4: Change the protocol and engine call**
 
 `ContextBuilder` becomes:
 
@@ -200,7 +200,7 @@ class ContextBuilder(Protocol):
 
 `AgentEngine` accepts frozen `context_mode_snapshot` and `context_permission_snapshot` mappings and constructs one request before each context build. The budget lease contains only numeric limits/usage and never Prompt or file content.
 
-- [ ] **Step 5: Verify Core GREEN**
+- [x] **Step 5: Verify Core GREEN**
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s src/code_agent/core/tests -p 'test_*.py' -v
@@ -208,7 +208,7 @@ class ContextBuilder(Protocol):
 
 Expected: all Core tests pass.
 
-- [ ] **Step 6: Update the Unit list and commit**
+- [x] **Step 6: Update the Unit list and commit**
 
 Add `ContextRequest` to `src/code_agent/core/AGENTS.md`, then:
 
@@ -241,11 +241,11 @@ git commit -m "feat: carry real context request identity"
 new persistence cases live in a focused test module instead of expanding that
 existing size violation.
 
-- [ ] **Step 1: Write failing deterministic-summary and builder tests**
+- [x] **Step 1: Write failing deterministic-summary and builder tests**
 
 The summarizer must preserve source ordering, use no provider, obey `max_summary_tokens`, and return model `deterministic-anchor-v1`. The builder test passes a `ContextRequest(thread_id="thread-a", revision=2, ...)` and an injected recording compactor, then asserts exact identity and cancellation propagation.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s src/code_agent/thread_intelligence/tests -p 'test_*.py' -v
@@ -254,7 +254,7 @@ The summarizer must preserve source ordering, use no provider, obey `max_summary
 
 Expected: FAIL because the deterministic summary service and request-based builder do not exist.
 
-- [ ] **Step 3: Implement the deterministic bounded summarizer**
+- [x] **Step 3: Implement the deterministic bounded summarizer**
 
 Expose:
 
@@ -301,11 +301,11 @@ def semantic_checkpoint_payload(checkpoint: SemanticCheckpoint) -> dict[str, JSO
 
 `SourceAnchor.to_dict()` returns only kind, sequence, stable ID, digest, and thread ID. The persisted payload deliberately omits `checkpoint.summary` and the original message text.
 
-- [ ] **Step 4: Make WorkspaceContextBuilder request-based**
+- [x] **Step 4: Make WorkspaceContextBuilder request-based**
 
 `WorkspaceContextBuilder.build(request)` validates the request, computes the message allocation, invokes an optional structural anchored compactor with the real thread ID, and always applies the existing deterministic compactor as the final hard bound. Add supported numeric measurements `semantic_triggered`, `semantic_fallback`, and `semantic_source_count` to `ContextBundle`.
 
-- [ ] **Step 5: Persist checkpoints in integration, not Context**
+- [x] **Step 5: Persist checkpoints in integration, not Context**
 
 Create:
 
@@ -326,7 +326,7 @@ class PersistingAnchoredCompactor:
 
 The payload contains stable IDs, source range/digest, model, usage, and version. It excludes full source messages.
 
-- [ ] **Step 6: Verify Feature and integration GREEN**
+- [x] **Step 6: Verify Feature and integration GREEN**
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s src/code_agent/thread_intelligence/tests -p 'test_*.py' -v
@@ -335,7 +335,7 @@ The payload contains stable IDs, source range/digest, model, usage, and version.
 .\.venv\Scripts\python.exe -m unittest tests.test_agent_app -v
 ```
 
-- [ ] **Step 7: Update Unit lists and commit in two stages**
+- [x] **Step 7: Update Unit lists and commit in two stages**
 
 ```powershell
 git add src/code_agent/thread_intelligence src/code_agent/context src/code_agent/core/models.py
@@ -359,7 +359,7 @@ git commit -m "feat: persist semantic checkpoint facts"
 - Create: `src/code_agent/workspace/tests/test_git_snapshot_safety.py`
 - Create: `src/code_agent/workspace/tests/test_git_snapshot_render.py`
 
-- [ ] **Step 1: Write failing staged/untracked tests**
+- [x] **Step 1: Write failing staged/untracked tests**
 
 Create a temporary Git repository with one staged file, one unstaged file, and one untracked UTF-8 file. Assert:
 
@@ -373,13 +373,13 @@ self.assertEqual(snapshot.untracked_paths, ("untracked.txt",))
 
 Also assert path filters are literal, output is globally bounded, binary untracked files use a metadata-only marker, and `.git` paths remain inaccessible.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest src.code_agent.workspace.tests.test_git src.code_agent.workspace.tests.test_git_limits -v
 ```
 
-- [ ] **Step 3: Implement immutable GitDiffSnapshot**
+- [x] **Step 3: Implement immutable GitDiffSnapshot**
 
 ```python
 @dataclass(frozen=True)
@@ -411,7 +411,7 @@ command output, validated paths, file reads, and rendered facets share the
 existing global output ceiling. Literal filtering follows platform path-case
 semantics, and rendered path tokens use Git-compatible C-style quoting.
 
-- [ ] **Step 4: Verify Workspace GREEN and commit**
+- [x] **Step 4: Verify Workspace GREEN and commit**
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s src/code_agent/workspace/tests -p 'test_*.py' -v
@@ -432,11 +432,11 @@ git commit -m "feat: expose complete git diff facets"
 - Create: `src/code_agent/interfaces/tests/test_diff_view_malformed.py`
 - Modify: `src/code_agent/interfaces/tests/test_interaction_v2.py`
 
-- [ ] **Step 1: Write failing scope and stale-source tests**
+- [x] **Step 1: Write failing scope and stale-source tests**
 
 Assert working-tree view contains staged, unstaged, and untracked sections; per-turn and since-checkpoint use recorded diff without live override; duplicate paths in separate scopes stay distinguishable; and stale recorded/live disagreement is visible.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest src.code_agent.interfaces.tests.test_diff_view -v
@@ -444,7 +444,7 @@ Assert working-tree view contains staged, unstaged, and untracked sections; per-
 .\.venv\Scripts\python.exe -m unittest src.code_agent.interfaces.tests.test_interaction_v2.DiffViewTests -v
 ```
 
-- [ ] **Step 3: Implement scope-aware document types**
+- [x] **Step 3: Implement scope-aware document types**
 
 ```python
 class DiffScope(str, Enum):
@@ -471,7 +471,7 @@ sources may return scoped documents without changing the Host adapter yet.
 Malformed hunk ranges and quoted paths fail closed, and a non-empty live payload
 that parses to no files cannot suppress a valid recorded fallback.
 
-- [ ] **Step 4: Verify Interfaces GREEN and commit**
+- [x] **Step 4: Verify Interfaces GREEN and commit**
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s src/code_agent/interfaces/tests -p 'test_*.py' -v
@@ -485,26 +485,35 @@ git commit -m "feat: add scope aware diff review"
 
 **Files:**
 - Create: `src/code_agent/workspace/snapshot_store.py`
+- Create: `src/code_agent/workspace/_snapshot_artifacts.py`
+- Create: `src/code_agent/workspace/_atomic_artifact_write.py`
+- Create: `src/code_agent/workspace/_windows_artifact_write.py`
+- Create: `src/code_agent/workspace/_windows_artifact_native.py`
+- Create: `src/code_agent/workspace/_windows_artifact_handles.py`
 - Modify: `src/code_agent/workspace/AGENTS.md`
 - Create: `src/code_agent/workspace/tests/test_snapshot_store.py`
+- Create: `src/code_agent/workspace/tests/test_snapshot_store_integrity.py`
+- Create: `src/code_agent/workspace/tests/test_snapshot_durability.py`
 - Modify: `src/code_agent/sessions/_records.py`
 - Modify: `src/code_agent/sessions/models.py`
 - Modify: `src/code_agent/sessions/_database.py`
 - Modify: `src/code_agent/sessions/AGENTS.md`
 - Modify: `src/code_agent/sessions/tests/test_repository.py`
 - Modify: `src/code_agent/sessions/tests/test_migrations.py`
+- Modify: `src/code_agent/sessions/tests/test_models.py`
+- Create: `src/code_agent/sessions/tests/test_checkpoint_bounds.py`
 
-- [ ] **Step 1: Write failing snapshot integrity tests**
+- [x] **Step 1: Write failing snapshot integrity tests**
 
 Test an existing dirty file, a missing future file, binary bytes, duplicate paths, tampered blob digest, traversal in a manifest, aggregate size limit, and restore to the exact pre-turn bytes.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest src.code_agent.workspace.tests.test_snapshot_store -v
 ```
 
-- [ ] **Step 3: Implement product-state SnapshotStore**
+- [x] **Step 3: Implement product-state SnapshotStore**
 
 Expose:
 
@@ -523,11 +532,11 @@ class WorkspaceSnapshotStore:
 
 Use content-addressed blobs and an atomically replaced UTF-8 JSON manifest under the injected product-state root. Validate every relative path through `WorkspacePathGuard`; never place state inside the repository or `.git`.
 
-- [ ] **Step 4: Record checkpoint bounds**
+- [x] **Step 4: Record checkpoint bounds**
 
 Extend `CheckpointRecord` with optional `message_sequence` and `event_sequence`. `create_checkpoint` reads both maxima in the same transaction and stores them in dedicated migration-10 columns, not caller-controlled metadata. Old rows decode as `None` and are not rewindable.
 
-- [ ] **Step 5: Verify Workspace/Sessions GREEN and commit separately**
+- [x] **Step 5: Verify Workspace/Sessions GREEN and commit separately**
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s src/code_agent/workspace/tests -p 'test_*.py' -v
@@ -538,7 +547,20 @@ git add src/code_agent/sessions
 git commit -m "feat: record durable checkpoint bounds"
 ```
 
+Implemented evidence: Workspace 108 tests pass with 4 existing platform skips;
+Sessions 40 tests pass. Commits: `7551061`, `362fe89`, `558e83d`, `deec09b`,
+and `617313b`.
+
 ### Task 7: Build code/conversation/both rewind previews
+
+> **Decision gate:** Task 6 established durable checkpoint bounds and guarded
+> snapshot storage, but the current repository does not yet persist a complete
+> checkpoint-relative mutation journal, the pre-mutation dirty baseline, or a
+> trusted checkpoint-to-snapshot association. `message_sequence` is a global
+> SQLite sequence, so conversation rewind counts also require a thread-filtered
+> database query rather than arithmetic subtraction. Task 7 must not infer these
+> facts from the current Git dirty set or bounded `TaskState.files_changed`.
+> Choose the rewind-facts scope before Step 1.
 
 **Stage:** Interfaces Feature implementation, followed by integration
 
