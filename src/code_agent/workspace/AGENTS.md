@@ -23,7 +23,7 @@
 - `WorkspaceFiles.search(...): tuple[SearchMatch, ...]`：在有限扫描预算和全局 deadline 内执行 literal/regex 文本搜索 | deadline 覆盖目录枚举与文件匹配 | 超时不返回部分结果
 - `WorkspaceEditor`: 有界读取现有文件，生成写入/单次替换 Diff 并校验哈希后原子应用 | 单文件同目录临时写入与替换
 - `WorkspaceSnapshot`: 复制受保护路径的原始字节并恢复创建、更新与删除 | 多文件逐项原子恢复 | 不承诺多文件事务原子性
-- `SnapshotHandle`、`WorkspaceSnapshotStore.save/load`：在注入的仓库外 product-state root 中以内容寻址 blob 和原子 manifest 持久化受保护快照 | artifact I/O | 严格校验工作区指纹、路径、句柄、大小与内容 hash，不接受调用方任意 artifact 路径
+- `SnapshotHandle`、`WorkspaceSnapshotStore.save/load`：在注入的仓库外 product-state root 中以内容寻址 blob 和原子 manifest 持久化受保护快照 | artifact I/O；publish 前 flush 文件 bytes，POSIX 同步父目录且失败显式上报 | Windows 若不支持目录 flush 则不宣称 crash-durable，但仍保持 atomic 与 fail-closed integrity；严格校验工作区指纹、路径、句柄、大小与内容 hash，不接受调用方任意 artifact 路径
 - `GitDiffSnapshot`、`GitWorkspace`：提供有界的仓库检测、porcelain 状态、单命令 unstaged Diff 与 staged/unstaged/untracked 不可变 facets | 仅执行固定 Git argv，并在同一累计字节预算内全局预检 tracked 路径、按已验证路径生成严格 UTF-8 patch、从已核验真实句柄读取 untracked 文件 | 每个 Git 路径和打开句柄均重新经过 guard；ignored 文件排除，二进制只输出稳定元数据 marker，超限或超时终止且不提供任意 Git 命令入口
 
 ## 环境依赖

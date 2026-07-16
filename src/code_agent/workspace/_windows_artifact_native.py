@@ -113,7 +113,7 @@ def rename_relative(handle: int, parent_handle: int, target_name: str) -> None:
     raise_for_status(status)
 
 
-def mark_delete(handle: int) -> None:
+def mark_delete(handle: int) -> bool:
     delete = ctypes.c_ubyte(1)
     status_block = IoStatusBlock()
     function = nt_function("NtSetInformationFile")
@@ -125,13 +125,14 @@ def mark_delete(handle: int) -> None:
         wintypes.ULONG,
     )
     function.restype = wintypes.LONG
-    function(
+    status = function(
         handle,
         ctypes.byref(status_block),
         ctypes.byref(delete),
         ctypes.sizeof(delete),
         13,
     )
+    return status >= 0
 
 
 def _rename_payload(parent_handle: int, target_name: str) -> ctypes.Array[ctypes.c_char]:

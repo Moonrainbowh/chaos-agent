@@ -67,7 +67,7 @@ class AtomicArtifactWriter:
                 dst_dir_fd=parent_fd,
             )
             temporary_name = ""
-            _best_effort_fsync(parent_fd)
+            os.fsync(parent_fd)
         except WorkspaceError:
             raise
         except OSError as error:
@@ -118,10 +118,3 @@ def _verify_directory(descriptor: int, expected: tuple[int, ...]) -> None:
     metadata = os.fstat(descriptor)
     if (metadata.st_dev, metadata.st_ino) != expected:
         raise WorkspaceError("snapshot artifact directory identity changed")
-
-
-def _best_effort_fsync(descriptor: int) -> None:
-    try:
-        os.fsync(descriptor)
-    except OSError:
-        pass

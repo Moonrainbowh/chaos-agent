@@ -8,6 +8,10 @@ from pathlib import Path
 from .errors import WorkspaceError
 
 
+_ERROR_INVALID_FUNCTION = 1
+_ERROR_ACCESS_DENIED = 5
+
+
 class IoStatusBlock(ctypes.Structure):
     _fields_ = (("status", ctypes.c_ssize_t), ("information", ctypes.c_size_t))
 
@@ -57,11 +61,16 @@ def flush_file(handle: int) -> None:
         raise ctypes.WinError(ctypes.get_last_error())
 
 
-def flush_directory(handle: int) -> None:
+def flush_directory(handle: int) -> bool:
     function = kernel_function("FlushFileBuffers")
     function.argtypes = (wintypes.HANDLE,)
     function.restype = wintypes.BOOL
-    function(handle)
+    if function(handle):
+        return True
+    error = ctypes.get_last_error()
+    if error in (_ERROR_INVALID_FUNCTION, _ERROR_ACCESS_DENIED):
+        return False
+    raise ctypes.WinError(error)
 
 
 def close_handle(handle: int) -> None:

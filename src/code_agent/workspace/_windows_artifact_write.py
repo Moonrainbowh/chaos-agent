@@ -30,6 +30,11 @@ class WindowsArtifactWriter:
         self.identities = {
             name: directory_identity(path) for name, path in parents.items()
         }
+        self._directory_flush_supported: bool | None = None
+
+    @property
+    def directory_flush_supported(self) -> bool | None:
+        return self._directory_flush_supported
 
     def write(self, namespace: str, target: Path, content: bytes) -> None:
         root_handle: int | None = None
@@ -42,7 +47,7 @@ class WindowsArtifactWriter:
             verify_directory(parent_handle, parent, self.identities[namespace])
             _before_relative_write(parent_handle, parent)
             _atomic_relative_write(parent_handle, target.name, content)
-            flush_directory(parent_handle)
+            self._directory_flush_supported = flush_directory(parent_handle)
         except WorkspaceError:
             raise
         except OSError as error:
@@ -70,5 +75,6 @@ def _atomic_relative_write(parent_handle: int, target_name: str, content: bytes)
         renamed = True
     finally:
         if not renamed:
+            # NTSTATUS cleanup failure is best effort so the write error stays primary.
             mark_delete(handle)
         close_handle(handle)
