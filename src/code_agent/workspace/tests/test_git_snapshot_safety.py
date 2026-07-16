@@ -49,6 +49,31 @@ class GitSnapshotSafetyTests(unittest.TestCase):
         run_git(self.root, "commit", "-q", "-m", f"add {path}")
         return absolute
 
+    def delete_mixed_case_file_and_directory(self) -> str:
+        relative = "MiXeDDir/MiXeD.txt"
+        directory = self.root / "MiXeDDir"
+        directory.mkdir()
+        tracked = self.commit_file(relative, b"old\n")
+        tracked.unlink()
+        directory.rmdir()
+        return relative
+
+    @unittest.skipUnless(os.name == "nt", "Windows path semantics only")
+    def test_windows_directory_filter_matches_deleted_path_case_insensitively(self) -> None:
+        relative = self.delete_mixed_case_file_and_directory()
+
+        snapshot = GitWorkspace(self.root).diff_snapshot(("mixeddir",))
+
+        self.assertIn(f"diff --git a/{relative} b/{relative}", snapshot.unstaged)
+
+    @unittest.skipIf(os.name == "nt", "POSIX path semantics only")
+    def test_posix_directory_filter_remains_case_sensitive(self) -> None:
+        self.delete_mixed_case_file_and_directory()
+
+        snapshot = GitWorkspace(self.root).diff_snapshot(("mixeddir",))
+
+        self.assertEqual(snapshot.unstaged, "")
+
     def test_tracked_sensitive_change_after_preflights_is_rejected(self) -> None:
         secret = self.commit_file(".env", b"old\n")
         workspace = GitWorkspace(self.root)

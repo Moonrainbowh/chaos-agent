@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import difflib
+import os
 from dataclasses import dataclass
 from typing import Callable, Protocol
 
@@ -148,12 +149,18 @@ def _tracked_patch(
 def _filter_paths(changed: tuple[str, ...], filters: tuple[str, ...]) -> tuple[str, ...]:
     if not filters or any(item in ("", ".") for item in filters):
         return changed
-    prefixes = tuple(item.rstrip("/") + "/" for item in filters)
-    return tuple(
-        path
-        for path in changed
-        if path in filters or any(path.startswith(prefix) for prefix in prefixes)
-    )
+    filter_keys = frozenset(_path_filter_key(item) for item in filters)
+    prefixes = tuple(item.rstrip(os.sep) + os.sep for item in filter_keys)
+    selected: list[str] = []
+    for path in changed:
+        key = _path_filter_key(path)
+        if key in filter_keys or any(key.startswith(prefix) for prefix in prefixes):
+            selected.append(path)
+    return tuple(selected)
+
+
+def _path_filter_key(path: str) -> str:
+    return os.path.normcase(path.replace("/", os.sep))
 
 
 def _command(
@@ -170,20 +177,21 @@ def _command(
 
 
 def _render_file(path: str, data: bytes) -> str:
-    display = _header_path(path)
     if b"\0" in data:
-        return _binary_marker(display)
+        return _binary_marker(path)
     try:
         text = data.decode("utf-8")
     except UnicodeDecodeError:
-        return _binary_marker(display)
-    header = f"diff --git a/{display} b/{display}\nnew file mode 100644\n"
+        return _binary_marker(path)
+    old_token = _git_path_token("a", path)
+    new_token = _git_path_token("b", path)
+    header = f"diff --git {old_token} {new_token}\nnew file mode 100644\n"
     if not data:
         return header + "index 0000000..e69de29\n"
     lines = text.splitlines(keepends=True)
     rendered = "".join(
         difflib.unified_diff(
-            (), lines, fromfile="/dev/null", tofile=f"b/{display}", lineterm="\n"
+            (), lines, fromfile="/dev/null", tofile=new_token, lineterm="\n"
         )
     )
     if not data.endswith(b"\n"):
@@ -192,16 +200,27 @@ def _render_file(path: str, data: bytes) -> str:
 
 
 def _binary_marker(path: str) -> str:
+    old_token = _git_path_token("a", path)
+    new_token = _git_path_token("b", path)
     return (
-        f"diff --git a/{path} b/{path}\nnew file mode 100644\n"
-        f"Binary files /dev/null and b/{path} differ\n"
+        f"diff --git {old_token} {new_token}\nnew file mode 100644\n"
+        f"Binary files /dev/null and {new_token} differ\n"
     )
 
 
-def _header_path(path: str) -> str:
-    return (
-        path.replace("\\", "\\\\")
-        .replace("\r", "\\r")
-        .replace("\n", "\\n")
-        .replace("\t", "\\t")
-    )
+def _git_path_token(prefix: str, path: str) -> str:
+    escaped: list[str] = []
+    quote = False
+    standard = {9: "\\t", 10: "\\n", 34: '\\"', 92: "\\\\"}
+    for byte in f"{prefix}/{path}".encode("utf-8"):
+        if byte in standard:
+            escaped.append(standard[byte])
+            quote = True
+        elif byte < 32 or byte >= 127:
+            escaped.append(f"\\{byte:03o}")
+            quote = True
+        else:
+            escaped.append(chr(byte))
+            quote = quote or byte == 32
+    token = "".join(escaped)
+    return f'"{token}"' if quote else token
