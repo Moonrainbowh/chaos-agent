@@ -6,6 +6,8 @@
 - 负责：流式事件规范化、超时与有限重试、能力声明、用量统计和配置校验。
 - 负责：按名称解析模型 profile；profile 声明模型上下文、输出、协议、认证引用及 Agent 预算。
 - 负责：向上层提供只读的已配置 profile 目录与当前 profile 信息；只在空闲或下一任务边界构造不可变 provider 配置和 client。
+- 负责：管理 profile、client 和 runner 的原子生命周期；切换先构建并校验新 client，再替换并关闭旧 client。
+- 负责：固定任务的 profile 身份；恢复任务按原 profile 重建，缺失 profile 明确进入等待决策。
 - 不负责：Agent 回合决策、工具执行、上下文裁剪或界面渲染。
 - 不负责：把 API key 写入会话、日志或项目文件。
 - 不负责：接受 UI 提供的任意 URL、协议或 API key；不在活动流或任务中途重建 provider。
@@ -17,6 +19,7 @@
 - `ProviderError` 及子类：表达配置、HTTP、协议和响应上限失败 | 无副作用 | 对外消息执行脱敏
 - `ProviderConfig`、`ApiProtocol`: 校验并冻结端点、协议和传输限制 | 请求时读取 API key 环境变量
 - `ModelProfile`、`ModelProfileResolver`: 校验单模型的提供方和 Agent 限制，并按 CLI 模型名选择 profile | 请求时读取 API key 环境变量
+- `ProviderRuntimeManager`: 原子切换、关闭和审计当前 profile/client/runner | 网络资源生命周期 | 失败保留旧运行时，活动任务不得切换
 - `SSEDecoder.feed(chunk)`: 有界增量解码 UTF-8 SSE 事件 | 保存未完成行与事件状态
 - `ArgumentBuffer`、`ToolBudget`: 按 UTF-8 字节累计工具参数并限制工具调用数 | 保存当前流的有界分片
 - `ProviderTransport.stream_sse(path, payload)`: 禁止重定向，限制响应总量并按白名单有限重试 | 网络 I/O；仅关闭内部创建的 client

@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import os
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from pathlib import Path
 
 import psutil
 
-from code_agent.core.cancellation import CancellationToken
+from code_agent.core.cancellation import CancellationError, CancellationToken
 from code_agent.core.events import AgentEvent, EventKind
 from code_agent.core.task import TaskAuthorization, TaskContract, TaskRecord, TaskStatus
 from code_agent.core.models import Message
@@ -18,11 +18,12 @@ from .controller import AgentController
 class ForegroundTaskController:
     """Own foreground cancellation and task lifecycle, leaving execution to AgentEngine."""
 
-    def __init__(self, controller: AgentController, sessions: object, workspace_root: Path | str) -> None:
+    def __init__(self, controller: AgentController, sessions: object, workspace_root: Path | str, *, profile_supplier: Callable[[], tuple[str, str, str, str]] | None = None, profile_resolver: Callable[[str], Awaitable[None]] | None = None) -> None:
         self._controller = controller
         self._sessions = sessions
         self._root = str(Path(workspace_root).resolve())
         self._tokens: dict[str, CancellationToken] = {}
+        self._profile_supplier, self._profile_resolver = profile_supplier, profile_resolver
 
     async def start(self, prompt: str) -> TaskRecord:
         active = await self._sessions.list_tasks()
@@ -33,7 +34,8 @@ class ForegroundTaskController:
         ):
             raise RuntimeError("a foreground task is already active")
         thread_id = await self._sessions.create_thread()
-        task = await self._sessions.create_task(thread_id, TaskContract(prompt, TaskAuthorization.local_workspace(self._root)))
+        profile = self._profile_supplier() if self._profile_supplier else None
+        task = await self._sessions.create_task(thread_id, TaskContract(prompt, TaskAuthorization.local_workspace(self._root), profile_id=profile[0] if profile else None, model=profile[1] if profile else None, protocol=profile[2] if profile else None, endpoint_host=profile[3] if profile else None))
         await self._sessions.create_checkpoint(thread_id, "task-created", {"task_id": task.id, "status": task.status.value})
         return task
 
@@ -42,6 +44,12 @@ class ForegroundTaskController:
 
     async def events(self, task_id: str, prompt: str | None = None) -> AsyncIterator[AgentEvent]:
         task = await self._sessions.load_task(task_id)
+        if task.contract.profile_id and self._profile_resolver:
+            try: await self._profile_resolver(task.contract.profile_id)
+            except (RuntimeError, ValueError):
+                waiting = await self._sessions.transition_task(task.id, TaskStatus.WAITING_DECISION, "recorded model profile is unavailable")
+                event = AgentEvent(EventKind.TASK_DECISION_REQUIRED, {"task_id": waiting.id, "status": waiting.status.value, "reason": "recorded model profile is unavailable"})
+                await self._sessions.append_event(waiting.thread_id, event); yield event; return
         if task.status is TaskStatus.INTERRUPTED:
             interrupt_runs = getattr(self._sessions, "interrupt_open_verification_runs", None)
             if callable(interrupt_runs):
@@ -61,6 +69,8 @@ class ForegroundTaskController:
         try:
             async for event in self._controller.ask(instruction, thread_id=task.thread_id, cancellation=token, task=task):
                 yield event
+        except CancellationError:
+            return
         except Exception:
             current = await self._sessions.load_task(task.id)
             if current.status is TaskStatus.RUNNING:

@@ -67,6 +67,12 @@ class InputBuffer:
         self.cursor = 0
         self._history_index = None
 
+    def replace(self, value: str) -> None:
+        if not isinstance(value, str):
+            raise TypeError("value must be text")
+        self._set(value)
+        self._history_index = None
+
     def previous(self) -> None:
         if not self._history: return
         if self._history_index is None: self._draft = self.text; self._history_index = len(self._history) - 1

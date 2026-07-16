@@ -14,7 +14,7 @@ except ModuleNotFoundError:  # pragma: no cover - exercised on Python 3.10.
 from code_agent.policy.models import ApprovalMode
 from code_agent.providers.config import ApiProtocol, ConfiguredApiKey, ModelProfile, ProviderConfig
 from code_agent.providers.errors import ProviderConfigError
-from code_agent.mcp.registry import McpServer
+from code_agent.mcp.registry import McpRisk, McpServer
 
 
 class LocalConfigError(ValueError):
@@ -62,7 +62,7 @@ def load_runtime_config(
     path = resolve_config_path(source)
     document = _read_document(path)
     selected, values = _select_provider(document, source, cli_profile)
-    provider = _provider_config(values, source)
+    provider = _provider_config(values, source, allow_environment=True)
     return RuntimeConfig(
         provider=provider,
         profile=selected,
@@ -79,14 +79,20 @@ def _profiles(document: Mapping[str, Any], env: Mapping[str, str], selected: str
     values: list[ModelProfile] = []
     for name, raw in configured.items():
         if not isinstance(name, str) or not isinstance(raw, dict): raise LocalConfigError("providers must map names to tables")
-        current = provider if name == selected else _provider_config(raw, env)
-        values.append(ModelProfile(name, current, _positive(raw.get("context_window", 128_000), "context_window"), _positive(raw.get("max_output_tokens", 16_384), "max_output_tokens"), _positive(raw.get("max_agent_rounds", 50), "max_agent_rounds"), _positive(raw.get("max_tool_calls", 128), "max_tool_calls"), _positive(raw.get("max_tool_calls_per_round", 50), "max_tool_calls_per_round")))
+        current = provider if name == selected else _provider_config(raw, env, allow_environment=False)
+        values.append(ModelProfile(name, current, _required_positive(raw, "context_window"), _required_positive(raw, "max_output_tokens"), _positive(raw.get("max_agent_rounds", 50), "max_agent_rounds"), _positive(raw.get("max_tool_calls", 128), "max_tool_calls"), _positive(raw.get("max_tool_calls_per_round", 50), "max_tool_calls_per_round")))
     return tuple(values)
 
 
 def _positive(value: object, name: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value <= 0: raise LocalConfigError(f"{name} must be a positive integer")
     return value
+
+
+def _required_positive(values: Mapping[str, Any], name: str) -> int:
+    if name not in values:
+        raise LocalConfigError(f"provider must define {name}")
+    return _positive(values[name], name)
 
 
 def _mcp_servers(document: Mapping[str, Any]) -> tuple[McpServer, ...]:
@@ -100,7 +106,19 @@ def _mcp_servers(document: Mapping[str, Any]) -> tuple[McpServer, ...]:
             if not isinstance(name, str) or not isinstance(raw, dict): raise LocalConfigError("mcp.servers must map names to tables")
             enabled, approved = raw.get("enabled", False), raw.get("approved", False)
             if not isinstance(enabled, bool) or not isinstance(approved, bool): raise LocalConfigError("MCP enabled and approved must be boolean")
-            items.append(McpServer(name, _text(raw.get("transport"), "mcp transport"), _text(raw.get("reference"), "mcp reference"), enabled, approved))
+            command = _text(raw.get("command"), "mcp command")
+            args = raw.get("args", ())
+            environment = raw.get("environment", ())
+            if not isinstance(args, list) or not all(isinstance(item, str) and item for item in args): raise LocalConfigError("mcp args must be text array")
+            if not isinstance(environment, list) or not all(isinstance(item, str) and item for item in environment): raise LocalConfigError("mcp environment must be text array")
+            cwd = raw.get("cwd")
+            if cwd is not None and not isinstance(cwd, str): raise LocalConfigError("mcp cwd must be text")
+            raw_risks = raw.get("tool_risks", {})
+            if not isinstance(raw_risks, dict): raise LocalConfigError("mcp tool_risks must be a table")
+            try: risks = {tool: McpRisk(risk) for tool, risk in raw_risks.items() if isinstance(tool, str) and isinstance(risk, str)}
+            except ValueError: raise LocalConfigError("mcp tool risk must be read, write, network, or critical") from None
+            if len(risks) != len(raw_risks): raise LocalConfigError("mcp tool risks must map text names")
+            items.append(McpServer(name, command, tuple(args), cwd, tuple(environment), enabled, approved, (), risks))
         return tuple(items)
     except ValueError as error: raise LocalConfigError(f"invalid MCP configuration: {error}") from None
 
@@ -137,11 +155,12 @@ def _select_provider(
     return selected, values
 
 
-def _provider_config(values: Mapping[str, Any], env: Mapping[str, str]) -> ProviderConfig:
-    api = _protocol(_environment_value(env, "CHAOS_API", "CODE_AGENT_API", values.get("api", "responses")))
-    base_url = _text(_environment_value(env, "CHAOS_BASE_URL", "CODE_AGENT_BASE_URL", values.get("base_url", "https://api.openai.com")), "base_url")
-    model = _text(_environment_value(env, "CHAOS_MODEL", "CODE_AGENT_MODEL", values.get("model", "gpt-4.1-mini")), "model")
-    override_key_env = _environment_value(env, "CHAOS_API_KEY_ENV", "CODE_AGENT_API_KEY_ENV")
+def _provider_config(values: Mapping[str, Any], env: Mapping[str, str], *, allow_environment: bool) -> ProviderConfig:
+    override = lambda primary, legacy, default=None: _environment_value(env, primary, legacy, default) if allow_environment else default
+    api = _protocol(override("CHAOS_API", "CODE_AGENT_API", values.get("api")))
+    base_url = _text(override("CHAOS_BASE_URL", "CODE_AGENT_BASE_URL", values.get("base_url")), "base_url")
+    model = _text(override("CHAOS_MODEL", "CODE_AGENT_MODEL", values.get("model")), "model")
+    override_key_env = override("CHAOS_API_KEY_ENV", "CODE_AGENT_API_KEY_ENV")
     configured_key = values.get("api_key")
     profile_key_env = values.get("api_key_env")
     if override_key_env is not None:
@@ -151,7 +170,7 @@ def _provider_config(values: Mapping[str, Any], env: Mapping[str, str]) -> Provi
     try:
         if configured_key is not None:
             return ProviderConfig(base_url, model, api, api_key_source=ConfiguredApiKey(_text(configured_key, "api_key")))
-        key_env = profile_key_env or _environment_value(env, "CHAOS_API_KEY_ENV", "CODE_AGENT_API_KEY_ENV", "OPENAI_API_KEY")
+        key_env = profile_key_env or override("CHAOS_API_KEY_ENV", "CODE_AGENT_API_KEY_ENV", "OPENAI_API_KEY")
         return ProviderConfig(base_url, model, api, _text(key_env, "api_key_env"))
     except ProviderConfigError as error:
         raise LocalConfigError(f"invalid provider configuration: {error}") from None

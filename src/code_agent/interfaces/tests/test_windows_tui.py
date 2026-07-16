@@ -11,13 +11,15 @@ if str(SRC_ROOT) not in sys.path: sys.path.insert(0, str(SRC_ROOT))
 
 from code_agent.core.events import AgentEvent, EventKind
 from code_agent.core.models import ModelEvent, ModelEventKind
-from code_agent.core.cancellation import CancellationToken
+from code_agent.core.cancellation import CancellationError, CancellationToken
 from code_agent.interfaces.controller import AgentController
 from code_agent.interfaces.input_buffer import InputBuffer
+from code_agent.interfaces.input_events import ExitGuard, MAX_PASTE_BYTES, paste_event
 from code_agent.interfaces.terminal_display import DisplayKind, clip_display, display_width, text_entry
 from code_agent.interfaces.terminal_renderer import ColorMode, Theme, render_entries, render_entry, render_live_tail
 from code_agent.interfaces.terminal_tail import render_live_tail_frame
 from code_agent.interfaces.terminal_status import status_presentation
+from code_agent.interfaces.terminal_io import BRACKETED_PASTE_DISABLE, BRACKETED_PASTE_ENABLE
 from code_agent.interfaces.terminal_state import ApprovalBroker, ApprovalRequest
 from code_agent.interfaces.tests._support import FakeEngine
 from code_agent.interfaces.windows_tui import WindowsTerminalApp, render_terminal
@@ -82,10 +84,13 @@ class TerminalFirstRendererTests(unittest.TestCase):
         self.assertTrue(tail.endswith("\x1b[2A\x1b[8C"))
 
     def test_empty_composer_has_a_bordered_placeholder_with_cursor_after_prompt(self) -> None:
-        tail = render_live_tail("", "idle", 80, color=ColorMode.NEVER)
-        self.assertIn("│ › 输入任务、编辑请求，或输入 / 查看命令", tail)
-        self.assertIn("╭─────────────────────────────────────────────────────────────────────────────╮", tail)
-        self.assertIn("╰─────────────────────────────────────────────────────────────────────────────╯", tail)
+        tail = render_live_tail("", "idle", 80, color=ColorMode.ALWAYS)
+        plain = _plain(tail)
+        self.assertIn("│ › 输入任务、编辑请求，或输入 / 查看命令", plain)
+        self.assertIn("\x1b[38;5;247m", tail)
+        self.assertNotIn("\x1b[2;", tail)
+        self.assertIn("╭─────────────────────────────────────────────────────────────────────────────╮", plain)
+        self.assertIn("╰─────────────────────────────────────────────────────────────────────────────╯", plain)
         self.assertTrue(tail.endswith("\x1b[2A\x1b[4C"))
 
     def test_multiline_composer_grows_and_tracks_the_active_row(self) -> None:
@@ -145,11 +150,12 @@ class TerminalFirstRendererTests(unittest.TestCase):
         self.assertIn("  - 项目", rendered)
         self.assertNotIn("###", rendered)
 
-    def test_markdown_table_has_borders_headers_and_column_widths(self) -> None:
+    def test_markdown_table_uses_three_rules_without_vertical_lines(self) -> None:
         rendered = render_entry(text_entry(DisplayKind.AGENT, "| 位置 | 原来 | 现在 |\n| --- | --- | --- |\n| 函数名 | add(a, b) | multiply(a, b) |"), 44, color=ColorMode.NEVER)
 
-        self.assertIn("┌", rendered)
+        self.assertIn("─", rendered)
         self.assertIn("函数名", rendered)
+        self.assertNotIn("│", rendered)
         self.assertNotIn("| ---", rendered)
         self.assertTrue(all(display_width(line) <= 44 for line in rendered.splitlines()))
 
@@ -157,7 +163,7 @@ class TerminalFirstRendererTests(unittest.TestCase):
         rendered = render_entry(text_entry(DisplayKind.AGENT, "| A | B |\n| --- | --- |\n| 1 | 2 |"), 40, color=ColorMode.ALWAYS)
 
         self.assertIn("\x1b[1;96m", rendered)
-        self.assertIn("\x1b[2;38;5;245m", rendered)
+        self.assertIn("\x1b[38;5;247m", rendered)
 
 
 class InputBufferTests(unittest.TestCase):
@@ -179,8 +185,57 @@ class InputBufferTests(unittest.TestCase):
         buffer.move_home(); self.assertEqual(buffer.cursor, 4)
         buffer.move_end(); self.assertEqual(buffer.cursor, 6)
 
+    def test_paste_normalizes_newlines_and_is_bounded(self) -> None:
+        self.assertEqual(paste_event("第一行\r\n第二行\r第三行").value, "第一行\n第二行\n第三行")
+        with self.assertRaises(ValueError):
+            paste_event("x" * (MAX_PASTE_BYTES + 1))
+
+    def test_exit_guard_requires_second_interrupt_and_disarms_on_input(self) -> None:
+        clock = [0.0]
+        guard = ExitGuard(clock=lambda: clock[0])
+        self.assertFalse(guard.interrupt())
+        clock[0] = 1.9; self.assertTrue(guard.interrupt())
+        self.assertFalse(guard.interrupt())
+        guard.input_received(); clock[0] = 2.0
+        self.assertFalse(guard.interrupt())
+
+    def test_bracketed_paste_terminal_modes_are_explicit(self) -> None:
+        self.assertEqual(BRACKETED_PASTE_ENABLE, "\x1b[?2004h")
+        self.assertEqual(BRACKETED_PASTE_DISABLE, "\x1b[?2004l")
+
 
 class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
+    async def test_palette_executes_leaf_with_one_enter_and_opens_compound_menu(self) -> None:
+        app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker(), write=lambda _: None)
+        app.input.replace("/状态")
+
+        await app.handle_key("\r")
+
+        self.assertEqual(app.input.text, "")
+        self.assertEqual(app.state.entries[-1].kind, DisplayKind.METADATA)
+
+        app.profiles = type("Profiles", (), {"current": type("Profile", (), {"model": "test-model"})()})()
+        app.input.replace("/模型")
+        await app.handle_key("\r")
+        self.assertEqual(app.input.text, "/模型 ")
+        self.assertTrue(any("/模型 列表" in row for row in app.interactions.rows(app)))
+
+    async def test_user_cancellation_is_a_pause_not_an_error_entry(self) -> None:
+        class CancelledTasks:
+            async def events(self, task_id: str, text: str):
+                if False:
+                    yield None
+                raise CancellationError("user requested pause")
+
+        app = WindowsTerminalApp(
+            AgentController(FakeEngine(())), ApprovalBroker(), tasks=CancelledTasks(), write=lambda _: None,
+        )
+
+        await app._consume_task("task-1", "continue")
+
+        self.assertEqual(app.state.status, "paused")
+        self.assertFalse(any(entry.kind is DisplayKind.ERROR for entry in app.state.entries))
+
     async def test_follow_up_continues_the_current_nonterminal_task(self) -> None:
         class ContinuingTasks:
             async def start(self, _: str) -> object:
@@ -297,6 +352,13 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(app.input.text, "")
         self.assertEqual(app.state.entries[0].text, "first\nsecond")
         await app.wait_idle()
+
+    async def test_bracketed_paste_inserts_once_without_submitting(self) -> None:
+        app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker(), write=lambda _: None)
+        await app.handle_key("\x1b[200~/状态\r\n第二行\x1b[201~")
+
+        self.assertEqual(app.input.text, "/状态\n第二行")
+        self.assertEqual(app.state.entries, [])
 
     async def test_malformed_slash_command_is_in_band_error(self) -> None:
         app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker(), write=lambda _: None)

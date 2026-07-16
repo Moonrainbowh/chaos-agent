@@ -6,13 +6,30 @@ from .terminal_renderer import ColorMode, Theme, render_entries, render_live_tai
 from .terminal_state import TerminalState
 
 
+BRACKETED_PASTE_ENABLE = "\x1b[?2004h"
+BRACKETED_PASTE_DISABLE = "\x1b[?2004l"
+
+
 def read_key() -> str:
     import msvcrt
 
     key = msvcrt.getwch()
+    if key == "\x1b" and msvcrt.kbhit():
+        suffix = msvcrt.getwch()
+        if suffix == "[" and msvcrt.kbhit() and msvcrt.getwch() == "2" and msvcrt.kbhit() and msvcrt.getwch() == "0" and msvcrt.kbhit() and msvcrt.getwch() == "0" and msvcrt.kbhit() and msvcrt.getwch() == "~":
+            return _read_bracketed_paste(msvcrt)
+        return "\x1b"
     if key not in {"\x00", "\xe0"}:
         return key
     return {"K": "left", "M": "right", "G": "home", "O": "end", "H": "up", "P": "down", "S": "delete"}.get(msvcrt.getwch(), "")
+
+
+def _read_bracketed_paste(msvcrt: object) -> str:
+    chars: list[str] = []
+    while True:
+        chars.append(msvcrt.getwch())
+        if len(chars) >= 6 and "".join(chars[-6:]) == "\x1b[201~":
+            return "\x1b[200~" + "".join(chars)
 
 
 def stdout_write(value: str) -> None:

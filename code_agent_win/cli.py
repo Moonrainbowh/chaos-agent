@@ -10,8 +10,8 @@ from code_agent.interfaces.commands import CommandKind, execute_command, parse_c
 
 async def run(arguments: Sequence[str]) -> int:
     try:
-        profile_name, command_arguments = _split_profile_option(arguments)
-        model_name, command_arguments = _split_global_options(command_arguments)
+        mode_name, remaining = _split_mode_option(arguments)
+        profile_name, model_name, command_arguments = _split_global_options(remaining)
         command = parse_command(command_arguments)
     except (TypeError, ValueError) as error:
         print(f"usage error: {error}", file=sys.stderr)
@@ -19,7 +19,7 @@ async def run(arguments: Sequence[str]) -> int:
     application = None
     try:
         application = create_application(
-            model_name=model_name, profile_name=profile_name
+            model_name=model_name, profile_name=profile_name, mode_name=mode_name
         )
         application.dispatcher.interactive = command.kind is CommandKind.TUI
         return await execute_command(
@@ -41,32 +41,39 @@ def main() -> int:
     return asyncio.run(run(sys.argv[1:]))
 
 
-def _split_global_options(arguments: Sequence[str]) -> tuple[str | None, tuple[str, ...]]:
-    """Extract only leading CLI-wide options before handing off command grammar."""
+def _split_global_options(arguments: Sequence[str]) -> tuple[str | None, str | None, tuple[str, ...]]:
+    """Extract order-independent global profile options before command grammar."""
     values = tuple(arguments)
     if not all(isinstance(value, str) for value in values):
         raise TypeError("command arguments must be text")
-    if not values or values[0] != "--model":
-        return None, values
-    if len(values) < 2 or not values[1].strip():
-        raise ValueError("--model requires a non-blank name")
-    if len(values) > 2 and values[2] == "--model":
-        raise ValueError("--model may be specified once")
-    return values[1], values[2:]
+    result: dict[str, str] = {}; command: list[str] = []; index = 0
+    while index < len(values):
+        item = values[index]
+        if item not in {"--model", "--profile"}:
+            command.append(item); index += 1; continue
+        if item in result or index + 1 >= len(values) or not values[index + 1].strip():
+            raise ValueError(f"{item} requires one non-blank value and may be specified once")
+        result[item] = values[index + 1]; index += 2
+    return result.get("--profile"), result.get("--model"), tuple(command)
 
 
-def _split_profile_option(arguments: Sequence[str]) -> tuple[str | None, tuple[str, ...]]:
-    """Extract the optional leading local configuration profile selection."""
+def _split_mode_option(arguments: Sequence[str]) -> tuple[str | None, tuple[str, ...]]:
     values = tuple(arguments)
-    if not all(isinstance(value, str) for value in values):
-        raise TypeError("command arguments must be text")
-    if not values or values[0] != "--profile":
-        return None, values
-    if len(values) < 2 or not values[1].strip():
-        raise ValueError("--profile requires a non-blank name")
-    if len(values) > 2 and values[2] == "--profile":
-        raise ValueError("--profile may be specified once")
-    return values[1], values[2:]
+    result: list[str] = []
+    selected: str | None = None
+    index = 0
+    while index < len(values):
+        if values[index] != "--mode":
+            result.append(values[index])
+            index += 1
+            continue
+        if selected is not None or index + 1 >= len(values):
+            raise ValueError("--mode requires one value and may be specified once")
+        selected = values[index + 1]
+        if selected not in {"low", "medium", "high", "ultra"}:
+            raise ValueError("--mode must be low, medium, high, or ultra")
+        index += 2
+    return selected, tuple(result)
 
 
 if __name__ == "__main__":

@@ -38,6 +38,14 @@ from code_agent_win.tools import (  # noqa: E402
     powershell_compatibility_error,
     tool_definitions,
 )
+from code_agent_win.cli import _split_global_options  # noqa: E402
+from code_agent.plugins.models import PluginRisk, ToolContribution  # noqa: E402
+from code_agent.plugins.registry import (  # noqa: E402
+    ContributionSnapshot,
+    PluginHost,
+    RegisteredContribution,
+)
+from code_agent_win.plugin_runtime import PluginToolBridge  # noqa: E402
 
 
 def command_result(returncode: int = 0) -> CommandResult:
@@ -93,6 +101,67 @@ class CommandIntegrationTests(unittest.IsolatedAsyncioTestCase):
         spec = runtime.run.await_args.args[0]
         self.assertEqual(spec.argv[1:3], ("-m", "compileall"))
         self.assertIsNone(spec.powershell_script)
+
+    async def test_mcp_read_tool_flows_through_policy_then_controller(self) -> None:
+        class Mcp:
+            def definitions(self): return ()
+            async def call(self, name: str, arguments: object):
+                self.seen = (name, arguments)
+                return {"ok": True}
+        mcp = Mcp()
+        self.policy._mock_wraps.config.mcp_risks["mcp.docs.search"] = "read"
+        dispatcher = RootActionDispatcher(self.files, self.editor, self.policy, ApprovalBroker(), mcp=mcp)
+
+        result = await dispatcher.dispatch(ActionRequest("mcp-1", "mcp.docs.search", {"query": "policy"}), CancellationToken())
+
+        self.assertFalse(result.is_error)
+        self.assertEqual(mcp.seen[0], "mcp.docs.search")
+        self.policy.evaluate.assert_called_once()
+
+    async def test_plugin_tool_must_pass_plugin_and_host_target_policy(self) -> None:
+        tool = ToolContribution(
+            "save",
+            "Save through a host action.",
+            "write_file",
+            PluginRisk.READ,
+            {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string"},
+                    "content": {"type": "string"},
+                },
+                "required": ["path", "content"],
+                "additionalProperties": False,
+            },
+        )
+        registered = RegisteredContribution("plugin-a", "plug", "tool", "save", tool)
+        bridge = PluginToolBridge(PluginHost(ContributionSnapshot(contributions=(registered,))))
+        policy = Mock(
+            wraps=ActionPolicy(
+                PolicyConfig(
+                    ApprovalMode.ASK,
+                    workspace_root=self.root,
+                    mcp_risks={"plug.save": "read"},
+                )
+            )
+        )
+        dispatcher = RootActionDispatcher(
+            self.files, self.editor, policy, ApprovalBroker(), plugins=bridge
+        )
+
+        result = await dispatcher.dispatch(
+            ActionRequest(
+                "plugin-1",
+                "plug.save",
+                {"path": "note.txt", "content": "unsafe"},
+            ),
+            CancellationToken(),
+        )
+
+        self.assertTrue(result.is_error)
+        self.assertEqual(result.output["error"], "approval required in TUI")
+        self.assertEqual(policy.evaluate.call_count, 2)
+        self.assertFalse((self.root / "note.txt").exists())
 
     async def test_bash_here_string_is_rejected_before_policy_and_runtime(self) -> None:
         runtime = Mock()
@@ -173,6 +242,9 @@ class CommandIntegrationTests(unittest.IsolatedAsyncioTestCase):
 
 
 class CapabilityTests(unittest.TestCase):
+    def test_global_profile_options_are_order_independent(self) -> None:
+        profile, model, command = _split_global_options(("ask", "question", "--model", "fast", "--profile", "company"))
+        self.assertEqual((profile, model, command), ("company", "fast", ("ask", "question")))
     def test_tool_schema_can_omit_git_without_changing_other_tools(self) -> None:
         names = {tool.name for tool in tool_definitions(include_git=False)}
 

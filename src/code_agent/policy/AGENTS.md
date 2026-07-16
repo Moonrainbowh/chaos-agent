@@ -8,6 +8,9 @@
 - 不负责：把本机执行描述为操作系统级沙箱；强隔离由 Runtime adapter 提供。
 - 任务授权不得自动允许模型提供的任意 PowerShell 文本；只有参数受限、由本地 adapter 生成 argv 的 typed verification 可在匹配的本地授权下自动执行。
 - 明确受保护路径、网络、工作区外路径、critical 动作和未知工具始终保持拒绝或逐次审批，不能由任务授权降级。
+- MCP 工具必须按本地配置显式映射为 read、write、network 或 critical；server 自报只读属性不能替代映射，未知映射保持拒绝。
+- Agent 模式、Subagent、Oracle 和插件不得直接授予权限；它们只能在现有用户授权与任务授权内增加约束，所有外部动作仍使用同一策略入口。
+- 插件风险声明只能提高或补充本地风险分类，不能降低风险、替用户批准动作或绕过 protected、unknown、critical 与 network 边界。
 
 ## Units
 - `ApprovalMode`、`Capability`、`DecisionOutcome`、`RiskLevel`、`PolicyDecision`: 表达稳定的审批、能力、结果与风险词汇以及不可变决定 | 无副作用 | `plan`、`ask`、`auto`、`elevated`、`full-local` 是本地访问级别；外部路径能力必须由策略明确决策

@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
+from collections.abc import Mapping
 
 from code_agent.core.models import ActionRequest
 from code_agent.core.task import TaskAuthorization
@@ -22,6 +23,7 @@ class PolicyConfig:
     approval_mode: ApprovalMode = ApprovalMode.ASK
     allow_network: bool = False
     workspace_root: Optional[Path] = None
+    mcp_risks: Mapping[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not isinstance(self.approval_mode, ApprovalMode):
@@ -58,7 +60,7 @@ class ActionPolicy:
         )
 
     def evaluate(self, request: ActionRequest, task_authorization: TaskAuthorization | None = None) -> PolicyDecision:
-        classified = classify_action(request, self.config.workspace_root)
+        classified = classify_action(request, self.config.workspace_root, self.config.mcp_risks)
 
         if not classified.known_tool:
             return self._decision(

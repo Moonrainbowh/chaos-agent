@@ -34,6 +34,14 @@ from code_agent.sessions.models import (  # noqa: E402
 
 
 class TerminalStateTests(unittest.TestCase):
+    def test_user_pause_cancellation_is_not_presented_as_an_error(self) -> None:
+        state = TerminalState()
+        state.begin_run()
+
+        state.apply(AgentEvent(EventKind.CANCELLED, {"reason": "user requested pause"}))
+
+        self.assertEqual(state.status, "paused")
+
     def test_state_tracks_transcript_timeline_status_and_diff(self) -> None:
         state = TerminalState()
         state.apply(AgentEvent(EventKind.RUN_STARTED, {"thread_id": "thread-1"}))
@@ -182,7 +190,17 @@ class TerminalStateTests(unittest.TestCase):
         state.apply(AgentEvent(EventKind.ACTION_COMPLETED, {"result": ActionResult("call-1", "read_file", {}).to_dict()}))
 
         self.assertEqual(state.entries[-1].kind, DisplayKind.TOOL)
-        self.assertEqual(state.entries[-1].text, "read_file completed")
+        self.assertEqual(state.entries[-1].text, "read_file")
+
+    def test_action_summary_keeps_only_request_facts(self) -> None:
+        state = TerminalState()
+        state.apply(AgentEvent(EventKind.ACTION_REQUESTED, {"request": {"id": "call-1", "name": "read_file", "arguments": {"path": "src/a.py", "secret": "nope"}}}))
+        state.apply(AgentEvent(EventKind.ACTION_COMPLETED, {"result": ActionResult("call-1", "read_file", {"content": "unbounded"}, metadata={"lines": 7, "duration_ms": 12}).to_dict()}))
+
+        self.assertIn("path: src/a.py", state.entries[-1].text)
+        self.assertIn("lines: 7", state.entries[-1].text)
+        self.assertNotIn("unbounded", state.entries[-1].text)
+        self.assertNotIn("nope", state.entries[-1].text)
 
     def test_reasoning_delta_is_not_retained_or_rendered(self) -> None:
         state = TerminalState()

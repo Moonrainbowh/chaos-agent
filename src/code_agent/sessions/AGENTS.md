@@ -10,6 +10,7 @@
 - 预算预留与读取必须保留 token、repair、failure、active-time 及 warning 等全部累计字段；恢复不得重置扩展计数。
 - 负责原子记录运行实例和中断 checkpoint，并只对已失效 owner 的运行任务执行幂等恢复对账。
 - 负责持久化 contract revision、code generation、verification run、append-only evidence 与原子 completion；完成事务必须复核最新 generation 和全部 required evidence。
+- 负责记录创建任务时的 profile 身份、模型、协议和脱敏 endpoint host，并支持旧会话库的可重复、非破坏性迁移。
 - 不负责解析 verifier 输出、执行验证或把模型消息提升为 evidence。
 
 ## Units
@@ -25,4 +26,5 @@
 - `finalize_task`、`interrupt_open_verification_runs`: 在一个事务内复核当前 revision/run/required evidence 后完成，或把恢复前在途 run 标为 interrupted | SQLite I/O | 不存在通用的 evidence-free completed 路径
 - `RecordRepositoryMixin`: 保存、更新和读取目标与 checkpoint | SQLite I/O | 所有记录必须归属于存在的线程
 - `SessionDatabase`: 执行版本化 schema migration、连接配置、事务和完整性校验 | SQLite I/O | 未来版本、缺表和损坏数据均失败闭合
+- `migrate_legacy_session_database`: 使用 SQLite backup API 复制旧库并校验计数与完整性 | SQLite I/O | 临时目标原子替换，旧库始终保留
 - `encode_message`、`decode_message`、`encode_event`、`decode_event`: 在核心模型与稳定 JSON 记录间转换 | JSON 编解码 | 不能信任的持久化内容抛出专用损坏错误

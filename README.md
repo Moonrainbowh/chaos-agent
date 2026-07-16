@@ -9,6 +9,9 @@ It is a clean-room implementation. It takes architectural lessons from projects 
 - Uses OpenAI Responses, OpenAI Chat Completions, or Anthropic Messages through one streaming model protocol.
 - Keeps sessions, messages, events, goals, and checkpoints in a versioned SQLite database.
 - Discovers hierarchical `AGENTS.md` rules, builds a bounded repository map, and compacts history deterministically.
+- Freezes `low`, `medium`, `high`, or `ultra` task modes to an actual provider profile, model, prompt policy, tool set, reasoning effort, and execution limits. Modes never grant permission.
+- Runs bounded advisory Subagent, Oracle, Review, Search, and Librarian children through the same typed tools, policy checks, cancellation tree, and cumulative parent budget.
+- Loads trusted declarative plugins without executing plugin Python, shell, URLs, or terminal control sequences. Typed tool contributions are live; event, command, mode, custom Agent, and Host-interaction declarations are validated snapshots pending their remaining Host wiring.
 - Routes file reads, edits, Git inspection, structured local verification, and PowerShell commands through typed tools, central policy checks, audit events, and explicit approval.
 - Provides a Windows Terminal TUI (`chaos-agent`), a text CLI (`chaos-agent ask`), session resume (`chaos-agent resume`), and machine-readable events (`chaos-agent run --json`). The legacy `agent` command remains available during migration.
 
@@ -38,6 +41,8 @@ api = "responses"
 base_url = "https://api.openai.com"
 model = "gpt-4.1-mini"
 api_key = "replace-with-your-key"
+context_window = 128000
+max_output_tokens = 16384
 
 [agent]
 approval_mode = "ask"
@@ -46,7 +51,14 @@ approval_mode = "ask"
 # allow_sensitive_paths = true
 ```
 
-Multiple `[providers.<name>]` profiles are supported. Use `chaos-agent --profile <name>` or `CHAOS_PROFILE` to choose one; `CHAOS_CONFIG` may select another absolute config path. `CHAOS_API`, `CHAOS_BASE_URL`, `CHAOS_MODEL`, `CHAOS_API_KEY_ENV`, and `CHAOS_APPROVAL_MODE` override the selected profile. Legacy `CODE_AGENT_*` names remain fallback aliases during migration. A profile may use either `api_key` or `api_key_env`, not both.
+Every configured `[providers.<name>]` profile must declare `api`, `base_url`, `model`, exactly one of `api_key`/`api_key_env`, `context_window`, and `max_output_tokens`. Use `chaos-agent --profile <name>` or `CHAOS_PROFILE` to choose one; `CHAOS_CONFIG` may select another absolute config path. `CHAOS_API`, `CHAOS_BASE_URL`, `CHAOS_MODEL`, and `CHAOS_API_KEY_ENV` override only the selected profile. Legacy `CODE_AGENT_*` names remain fallback aliases during migration.
+
+`--mode low|medium|high|ultra` or `CHAOS_MODE` selects the task mode. By
+default every mode uses the selected provider profile, while
+`CHAOS_MODE_LOW_PROFILE`, `CHAOS_MODE_MEDIUM_PROFILE`,
+`CHAOS_MODE_HIGH_PROFILE`, and `CHAOS_MODE_ULTRA_PROFILE` can bind individual
+modes to other configured profiles. The mode/profile/model snapshot is frozen
+for the task; changing access policy is a separate operation.
 
 The API key is never written to a session or project file. The local file is suitable only for a personal Windows user: another process running as the same user can theoretically read it after explicit approval. Windows Credential Manager is a possible future enhancement, not a current dependency. The file tool rejects the local configuration directory even when it is used as a workspace.
 
@@ -77,7 +89,9 @@ Use `CHAOS_API_KEY_ENV` when the key variable is not `OPENAI_API_KEY`.
 
 ```powershell
 chaos-agent
-chaos-agent --model fast ask "inspect this repository"
+chaos-agent ask "inspect this repository" --model fast
+chaos-agent --profile fast ask "inspect this repository"
+chaos-agent --mode high ask "review this repository and run the relevant tests"
 chaos-agent ask "inspect this repository and explain the test layout"
 chaos-agent resume <thread-id>
 chaos-agent resume <thread-id> "continue the previous task"
@@ -89,19 +103,37 @@ entries to the normal Windows Terminal buffer. Windows Terminal owns selection,
 copying, and scrollback. The default visual profile uses Unicode symbols,
 medium transcript spacing, cyan emphasis, dim-gray tool records, and green
 only for task-level completion. The live tail keeps a single bordered composer;
-typing `/` places up to five command candidates above it, while the status row
+typing `/` places keyboard-selectable command candidates above it; `Up`/`Down`
+move, `Enter` completes or selects, and `Esc` closes the Picker. Disabled
+candidates retain a visible reason. The status row
 keeps dynamic work on the left and model/elapsed context on the right when
 space allows. `/主题 signal|symbol|plain`, `/字形`, and `/颜色` change only
 application rendering and never modify the terminal font or profile. `signal`
 and `plain` retain ASCII-compatible fallbacks; `NO_COLOR` disables ANSI color.
 
-Skills use an explicit, context-only manifest at either
-`%USERPROFILE%\.chaos-agent\skills\<id>` or
-`<workspace>\.chaos-agent\skills\<id>`, containing `skill.toml` and
-`SKILL.md`. Workspace Skills require explicit activation and cannot register
-tools, execute scripts, call the network, or change policy. Configured MCP
-servers currently support `/mcp 状态 [server]` inventory only; no server is
-started and no MCP action is exposed until a separate policy bridge exists.
+Skills are discovered only from `%USERPROFILE%\.agents\skills\<id>` and
+`<workspace>\.agents\skills\<id>`, each containing `SKILL.md` with optional
+frontmatter. Matching IDs and digests merge their sources; different digests
+are isolated as conflicts. Workspace Skills require explicit activation and
+cannot register tools, execute scripts, call the network, or change policy.
+
+MCP configuration uses approved, structured stdio entries under
+`[mcp.servers.<name>]`: `command`, `args`, optional `cwd`, an environment-name
+allowlist, `tool_risks`, plus `enabled` and `approved`. `/mcp 启用 <server>`
+starts an approved server through the installed SDK, discovers only tools with
+a local `read`/`write`/`network`/`critical` risk mapping, and exposes those as
+`mcp.<server>.<tool>`. They then route through the same policy decision and
+approval boundary as built-in tools. `/mcp 禁用` and `/mcp 重启` close the
+managed SDK session before removing or rediscovering tools.
+
+Declarative plugins are discovered from
+`%LOCALAPPDATA%\chaos-agent\plugins\<id>\plugin.json` and
+`<workspace>\.chaos-agent\plugins\<id>\plugin.json`. Activation requires the
+manifest SHA-256 digest to match `%LOCALAPPDATA%\chaos-agent\plugin-trust.json`.
+Plugin tools map only to known Host typed actions; both the plugin declaration
+risk and the mapped Host action risk must pass policy. Invalid namespaces,
+conflicts, unknown mappings, digest changes, and untrusted manifests are
+isolated without disabling built-in tools.
 
 ## Safety Defaults
 
@@ -109,10 +141,11 @@ started and no MCP action is exposed until a separate policy bridge exists.
 - `plan` allows workspace reads only. `auto` remains compatible and requires approval for outside-workspace access. `elevated` requires approval for each external read, write, or recursive enumeration. `full-local` permits typed external file operations, while commands still require approval.
 - `allow_sensitive_paths = true` (or `CHAOS_ALLOW_SENSITIVE_PATHS=true`) is a separate explicit opt-in for `.env` files and private-key names. `.git`, `.code-agent`, and symlink/reparse paths remain protected at every level.
 - Unknown and critical actions are denied. Destructive commands and unbounded output are rejected.
+- `delegate_agent` is a normal typed action. It is policy checked before a child starts; child output is explicitly advisory and never counts as verification evidence or parent completion.
 - `run_command` always represents model-provided raw PowerShell and requires explicit approval, including inside a foreground task. `run_verification` only accepts a registered kind plus constrained relative paths; the local adapter generates its fixed argv for Python unittest, pytest, compileall, or build.
 - The local runtime is controlled process execution, not an OS-level sandbox. Typed verification executes user-authorized project code under the current Windows user and therefore does not isolate that code's indirect filesystem or network effects. Docker is optional and uses no network and no image pulls.
 
-Sessions are stored at `%LOCALAPPDATA%\chaos-agent\sessions.sqlite3` by default. An existing legacy session database is reused until a new data directory is created.
+Sessions are stored at `%LOCALAPPDATA%\chaos-agent\sessions.sqlite3` by default. When that target is absent and the legacy `%LOCALAPPDATA%\code-agent\sessions.sqlite3` exists, Chaos Agent uses SQLite backup into a temporary target, checks integrity and key counts, then atomically publishes the copy while retaining the legacy database.
 
 ## Foreground Tasks
 
@@ -128,6 +161,19 @@ guidance. Process commands are `chaos-agent task list` and `chaos-agent task res
 <task-id> [instruction]`. Chinese Windows uses Chinese task chrome by default;
 `/language en` selects English UI labels. Paths, commands, model names, Git
 refs, and raw tool data are never translated.
+
+Bracketed multi-line paste normalizes CRLF/CR to LF and inserts one bounded
+input block without submitting it. Pressing `Ctrl+C` once pauses/rejects/clears
+according to current state and arms a two-second exit window; only a second
+`Ctrl+C` exits the TUI.
+
+Running-task guidance is shown as `queued`, `steered`, `dequeued`, and
+`applied`. The last two states advance only after persisted `TURN_STARTED` and
+`CONTEXT_BUILT` events prove that Core consumed the control and rebuilt model
+context. Approval prompts remain visible above the composer, show action,
+target, risk, and reason, default to `No`, and require `Enter` or `Esc`.
+`/diff` prefers a fresh diff from the injected read-only Git adapter and renders
+file statistics plus bounded unified diff lines.
 
 Tasks persist lifecycle state, checkpoints, and cumulative budgets. Closing the
 terminal, sleep, hibernate, shutdown, or reboot does not keep work running;
@@ -164,6 +210,14 @@ names, or external telemetry. Agent-round and tool-call limits are intentionally
 retained from the existing model profile and persistent budget work; this
 feature measures their context environment for later evidence-based tuning and
 does not tune those limits.
+
+The semantic checkpoint, bounded thread index, authorized thread-tree search,
+and revision-aware `read_thread` Feature are implemented and tested, but the
+current `ContextBuilder.build(...)` integration protocol does not carry a
+`thread_id`. Chaos Agent therefore keeps deterministic compaction active in the
+runtime rather than generating checkpoint anchors with a fabricated thread
+identity. The required interface revision is recorded in
+`docs/amp-inspired-runtime.md`.
 
 ## Development Status
 

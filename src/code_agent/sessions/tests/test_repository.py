@@ -94,6 +94,15 @@ class SQLiteSessionRepositoryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await self.repository.list_tasks(), ())
         self.assertEqual((await self.repository.list_tasks(include_terminal=True))[0].status, TaskStatus.ACCEPTED_PARTIAL)
 
+    async def test_task_profile_facts_survive_persistence(self) -> None:
+        thread_id = await self.repository.create_thread()
+        contract = TaskContract("repair", TaskAuthorization.local_workspace(self.temporary.name), profile_id="company", model="gpt-test", protocol="responses", endpoint_host="api.example.test")
+        task = await self.repository.create_task(thread_id, contract)
+
+        restored = await SQLiteSessionRepository(self.database).load_task(task.id)
+
+        self.assertEqual((restored.contract.profile_id, restored.contract.model, restored.contract.protocol, restored.contract.endpoint_host), ("company", "gpt-test", "responses", "api.example.test"))
+
     async def test_goals_and_checkpoints_persist_structured_metadata(self) -> None:
         thread_id = await self.repository.create_thread()
         goal_id = await self.repository.create_goal(

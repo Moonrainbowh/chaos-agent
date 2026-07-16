@@ -3,9 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
+from .command_registry import REGISTRY
+
 
 class TuiCommandKind(str, Enum):
-    TASKS = "tasks"; PAUSE = "pause"; RESUME = "resume"; STOP = "stop"; ACCEPT = "accept"; STEER = "steer"; DIFF = "diff"; LANGUAGE = "language"; STATUS = "status"; HELP = "help"; THEME = "theme"; COLOR = "color"; GLYPHS = "glyphs"; MODEL = "model"; SKILLS = "skills"; MCP = "mcp"; EVIDENCE = "evidence"
+    HELP = "help"; STATUS = "status"; CLEAR = "clear"; EXIT = "exit"; DIAG = "doctor"; TRACE = "trace"; NEW = "new"; SESSIONS = "sessions"; OPEN = "open"; RESTORE = "restore"; TASKS = "tasks"; PAUSE = "pause"; RESUME = "resume"; STOP = "stop"; ACCEPT = "accept"; STEER = "steer"; DIFF = "diff"; CONTEXT = "context"; TOOLS = "tools"; LANGUAGE = "language"; THEME = "theme"; COLOR = "color"; GLYPHS = "glyphs"; MODEL = "model"; SKILLS = "skills"; MCP = "mcp"; EVIDENCE = "evidence"
 
 
 @dataclass(frozen=True)
@@ -22,14 +24,14 @@ class ParseOutcome:
     def is_command(self) -> bool: return self.command is not None
 
 
-def parse_tui_command(text: str) -> ParseOutcome:
+def parse_tui_command(text: str, services: set[str] | None = None) -> ParseOutcome:
     if not isinstance(text, str): raise TypeError("text must be a string")
+    spec, arguments, error = REGISTRY.parse(text, services or {"sessions", "history", "tasks", "evidence", "profiles", "skills", "mcp"})
     if not text.startswith("/"): return ParseOutcome()
-    parts = text[1:].strip().split(maxsplit=1)
-    if not parts: return ParseOutcome(error="slash command is required")
-    aliases = {"任务": TuiCommandKind.TASKS, "tasks": TuiCommandKind.TASKS, "暂停": TuiCommandKind.PAUSE, "pause": TuiCommandKind.PAUSE, "继续": TuiCommandKind.RESUME, "resume": TuiCommandKind.RESUME, "停止": TuiCommandKind.STOP, "stop": TuiCommandKind.STOP, "接受": TuiCommandKind.ACCEPT, "accept": TuiCommandKind.ACCEPT, "引导": TuiCommandKind.STEER, "steer": TuiCommandKind.STEER, "差异": TuiCommandKind.DIFF, "diff": TuiCommandKind.DIFF, "语言": TuiCommandKind.LANGUAGE, "language": TuiCommandKind.LANGUAGE, "状态": TuiCommandKind.STATUS, "status": TuiCommandKind.STATUS, "帮助": TuiCommandKind.HELP, "help": TuiCommandKind.HELP, "主题": TuiCommandKind.THEME, "theme": TuiCommandKind.THEME, "颜色": TuiCommandKind.COLOR, "color": TuiCommandKind.COLOR, "字形": TuiCommandKind.GLYPHS, "glyphs": TuiCommandKind.GLYPHS, "模型": TuiCommandKind.MODEL, "model": TuiCommandKind.MODEL, "技能": TuiCommandKind.SKILLS, "skills": TuiCommandKind.SKILLS, "mcp": TuiCommandKind.MCP, "证据": TuiCommandKind.EVIDENCE, "evidence": TuiCommandKind.EVIDENCE}
-    kind = aliases.get(parts[0].lower())
-    if kind is None: return ParseOutcome(error="unknown slash command")
-    value = parts[1] if len(parts) == 2 else None
+    if error: return ParseOutcome(error=error)
+    assert spec is not None
+    kinds = {"帮助": "help", "状态": "status", "清屏": "clear", "退出": "exit", "诊断": "doctor", "追踪": "trace", "新建": "new", "会话": "sessions", "打开": "open", "恢复": "restore", "任务": "tasks", "暂停": "pause", "继续": "resume", "停止": "stop", "接受": "accept", "引导": "steer", "差异": "diff", "上下文": "context", "工具": "tools", "语言": "language", "主题": "theme", "颜色": "color", "字形": "glyphs", "模型": "model", "技能": "skills", "mcp": "mcp", "证据": "evidence"}
+    kind = TuiCommandKind(kinds[spec.name])
+    value = " ".join(arguments) or None
     if kind is TuiCommandKind.STEER and not value: return ParseOutcome(error="steering instruction is required")
-    return ParseOutcome(TuiCommand(kind, value if kind in {TuiCommandKind.PAUSE, TuiCommandKind.RESUME, TuiCommandKind.STOP, TuiCommandKind.ACCEPT} else None, value if kind in {TuiCommandKind.STEER, TuiCommandKind.LANGUAGE, TuiCommandKind.THEME, TuiCommandKind.COLOR, TuiCommandKind.GLYPHS, TuiCommandKind.MODEL, TuiCommandKind.SKILLS, TuiCommandKind.MCP} else None))
+    return ParseOutcome(TuiCommand(kind, value if kind in {TuiCommandKind.PAUSE, TuiCommandKind.RESUME, TuiCommandKind.STOP, TuiCommandKind.ACCEPT} else None, value if kind in {TuiCommandKind.STEER, TuiCommandKind.OPEN, TuiCommandKind.RESTORE, TuiCommandKind.LANGUAGE, TuiCommandKind.THEME, TuiCommandKind.COLOR, TuiCommandKind.GLYPHS, TuiCommandKind.MODEL, TuiCommandKind.SKILLS, TuiCommandKind.MCP} else None))

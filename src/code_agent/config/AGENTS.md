@@ -3,6 +3,8 @@
 
 ## 边界
 - 负责：解析默认或显式配置路径、读取 TOML、验证 provider profile、合并既有环境变量和 CLI profile 覆盖，以及生成可安全展示的运行配置。
+- 负责：校验每个 profile 的 `api`、`base_url`、`model`、`context_window`、`max_output_tokens` 和恰好一种密钥来源，并单独解析各 profile 以避免全局环境污染。
+- 负责：分别解析配置与会话路径，兼容旧 `code-agent` 配置；不以新目录是否存在决定旧会话是否可见。
 - 负责：为上层提供只包含已配置 profile 标识、模型和非敏感能力摘要的只读目录；保留 profile 选择所需的私有配置，供安全任务边界重新构造运行时使用。
 - 负责：保存配置内明文 `api_key` 的私有表示，确保其不会出现在公开配置、诊断、序列化或异常内容中。
 - 不负责：发送网络请求、持久化会话、执行工具或渲染终端界面。
@@ -14,3 +16,4 @@
 - `default_config_path(env)`、`resolve_config_path(env)`: 解析默认或绝对覆盖配置文件路径 | 无副作用 | 相对 `CHAOS_CONFIG` 拒绝；无新配置时回退旧目录
 - `load_runtime_config(env, cli_profile)`: 读取、验证、选择并合并本地 provider 配置 | 文件 I/O | `CHAOS_*` 优先、`CODE_AGENT_*` 回退；异常不包含文件内容或密钥
 - `RuntimeConfig`: 冻结已选择的 Provider、profile、审批模式、敏感路径开关和配置路径 | 无副作用 | 密钥状态只能显示脱敏描述
+- `ProfileSummary`: 提供 profile 名、模型、协议、endpoint host、预算和密钥来源类型 | 无副作用 | 不包含密钥、URL 路径或认证头

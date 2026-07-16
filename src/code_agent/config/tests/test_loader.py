@@ -43,6 +43,7 @@ class LocalApiConfigTests(unittest.TestCase):
                     "CODE_AGENT_API": "chat_completions",
                     "CHAOS_MODEL": "chaos-model",
                     "CODE_AGENT_MODEL": "legacy-model",
+                    "CHAOS_BASE_URL": "https://chaos.example.test",
                     "CHAOS_API_KEY_ENV": "CHAOS_KEY",
                     "CODE_AGENT_API_KEY_ENV": "LEGACY_KEY",
                 }
@@ -64,6 +65,8 @@ api = "responses"
 base_url = "https://api.openai.com"
 model = "gpt-4.1-mini"
 api_key = "test-local-key-7xK2"
+context_window = 128000
+max_output_tokens = 16384
 """.strip(),
                 encoding="utf-8",
             )
@@ -108,6 +111,8 @@ api = "responses"
 base_url = "https://api.openai.com"
 model = "test-model"
 api_key_env = "OPENAI_API_KEY"
+context_window = 128000
+max_output_tokens = 16384
 
 [agent]
 approval_mode = "full-local"
@@ -134,12 +139,16 @@ api = "responses"
 base_url = "https://api.openai.com"
 model = "default-model"
 api_key_env = "OPENAI_KEY"
+context_window = 128000
+max_output_tokens = 16384
 
 [providers.company]
 api = "anthropic_messages"
 base_url = "https://api.company.test"
 model = "company-model"
 api_key_env = "COMPANY_KEY"
+context_window = 64000
+max_output_tokens = 8192
 
 [agent]
 approval_mode = "plan"
@@ -184,6 +193,63 @@ api_key_env = "OPENAI_KEY"
                 load_runtime_config(env={"CODE_AGENT_CONFIG": str(path)})
 
         self.assertNotIn("test-local-key-7xK2", str(raised.exception))
+
+    def test_unselected_profile_ignores_environment_model_override(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.toml"
+            path.write_text(
+                """
+[default]
+provider = "one"
+[providers.one]
+api = "responses"
+base_url = "https://one.example.test"
+model = "one"
+api_key_env = "ONE_KEY"
+context_window = 1000
+max_output_tokens = 100
+[providers.two]
+api = "chat_completions"
+base_url = "https://two.example.test"
+model = "two"
+api_key_env = "TWO_KEY"
+context_window = 2000
+max_output_tokens = 200
+""".strip(), encoding="utf-8")
+            runtime = load_runtime_config(env={"CHAOS_CONFIG": str(path), "CHAOS_MODEL": "override"})
+
+        profiles = {profile.name: profile for profile in runtime.profiles}
+        self.assertEqual(profiles["one"].provider.model, "override")
+        self.assertEqual(profiles["two"].provider.model, "two")
+
+    def test_parses_structured_stdio_mcp_server_without_secret_values(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.toml"
+            path.write_text(
+                """
+[default]
+provider = "local"
+[providers.local]
+api = "responses"
+base_url = "https://api.example.test"
+model = "test"
+api_key_env = "KEY"
+context_window = 1000
+max_output_tokens = 100
+[mcp.servers.docs]
+command = "python"
+args = ["server.py", "--read-only"]
+cwd = "tools/docs"
+environment = ["DOCS_TOKEN"]
+enabled = true
+approved = true
+""".strip(), encoding="utf-8")
+            runtime = load_runtime_config(env={"CHAOS_CONFIG": str(path)})
+
+        server = runtime.mcp_servers[0]
+        self.assertEqual(server.command, "python")
+        self.assertEqual(server.args, ("server.py", "--read-only"))
+        self.assertEqual(server.environment, ("DOCS_TOKEN",))
 
 
 if __name__ == "__main__":

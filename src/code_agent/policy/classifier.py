@@ -222,7 +222,7 @@ def _path_value_is_protected(value: object) -> bool:
 
 
 def classify_action(
-    request: ActionRequest, workspace_root: Optional[Path] = None
+    request: ActionRequest, workspace_root: Optional[Path] = None, mcp_risks: Mapping[str, str] | None = None
 ) -> ActionClassification:
     """Classify an action using conservative tool-name and command heuristics."""
 
@@ -235,7 +235,13 @@ def classify_action(
     outside = _targets_outside_workspace(request.arguments, workspace_root)
     protected = _targets_protected(request.arguments)
 
-    if name in _READ_TOOLS:
+    mcp_risk = (mcp_risks or {}).get(name)
+    if mcp_risk is not None:
+        mapping = {"read": ({Capability.READ}, RiskLevel.LOW), "write": ({Capability.WRITE}, RiskLevel.MEDIUM), "network": ({Capability.NETWORK}, RiskLevel.HIGH), "critical": (set(), RiskLevel.CRITICAL)}
+        try: capabilities, risk = mapping[mcp_risk]
+        except KeyError: return ActionClassification(risk=RiskLevel.CRITICAL, reason="MCP tool has an unknown risk mapping", known_tool=False)
+        reason = "configured MCP tool"
+    elif name in _READ_TOOLS:
         capabilities = {Capability.READ}
         risk = RiskLevel.LOW
         reason = "recognized read-only tool"

@@ -95,6 +95,23 @@ TOOL_DEFINITIONS: tuple[ToolDefinition, ...] = (
         "use the Bash here-string operator <<<.",
         _object_schema({"command": _nonempty_text_schema()}, ("command",)),
     ),
+    ToolDefinition(
+        "delegate_agent",
+        "Delegate one bounded objective to an advisory subagent, Oracle, reviewer, searcher, or librarian.",
+        _object_schema(
+            {
+                "objective": _nonempty_text_schema(),
+                "role": {
+                    "type": "string",
+                    "enum": ["subagent", "oracle", "review", "search", "librarian"],
+                },
+                "token_budget": _integer_schema(256, 100000),
+                "tool_budget": _integer_schema(0, 128),
+                "active_seconds": _integer_schema(1, 1800),
+            },
+            ("objective", "role"),
+        ),
+    ),
 )
 
 _TOOLS_BY_NAME = {tool.name: tool for tool in TOOL_DEFINITIONS}

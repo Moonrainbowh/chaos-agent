@@ -81,6 +81,10 @@ class TaskContract:
     max_repair_cycles: int = 3
     max_repeated_failure_signatures: int = 3
     intent: TaskIntent = TaskIntent.MODIFY
+    profile_id: str | None = None
+    model: str | None = None
+    protocol: str | None = None
+    endpoint_host: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "objective", cast(str, _text(self.objective, "objective")))
@@ -88,15 +92,18 @@ class TaskContract:
             raise TypeError("authorization must be a TaskAuthorization")
         if not isinstance(self.intent, TaskIntent):
             raise TypeError("intent must be a TaskIntent")
+        profile_facts = (self.profile_id, self.model, self.protocol, self.endpoint_host)
+        if any(value is not None for value in profile_facts) and not all(isinstance(value, str) and value.strip() for value in profile_facts):
+            raise ValueError("profile audit facts must be complete non-blank text")
         for name in ("max_active_seconds", "max_repair_cycles", "max_repeated_failure_signatures"):
             object.__setattr__(self, name, _positive(getattr(self, name), name))
 
     def to_dict(self) -> dict[str, JSONValue]:
-        return {"objective": self.objective, "authorization": self.authorization.to_dict(), "max_active_seconds": self.max_active_seconds, "max_repair_cycles": self.max_repair_cycles, "max_repeated_failure_signatures": self.max_repeated_failure_signatures, "intent": self.intent.value}
+        return {"objective": self.objective, "authorization": self.authorization.to_dict(), "max_active_seconds": self.max_active_seconds, "max_repair_cycles": self.max_repair_cycles, "max_repeated_failure_signatures": self.max_repeated_failure_signatures, "intent": self.intent.value, "profile_id": self.profile_id, "model": self.model, "protocol": self.protocol, "endpoint_host": self.endpoint_host}
 
     @classmethod
     def from_dict(cls, data: Mapping[str, object]) -> TaskContract:
-        return cls(objective=cast(str, data["objective"]), authorization=TaskAuthorization.from_dict(cast(Mapping[str, object], data["authorization"])), max_active_seconds=cast(int, data.get("max_active_seconds", 1200)), max_repair_cycles=cast(int, data.get("max_repair_cycles", 3)), max_repeated_failure_signatures=cast(int, data.get("max_repeated_failure_signatures", 3)), intent=TaskIntent(cast(str, data.get("intent", TaskIntent.MODIFY.value))))
+        return cls(objective=cast(str, data["objective"]), authorization=TaskAuthorization.from_dict(cast(Mapping[str, object], data["authorization"])), max_active_seconds=cast(int, data.get("max_active_seconds", 1200)), max_repair_cycles=cast(int, data.get("max_repair_cycles", 3)), max_repeated_failure_signatures=cast(int, data.get("max_repeated_failure_signatures", 3)), intent=TaskIntent(cast(str, data.get("intent", TaskIntent.MODIFY.value))), profile_id=cast(str | None, data.get("profile_id")), model=cast(str | None, data.get("model")), protocol=cast(str | None, data.get("protocol")), endpoint_host=cast(str | None, data.get("endpoint_host")))
 
 
 @dataclass(frozen=True)

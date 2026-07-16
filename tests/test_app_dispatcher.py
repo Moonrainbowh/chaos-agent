@@ -13,7 +13,7 @@ if str(SRC_ROOT) not in sys.path:
 
 from code_agent_win.app import RootActionDispatcher  # noqa: E402
 from code_agent.core.cancellation import CancellationToken  # noqa: E402
-from code_agent.core.models import ActionRequest  # noqa: E402
+from code_agent.core.models import ActionRequest, ActionResult  # noqa: E402
 from code_agent.interfaces.terminal_state import ApprovalBroker  # noqa: E402
 from code_agent.policy.engine import ActionPolicy, PolicyConfig  # noqa: E402
 from code_agent.policy.models import ApprovalMode  # noqa: E402
@@ -100,3 +100,43 @@ class RootActionDispatcherTests(unittest.IsolatedAsyncioTestCase):
         result = await dispatcher.dispatch(ActionRequest("call-1", "write_file", {"path": "note.txt", "content": "x"}), CancellationToken())
         self.assertTrue(result.is_error)
         self.assertEqual(result.output["error"], "approval required in TUI")
+
+    async def test_delegate_agent_is_a_policy_checked_typed_action(self) -> None:
+        class Subagents:
+            async def dispatch(self, request, cancellation):
+                self.seen = request
+                return ActionResult(
+                    request.id,
+                    request.name,
+                    {"advisory": True, "summary": "reviewed"},
+                )
+
+        subagents = Subagents()
+        guard = WorkspacePathGuard(self.root)
+        policy = ActionPolicy(
+            PolicyConfig(
+                ApprovalMode.FULL_LOCAL,
+                workspace_root=self.root,
+                mcp_risks={"delegate_agent": "write"},
+            )
+        )
+        dispatcher = RootActionDispatcher(
+            WorkspaceFiles(guard, IgnoreRules.from_workspace(self.root)),
+            WorkspaceEditor(guard),
+            policy,
+            ApprovalBroker(),
+            subagents=subagents,
+        )
+
+        result = await dispatcher.dispatch(
+            ActionRequest(
+                "child-1",
+                "delegate_agent",
+                {"objective": "review current change", "role": "review"},
+            ),
+            CancellationToken(),
+        )
+
+        self.assertFalse(result.is_error)
+        self.assertTrue(result.output["advisory"])
+        self.assertEqual(subagents.seen.name, "delegate_agent")

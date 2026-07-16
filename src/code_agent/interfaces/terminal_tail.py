@@ -143,7 +143,8 @@ def _style_box_row(prompt: str, value: str, padding: str, color: ColorMode, *, p
 
 
 def _render_palette(items: tuple[str, ...], width: int, color: ColorMode) -> list[str]:
-    return [colorize(clip_display("  " + item, width), BRAND_CYAN if index == 0 else DIM_GRAY, color) for index, item in enumerate(items)]
+    selected = next((index for index, item in enumerate(items) if item.lstrip().startswith("› ")), 0)
+    return [colorize(clip_display("  " + item, width), BRAND_CYAN if index == selected else DIM_GRAY, color) for index, item in enumerate(items)]
 
 
 def _render_status(

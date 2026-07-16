@@ -21,6 +21,7 @@ from code_agent.sessions.errors import (  # noqa: E402
     SessionMigrationError,
 )
 from code_agent.sessions.repository import SQLiteSessionRepository  # noqa: E402
+from code_agent.sessions.legacy_migration import migrate_legacy_session_database  # noqa: E402
 
 
 def create_v1_database(path: Path) -> None:
@@ -190,6 +191,21 @@ class SessionMigrationTests(unittest.IsolatedAsyncioTestCase):
             }
         self.assertEqual(version, 1)
         self.assertNotIn("title", columns)
+
+    def test_legacy_database_copy_is_atomic_and_idempotent(self) -> None:
+        create_v1_database(self.database)
+        with sqlite3.connect(self.database) as connection:
+            connection.execute("INSERT INTO threads VALUES ('legacy', '2026-01-01Z', '2026-01-01Z')")
+        target = Path(self.temporary.name) / "new" / "sessions.sqlite3"
+
+        first = migrate_legacy_session_database(self.database, target)
+        second = migrate_legacy_session_database(self.database, target)
+
+        self.assertTrue(first.migrated)
+        self.assertEqual(first.thread_count, 1)
+        self.assertFalse(second.migrated)
+        self.assertTrue(self.database.exists())
+        self.assertFalse(target.with_suffix(".sqlite3.migrating").exists())
 
 
 if __name__ == "__main__":

@@ -62,7 +62,7 @@ class SQLiteSessionRepository(RecordRepositoryMixin):
     async def create_task(self, thread_id: str, contract: TaskContract) -> TaskRecord:
         if not isinstance(contract, TaskContract):
             raise TypeError("contract must be a TaskContract")
-        record = TaskRecord.new(thread_id, contract.objective, contract.authorization, max_active_seconds=contract.max_active_seconds, max_repair_cycles=contract.max_repair_cycles, max_repeated_failure_signatures=contract.max_repeated_failure_signatures)
+        record = TaskRecord(uuid.uuid4().hex, thread_id, contract)
         def write(connection: sqlite3.Connection) -> TaskRecord:
             _require_thread(connection, record.thread_id)
             connection.execute("INSERT INTO tasks(id, thread_id, contract, status, stop_reason, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)", (record.id, record.thread_id, encode_task(record), record.status.value, record.stop_reason, encode_datetime(record.created_at), encode_datetime(record.updated_at)))

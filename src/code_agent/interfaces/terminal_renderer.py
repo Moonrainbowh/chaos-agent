@@ -142,32 +142,27 @@ def _is_table_divider(value: str, columns: int) -> bool:
 
 def _format_table(rows: list[list[str]], width: int, theme: Theme) -> list[_RenderLine]:
     columns = len(rows[0])
-    available = max(columns, width - columns - 1)
+    available = max(columns, width)
     if available < columns * 3:
-        return [_RenderLine(" | ".join(row), "table_header" if index == 0 else "body") for index, row in enumerate(rows)]
+        return [_RenderLine(f"{row[0]}: " + " · ".join(row[1:]), "table_header" if index == 0 else "body") for index, row in enumerate(rows)]
     minimum = max(3, available // columns)
-    widths = [max(display_width(row[column]) for row in rows) + 2 for column in range(columns)]
+    widths = [max(display_width(row[column]) for row in rows) for column in range(columns)]
     while sum(widths) > available:
         widest = max(range(columns), key=widths.__getitem__)
         if widths[widest] <= minimum:
             break
         widths[widest] -= 1
-    if theme is Theme.SYMBOL:
-        border = lambda left, joint, right: left + joint.join("─" * item for item in widths) + right
-        vertical, top, middle, bottom = "│", border("┌", "┬", "┐"), border("├", "┼", "┤"), border("└", "┴", "┘")
-    else:
-        border = lambda left, joint, right: "+" + "+".join("-" * item for item in widths) + "+"
-        vertical, top, middle, bottom = "|", border("", "", ""), border("", "", ""), border("", "", "")
-    lines = [_RenderLine(top, "table_border")]
+    rule = ("─" if theme is Theme.SYMBOL else "-") * min(width, sum(widths) + 3 * (columns - 1))
+    lines = [_RenderLine(rule, "table_border")]
     for row_index, row in enumerate(rows):
-        cells = [_wrap_display(cell, widths[column] - 2) for column, cell in enumerate(row)]
+        cells = [_wrap_display(cell, widths[column]) for column, cell in enumerate(row)]
         height = max(len(cell) for cell in cells)
         for line_index in range(height):
-            padded = [" " + _pad_display(cell[line_index] if line_index < len(cell) else "", widths[column] - 2) + " " for column, cell in enumerate(cells)]
-            lines.append(_RenderLine(vertical + vertical.join(padded) + vertical, "table_header" if row_index == 0 else "body"))
+            padded = [_pad_display(cell[line_index] if line_index < len(cell) else "", widths[column]) for column, cell in enumerate(cells)]
+            lines.append(_RenderLine("   ".join(padded), "table_header" if row_index == 0 else "body"))
         if row_index == 0:
-            lines.append(_RenderLine(middle, "table_border"))
-    lines.append(_RenderLine(bottom, "table_border"))
+            lines.append(_RenderLine(rule, "table_border"))
+    lines.append(_RenderLine(rule, "table_border"))
     return lines
 
 

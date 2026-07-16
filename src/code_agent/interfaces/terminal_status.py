@@ -20,6 +20,20 @@ def status_presentation(
         return ("处理失败" if language is Language.ZH_CN else "failed"), "×" if symbols else "x", "31"
     if status == "cancelled":
         return ("已取消" if language is Language.ZH_CN else "cancelled"), "!", "33"
+    labels = {
+        "created": ("已创建", "created", "·", None),
+        "verifying": ("验证中", "verifying", "◆", "38;5;80"),
+        "paused": ("已暂停", "paused", "!", "33"),
+        "interrupted": ("已中断", "interrupted", "!", "33"),
+        "waiting_decision": ("等待决定", "waiting decision", "?", "33"),
+        "approval": ("等待审批", "approval required", "?", "33"),
+        "accepted_partial": ("部分交付", "partial delivery", "!", "33"),
+        "failed": ("任务失败", "task failed", "×", "31"),
+    }
+    if status in labels:
+        zh, en, symbol, color = labels[status]
+        ascii_symbol = {"◆": "*", "×": "x", "·": "."}.get(symbol, symbol)
+        return (zh if language is Language.ZH_CN else en), symbol if symbols else ascii_symbol, color
     return ("就绪" if language is Language.ZH_CN else "ready"), "·" if symbols else ".", None
 
 
@@ -28,4 +42,20 @@ def status_context(model: str | None, started_at: float | None, now: float) -> s
     if started_at is not None:
         elapsed = int(now - started_at)
         parts.append(f"{elapsed // 60:02d}:{elapsed % 60:02d}")
+    return " · ".join(parts)
+
+
+def status_snapshot(
+    status: str,
+    task_id: str | None = None,
+    thread_id: str | None = None,
+    model: str | None = None,
+) -> str:
+    parts = [f"status: {status}"]
+    if task_id:
+        parts.append(f"task: {task_id}")
+    if thread_id:
+        parts.append(f"thread: {thread_id}")
+    if model:
+        parts.append(f"model: {model}")
     return " · ".join(parts)
