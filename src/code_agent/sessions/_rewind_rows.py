@@ -55,6 +55,10 @@ def mutation_record(
 ) -> RewindMutationRecord:
     try:
         handle = row["snapshot_handle"]
+        for expected, item in enumerate(path_rows):
+            ordinal = item["ordinal"]
+            if type(ordinal) is not int or ordinal != expected:
+                raise ValueError("invalid persisted path ordinal")
         return RewindMutationRecord(
             row["mutation_id"],
             row["sequence"],

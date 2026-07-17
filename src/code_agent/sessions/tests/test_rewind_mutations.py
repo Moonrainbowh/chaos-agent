@@ -13,6 +13,7 @@ if str(SRC_ROOT) not in sys.path:
 
 from code_agent.core.task import TaskAuthorization, TaskContract  # noqa: E402
 from code_agent.sessions.errors import (  # noqa: E402
+    SessionCorruptionError,
     SessionNotFound,
     SessionStorageError,
 )
@@ -194,6 +195,30 @@ class RewindMutationTests(unittest.IsolatedAsyncioTestCase):
             )
         self.assertEqual(after.mutation_high_water, 0)
         self.assertEqual(counts, (0, 0))
+
+    async def test_missing_path_ordinal_fails_closed_without_finishing(self) -> None:
+        owner = await self.repository.create_thread()
+        coverage = await self.repository.ensure_rewind_coverage(FINGERPRINT)
+        paths = (path_fact("a.txt"), path_fact("b.txt"))
+        record = await self.repository.prepare_rewind_mutation(
+            prepare(coverage.token, owner, "ordinal-gap", paths=paths)
+        )
+        with sqlite3.connect(self.database) as connection:
+            connection.execute(
+                "DELETE FROM workspace_mutation_paths WHERE "
+                "mutation_sequence = ? AND ordinal = 0",
+                (record.sequence,),
+            )
+        connection.close()
+        with self.assertRaises(SessionCorruptionError):
+            await self.repository.complete_rewind_mutation(record.mutation_id)
+        with sqlite3.connect(self.database) as connection:
+            state = connection.execute(
+                "SELECT m.status, c.mutation_high_water FROM workspace_mutations m "
+                "JOIN workspace_rewind_coverage c USING (workspace_fingerprint)"
+            ).fetchone()
+        connection.close()
+        self.assertEqual(state, ("prepared", record.sequence))
 
     async def test_complete_and_abort_accept_only_prepared_records(self) -> None:
         owner = await self.repository.create_thread()
