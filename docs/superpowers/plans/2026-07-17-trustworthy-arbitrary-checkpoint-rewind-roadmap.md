@@ -33,7 +33,8 @@ Child implementation plans:
 
 - Requirements boundary:
   `docs/superpowers/plans/2026-07-17-rewind-requirements-boundary.md`
-- Sessions Feature: create after the requirements commit.
+- Sessions Feature:
+  `docs/superpowers/plans/2026-07-17-rewind-sessions-feature.md`
 - Workspace Feature: create after Sessions passes.
 - Core Feature: create after Workspace passes.
 - Interfaces Feature: create after Core passes.
