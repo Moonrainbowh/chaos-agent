@@ -3,7 +3,7 @@ from __future__ import annotations
 
 REWIND_MIGRATION = (
     "CREATE TABLE workspace_rewind_coverage ("
-    "workspace_fingerprint TEXT PRIMARY KEY, "
+    "workspace_fingerprint TEXT NOT NULL PRIMARY KEY, "
     "generation INTEGER NOT NULL CHECK(generation > 0), "
     "state TEXT NOT NULL CHECK(state IN ('active','invalidated')), "
     "mutation_high_water INTEGER NOT NULL DEFAULT 0 "
@@ -48,7 +48,7 @@ REWIND_MIGRATION = (
     "CHECK ((post_existed = 1 AND post_sha256 IS NOT NULL) OR "
     "(post_existed = 0 AND post_sha256 IS NULL)))",
     "CREATE TABLE checkpoint_rewind_facts ("
-    "checkpoint_id TEXT PRIMARY KEY "
+    "checkpoint_id TEXT NOT NULL PRIMARY KEY "
     "REFERENCES checkpoints(id) ON DELETE CASCADE, "
     "owner_thread_id TEXT NOT NULL REFERENCES threads(id), "
     "workspace_fingerprint TEXT NOT NULL "

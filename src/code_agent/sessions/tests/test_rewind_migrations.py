@@ -6,7 +6,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-
 SRC_ROOT = Path(__file__).resolve().parents[3]
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
@@ -22,26 +21,21 @@ def create_v10_database(path: Path) -> None:
             """
             PRAGMA foreign_keys = ON;
             CREATE TABLE threads (
-                id TEXT PRIMARY KEY,
-                created_at TEXT NOT NULL,
+                id TEXT PRIMARY KEY, created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
             CREATE TABLE messages (
                 sequence INTEGER PRIMARY KEY AUTOINCREMENT,
                 thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
-                payload TEXT NOT NULL,
-                created_at TEXT NOT NULL
+                payload TEXT NOT NULL, created_at TEXT NOT NULL
             );
             CREATE TABLE events (
                 sequence INTEGER PRIMARY KEY AUTOINCREMENT,
                 thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
-                payload TEXT NOT NULL,
-                created_at TEXT NOT NULL
+                payload TEXT NOT NULL, created_at TEXT NOT NULL
             );
-            CREATE INDEX messages_thread_sequence
-                ON messages(thread_id, sequence);
-            CREATE INDEX events_thread_sequence
-                ON events(thread_id, sequence);
+            CREATE INDEX messages_thread_sequence ON messages(thread_id, sequence);
+            CREATE INDEX events_thread_sequence ON events(thread_id, sequence);
             PRAGMA user_version = 1;
             """
         )
@@ -101,35 +95,51 @@ class RewindMigrationTests(unittest.TestCase):
             legacy = connection.execute(
                 "SELECT COUNT(*) FROM checkpoints WHERE id = 'checkpoint'"
             ).fetchone()[0]
+            connection.execute("PRAGMA foreign_keys = ON")
+            connection.execute(
+                "INSERT INTO workspace_rewind_coverage VALUES "
+                "('workspace',1,'active',0,NULL,'now','now')"
+            )
+            null_primary_keys = (
+                ("coverage", "INSERT INTO workspace_rewind_coverage VALUES "
+                 "(NULL,1,'active',0,NULL,'now','now')"),
+                ("checkpoint", "INSERT INTO checkpoint_rewind_facts VALUES "
+                 "(NULL,'legacy','workspace',1,0,'active','now')"),
+            )
+            for name, statement in null_primary_keys:
+                with self.subTest(null_primary_key=name), self.assertRaises(
+                    sqlite3.IntegrityError):
+                    connection.execute(statement)
         self.assertEqual(version, 11)
         self.assertEqual(counts, (0, 0, 0, 0))
         self.assertEqual(legacy, 1)
 
-    def test_v11_missing_rewind_table_fails_schema_check(self) -> None:
-        create_v10_database(self.database)
-        with sqlite3.connect(self.database) as connection:
-            for statement in _MIGRATIONS[11]:
-                connection.execute(statement)
-            connection.execute("DROP TABLE checkpoint_rewind_facts")
-            connection.execute("PRAGMA user_version = 11")
-
-        with self.assertRaises(SessionCorruptionError):
-            SQLiteSessionRepository(self.database)
-
-    def test_v11_missing_parent_request_column_fails_schema_check(self) -> None:
-        create_v10_database(self.database)
-        statements = tuple(
-            statement.replace("parent_request_id TEXT,", "")
-            for statement in _MIGRATIONS[11]
+    def test_v11_schema_corruption_fails_closed(self) -> None:
+        plain_facts = (
+            "CREATE TABLE checkpoint_rewind_facts (checkpoint_id TEXT, "
+            "owner_thread_id TEXT, workspace_fingerprint TEXT, "
+            "coverage_generation INTEGER, mutation_sequence INTEGER, "
+            "coverage_state TEXT, created_at TEXT)"
         )
-        with sqlite3.connect(self.database) as connection:
-            for statement in statements:
-                connection.execute(statement)
-            connection.execute("PRAGMA user_version = 11")
-
-        with self.assertRaises(SessionCorruptionError):
-            SQLiteSessionRepository(self.database)
-
+        cases = (
+            ("missing-table", lambda sql: sql if "checkpoint_rewind_facts" not in sql else ""),
+            ("missing-parent", lambda sql: sql.replace("parent_request_id TEXT,", "")),
+            ("plain-table", lambda sql: plain_facts if sql.startswith(
+                "CREATE TABLE checkpoint_rewind_facts") else sql),
+            ("missing-index", lambda sql: sql if "workspace_mutations_owner_sequence"
+             not in sql else ""),
+        )
+        for name, transform in cases:
+            with self.subTest(corruption=name):
+                database = Path(self.temporary.name) / f"{name}.sqlite3"
+                create_v10_database(database)
+                statements = tuple(filter(None, map(transform, _MIGRATIONS[11])))
+                with sqlite3.connect(database) as connection:
+                    for statement in statements:
+                        connection.execute(statement)
+                    connection.execute("PRAGMA user_version = 11")
+                with self.assertRaises(SessionCorruptionError):
+                    SQLiteSessionRepository(database)
 
 if __name__ == "__main__":
     unittest.main()

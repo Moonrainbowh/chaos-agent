@@ -197,6 +197,13 @@ class SessionDatabase:
             columns = {row[1] for row in rows}
             if not expected.issubset(columns):
                 raise SessionCorruptionError(f"session schema is missing {table}")
+        stored_sql = {
+            row[0] for row in connection.execute(
+                "SELECT sql FROM sqlite_master WHERE sql IS NOT NULL"
+            )
+        }
+        if not set(REWIND_MIGRATION).issubset(stored_sql):
+            raise SessionCorruptionError("session schema is missing rewind DDL")
 
     def _execute(
         self,
