@@ -561,6 +561,15 @@ and `617313b`.
 > database query rather than arithmetic subtraction. Task 7 must not infer these
 > facts from the current Git dirty set or bounded `TaskState.files_changed`.
 > Choose the rewind-facts scope before Step 1.
+>
+> **Approved scope (2026-07-17):** implement preview-only arbitrary covered
+> checkpoints with per-action inverse snapshots, a durable mutation journal,
+> cross-process checkpoint/mutation ordering, and fail-closed unknown-writer
+> coverage. The staged delivery map is
+> `docs/superpowers/plans/2026-07-17-trustworthy-arbitrary-checkpoint-rewind-roadmap.md`;
+> reviewed worker-executable child plans are linked from it. Together they
+> supersede the abbreviated Task 7 steps below while preserving this roadmap's
+> preview-only/no-hidden-Git-reset acceptance boundary.
 
 **Stage:** Interfaces Feature implementation, followed by integration
 
