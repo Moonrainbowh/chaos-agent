@@ -54,29 +54,16 @@ class RewindMigrationTests(unittest.TestCase):
         self.temporary.cleanup()
 
     def test_v10_migrates_to_v11_with_only_empty_rewind_tables(self) -> None:
+        timestamp = "2026-07-17T00:00:00Z"
         create_v10_database(self.database)
         with sqlite3.connect(self.database) as connection:
             connection.execute(
                 "INSERT INTO threads VALUES (?, ?, ?, ?, ?)",
-                (
-                    "legacy",
-                    "2026-07-17T00:00:00Z",
-                    "2026-07-17T00:00:00Z",
-                    None,
-                    "active",
-                ),
+                ("legacy", timestamp, timestamp, None, "active"),
             )
             connection.execute(
                 "INSERT INTO checkpoints VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (
-                    "checkpoint",
-                    "legacy",
-                    "old",
-                    "{}",
-                    "2026-07-17T00:00:00Z",
-                    0,
-                    0,
-                ),
+                ("checkpoint", "legacy", "old", "{}", timestamp, 0, 0),
             )
 
         SQLiteSessionRepository(self.database)
@@ -95,7 +82,18 @@ class RewindMigrationTests(unittest.TestCase):
             legacy = connection.execute(
                 "SELECT COUNT(*) FROM checkpoints WHERE id = 'checkpoint'"
             ).fetchone()[0]
+        self.assertEqual(version, 11)
+        self.assertEqual(counts, (0, 0, 0, 0))
+        self.assertEqual(legacy, 1)
+
+    def test_v11_rejects_null_rewind_primary_keys(self) -> None:
+        SQLiteSessionRepository(self.database)
+        with sqlite3.connect(self.database) as connection:
             connection.execute("PRAGMA foreign_keys = ON")
+            connection.execute(
+                "INSERT INTO threads(id,created_at,updated_at) "
+                "VALUES ('legacy','now','now')"
+            )
             connection.execute(
                 "INSERT INTO workspace_rewind_coverage VALUES "
                 "('workspace',1,'active',0,NULL,'now','now')"
@@ -110,9 +108,6 @@ class RewindMigrationTests(unittest.TestCase):
                 with self.subTest(null_primary_key=name), self.assertRaises(
                     sqlite3.IntegrityError):
                     connection.execute(statement)
-        self.assertEqual(version, 11)
-        self.assertEqual(counts, (0, 0, 0, 0))
-        self.assertEqual(legacy, 1)
 
     def test_v11_schema_corruption_fails_closed(self) -> None:
         plain_facts = (
