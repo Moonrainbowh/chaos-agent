@@ -7,6 +7,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TypeVar
 
+from ._rewind_schema import REWIND_MIGRATION, REWIND_REQUIRED_COLUMNS
 from .errors import (
     SessionCorruptionError,
     SessionError,
@@ -15,7 +16,7 @@ from .errors import (
 )
 
 
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
 _BUSY_TIMEOUT_MS = 5_000
 _SQLITE_CORRUPT = 11
 _SQLITE_NOTADB = 26
@@ -78,6 +79,7 @@ _MIGRATIONS: dict[int, tuple[str, ...]] = {
         "ALTER TABLE checkpoints ADD COLUMN message_sequence INTEGER",
         "ALTER TABLE checkpoints ADD COLUMN event_sequence INTEGER",
     ),
+    11: REWIND_MIGRATION,
 }
 
 _REQUIRED_COLUMNS = {
@@ -101,6 +103,7 @@ _REQUIRED_COLUMNS = {
     "verification_runs": {"id", "task_id", "generation", "subject_hash", "status", "created_at", "completed_at"},
     "verification_evidence": {"id", "run_id", "task_id", "payload", "created_at"},
     "task_completions": {"task_id", "revision", "generation", "subject_hash", "assessment", "created_at"},
+    **REWIND_REQUIRED_COLUMNS,
 }
 
 
