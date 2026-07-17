@@ -6,13 +6,14 @@ import uuid
 from ._codec import encode_datetime, utc_now
 from ._records import _text
 from ._rewind_codec import encode_rewind_handle
+from ._rewind_integrity import _require_coverage_integrity
 from ._rewind_mutation_sql import (
+    _advance_active_coverage,
     _load_by_id,
     _load_coverage,
     _load_idempotent,
     _matches_gap,
     _matches_prepare,
-    _require_coverage_high_water,
     _require_identity_rows,
 )
 from ._rewind_rows import coverage_record
@@ -81,29 +82,6 @@ def _insert_paths(
         )
 
 
-def _advance_active_coverage(
-    connection: sqlite3.Connection,
-    request: RewindMutationPrepare,
-    sequence: int,
-    timestamp: str,
-) -> None:
-    changed = connection.execute(
-        "UPDATE workspace_rewind_coverage "
-        "SET mutation_high_water = ?, updated_at = ? "
-        "WHERE workspace_fingerprint = ? AND generation = ? "
-        "AND state = 'active' AND mutation_high_water < ?",
-        (
-            sequence,
-            timestamp,
-            request.coverage.workspace_fingerprint,
-            request.coverage.generation,
-            sequence,
-        ),
-    )
-    if changed.rowcount != 1:
-        raise SessionStorageError("rewind coverage moved during prepare")
-
-
 def _insert_gap(
     connection: sqlite3.Connection,
     request: RewindGapPrepare,
@@ -144,7 +122,8 @@ def _invalidate_coverage(
     changed = connection.execute(
         "UPDATE workspace_rewind_coverage SET state = 'invalidated', "
         "invalidation_reason = COALESCE(invalidation_reason, ?), "
-        "mutation_high_water = ?, updated_at = ? "
+        "mutation_high_water = ?, mutation_count = mutation_count + 1, "
+        "updated_at = ? "
         "WHERE workspace_fingerprint = ? AND generation = ?",
         (
             request.reason,
@@ -171,8 +150,8 @@ class RewindMutationRepositoryMixin:
             connection.execute(
                 "INSERT OR IGNORE INTO workspace_rewind_coverage("
                 "workspace_fingerprint, generation, state, mutation_high_water, "
-                "invalidation_reason, started_at, updated_at"
-                ") VALUES (?, 1, 'active', 0, NULL, ?, ?)",
+                "mutation_count, invalidation_reason, started_at, updated_at"
+                ") VALUES (?, 1, 'active', 0, 0, NULL, ?, ?)",
                 (fingerprint, timestamp, timestamp),
             )
             row = connection.execute(
@@ -183,7 +162,7 @@ class RewindMutationRepositoryMixin:
             if row is None:
                 raise SessionStorageError("rewind coverage was not persisted")
             record = coverage_record(row)
-            _require_coverage_high_water(connection, record)
+            _require_coverage_integrity(connection, record)
             return record
 
         return await self._database.write(write)  # type: ignore[attr-defined]

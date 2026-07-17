@@ -100,6 +100,7 @@ class RewindCheckpointFact:
     owner_thread_id: str
     coverage: CoverageToken
     mutation_sequence: int
+    mutation_count: int
     coverage_state: RewindCoverageState
     created_at: datetime
 
@@ -112,6 +113,7 @@ class RewindCheckpointFact:
         )
         validate_coverage(self.coverage)
         bounded_int(self.mutation_sequence, "mutation_sequence")
+        bounded_int(self.mutation_count, "mutation_count")
         if not isinstance(self.coverage_state, RewindCoverageState):
             raise TypeError("coverage_state must be a RewindCoverageState")
         object.__setattr__(self, "created_at", utc_datetime(self.created_at, "created_at"))

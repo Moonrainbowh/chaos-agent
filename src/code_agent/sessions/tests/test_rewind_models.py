@@ -28,6 +28,7 @@ from code_agent.sessions.rewind_models import (  # noqa: E402
     RewindCandidate,
     RewindCandidatePage,
     RewindCheckpointFact,
+    RewindCoverageRecord,
     RewindCoverageState,
     RewindMutationPath,
     RewindMutationPrepare,
@@ -95,6 +96,15 @@ class RewindModelTests(unittest.TestCase):
         self.assertEqual(
             RewindReadLimits().max_mutations, DEFAULT_REWIND_MAX_MUTATIONS
         )
+        coverage = RewindCoverageRecord(
+            token, RewindCoverageState.ACTIVE, 0, 0, None
+        )
+        self.assertEqual(coverage.mutation_count, 0)
+        for value in (True, -1):
+            with self.assertRaises((TypeError, ValueError)):
+                RewindCoverageRecord(
+                    token, RewindCoverageState.ACTIVE, 0, value, None
+                )
         for value in (True, 0, DEFAULT_REWIND_MAX_MUTATIONS + 1):
             with self.assertRaises((TypeError, ValueError)):
                 RewindReadLimits(max_mutations=value)  # type: ignore[arg-type]
@@ -148,11 +158,13 @@ class RewindModelTests(unittest.TestCase):
             "root-owner",
             CoverageToken("c" * 64, 3),
             7,
+            4,
             RewindCoverageState.ACTIVE,
             NOW,
         )
         self.assertEqual(fact.checkpoint_id, "child-checkpoint")
         self.assertEqual(fact.owner_thread_id, "root-owner")
+        self.assertEqual(fact.mutation_count, 4)
         self.assertEqual(fact.created_at, NOW.astimezone(timezone.utc))
         self.assertEqual((fact.workspace_fingerprint, fact.generation), ("c" * 64, 3))
         checkpoint = CheckpointRecord(

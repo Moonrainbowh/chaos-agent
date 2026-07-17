@@ -6,18 +6,23 @@ from collections.abc import Sequence
 from ._codec import decode_datetime
 from ._records import _require_thread, _text, _thread_maximum
 from ._rewind_codec import decode_rewind_cursor, encode_rewind_cursor
-from ._rewind_mutation_sql import _require_coverage_high_water
+from ._rewind_integrity import (
+    _load_coverage,
+    _require_checkpoint_boundary,
+    _require_checkpoint_markers,
+    _require_coverage_integrity,
+    _require_mutation_chain,
+)
 from ._rewind_rows import (
     checkpoint_fact,
     checkpoint_record,
-    coverage_record,
     mutation_record,
 )
 from .errors import SessionCorruptionError, SessionNotFound
 from .rewind_models import (
     CoverageToken, MAX_REWIND_PAGE_SIZE,
     RewindCandidate, RewindCandidatePage, RewindCheckpointFact,
-    RewindCoverageRecord, RewindMutationRecord, RewindObservation,
+    RewindMutationRecord, RewindObservation,
     RewindObservationHeads, RewindReadLimits,
 )
 
@@ -31,10 +36,14 @@ def _load_checkpoint(
         "SELECT c.*, f.owner_thread_id AS rewind_owner_thread_id, "
         "f.workspace_fingerprint, f.coverage_generation, "
         "f.mutation_sequence AS rewind_mutation_sequence, "
+        "f.mutation_count AS rewind_mutation_count, "
         "f.coverage_state AS rewind_coverage_state, "
-        "f.created_at AS rewind_created_at "
+        "f.created_at AS rewind_created_at, "
+        "e.checkpoint_id AS rewind_expected_checkpoint_id "
         "FROM checkpoints AS c LEFT JOIN checkpoint_rewind_facts AS f "
         "ON f.checkpoint_id = c.id "
+        "LEFT JOIN checkpoint_rewind_expectations AS e "
+        "ON e.checkpoint_id = c.id "
         "WHERE c.id = ? AND c.thread_id = ?",
         (checkpoint_id, thread_id),
     ).fetchone()
@@ -60,18 +69,6 @@ def _conversation_count(
     )
 
 
-def _load_coverage(
-    connection: sqlite3.Connection,
-    workspace_fingerprint: str,
-) -> RewindCoverageRecord | None:
-    row = connection.execute(
-        "SELECT * FROM workspace_rewind_coverage "
-        "WHERE workspace_fingerprint = ?",
-        (workspace_fingerprint,),
-    ).fetchone()
-    return None if row is None else coverage_record(row)
-
-
 def _heads(
     connection: sqlite3.Connection,
     thread_id: str,
@@ -88,7 +85,7 @@ def _heads(
         if require_coverage:
             raise SessionCorruptionError("checkpoint coverage is missing")
         return RewindObservationHeads(message_head, event_head, 0, None, None)
-    mutation_head = _require_coverage_high_water(connection, coverage)
+    mutation_head, _ = _require_coverage_integrity(connection, coverage)
     return RewindObservationHeads(
         message_head,
         event_head,
@@ -170,21 +167,18 @@ def _observation(
     )
     if fact is None:
         return RewindObservation(checkpoint, None, count, heads, (), False)
-    if (
-        fact.generation != heads.coverage_generation
-        or fact.mutation_sequence > heads.mutation_sequence
-    ):
-        raise SessionCorruptionError("checkpoint rewind fact is inconsistent")
+    coverage = _load_coverage(connection, fact.workspace_fingerprint)
+    if coverage is None:
+        raise SessionCorruptionError("checkpoint coverage is missing")
+    expected_count = _require_checkpoint_boundary(connection, fact, coverage)
     mutation_rows = _load_mutation_rows(
         connection, fact, heads.mutation_sequence, limits.max_mutations
     )
-    if any(
-        type(row["coverage_generation"]) is not int
-        or row["coverage_generation"] != fact.generation
-        for row in mutation_rows
-    ):
-        raise SessionCorruptionError("rewind mutation generation is inconsistent")
-    if len(mutation_rows) > limits.max_mutations:
+    limited = len(mutation_rows) > limits.max_mutations
+    _require_mutation_chain(
+        mutation_rows, fact, expected_count, limited=limited
+    )
+    if limited:
         return RewindObservation(checkpoint, fact, count, heads, (), True)
     sequences = tuple(row["sequence"] for row in mutation_rows)
     path_rows = _load_path_rows(connection, sequences, limits.max_paths)
@@ -211,9 +205,12 @@ def _candidate_rows(
     parameters.append(limit + 1)
     return connection.execute(
         "SELECT c.id, c.label, c.created_at, c.message_sequence, "
-        "f.checkpoint_id AS rewind_checkpoint_id "
+        "f.checkpoint_id AS rewind_checkpoint_id, "
+        "e.checkpoint_id AS rewind_expected_checkpoint_id "
         "FROM checkpoints AS c LEFT JOIN checkpoint_rewind_facts AS f "
-        "ON f.checkpoint_id = c.id WHERE c.thread_id = ? "
+        "ON f.checkpoint_id = c.id "
+        "LEFT JOIN checkpoint_rewind_expectations AS e "
+        "ON e.checkpoint_id = c.id WHERE c.thread_id = ? "
         f"{predicate}ORDER BY c.created_at DESC, c.id DESC LIMIT ?",
         tuple(parameters),
     ).fetchall()
@@ -221,6 +218,7 @@ def _candidate_rows(
 
 def _candidate_items(rows: Sequence[sqlite3.Row]) -> tuple[RewindCandidate, ...]:
     try:
+        _require_checkpoint_markers(rows)
         return tuple(
             RewindCandidate(
                 row["id"],
@@ -283,11 +281,10 @@ class RewindObservationRepositoryMixin:
         def read(connection: sqlite3.Connection) -> RewindCandidatePage:
             _require_thread(connection, thread_id)
             rows = _candidate_rows(connection, thread_id, decoded, limit)
-            visible = rows[:limit]
-            items = _candidate_items(visible)
+            items = _candidate_items(rows)[:limit]
             next_cursor = None
             if len(rows) > limit:
-                last = visible[-1]
+                last = rows[limit - 1]
                 next_cursor = encode_rewind_cursor(
                     last["created_at"], last["id"]
                 )

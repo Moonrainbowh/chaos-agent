@@ -77,13 +77,14 @@ class RewindMigrationTests(unittest.TestCase):
                     "workspace_mutations",
                     "workspace_mutation_paths",
                     "checkpoint_rewind_facts",
+                    "checkpoint_rewind_expectations",
                 )
             )
             legacy = connection.execute(
                 "SELECT COUNT(*) FROM checkpoints WHERE id = 'checkpoint'"
             ).fetchone()[0]
         self.assertEqual(version, 11)
-        self.assertEqual(counts, (0, 0, 0, 0))
+        self.assertEqual(counts, (0, 0, 0, 0, 0))
         self.assertEqual(legacy, 1)
 
     def test_v11_rejects_null_rewind_primary_keys(self) -> None:
@@ -96,13 +97,15 @@ class RewindMigrationTests(unittest.TestCase):
             )
             connection.execute(
                 "INSERT INTO workspace_rewind_coverage VALUES "
-                "('workspace',1,'active',0,NULL,'now','now')"
+                "('workspace',1,'active',0,0,NULL,'now','now')"
             )
             null_primary_keys = (
                 ("coverage", "INSERT INTO workspace_rewind_coverage VALUES "
-                 "(NULL,1,'active',0,NULL,'now','now')"),
+                 "(NULL,1,'active',0,0,NULL,'now','now')"),
                 ("checkpoint", "INSERT INTO checkpoint_rewind_facts VALUES "
-                 "(NULL,'legacy','workspace',1,0,'active','now')"),
+                 "(NULL,'legacy','workspace',1,0,0,'active','now')"),
+                ("expectation", "INSERT INTO checkpoint_rewind_expectations "
+                 "VALUES (NULL,'now')"),
             )
             for name, statement in null_primary_keys:
                 with self.subTest(null_primary_key=name), self.assertRaises(
@@ -114,13 +117,17 @@ class RewindMigrationTests(unittest.TestCase):
             "CREATE TABLE checkpoint_rewind_facts (checkpoint_id TEXT, "
             "owner_thread_id TEXT, workspace_fingerprint TEXT, "
             "coverage_generation INTEGER, mutation_sequence INTEGER, "
-            "coverage_state TEXT, created_at TEXT)"
+            "mutation_count INTEGER, coverage_state TEXT, created_at TEXT)"
         )
         cases = (
             ("missing-table", lambda sql: sql if "checkpoint_rewind_facts" not in sql else ""),
             ("missing-parent", lambda sql: sql.replace("parent_request_id TEXT,", "")),
             ("missing-path-count", lambda sql: sql.replace(
                 "path_count", "lost_path_count")),
+            ("missing-mutation-count", lambda sql: sql.replace(
+                "mutation_count", "lost_mutation_count")),
+            ("missing-expectations", lambda sql: sql if
+             "checkpoint_rewind_expectations" not in sql else ""),
             ("plain-table", lambda sql: plain_facts if sql.startswith(
                 "CREATE TABLE checkpoint_rewind_facts") else sql),
             ("missing-index", lambda sql: sql if "workspace_mutations_owner_sequence"

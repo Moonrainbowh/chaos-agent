@@ -25,6 +25,7 @@ def coverage_record(row: sqlite3.Row) -> RewindCoverageRecord:
             CoverageToken(row["workspace_fingerprint"], row["generation"]),
             RewindCoverageState(row["state"]),
             row["mutation_high_water"],
+            row["mutation_count"],
             row["invalidation_reason"],
         )
     except (IndexError, KeyError, TypeError, ValueError) as error:
@@ -111,6 +112,9 @@ def checkpoint_record(row: sqlite3.Row) -> CheckpointRecord:
 def checkpoint_fact(row: sqlite3.Row) -> RewindCheckpointFact | None:
     try:
         owner = row["rewind_owner_thread_id"]
+        expected = row["rewind_expected_checkpoint_id"]
+        if (owner is None) != (expected is None):
+            raise ValueError("rewind checkpoint marker mismatch")
         if owner is None:
             return None
         return RewindCheckpointFact(
@@ -120,6 +124,7 @@ def checkpoint_fact(row: sqlite3.Row) -> RewindCheckpointFact | None:
                 row["workspace_fingerprint"], row["coverage_generation"]
             ),
             row["rewind_mutation_sequence"],
+            row["rewind_mutation_count"],
             RewindCoverageState(row["rewind_coverage_state"]),
             decode_datetime(row["rewind_created_at"], "checkpoint rewind fact"),
         )

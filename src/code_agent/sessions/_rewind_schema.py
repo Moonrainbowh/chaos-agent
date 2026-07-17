@@ -8,6 +8,7 @@ REWIND_MIGRATION = (
     "state TEXT NOT NULL CHECK(state IN ('active','invalidated')), "
     "mutation_high_water INTEGER NOT NULL DEFAULT 0 "
     "CHECK(mutation_high_water >= 0), "
+    "mutation_count INTEGER NOT NULL DEFAULT 0 CHECK(mutation_count >= 0), "
     "invalidation_reason TEXT, started_at TEXT NOT NULL, updated_at TEXT NOT NULL, "
     "CHECK ((state = 'active' AND invalidation_reason IS NULL) OR "
     "(state = 'invalidated' AND invalidation_reason IS NOT NULL)))",
@@ -56,8 +57,13 @@ REWIND_MIGRATION = (
     "REFERENCES workspace_rewind_coverage(workspace_fingerprint), "
     "coverage_generation INTEGER NOT NULL CHECK(coverage_generation > 0), "
     "mutation_sequence INTEGER NOT NULL CHECK(mutation_sequence >= 0), "
+    "mutation_count INTEGER NOT NULL CHECK(mutation_count >= 0), "
     "coverage_state TEXT NOT NULL "
     "CHECK(coverage_state IN ('active','invalidated')), "
+    "created_at TEXT NOT NULL)",
+    "CREATE TABLE checkpoint_rewind_expectations ("
+    "checkpoint_id TEXT NOT NULL PRIMARY KEY "
+    "REFERENCES checkpoints(id) ON DELETE CASCADE, "
     "created_at TEXT NOT NULL)",
     "CREATE INDEX workspace_mutations_workspace_sequence "
     "ON workspace_mutations(workspace_fingerprint, sequence)",
@@ -75,6 +81,7 @@ REWIND_REQUIRED_COLUMNS = {
         "generation",
         "state",
         "mutation_high_water",
+        "mutation_count",
         "invalidation_reason",
         "started_at",
         "updated_at",
@@ -113,7 +120,12 @@ REWIND_REQUIRED_COLUMNS = {
         "workspace_fingerprint",
         "coverage_generation",
         "mutation_sequence",
+        "mutation_count",
         "coverage_state",
+        "created_at",
+    },
+    "checkpoint_rewind_expectations": {
+        "checkpoint_id",
         "created_at",
     },
 }

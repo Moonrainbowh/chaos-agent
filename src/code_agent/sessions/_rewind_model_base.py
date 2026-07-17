@@ -224,6 +224,7 @@ class RewindCoverageRecord:
     token: CoverageToken
     state: RewindCoverageState
     mutation_high_water: int
+    mutation_count: int
     invalidation_reason: str | None
 
     def __post_init__(self) -> None:
@@ -231,6 +232,7 @@ class RewindCoverageRecord:
         if not isinstance(self.state, RewindCoverageState):
             raise TypeError("state must be a RewindCoverageState")
         bounded_int(self.mutation_high_water, "mutation_high_water")
+        bounded_int(self.mutation_count, "mutation_count")
         reason = optional_text(self.invalidation_reason, "invalidation_reason")
         if (self.state is RewindCoverageState.ACTIVE) != (reason is None):
             raise ValueError("active coverage must have no invalidation reason")

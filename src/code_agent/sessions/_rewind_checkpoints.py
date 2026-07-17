@@ -8,7 +8,7 @@ from code_agent.core._json import JSONValue, validate_json_mapping
 
 from ._codec import encode_datetime, encode_metadata, utc_now
 from ._records import _require_thread, _text, _thread_maximum, _touch_thread
-from ._rewind_mutation_sql import _require_coverage_high_water
+from ._rewind_integrity import _require_coverage_integrity
 from ._rewind_rows import coverage_record
 from .errors import SessionNotFound, SessionStorageError
 from .rewind_models import (
@@ -28,7 +28,7 @@ def _load_coverage(
     if row is None:
         raise SessionNotFound("rewind coverage not found")
     record = coverage_record(row)
-    _require_coverage_high_water(connection, record)
+    _require_coverage_integrity(connection, record)
     if record.token != coverage:
         raise SessionStorageError("rewind coverage generation moved")
     return record
@@ -50,13 +50,41 @@ def _require_quiescent(
 def _validate_anchor(
     connection: sqlite3.Connection,
     anchor: RewindCheckpointAnchor,
-) -> None:
+) -> RewindCoverageRecord:
     current = _load_coverage(connection, anchor.coverage)
     expected = (anchor.coverage_state, anchor.mutation_sequence)
     actual = (current.state, current.mutation_high_water)
     if actual != expected:
         raise SessionStorageError("rewind checkpoint anchor is stale")
     _require_quiescent(connection, anchor.coverage.workspace_fingerprint)
+    return current
+
+
+def _insert_rewind_anchor(
+    connection: sqlite3.Connection,
+    identifier: str,
+    anchor: RewindCheckpointAnchor,
+    coverage: RewindCoverageRecord,
+    timestamp: str,
+) -> None:
+    connection.execute(
+        "INSERT INTO checkpoint_rewind_expectations(checkpoint_id, created_at) "
+        "VALUES (?, ?)",
+        (identifier, timestamp),
+    )
+    connection.execute(
+        "INSERT INTO checkpoint_rewind_facts("
+        "checkpoint_id, owner_thread_id, workspace_fingerprint, "
+        "coverage_generation, mutation_sequence, mutation_count, "
+        "coverage_state, created_at"
+        ") VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            identifier, anchor.owner_thread_id,
+            anchor.coverage.workspace_fingerprint, anchor.coverage.generation,
+            anchor.mutation_sequence, coverage.mutation_count,
+            anchor.coverage_state.value, timestamp,
+        ),
+    )
 
 
 def _write_anchored_checkpoint(
@@ -70,7 +98,7 @@ def _write_anchored_checkpoint(
 ) -> None:
     _require_thread(connection, thread_id)
     _require_thread(connection, anchor.owner_thread_id)
-    _validate_anchor(connection, anchor)
+    coverage = _validate_anchor(connection, anchor)
     message_sequence = _thread_maximum(connection, "messages", thread_id)
     event_sequence = _thread_maximum(connection, "events", thread_id)
     connection.execute(
@@ -83,21 +111,7 @@ def _write_anchored_checkpoint(
             message_sequence, event_sequence,
         ),
     )
-    connection.execute(
-        "INSERT INTO checkpoint_rewind_facts("
-        "checkpoint_id, owner_thread_id, workspace_fingerprint, "
-        "coverage_generation, mutation_sequence, coverage_state, created_at"
-        ") VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (
-            identifier,
-            anchor.owner_thread_id,
-            anchor.coverage.workspace_fingerprint,
-            anchor.coverage.generation,
-            anchor.mutation_sequence,
-            anchor.coverage_state.value,
-            timestamp,
-        ),
-    )
+    _insert_rewind_anchor(connection, identifier, anchor, coverage, timestamp)
     _touch_thread(connection, thread_id, timestamp)
 
 
