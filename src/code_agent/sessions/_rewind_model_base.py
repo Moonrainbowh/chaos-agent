@@ -93,7 +93,7 @@ def canonical_path(value: object) -> str:
         "\0" in path
         or "\\" in path
         or path.startswith("/")
-        or re.match(r"[A-Za-z]:/", path) is not None
+        or re.match(r"[A-Za-z]:", path) is not None
         or path.endswith("/")
         or "//" in path
         or PurePosixPath(path).as_posix() != path

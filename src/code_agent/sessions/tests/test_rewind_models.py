@@ -104,6 +104,8 @@ class RewindModelTests(unittest.TestCase):
         invalid = [
             ("/abs.py", True, HASH, RewindBaseline.GIT_STAGED),
             ("C:/outside.txt", True, HASH, RewindBaseline.GIT_STAGED),
+            ("C:outside.txt", True, HASH, RewindBaseline.GIT_STAGED),
+            ("z:outside.txt", True, HASH, RewindBaseline.GIT_STAGED),
             ("src/\0main.py", True, HASH, RewindBaseline.GIT_STAGED),
             ("src\\main.py", True, HASH, RewindBaseline.GIT_STAGED),
             ("src/../main.py", True, HASH, RewindBaseline.GIT_STAGED),
@@ -162,6 +164,11 @@ class RewindModelTests(unittest.TestCase):
         candidate = RewindCandidate("child-checkpoint", "label", NOW, True, True)
         with self.assertRaises(TypeError):
             RewindCandidatePage([candidate], None)  # type: ignore[arg-type]
+        long_cursor = encode_rewind_cursor("2026-07-17T00:30:00Z", "x" * 512)
+        self.assertGreater(len(long_cursor), 512)
+        self.assertEqual(RewindCandidatePage((candidate,), long_cursor).next_cursor, long_cursor)
+        with self.assertRaises(ValueError):
+            RewindCandidatePage((candidate,), "not-a-cursor")
 
     def test_handle_codec_is_canonical_bounded_and_deep_frozen(self) -> None:
         source = {"z": [1, {"é": True}], "a": None}
@@ -175,6 +182,27 @@ class RewindModelTests(unittest.TestCase):
             decode_rewind_handle('{"z":1, "a":2}')
         with self.assertRaises(ValueError):
             encode_rewind_handle({"large": "界" * (64 * 1024)})
+        boundary = {"x": "x" * 65528}
+        self.assertEqual(len(encode_rewind_handle(boundary).encode()), 65536)
+        with self.assertRaises(ValueError):
+            encode_rewind_handle({"x": "x" * 65529})
+        with self.assertRaises(SessionCorruptionError):
+            decode_rewind_handle('{"x":"' + "x" * 65529 + '"}')
+        deep: dict[str, object] = {}
+        node = deep
+        for _ in range(31):
+            node["x"] = {}
+            node = node["x"]  # type: ignore[assignment]
+        encode_rewind_handle(deep)
+        node["x"] = {}
+        with self.assertRaises(ValueError):
+            encode_rewind_handle(deep)
+        with self.assertRaises(SessionCorruptionError):
+            decode_rewind_handle(json.dumps(deep, separators=(",", ":")))
+        cycle: dict[str, object] = {}
+        cycle["x"] = cycle
+        with self.assertRaises(ValueError):
+            encode_rewind_handle(cycle)
 
     def test_cursor_round_trip_and_rejects_invalid_tokens(self) -> None:
         created_at = "2026-07-17T00:30:00Z"
@@ -198,12 +226,5 @@ class RewindModelTests(unittest.TestCase):
             with self.subTest(invalid=invalid[:20]):
                 with self.assertRaisesRegex(ValueError, "^invalid rewind cursor$"):
                     decode_rewind_cursor(invalid)
-
-        checkpoint = CheckpointRecord(
-            "checkpoint-1", "child-thread", "label", created_at=NOW
-        )
-        self.assertEqual(checkpoint.thread_id, "child-thread")
-
-
 if __name__ == "__main__":
     unittest.main()

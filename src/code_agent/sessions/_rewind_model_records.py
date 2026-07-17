@@ -226,5 +226,12 @@ class RewindCandidatePage:
             raise ValueError("candidate page is too large")
         if any(not isinstance(item, RewindCandidate) for item in items):
             raise TypeError("items must contain RewindCandidate values")
+        cursor = self.next_cursor
+        if cursor is not None:
+            if type(cursor) is not str:
+                raise TypeError("next_cursor must be a string or None")
+            from ._rewind_codec import decode_rewind_cursor
+
+            decode_rewind_cursor(cursor)
         object.__setattr__(self, "items", items)
-        object.__setattr__(self, "next_cursor", optional_text(self.next_cursor, "next_cursor"))
+        object.__setattr__(self, "next_cursor", cursor)
