@@ -217,6 +217,7 @@ class RewindObservationTests(unittest.IsolatedAsyncioTestCase):
             ("anchor", self.repository.get_rewind_checkpoint_anchor(
                 coverage.token, owner
             )),
+            ("ensure", self.repository.ensure_rewind_coverage(FINGERPRINT)),
             ("prepare", self.repository.prepare_rewind_mutation(
                 mutation_request(
                     coverage.token, owner, owner, "second",

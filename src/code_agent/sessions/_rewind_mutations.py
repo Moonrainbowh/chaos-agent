@@ -12,6 +12,7 @@ from ._rewind_mutation_sql import (
     _load_idempotent,
     _matches_gap,
     _matches_prepare,
+    _require_coverage_high_water,
     _require_identity_rows,
 )
 from ._rewind_rows import coverage_record
@@ -181,7 +182,9 @@ class RewindMutationRepositoryMixin:
             ).fetchone()
             if row is None:
                 raise SessionStorageError("rewind coverage was not persisted")
-            return coverage_record(row)
+            record = coverage_record(row)
+            _require_coverage_high_water(connection, record)
+            return record
 
         return await self._database.write(write)  # type: ignore[attr-defined]
 

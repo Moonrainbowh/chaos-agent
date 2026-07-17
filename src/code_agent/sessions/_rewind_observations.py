@@ -106,11 +106,10 @@ def _load_mutation_rows(
 ) -> list[sqlite3.Row]:
     return connection.execute(
         "SELECT * FROM workspace_mutations "
-        "WHERE workspace_fingerprint = ? AND coverage_generation = ? "
+        "WHERE workspace_fingerprint = ? "
         "AND sequence > ? AND sequence <= ? ORDER BY sequence LIMIT ?",
         (
             fact.workspace_fingerprint,
-            fact.generation,
             fact.mutation_sequence,
             head,
             limit + 1,
@@ -171,9 +170,20 @@ def _observation(
     )
     if fact is None:
         return RewindObservation(checkpoint, None, count, heads, (), False)
+    if (
+        fact.generation != heads.coverage_generation
+        or fact.mutation_sequence > heads.mutation_sequence
+    ):
+        raise SessionCorruptionError("checkpoint rewind fact is inconsistent")
     mutation_rows = _load_mutation_rows(
         connection, fact, heads.mutation_sequence, limits.max_mutations
     )
+    if any(
+        type(row["coverage_generation"]) is not int
+        or row["coverage_generation"] != fact.generation
+        for row in mutation_rows
+    ):
+        raise SessionCorruptionError("rewind mutation generation is inconsistent")
     if len(mutation_rows) > limits.max_mutations:
         return RewindObservation(checkpoint, fact, count, heads, (), True)
     sequences = tuple(row["sequence"] for row in mutation_rows)

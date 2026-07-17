@@ -13,6 +13,7 @@ if str(SRC_ROOT) not in sys.path:
 
 from code_agent.core.models import Message  # noqa: E402
 from code_agent.sessions.errors import (  # noqa: E402
+    SessionCorruptionError,
     SessionNotFound,
     SessionStorageError,
 )
@@ -61,6 +62,15 @@ def path_fact(name: str) -> RewindMutationPath:
         True,
         "1" * 64,
     )
+
+
+def execute_corruption(database: Path, statement: str) -> None:
+    connection = sqlite3.connect(database)
+    try:
+        connection.execute(statement)
+        connection.commit()
+    finally:
+        connection.close()
 
 
 class RewindObservationTests(unittest.IsolatedAsyncioTestCase):
@@ -180,6 +190,63 @@ class RewindObservationTests(unittest.IsolatedAsyncioTestCase):
             owner, checkpoint, RewindReadLimits()
         )
         self.assertIsNone(observed.checkpoint_fact)
+
+    async def test_checkpoint_fact_generation_mismatch_fails_closed(self) -> None:
+        owner = await self.repository.create_thread()
+        coverage = await self.repository.ensure_rewind_coverage(FINGERPRINT)
+        anchor = await self.repository.get_rewind_checkpoint_anchor(
+            coverage.token, owner
+        )
+        checkpoint = await self.repository.create_checkpoint(
+            owner, "before", rewind_anchor=anchor
+        )
+        execute_corruption(
+            self.database,
+            "UPDATE checkpoint_rewind_facts SET coverage_generation = 2",
+        )
+        with self.assertRaises(SessionCorruptionError):
+            await self.repository.observe_rewind(
+                owner, checkpoint, RewindReadLimits()
+            )
+
+    async def test_checkpoint_fact_sequence_after_head_fails_closed(self) -> None:
+        owner = await self.repository.create_thread()
+        coverage = await self.repository.ensure_rewind_coverage(FINGERPRINT)
+        anchor = await self.repository.get_rewind_checkpoint_anchor(
+            coverage.token, owner
+        )
+        checkpoint = await self.repository.create_checkpoint(
+            owner, "before", rewind_anchor=anchor
+        )
+        execute_corruption(
+            self.database,
+            "UPDATE checkpoint_rewind_facts SET mutation_sequence = 1",
+        )
+        with self.assertRaises(SessionCorruptionError):
+            await self.repository.observe_rewind(
+                owner, checkpoint, RewindReadLimits()
+            )
+
+    async def test_later_mutation_generation_mismatch_fails_closed(self) -> None:
+        owner = await self.repository.create_thread()
+        coverage = await self.repository.ensure_rewind_coverage(FINGERPRINT)
+        anchor = await self.repository.get_rewind_checkpoint_anchor(
+            coverage.token, owner
+        )
+        checkpoint = await self.repository.create_checkpoint(
+            owner, "before", rewind_anchor=anchor
+        )
+        await self.completed(
+            coverage.token, owner, owner, "later", (path_fact("a.txt"),)
+        )
+        execute_corruption(
+            self.database,
+            "UPDATE workspace_mutations SET coverage_generation = 2",
+        )
+        with self.assertRaises(SessionCorruptionError):
+            await self.repository.observe_rewind(
+                owner, checkpoint, RewindReadLimits()
+            )
 
 if __name__ == "__main__":
     unittest.main()
