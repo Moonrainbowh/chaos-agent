@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import fnmatch
 import math
 import os
 import time
@@ -9,22 +8,23 @@ from itertools import islice
 from pathlib import Path
 from typing import Callable, Iterator, Sequence
 
-import regex as regex_lib
-
 from .errors import (
     BinaryFileError,
     FileTooLargeError,
-    SearchTimeoutError,
     WorkspaceError,
 )
 from ._file_walk import iter_workspace_files
+from ._text_search import (
+    MAX_SEARCH_PATTERN_LENGTH,
+    SearchMatch,
+    search_text,
+)
 from .ignore import IgnoreRules
 from .paths import WorkspacePathGuard
 
 
 DEFAULT_MAX_BYTES = 1_000_000
 DEFAULT_MAX_ENTRIES = 10_000
-MAX_SEARCH_PATTERN_LENGTH = 10_000
 
 
 @dataclass(frozen=True)
@@ -34,14 +34,6 @@ class TextDocument:
     total_lines: int
     start_line: int
     end_line: int
-
-
-@dataclass(frozen=True)
-class SearchMatch:
-    path: str
-    line: int
-    column: int
-    text: str
 
 
 class WorkspaceFiles:
@@ -169,69 +161,16 @@ class WorkspaceFiles:
         max_results: int = 100,
     ) -> tuple[SearchMatch, ...]:
         """Search visible text files and return bounded, deterministic matches."""
-        if not isinstance(pattern, str) or not pattern:
-            raise ValueError("search pattern must be non-empty text")
-        if len(pattern) > MAX_SEARCH_PATTERN_LENGTH:
-            raise ValueError(
-                f"search pattern exceeds {MAX_SEARCH_PATTERN_LENGTH} characters"
-            )
-        if not isinstance(max_results, int) or isinstance(max_results, bool):
-            raise TypeError("max_results must be an integer")
-        if max_results <= 0:
-            raise ValueError("max_results must be positive")
-        if any(not isinstance(item, str) or not item for item in include_globs):
-            raise ValueError("include_globs must contain non-empty strings")
-
-        deadline = time.monotonic() + self.search_timeout_s
-        compiled: regex_lib.Pattern[str] | None = None
-        if regex:
-            flags = 0 if case_sensitive else regex_lib.IGNORECASE
-            try:
-                compiled = regex_lib.compile(pattern, flags)
-            except regex_lib.error as error:
-                raise ValueError(f"invalid regular expression: {error}") from error
-
-        matches: list[SearchMatch] = []
-        scan_limit = _scan_limit(DEFAULT_MAX_ENTRIES, None)
-        visible_files = islice(
-            self._iter_files(
-                scan_limit, check=lambda: _remaining(deadline)
-            ),
-            DEFAULT_MAX_ENTRIES,
+        return search_text(
+            self._iter_files,
+            self.read_text,
+            self.search_timeout_s,
+            pattern,
+            regex,
+            case_sensitive,
+            include_globs,
+            max_results,
         )
-        for relative_path in visible_files:
-            _remaining(deadline)
-            if include_globs and not _included(relative_path, include_globs):
-                continue
-            try:
-                document = self.read_text(relative_path)
-            except (BinaryFileError, FileTooLargeError, OSError, WorkspaceError):
-                continue
-            for line_number, line in enumerate(document.text.splitlines(), start=1):
-                remaining = _remaining(deadline)
-                try:
-                    columns = (
-                        (
-                            match.start() + 1
-                            for match in compiled.finditer(
-                                line, timeout=remaining
-                            )
-                        )
-                        if compiled is not None
-                        else _literal_columns(line, pattern, case_sensitive)
-                    )
-                    for column in columns:
-                        _remaining(deadline)
-                        matches.append(
-                            SearchMatch(relative_path, line_number, column, line)
-                        )
-                        if len(matches) == max_results:
-                            return tuple(matches)
-                except TimeoutError as error:
-                    raise SearchTimeoutError(
-                        f"search exceeded {self.search_timeout_s:g} seconds"
-                    ) from error
-        return tuple(matches)
 
     def _iter_files(
         self,
@@ -271,33 +210,6 @@ def _decode_text(data: bytes, path: Path) -> str:
         return data.decode("utf-8-sig")
     except UnicodeDecodeError as error:
         raise BinaryFileError(f"file is not valid UTF-8: {path}") from error
-
-
-def _literal_columns(line: str, pattern: str, case_sensitive: bool) -> Iterator[int]:
-    haystack = line if case_sensitive else line.casefold()
-    needle = pattern if case_sensitive else pattern.casefold()
-    offset = 0
-    while (found := haystack.find(needle, offset)) >= 0:
-        yield found + 1
-        offset = found + len(needle)
-
-
-def _included(path: str, patterns: Sequence[str]) -> bool:
-    for pattern in patterns:
-        normalized = pattern.replace("\\", "/")
-        candidates = (normalized, normalized.removeprefix("**/"))
-        for candidate in candidates:
-            subject = path if "/" in candidate else path.rsplit("/", 1)[-1]
-            if fnmatch.fnmatch(subject, candidate):
-                return True
-    return False
-
-
-def _remaining(deadline: float) -> float:
-    remaining = deadline - time.monotonic()
-    if remaining <= 0:
-        raise SearchTimeoutError("search deadline exceeded")
-    return remaining
 
 
 def _scan_limit(max_entries: int, supplied: int | None) -> int:
