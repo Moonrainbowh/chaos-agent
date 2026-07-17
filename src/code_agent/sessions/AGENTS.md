@@ -32,3 +32,6 @@
 - `SessionDatabase`: 执行版本化 schema migration、连接配置、事务和完整性校验 | SQLite I/O | 未来版本、缺表和损坏数据均失败闭合
 - `migrate_legacy_session_database`: 使用 SQLite backup API 复制旧库并校验计数与完整性 | SQLite I/O | 临时目标原子替换，旧库始终保留
 - `encode_message`、`decode_message`、`encode_event`、`decode_event`: 在核心模型与稳定 JSON 记录间转换 | JSON 编解码 | 不能信任的持久化内容抛出专用损坏错误
+- `CoverageToken`、`RewindMutationPrepare`、`RewindGapPrepare`、`RewindObservation`: 表达深度冻结且有界的 coverage、mutation、checkpoint 与 observation 事实 | 无副作用 | SnapshotHandle 仅作为 canonical JSON；checkpoint conversation thread 与 code owner scope 分离
+- `RewindSessionRepository.ensure_rewind_coverage`、`prepare_rewind_mutation`、`complete_rewind_mutation`、`abort_rewind_mutation`、`record_rewind_gap`: 原子持久化 workspace coverage 与 mutation 状态机 | SQLite I/O | mutation ID 由 Sessions 生成；幂等键为 workspace/origin/request；失效 coverage 仅接受 durable repeat gap
+- `RewindSessionRepository.get_rewind_checkpoint_anchor`、`create_checkpoint`、`observe_rewind`、`observe_rewind_heads`、`list_rewind_candidates`: 原子锚定 checkpoint 并提供线程过滤、游标分页和预算限制的只读事实 | SQLite I/O | 旧或未锚定 checkpoint 无 code fact；任何 limit overflow 均不返回部分 mutation chain
