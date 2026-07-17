@@ -181,7 +181,9 @@ class RewindObservation:
             bounded_int(self.conversation_message_count, "conversation_message_count")
         if not isinstance(self.heads, RewindObservationHeads):
             raise TypeError("heads must be RewindObservationHeads")
-        mutations = tuple(self.mutations)
+        if type(self.mutations) is not tuple:
+            raise TypeError("mutations must be a tuple")
+        mutations = self.mutations
         if any(not isinstance(item, RewindMutationRecord) for item in mutations):
             raise TypeError("mutations must contain RewindMutationRecord values")
         if not isinstance(self.limit_exceeded, bool):
@@ -217,7 +219,9 @@ class RewindCandidatePage:
     next_cursor: Optional[str] = None
 
     def __post_init__(self) -> None:
-        items = tuple(self.items)
+        if type(self.items) is not tuple:
+            raise TypeError("items must be a tuple")
+        items = self.items
         if len(items) > MAX_REWIND_PAGE_SIZE:
             raise ValueError("candidate page is too large")
         if any(not isinstance(item, RewindCandidate) for item in items):

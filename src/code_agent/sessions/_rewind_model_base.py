@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import PurePosixPath
-from typing import Mapping, Optional, Sequence
+from typing import Mapping, Optional
 
 from code_agent.core._json import JSONValue, freeze_mapping
 
@@ -90,8 +90,10 @@ def sha256(value: object, label: str, *, optional: bool = False) -> str | None:
 def canonical_path(value: object) -> str:
     path = required_text(value, "path")
     if (
-        "\\" in path
+        "\0" in path
+        or "\\" in path
         or path.startswith("/")
+        or re.match(r"[A-Za-z]:/", path) is not None
         or path.endswith("/")
         or "//" in path
         or PurePosixPath(path).as_posix() != path
@@ -159,9 +161,9 @@ def validate_identity(record: object) -> None:
 def rewind_paths(
     value: object, *, empty: bool = False
 ) -> tuple[RewindMutationPath, ...]:
-    if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
-        raise TypeError("paths must be a sequence")
-    result = tuple(value)
+    if type(value) is not tuple:
+        raise TypeError("paths must be a tuple")
+    result = value
     if not empty and not result:
         raise ValueError("paths must not be empty")
     if len(result) > MAX_REWIND_ACTION_PATHS:

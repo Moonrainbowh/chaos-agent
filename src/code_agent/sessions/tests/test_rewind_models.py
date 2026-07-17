@@ -25,11 +25,15 @@ from code_agent.sessions.rewind_models import (  # noqa: E402
     DEFAULT_REWIND_MAX_MUTATIONS,
     CoverageToken,
     RewindBaseline,
+    RewindCandidate,
+    RewindCandidatePage,
     RewindCheckpointFact,
     RewindCoverageState,
     RewindMutationPath,
     RewindMutationPrepare,
     RewindMutationStatus,
+    RewindObservation,
+    RewindObservationHeads,
     RewindReadLimits,
 )
 
@@ -99,6 +103,8 @@ class RewindModelTests(unittest.TestCase):
         self.assertEqual(_path().path, "src/main.py")
         invalid = [
             ("/abs.py", True, HASH, RewindBaseline.GIT_STAGED),
+            ("C:/outside.txt", True, HASH, RewindBaseline.GIT_STAGED),
+            ("src/\0main.py", True, HASH, RewindBaseline.GIT_STAGED),
             ("src\\main.py", True, HASH, RewindBaseline.GIT_STAGED),
             ("src/../main.py", True, HASH, RewindBaseline.GIT_STAGED),
             ("src/main.py", False, HASH, RewindBaseline.ABSENT),
@@ -115,10 +121,9 @@ class RewindModelTests(unittest.TestCase):
 
     def test_prepare_deep_freezes_handle_and_paths(self) -> None:
         source = {"nested": [{"value": 1}]}
-        paths = [_path()]
+        paths = (_path(),)
         prepare = _prepare(source, paths)
         source["nested"][0]["value"] = 2
-        paths.clear()
         self.assertEqual(prepare.snapshot_handle["nested"][0]["value"], 1)
         self.assertIsInstance(prepare.snapshot_handle["nested"], tuple)
         self.assertEqual(prepare.paths, (_path(),))
@@ -126,12 +131,14 @@ class RewindModelTests(unittest.TestCase):
             prepare.snapshot_handle["new"] = 1  # type: ignore[index]
         with self.assertRaises(FrozenInstanceError):
             prepare.action_name = "changed"  # type: ignore[misc]
+        with self.assertRaises(TypeError):
+            _prepare({}, [_path()])
 
     def test_prepare_rejects_duplicate_paths_and_oversized_handle(self) -> None:
         with self.assertRaises(ValueError):
-            _prepare({}, [_path(), _path()])
+            _prepare({}, (_path(), _path()))
         with self.assertRaises(ValueError):
-            _prepare({"large": "x" * (64 * 1024)}, [_path()])
+            _prepare({"large": "x" * (64 * 1024)}, (_path(),))
 
     def test_checkpoint_fact_separates_child_id_from_root_owner(self) -> None:
         fact = RewindCheckpointFact(
@@ -146,6 +153,15 @@ class RewindModelTests(unittest.TestCase):
         self.assertEqual(fact.owner_thread_id, "root-owner")
         self.assertEqual(fact.created_at, NOW.astimezone(timezone.utc))
         self.assertEqual((fact.workspace_fingerprint, fact.generation), ("c" * 64, 3))
+        checkpoint = CheckpointRecord(
+            "child-checkpoint", "child-thread", "label", created_at=NOW
+        )
+        heads = RewindObservationHeads(0, 0, 0, None, None)
+        with self.assertRaises(TypeError):
+            RewindObservation(checkpoint, fact, 0, heads, [], False)  # type: ignore[arg-type]
+        candidate = RewindCandidate("child-checkpoint", "label", NOW, True, True)
+        with self.assertRaises(TypeError):
+            RewindCandidatePage([candidate], None)  # type: ignore[arg-type]
 
     def test_handle_codec_is_canonical_bounded_and_deep_frozen(self) -> None:
         source = {"z": [1, {"é": True}], "a": None}
