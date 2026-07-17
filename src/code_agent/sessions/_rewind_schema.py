@@ -21,16 +21,17 @@ REWIND_MIGRATION = (
     "origin_thread_id TEXT NOT NULL REFERENCES threads(id), "
     "task_id TEXT REFERENCES tasks(id), parent_request_id TEXT, "
     "request_id TEXT NOT NULL, action_name TEXT NOT NULL, "
+    "path_count INTEGER NOT NULL CHECK(path_count BETWEEN 0 AND 32), "
     "status TEXT NOT NULL "
     "CHECK(status IN ('prepared','completed','aborted','gap')), "
     "gap_reason TEXT, snapshot_handle TEXT, created_at TEXT NOT NULL, "
     "completed_at TEXT, "
     "UNIQUE(workspace_fingerprint, origin_thread_id, request_id), "
-    "CHECK ((status = 'gap' AND gap_reason IS NOT NULL "
+    "CHECK ((status = 'gap' AND path_count = 0 AND gap_reason IS NOT NULL "
     "AND snapshot_handle IS NULL AND completed_at IS NOT NULL) OR "
-    "(status = 'prepared' AND gap_reason IS NULL "
+    "(status = 'prepared' AND path_count > 0 AND gap_reason IS NULL "
     "AND snapshot_handle IS NOT NULL AND completed_at IS NULL) OR "
-    "(status IN ('completed','aborted') AND gap_reason IS NULL "
+    "(status IN ('completed','aborted') AND path_count > 0 AND gap_reason IS NULL "
     "AND snapshot_handle IS NOT NULL AND completed_at IS NOT NULL)))",
     "CREATE TABLE workspace_mutation_paths ("
     "mutation_sequence INTEGER NOT NULL "
@@ -89,6 +90,7 @@ REWIND_REQUIRED_COLUMNS = {
         "parent_request_id",
         "request_id",
         "action_name",
+        "path_count",
         "status",
         "gap_reason",
         "snapshot_handle",

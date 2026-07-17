@@ -38,9 +38,9 @@ def _insert_prepared(
         "INSERT INTO workspace_mutations("
         "mutation_id, workspace_fingerprint, coverage_generation, "
         "owner_thread_id, origin_thread_id, task_id, parent_request_id, "
-        "request_id, action_name, status, gap_reason, snapshot_handle, "
+        "request_id, action_name, path_count, status, gap_reason, snapshot_handle, "
         "created_at, completed_at"
-        ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'prepared', NULL, ?, ?, NULL)",
+        ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'prepared', NULL, ?, ?, NULL)",
         (
             mutation_id,
             request.coverage.workspace_fingerprint,
@@ -51,6 +51,7 @@ def _insert_prepared(
             request.parent_request_id,
             request.request_id,
             request.action_name,
+            len(request.paths),
             encoded_handle,
             timestamp,
         ),
@@ -112,9 +113,9 @@ def _insert_gap(
         "INSERT INTO workspace_mutations("
         "mutation_id, workspace_fingerprint, coverage_generation, "
         "owner_thread_id, origin_thread_id, task_id, parent_request_id, "
-        "request_id, action_name, status, gap_reason, snapshot_handle, "
+        "request_id, action_name, path_count, status, gap_reason, snapshot_handle, "
         "created_at, completed_at"
-        ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'gap', ?, NULL, ?, ?)",
+        ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'gap', ?, NULL, ?, ?)",
         (
             mutation_id,
             request.coverage.workspace_fingerprint,

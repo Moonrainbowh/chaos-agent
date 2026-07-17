@@ -119,6 +119,8 @@ class RewindMigrationTests(unittest.TestCase):
         cases = (
             ("missing-table", lambda sql: sql if "checkpoint_rewind_facts" not in sql else ""),
             ("missing-parent", lambda sql: sql.replace("parent_request_id TEXT,", "")),
+            ("missing-path-count", lambda sql: sql.replace(
+                "path_count", "lost_path_count")),
             ("plain-table", lambda sql: plain_facts if sql.startswith(
                 "CREATE TABLE checkpoint_rewind_facts") else sql),
             ("missing-index", lambda sql: sql if "workspace_mutations_owner_sequence"

@@ -55,6 +55,9 @@ def mutation_record(
 ) -> RewindMutationRecord:
     try:
         handle = row["snapshot_handle"]
+        path_count = row["path_count"]
+        if type(path_count) is not int or path_count != len(path_rows):
+            raise ValueError("invalid persisted path count")
         for expected, item in enumerate(path_rows):
             ordinal = item["ordinal"]
             if type(ordinal) is not int or ordinal != expected:

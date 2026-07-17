@@ -6,6 +6,7 @@ from collections.abc import Sequence
 from ._codec import decode_datetime
 from ._records import _require_thread, _text, _thread_maximum
 from ._rewind_codec import decode_rewind_cursor, encode_rewind_cursor
+from ._rewind_mutation_sql import _require_coverage_high_water
 from ._rewind_rows import (
     checkpoint_fact,
     checkpoint_record,
@@ -59,19 +60,6 @@ def _conversation_count(
     )
 
 
-def _mutation_head(
-    connection: sqlite3.Connection,
-    workspace_fingerprint: str,
-) -> int:
-    return int(
-        connection.execute(
-            "SELECT COALESCE(MAX(sequence), 0) "
-            "FROM workspace_mutations WHERE workspace_fingerprint = ?",
-            (workspace_fingerprint,),
-        ).fetchone()[0]
-    )
-
-
 def _load_coverage(
     connection: sqlite3.Connection,
     workspace_fingerprint: str,
@@ -100,10 +88,11 @@ def _heads(
         if require_coverage:
             raise SessionCorruptionError("checkpoint coverage is missing")
         return RewindObservationHeads(message_head, event_head, 0, None, None)
+    mutation_head = _require_coverage_high_water(connection, coverage)
     return RewindObservationHeads(
         message_head,
         event_head,
-        _mutation_head(connection, workspace_fingerprint),
+        mutation_head,
         coverage.generation,
         coverage.state,
     )
@@ -261,9 +250,7 @@ class RewindObservationRepositoryMixin:
         workspace_fingerprint: str,
     ) -> RewindObservationHeads:
         thread_id = _text(thread_id, "thread_id")
-        fingerprint = CoverageToken(
-            workspace_fingerprint, 1
-        ).workspace_fingerprint
+        fingerprint = CoverageToken(workspace_fingerprint, 1).workspace_fingerprint
 
         def read(connection: sqlite3.Connection) -> RewindObservationHeads:
             _require_thread(connection, thread_id)

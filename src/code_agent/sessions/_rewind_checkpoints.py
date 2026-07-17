@@ -8,6 +8,7 @@ from code_agent.core._json import JSONValue, validate_json_mapping
 
 from ._codec import encode_datetime, encode_metadata, utc_now
 from ._records import _require_thread, _text, _thread_maximum, _touch_thread
+from ._rewind_mutation_sql import _require_coverage_high_water
 from ._rewind_rows import coverage_record
 from .errors import SessionNotFound, SessionStorageError
 from .rewind_models import (
@@ -27,6 +28,7 @@ def _load_coverage(
     if row is None:
         raise SessionNotFound("rewind coverage not found")
     record = coverage_record(row)
+    _require_coverage_high_water(connection, record)
     if record.token != coverage:
         raise SessionStorageError("rewind coverage generation moved")
     return record

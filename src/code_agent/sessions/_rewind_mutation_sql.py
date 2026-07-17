@@ -4,7 +4,7 @@ import sqlite3
 
 from ._records import _require_thread
 from ._rewind_rows import coverage_record, mutation_record
-from .errors import SessionNotFound, SessionStorageError
+from .errors import SessionCorruptionError, SessionNotFound, SessionStorageError
 from .rewind_models import (
     CoverageToken,
     RewindCoverageRecord,
@@ -13,6 +13,29 @@ from .rewind_models import (
     RewindMutationRecord,
     RewindMutationStatus,
 )
+
+
+def _journal_high_water(
+    connection: sqlite3.Connection,
+    workspace_fingerprint: str,
+) -> int:
+    return int(
+        connection.execute(
+            "SELECT COALESCE(MAX(sequence), 0) FROM workspace_mutations "
+            "WHERE workspace_fingerprint = ?",
+            (workspace_fingerprint,),
+        ).fetchone()[0]
+    )
+
+
+def _require_coverage_high_water(
+    connection: sqlite3.Connection,
+    coverage: RewindCoverageRecord,
+) -> int:
+    journal = _journal_high_water(connection, coverage.workspace_fingerprint)
+    if coverage.mutation_high_water != journal:
+        raise SessionCorruptionError("rewind mutation high water is inconsistent")
+    return journal
 
 
 def _load_coverage(
@@ -26,6 +49,7 @@ def _load_coverage(
     if row is None:
         raise SessionNotFound("rewind coverage not found")
     record = coverage_record(row)
+    _require_coverage_high_water(connection, record)
     if record.token != token:
         raise SessionStorageError("rewind coverage generation moved")
     return record
