@@ -18,16 +18,17 @@
 
 ## Units
 - `SubjectSnapshot`、`snapshot_subject(...)`: 为改动文件和关键 manifest 生成有界、确定性的 subject hash | 读取受 guard 保护的工作区文件 | 不判断业务正确性或扫描工作区外路径
-- `WorkspaceError` 及其专用子类：表达路径、敏感文件、文本类型、大小、扫描上限、超时与编辑冲突 | 无副作用
+- `WorkspaceFileState`、`PreparedEditState`、`prepare_edit_state(...)`：为 typed edit 冻结 canonical path 的精确原始 bytes/existence 前镜像及确定性前后 hash | 有界读取并校验 plan 基线 | 只准备状态，不 apply edit
+- `observe_file_states(...)`、`relevant_path_digest(...)`：规范化、去重并排序 canonical paths，基于原始 bytes/existence 生成确定性文件状态与顺序无关摘要 | 有界读取 | 超限或失败时不返回部分结果
+- `WorkspaceError` 及其专用子类：表达路径、敏感文件、文本类型、大小、扫描上限、超时与编辑冲突；`SnapshotMissingError` 稳定表示引用的 manifest/blob 缺失，`SnapshotIntegrityError` 表示 artifact 存在但损坏或无法通过完整性验证 | 无副作用
 - `WorkspacePathGuard(root).resolve(path): Path`：规范化路径并执行 containment 与敏感路径策略 | 检查路径元数据 | `allow_outside` 仅供已批准 dispatcher 使用；链接/reparse 组件及任意层级 `.git`、`.chaos-agent`、`.code-agent` 始终受保护
 - `IgnoreRules.from_workspace(root): IgnoreRules`：加载内置忽略项和根 `.gitignore` 的常用规则子集 | 读取根 `.gitignore` | 支持顺序反选，不是完整 Git parser
-- `WorkspaceFiles.list_files(root, ...): tuple[str, ...]`：在有限扫描预算内按全局路径顺序枚举可访问的非忽略文件；显式外部 `root` 可递归枚举 | 扫描超限显式失败，不返回伪完整结果
-- `WorkspaceFiles.read_text(...): TextDocument`：按包含式行范围读取 UTF-8/UTF-8 BOM 文本 | 读取单个文件 | 拒绝二进制与超限文件
-- `WorkspaceFiles.search(...): tuple[SearchMatch, ...]`：在有限扫描预算和全局 deadline 内执行 literal/regex 文本搜索 | deadline 覆盖目录枚举与文件匹配 | 超时不返回部分结果
-- `WorkspaceEditor`: 有界读取现有文件，生成写入/单次替换 Diff 并校验哈希后原子应用 | 单文件同目录临时写入与替换
-- `WorkspaceSnapshot`: 复制受保护路径的原始字节并恢复创建、更新与删除 | 多文件逐项原子恢复 | 不承诺多文件事务原子性
-- `SnapshotHandle`、`WorkspaceSnapshotStore.save/load`：在注入的仓库外 product-state root 中以内容寻址 blob 和原子 manifest 持久化受保护快照 | artifact I/O；publish 前 flush 文件 bytes，POSIX 同步父目录且失败显式上报 | Windows 若不支持目录 flush 则不宣称 crash-durable，但仍保持 atomic 与 fail-closed integrity；严格校验工作区指纹、路径、句柄、大小与内容 hash，不接受调用方任意 artifact 路径
+- `WorkspaceFiles.list_files/read_text/search`：在有限扫描预算与全局 deadline 内枚举文件、读取 UTF-8/UTF-8 BOM 文本并执行 literal/regex 搜索 | 读取工作区与已授权外部 root | 扫描超限或搜索超时显式失败，不返回伪完整或部分结果；拒绝二进制与超限文件
+- `WorkspaceEditor`、`WorkspaceSnapshot`：有界读取，生成写入/单次替换 Diff，校验哈希后原子应用，并复制原始 bytes/existence 以恢复创建、更新与删除 | 单文件同目录临时写入与替换；多文件逐项原子恢复 | 不承诺多文件事务原子性
+- `SnapshotHandle`、`WorkspaceSnapshotStore.save/load`、`WorkspaceSnapshotStore.workspace_fingerprint`：以只读工作区指纹绑定仓库外 product-state 快照，从已核验的打开句柄读取 manifest/blob，并与私有 manifest 编解码/验证单元协作完成严格的路径、句柄、大小与内容 hash 校验 | 内容寻址 blob、原子 manifest 与 durability I/O | 不接受调用方任意 artifact 路径；稳定区分缺失与损坏，完整性失败闭合
 - `GitDiffSnapshot`、`GitWorkspace`：提供有界的仓库检测、porcelain 状态、单命令 unstaged Diff 与 staged/unstaged/untracked 不可变 facets | 仅执行固定 Git argv，并在同一累计字节预算内全局预检 tracked 路径、按已验证路径生成严格 UTF-8 patch、从已核验真实句柄读取 untracked 文件 | 每个 Git 路径和打开句柄均重新经过 guard；ignored 文件排除，二进制只输出稳定元数据 marker，超限或超时终止且不提供任意 Git 命令入口
+
+上述回溯单元只提供文件事实，不写 journal、不决定 checkpoint ordering 或 action lineage，也不判断 rewind 的最终可用性。
 
 ## 环境依赖
 - 运行：Python 3.10+ 与 PyPI `regex`（为用户正则提供单次匹配 timeout）。
