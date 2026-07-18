@@ -132,9 +132,6 @@ class AgentEngineTurnMixin:
         if automatic is not None:
             state.budget, automatic_events = automatic
             for event in automatic_events:
-                if event.kind is EventKind.MESSAGE_ADDED:
-                    message = Message.from_dict(event.payload["message"])
-                    state.messages += (message,)
                 yield event
             if self._should_stop_after_action(automatic_events):
                 state.stop_requested = True
