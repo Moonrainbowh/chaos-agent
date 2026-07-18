@@ -5,22 +5,32 @@ import stat
 import sys
 from pathlib import Path
 
-from .errors import WorkspaceError
+from .errors import FileTooLargeError, WorkspaceError
 from .paths import PathInput, WorkspacePathGuard
 
 
+class _GuardedFileMissingError(WorkspaceError):
+    """The initial open found no file at the already guarded path."""
+
+
 def read_guarded_file(
-    path: PathInput, guard: WorkspacePathGuard, max_bytes: int
+    path: PathInput,
+    guard: WorkspacePathGuard,
+    max_bytes: int,
+    *,
+    reject_known_oversize: bool = False,
 ) -> bytes:
     """Read a regular file only after verifying the opened handle's identity."""
     expected = guard.resolve(path)
     descriptor: int | None = None
     try:
-        descriptor = os.open(expected, _open_flags())
+        descriptor = _open_existing(expected)
         opened = os.fstat(descriptor)
         if not stat.S_ISREG(opened.st_mode):
             raise WorkspaceError(f"untracked path is not a regular file: {expected.name}")
         _verify_handle(descriptor, opened, expected, guard)
+        if reject_known_oversize and opened.st_size > max_bytes:
+            raise FileTooLargeError(f"file exceeds {max_bytes} bytes: {expected.name}")
         return _read_bounded(descriptor, max_bytes)
     except WorkspaceError:
         raise
@@ -29,6 +39,15 @@ def read_guarded_file(
     finally:
         if descriptor is not None:
             os.close(descriptor)
+
+
+def _open_existing(expected: Path) -> int:
+    try:
+        return os.open(expected, _open_flags())
+    except FileNotFoundError as error:
+        raise _GuardedFileMissingError(
+            f"guarded file is missing: {expected.name}"
+        ) from error
 
 
 def _open_flags() -> int:

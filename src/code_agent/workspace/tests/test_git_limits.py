@@ -289,6 +289,11 @@ class GitOutputLimitTests(unittest.TestCase):
         with self.assertRaises(GitOutputLimitError):
             GitWorkspace(self.root, max_output_bytes=total - 1).diff_snapshot()
 
+    def test_untracked_stat_over_remaining_is_a_structured_limit(self) -> None:
+        subprocess.run(["git", "init", "-q"], cwd=self.root, check=True, shell=False)
+        (self.root / "a").write_bytes(b"12")
+        with self.assertRaises(GitOutputLimitError):
+            GitWorkspace(self.root, max_output_bytes=5).diff_snapshot()
 
 if __name__ == "__main__":
     unittest.main()

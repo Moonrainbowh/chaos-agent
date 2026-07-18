@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from dataclasses import FrozenInstanceError
 from pathlib import Path
-from unittest.mock import mock_open, patch
+from unittest.mock import patch
 
 
 SRC_ROOT = Path(__file__).resolve().parents[3]
@@ -149,9 +149,8 @@ class SnapshotTests(WorkspaceEditorTestCase):
     def test_snapshot_stat_precheck_rejects_before_read_bytes(self) -> None:
         (self.root / "large.bin").write_bytes(b"123456")
 
-        with patch.object(
-            Path,
-            "read_bytes",
+        with patch(
+            "code_agent.workspace._guarded_read._read_bounded",
             side_effect=AssertionError("oversized file was read"),
         ):
             with self.assertRaises(FileTooLargeError):
@@ -159,14 +158,48 @@ class SnapshotTests(WorkspaceEditorTestCase):
 
     def test_snapshot_detects_growth_while_reading_remaining_plus_one(self) -> None:
         (self.root / "growing.bin").write_bytes(b"123")
-        opened = mock_open(read_data=b"1234")
 
-        with patch.object(Path, "open", opened):
+        with patch(
+            "code_agent.workspace._guarded_read._read_bounded",
+            return_value=b"1234",
+        ):
             with self.assertRaises(FileTooLargeError):
                 self.editor.snapshot(("growing.bin",), max_total_bytes=3)
 
-        opened.assert_called_once_with("rb")
-        opened().read.assert_called_once_with(4)
+    def test_snapshot_uses_verified_open_handle_identity(self) -> None:
+        (self.root / "file.bin").write_bytes(b"content")
+
+        with patch(
+            "code_agent.workspace._guarded_read._verify_handle",
+            side_effect=WorkspaceError("identity changed"),
+        ) as verify:
+            with self.assertRaises(WorkspaceError):
+                self.editor.snapshot(("file.bin",))
+
+        verify.assert_called_once()
+
+    def test_snapshot_rejects_opened_handle_redirected_outside(self) -> None:
+        (self.root / "file.bin").write_bytes(b"content")
+
+        with tempfile.TemporaryDirectory() as directory:
+            outside = Path(directory) / "outside.bin"
+            outside.write_bytes(b"secret")
+            with patch(
+                "code_agent.workspace._guarded_read._final_handle_path",
+                return_value=outside,
+            ):
+                with self.assertRaises(WorkspaceError):
+                    self.editor.snapshot(("file.bin",))
+
+    def test_opened_then_disappearing_snapshot_is_not_missing(self) -> None:
+        (self.root / "file.bin").write_bytes(b"content")
+
+        with patch(
+            "code_agent.workspace._guarded_read._verify_handle",
+            side_effect=FileNotFoundError("removed after open"),
+        ):
+            with self.assertRaises(WorkspaceError):
+                self.editor.snapshot(("file.bin",))
 
     def test_restore_reverses_updates_deletions_and_creations(self) -> None:
         updated = self.root / "updated.bin"
