@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 import unittest
 from collections.abc import AsyncIterator, Sequence
+from inspect import Parameter, signature
 from pathlib import Path
 
 
@@ -10,6 +11,7 @@ SRC_ROOT = Path(__file__).resolve().parents[3]
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
+from code_agent.core.action_execution import ActionExecutionContext  # noqa: E402
 from code_agent.core.cancellation import CancellationToken  # noqa: E402
 from code_agent.core.context_request import ContextRequest  # noqa: E402
 from code_agent.core._session_io import SessionJournal  # noqa: E402
@@ -30,6 +32,7 @@ from code_agent.core.protocols import (  # noqa: E402
     ModelClient,
     SessionRepository,
 )
+from code_agent.core.task import TaskAuthorization  # noqa: E402
 from code_agent.core.task_state import TaskState  # noqa: E402
 
 
@@ -66,12 +69,21 @@ def context_request(**updates: object) -> ContextRequest:
 
 
 class FakeActionDispatcher:
+    def __init__(self) -> None:
+        self.context: ActionExecutionContext | None = None
+
     def tools(self) -> Sequence[ToolDefinition]:
         return ()
 
     async def dispatch(
-        self, request: ActionRequest, cancellation: CancellationToken
+        self,
+        request: ActionRequest,
+        cancellation: CancellationToken,
+        task_authorization: TaskAuthorization | None = None,
+        *,
+        execution_context: ActionExecutionContext | None = None,
     ) -> ActionResult:
+        self.context = execution_context
         return ActionResult(
             request_id=request.id,
             name=request.name,
@@ -210,13 +222,25 @@ class ProtocolImplementationTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(value=value), self.assertRaises((TypeError, ValueError)):
                 context_request(budget_lease={"model_turns": value})
 
+    def test_action_dispatcher_declares_keyword_only_context(self) -> None:
+        parameter = signature(ActionDispatcher.dispatch).parameters[
+            "execution_context"
+        ]
+
+        self.assertIs(parameter.kind, Parameter.KEYWORD_ONLY)
+        self.assertIsNone(parameter.default)
+
     async def test_action_dispatcher_fake_dispatches_request(self) -> None:
         dispatcher: ActionDispatcher = FakeActionDispatcher()
         request = ActionRequest(id="action-1", name="read_file", arguments={})
+        context = ActionExecutionContext("owner", "origin", "action-1")
 
-        result = await dispatcher.dispatch(request, CancellationToken())
+        result = await dispatcher.dispatch(
+            request, CancellationToken(), execution_context=context
+        )
 
         self.assertEqual(dispatcher.tools(), ())
+        self.assertEqual(dispatcher.context, context)
         self.assertEqual(
             result,
             ActionResult(

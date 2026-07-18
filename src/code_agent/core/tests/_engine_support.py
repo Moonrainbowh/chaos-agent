@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator, Mapping, Sequence
 
+from code_agent.core.action_execution import ActionExecutionContext
 from code_agent.core.cancellation import CancellationToken
 from code_agent.core.context_request import ContextRequest
 from code_agent.core.events import AgentEvent
@@ -13,6 +14,7 @@ from code_agent.core.models import (
     ModelEvent,
     ToolDefinition,
 )
+from code_agent.core.task import TaskAuthorization
 from code_agent.core.task_state import TaskState
 from code_agent.core.task_state import reduce_task_state
 from code_agent.core.limits import EngineLimits, TaskBudget
@@ -70,6 +72,8 @@ class FakeActionDispatcher:
         self.outcomes = list(outcomes)
         self.requests: list[ActionRequest] = []
         self.tokens: list[CancellationToken] = []
+        self.authorizations: list[TaskAuthorization | None] = []
+        self.contexts: list[ActionExecutionContext | None] = []
         self._tools = (
             ToolDefinition(
                 name="read_file",
@@ -82,10 +86,17 @@ class FakeActionDispatcher:
         return self._tools
 
     async def dispatch(
-        self, request: ActionRequest, cancellation: CancellationToken, *args: object
+        self,
+        request: ActionRequest,
+        cancellation: CancellationToken,
+        task_authorization: TaskAuthorization | None = None,
+        *,
+        execution_context: ActionExecutionContext | None = None,
     ) -> ActionResult:
         self.requests.append(request)
         self.tokens.append(cancellation)
+        self.authorizations.append(task_authorization)
+        self.contexts.append(execution_context)
         outcome = self.outcomes.pop(0)
         if isinstance(outcome, BaseException):
             raise outcome

@@ -5,6 +5,7 @@ from collections.abc import Mapping
 from typing import AsyncIterator
 
 from ._tool_feedback import tool_failure
+from .action_execution import ActionExecutionContext, ActionLineage
 from .cancellation import CancellationError, CancellationToken
 from .errors import EngineLimitError, ModelStreamError
 from .events import AgentEvent, EventKind
@@ -47,14 +48,12 @@ class AgentEngineActionMixin:
             started = AgentEvent(EventKind.ACTION_STARTED, {"request_id": call.id, "name": call.name})
             await self._journal.append_event(thread_id, started)
             yield started
-            try:
-                result = await self._actions.dispatch(request, token, task.contract.authorization) if task else await self._actions.dispatch(request, token)
-                if result.request_id != call.id or result.name != call.name:
-                    result = tool_failure(call, "invalid tool result")
-            except CancellationError:
-                raise
-            except Exception as exc:
-                result = tool_failure(call, "tool execution failed", type(exc).__name__)
+            execution_context = self._action_execution_context(
+                thread_id, call.id, task
+            )
+            result = await self._invoke_action(
+                request, call, token, task, execution_context
+            )
         if task is not None and _requires_decision(result):
             waiting = await self._journal.transition_task(task.id, TaskStatus.WAITING_DECISION, "approval required")
             event = AgentEvent(EventKind.TASK_DECISION_REQUIRED, {"task_id": waiting.id, "status": waiting.status.value})
@@ -74,6 +73,53 @@ class AgentEngineActionMixin:
         added = self._journal.message_added(message)
         await self._journal.append_event(thread_id, added)
         yield added
+
+    def _action_execution_context(
+        self,
+        thread_id: str,
+        request_id: str,
+        task: TaskRecord | None,
+    ) -> ActionExecutionContext:
+        lineage: ActionLineage | None = self._action_lineage
+        return ActionExecutionContext(
+            owner_thread_id=lineage.owner_thread_id if lineage else thread_id,
+            origin_thread_id=thread_id,
+            request_id=request_id,
+            task_id=lineage.task_id if lineage else task.id if task else None,
+            parent_request_id=lineage.parent_request_id if lineage else None,
+        )
+
+    async def _invoke_action(
+        self,
+        request: ActionRequest,
+        call: ToolCall,
+        token: CancellationToken,
+        task: TaskRecord | None,
+        execution_context: ActionExecutionContext,
+    ) -> ActionResult:
+        try:
+            if task is not None:
+                result = await self._actions.dispatch(
+                    request,
+                    token,
+                    task.contract.authorization,
+                    execution_context=execution_context,
+                )
+            else:
+                result = await self._actions.dispatch(
+                    request,
+                    token,
+                    execution_context=execution_context,
+                )
+            if result.request_id != call.id or result.name != call.name:
+                return tool_failure(call, "invalid tool result")
+            return result
+        except CancellationError:
+            raise
+        except Exception as exc:
+            return tool_failure(
+                call, "tool execution failed", type(exc).__name__
+            )
 
     async def _record_action_state(
         self,

@@ -6,6 +6,7 @@ from ._json import JSONValue, freeze_mapping
 from ._engine_run import AgentEngineRunMixin, _validate_run_arguments
 from ._engine_turn import AgentEngineTurnMixin
 from ._session_io import SessionJournal
+from .action_execution import ActionLineage
 from .cancellation import CancellationError, CancellationToken
 from .engine_actions import AgentEngineActionMixin
 from .engine_completion import AgentEngineCompletionMixin
@@ -35,12 +36,16 @@ class AgentEngine(
         verification: TaskVerificationService | None = None,
         context_mode_snapshot: Mapping[str, JSONValue] | None = None,
         context_permission_snapshot: Mapping[str, JSONValue] | None = None,
+        action_lineage: ActionLineage | None = None,
     ) -> None:
         self._model = model
         self._context = context
         self._actions = actions
         self._journal = SessionJournal(sessions)
         self._limits = limits or EngineLimits()
+        if action_lineage is not None and not isinstance(action_lineage, ActionLineage):
+            raise TypeError("action_lineage must be an ActionLineage or None")
+        self._action_lineage = action_lineage
         if not isinstance(model_name, str) or not model_name.strip():
             raise ValueError("model_name must be non-blank text")
         self._model_name = model_name

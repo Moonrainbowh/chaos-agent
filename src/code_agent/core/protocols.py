@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import AsyncIterator, Protocol, Sequence
 
+from .action_execution import ActionExecutionContext
 from .cancellation import CancellationToken
 from .context_request import ContextRequest
 from .events import AgentEvent
@@ -36,8 +37,12 @@ class ActionDispatcher(Protocol):
     def tools(self) -> Sequence[ToolDefinition]: ...
 
     async def dispatch(
-        self, request: ActionRequest, cancellation: CancellationToken,
+        self,
+        request: ActionRequest,
+        cancellation: CancellationToken,
         task_authorization: TaskAuthorization | None = None,
+        *,
+        execution_context: ActionExecutionContext | None = None,
     ) -> ActionResult: ...
 
 
