@@ -12,7 +12,7 @@ class TuiCommandTests(unittest.TestCase):
         self.assertEqual(parse_tui_command("/evidence").command.kind, TuiCommandKind.EVIDENCE)
         self.assertEqual(parse_tui_command("/accept T-042").command.kind, TuiCommandKind.ACCEPT)
         self.assertEqual(parse_tui_command("/接受 T-042").command.task_id, "T-042")
-        self.assertEqual(parse_tui_command("/pause T-042").command.task_id, "T-042")
+        self.assertEqual(parse_tui_command("/pause T-042").error, "unknown or unavailable slash command")
         self.assertEqual(parse_tui_command("/模式 ultra").command.instruction, "ultra")
         self.assertFalse(parse_tui_command("/does-not-exist").is_command)
         self.assertEqual(parse_tui_command("/does-not-exist").error, "unknown or unavailable slash command")
@@ -58,7 +58,7 @@ class TuiCommandTests(unittest.TestCase):
             (
                 "帮助", "状态", "清屏", "退出",
                 "新建", "会话", "恢复",
-                "任务", "暂停", "继续", "停止", "接受",
+                "任务", "接受",
                 "差异", "证据", "模式",
             ),
         )

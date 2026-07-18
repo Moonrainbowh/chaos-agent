@@ -127,12 +127,7 @@ class TuiInteractions:
 def _picker_context(text: str) -> tuple[object | None, str]:
     if not text.startswith("/"):
         return None, ""
-    body = text[1:]
-    name, separator, remainder = body.partition(" ")
-    parent = REGISTRY.resolve(name) if separator else None
-    if parent is not None and parent.actions:
-        return parent, remainder
-    return None, body
+    return None, text[1:]
 
 
 def _is_complete_command(text: str, services: set[str]) -> bool:

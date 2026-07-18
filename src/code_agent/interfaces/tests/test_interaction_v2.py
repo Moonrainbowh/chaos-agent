@@ -79,14 +79,16 @@ class PickerStateTests(unittest.TestCase):
             with self.subTest(command=spec.name):
                 self.assertTrue(picker.accept().completion.startswith("/" + spec.name))  # type: ignore[union-attr]
 
-    def test_actions_stay_disabled_when_the_parent_command_is_unavailable(self) -> None:
-        mode = REGISTRY.resolve("模式")
+    def test_mode_choices_are_flattened_and_inherit_unavailability(self) -> None:
+        items = command_picker_items(REGISTRY.all(), set())
+        modes = tuple(item for item in items if item.label.startswith("/模式 "))
 
-        items = command_picker_items(REGISTRY.all(), set(), parent=mode)
-
-        self.assertTrue(items)
-        self.assertTrue(all(not item.enabled for item in items))
-        self.assertTrue(all(item.disabled_reason == "requires modes" for item in items))
+        self.assertEqual(
+            tuple(item.label for item in modes),
+            ("/模式 low", "/模式 medium", "/模式 high", "/模式 ultra"),
+        )
+        self.assertTrue(all(not item.enabled for item in modes))
+        self.assertTrue(all(item.disabled_reason == "requires modes" for item in modes))
 
 
 class SteeringQueueViewTests(unittest.TestCase):

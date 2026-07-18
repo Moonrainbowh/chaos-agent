@@ -220,13 +220,10 @@ class WindowsTerminalApp:
             self._append(DisplayKind.METADATA, format_evidence_summary(await self.evidence.list_verification_evidence(task_id)))
         elif self.tasks and command.kind is TuiCommandKind.TASKS:
             records = await self.tasks.list(include_terminal=True); self._append(DisplayKind.METADATA, " | ".join(f"{item.id}:{localize_task_status(item.status.value, self.catalog)}" for item in records))
-        elif self.tasks and command.kind in {TuiCommandKind.PAUSE, TuiCommandKind.STOP, TuiCommandKind.ACCEPT, TuiCommandKind.RESUME}:
+        elif self.tasks and command.kind is TuiCommandKind.ACCEPT:
             task_id = command.task_id or self.active_task_id
             if not task_id: self._append(DisplayKind.ERROR, "no active task"); return False
-            if command.kind is TuiCommandKind.PAUSE: await self.tasks.pause(task_id)
-            elif command.kind is TuiCommandKind.STOP: await self.tasks.stop(task_id)
-            elif command.kind is TuiCommandKind.ACCEPT: await self.tasks.accept_partial(task_id, command.instruction or "user accepted partial delivery")
-            else: self._run_task = asyncio.create_task(self._consume_task(task_id, "continue safely"))
+            await self.tasks.accept_partial(task_id, command.instruction or "user accepted partial delivery")
         else: self._append(DisplayKind.ERROR, "command is unavailable")
         return True
 
