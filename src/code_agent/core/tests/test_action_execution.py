@@ -51,6 +51,7 @@ class ActionExecutionTests(unittest.TestCase):
             ),
         )
         invalid_values = (
+            (None, TypeError),
             (3, TypeError),
             (" \t", ValueError),
             ("x" * 257, ValueError),
