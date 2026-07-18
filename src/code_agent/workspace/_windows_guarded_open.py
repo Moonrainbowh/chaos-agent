@@ -40,16 +40,14 @@ def open_guarded_file(
             expected_identity = root_identity if _same_path(parent, root) else None
             parent_handles.append(_open_parent(parent, expected_identity))
         descriptor = _open_leaf(expected)
+        close_error = _close_all(parent_handles)
+        if close_error is not None:
+            raise WorkspaceError(
+                "cannot close guarded parent directory"
+            ) from close_error
     except BaseException:
-        _close_all(parent_handles)
+        _cleanup_owned_handles(descriptor, parent_handles)
         raise
-    close_error = _close_all(parent_handles)
-    if close_error is not None:
-        try:
-            os.close(descriptor)
-        except OSError:
-            pass
-        raise WorkspaceError("cannot close guarded parent directory") from close_error
     return descriptor
 
 
@@ -118,8 +116,17 @@ def _open_leaf(expected: Path) -> int:
         attributes = _handle_attributes(handle)
         if attributes & _REPARSE_ATTRIBUTE or attributes & _DIRECTORY_ATTRIBUTE:
             raise WorkspaceError(f"guarded file handle is unsafe: {expected.name}")
-        return _handle_to_descriptor(handle)
     except BaseException as error:
+        _close_after_failure(handle)
+        if isinstance(error, OSError) and not isinstance(error, WorkspaceError):
+            raise WorkspaceError(
+                f"cannot inspect guarded file handle: {expected.name}"
+            ) from error
+        raise
+    try:
+        return _handle_to_descriptor(handle)
+    # open_osfhandle may transfer ownership before an asynchronous BaseException.
+    except Exception as error:
         _close_after_failure(handle)
         if isinstance(error, OSError) and not isinstance(error, WorkspaceError):
             raise WorkspaceError(
@@ -240,10 +247,29 @@ def _close_after_failure(handle: int) -> None:
 
 def _close_all(handles: list[int]) -> OSError | None:
     first_error: OSError | None = None
-    for handle in reversed(handles):
+    while handles:
+        handle = handles[-1]
         try:
             _close_handle(handle)
         except OSError as error:
+            handles.pop()
             if first_error is None:
                 first_error = error
+        else:
+            handles.pop()
     return first_error
+
+
+def _cleanup_owned_handles(
+    descriptor: int | None, parent_handles: list[int]
+) -> None:
+    if descriptor is not None:
+        try:
+            os.close(descriptor)
+        except BaseException:
+            # Cleanup must not replace the already active primary exception.
+            pass
+    try:
+        _close_all(parent_handles)
+    except BaseException:
+        pass
