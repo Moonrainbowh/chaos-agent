@@ -26,19 +26,21 @@
 - `Message`、`ToolCall`: 表达对话内容与模型工具调用 | 无副作用 | 输入在构造时校验并冻结
 - `ContextRequest`: 以不可变快照携带单次上下文构建的 thread、revision、输入、控制与纯数值预算 | 无副作用 | JSON 快照深复制并冻结
 - `ActionRequest`、`ActionResult`、`ToolDefinition`: 定义动作请求、结果与工具元数据 | 无副作用 | 仅承载 JSON 兼容数据
+- `ActionLineage`: 冻结父动作传给 child engine 的 owner、task 与 parent request | 无副作用 | 不携带 child 自身 origin/request
+- `ActionExecutionContext`: 冻结单次实际 dispatcher 调用的 owner/origin/task/request/parent request | 无副作用 | 所有存在的标识均为有界非空文本
 - `ModelEvent`、`Usage`、`ContextBundle`: 表达模型流事件、用量和构建后的上下文 | 无副作用 | 上下文度量只允许固定名称的非负整数计数
 - `AgentEvent`: 发布可持久化的内核生命周期事件 | 生成 UTC 时间戳 | `CONTEXT_BUILT` 仅记录本地数值预算、压缩和缓存计数，不含提示或工具输出
 - `CancellationToken`、`CancellationError`: 在线程与异步调用间传播首次取消原因 | 唤醒等待者
 - `ModelClient`: 约束统一的模型流式调用接口 | 具体副作用由实现负责
 - `ContextBuilder`: 异步构建当前回合上下文 | 具体副作用由实现负责
 - `CommandFact`、`TaskState`、`TaskStateUpdate`、`reduce_task_state`: 以有界 JSON 兼容事实表达持久任务进度 | 无副作用 | 工作笔记始终显式标注为未验证
-- `ActionDispatcher`: 暴露工具并分发可取消动作 | 具体副作用由实现负责
+- `ActionDispatcher`: 暴露工具并接收可取消动作、可选任务授权和 keyword-only execution context | 具体副作用由实现负责 | unavailable/dispatch 前暂停不产生执行上下文
 - `SessionRepository`: 异步创建线程并持久化消息与事件 | 具体副作用由实现负责
 - `EngineLimits`: 冻结模型回合、工具调用、token 与输出字符预算 | 无副作用 | 越界前先阻止新的外部工具动作
 - `TaskBudget`: 表达可恢复任务的模型名、限制和已消耗额度 | 无副作用 | 只允许单调增加的使用量
 - `TaskAuthorization`、`TaskContract`、`TaskRecord`、`TaskStatus`: 表达前台自主任务的范围、预算和生命周期 | 无副作用 | `ACCEPTED_PARTIAL` 只能由显式用户决定产生，不计为 verified completion
 - `TaskSupervisor.observe(...)`: 根据恢复后的持久预算、验证结果和失败指纹决定继续、checkpoint、暂停或等待决策 | 无副作用 | 累计活跃时间、重复失败和修复循环不依赖进程内状态
-- `AgentEngine.run(..., task=...)`: 在同一 thread 内执行一个显式任务并持久化任务事件 | 调用抽象模型、动作与会话协议 | 在安全边界消费 steering，绝不重放中断中的命令；自动验证通过后由持久完成门直接收尾
-- `AgentEngine.run(user_input, thread_id, cancellation)`: 持久化并流式发布回合、模型、工具和终态事件 | 调用抽象模型、动作与会话协议 | 未声明工具、重复调用 ID、无完成事件和预算越界均失败闭合
+- `AgentEngine.run(..., task=...)`: 在同一 thread 内执行显式任务并持久化任务事件 | 调用抽象模型、动作与会话协议 | root 动作使用 active thread/task 归因；安全边界消费 steering，自动验证通过后由持久完成门收尾
+- `AgentEngine.run(user_input, thread_id, cancellation)`: 持久化并流式发布回合、模型、工具和终态事件 | 调用抽象模型、动作与会话协议 | ad-hoc root 的 owner/origin 均为 active thread，child engine 继承构造器 lineage；未声明工具、重复 ID、无完成事件和预算越界均失败闭合
 - `SessionJournal`: 把会话协议异常转换为稳定的内核持久化错误 | 调用会话协议 | 不允许不可信历史消息进入上下文
 - `AgentEngineError` 及子类: 表达预算、模型流、上下文构建与持久化失败 | 无副作用 | 对外错误不包含上游异常文本
