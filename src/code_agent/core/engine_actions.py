@@ -8,8 +8,9 @@ from ._tool_feedback import tool_failure
 from .cancellation import CancellationError, CancellationToken
 from .errors import EngineLimitError, ModelStreamError
 from .events import AgentEvent, EventKind
-from .models import ActionRequest, Message, ModelEvent, ModelEventKind, ToolCall, ToolDefinition
+from .models import ActionRequest, ActionResult, Message, ModelEvent, ModelEventKind, ToolCall, ToolDefinition
 from .task import TaskRecord, TaskStatus
+from .task_state import TaskState
 from .task_supervisor import SupervisionKind, TaskSupervisor
 from .limits import TaskBudget
 
@@ -60,22 +61,11 @@ class AgentEngineActionMixin:
             await self._journal.append_event(thread_id, event)
             yield event
             return
-        if call.name in {"read_file", "list_files", "search_text", "write_file", "replace_text", "run_command", "run_verification"}:
-            state = await self._journal.reduce_task_state(thread_id, request, result)
-            verification = getattr(self, "_verification", None)
-            if task is not None and verification is not None:
-                state = await verification.record_action(task, request, result, state)
-                await self._journal.save_task_state(thread_id, state)
-            if task is not None and supervisor is not None and call.name == "run_verification":
-                fingerprint = _validation_fingerprint(request, result)
-                decision = supervisor.observe_validation(fingerprint, len(state.files_changed))
-                await self._journal.observe_task_validation(task.id, fingerprint, len(state.files_changed))
-                await self._journal.create_checkpoint(thread_id, "validation-complete", {"task_id": task.id, "failed": fingerprint is not None})
-                if decision.kind is SupervisionKind.PAUSE:
-                    await self._pause_task(thread_id, task, supervisor, decision.reason or "validation paused")
-                    paused = AgentEvent(EventKind.TASK_PAUSED, {"task_id": task.id, "status": "paused", "reason": decision.reason or "validation paused"})
-                    await self._journal.append_event(thread_id, paused)
-                    yield paused
+        paused = await self._record_action_state(
+            thread_id, call, request, result, task, supervisor
+        )
+        if paused is not None:
+            yield paused
         completed = AgentEvent(EventKind.ACTION_COMPLETED, {"result": result.to_dict()})
         await self._journal.append_event(thread_id, completed)
         yield completed
@@ -84,6 +74,49 @@ class AgentEngineActionMixin:
         added = self._journal.message_added(message)
         await self._journal.append_event(thread_id, added)
         yield added
+
+    async def _record_action_state(
+        self,
+        thread_id: str,
+        call: ToolCall,
+        request: ActionRequest,
+        result: ActionResult,
+        task: TaskRecord | None,
+        supervisor: TaskSupervisor | None,
+    ) -> AgentEvent | None:
+        if call.name not in {"read_file", "list_files", "search_text", "write_file", "replace_text", "run_command", "run_verification"}:
+            return None
+        state = await self._journal.reduce_task_state(thread_id, request, result)
+        verification = getattr(self, "_verification", None)
+        if task is not None and verification is not None:
+            state = await verification.record_action(task, request, result, state)
+            await self._journal.save_task_state(thread_id, state)
+        if task is not None and supervisor is not None and call.name == "run_verification":
+            return await self._record_validation_state(
+                thread_id, request, result, task, supervisor, state
+            )
+        return None
+
+    async def _record_validation_state(
+        self,
+        thread_id: str,
+        request: ActionRequest,
+        result: ActionResult,
+        task: TaskRecord,
+        supervisor: TaskSupervisor,
+        state: TaskState,
+    ) -> AgentEvent | None:
+        fingerprint = _validation_fingerprint(request, result)
+        changed_files = len(state.files_changed)
+        decision = supervisor.observe_validation(fingerprint, changed_files)
+        await self._journal.observe_task_validation(task.id, fingerprint, changed_files)
+        await self._journal.create_checkpoint(thread_id, "validation-complete", {"task_id": task.id, "failed": fingerprint is not None})
+        if decision.kind is not SupervisionKind.PAUSE:
+            return None
+        await self._pause_task(thread_id, task, supervisor, decision.reason or "validation paused")
+        paused = AgentEvent(EventKind.TASK_PAUSED, {"task_id": task.id, "status": "paused", "reason": decision.reason or "validation paused"})
+        await self._journal.append_event(thread_id, paused)
+        return paused
 
     async def _run_suggested_verification(
         self,
