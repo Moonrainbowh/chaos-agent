@@ -26,7 +26,7 @@ def read_guarded_file(
     descriptor: int | None = None
     try:
         try:
-            descriptor = _open_existing(expected, guard.root)
+            descriptor = _open_existing(expected, guard)
             opened = os.fstat(descriptor)
             if not stat.S_ISREG(opened.st_mode):
                 raise WorkspaceError(
@@ -51,10 +51,16 @@ def read_guarded_file(
     return content
 
 
-def _open_existing(expected: Path, root: Path) -> int:
+def _open_existing(expected: Path, guard: object) -> int:
     if os.name == "nt":
+        root = guard.root if hasattr(guard, "root") else guard
+        root_identity = (
+            getattr(guard, "root_identity", None)
+            if _is_within(expected, root)
+            else None
+        )
         try:
-            return open_guarded_file(expected, root)
+            return open_guarded_file(expected, root, root_identity)
         except _WindowsLeafMissingError as error:
             raise _GuardedFileMissingError(str(error)) from error
     try:
@@ -83,6 +89,14 @@ def _open_flags() -> int:
     else:
         flags |= getattr(os, "O_BINARY", 0) | getattr(os, "O_NOINHERIT", 0)
     return flags
+
+
+def _is_within(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+        return True
+    except ValueError:
+        return False
 
 
 def _verify_handle(

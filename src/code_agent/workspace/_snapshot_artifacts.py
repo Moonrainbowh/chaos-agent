@@ -10,7 +10,7 @@ from pathlib import Path
 from ._atomic_artifact_write import AtomicArtifactWriter
 from ._guarded_read import _GuardedFileMissingError, read_guarded_file
 from .errors import FileTooLargeError, SnapshotMissingError, WorkspaceError
-from .paths import PathInput
+from .paths import PathInput, _directory_identity
 
 
 _MANIFEST_NAME = re.compile(r"[0-9a-f]{32}\.json")
@@ -76,6 +76,11 @@ class _ArtifactPathGuard:
 
     def __init__(self, root: Path) -> None:
         self.root = root
+        self._root_identity = _directory_identity(root)
+
+    @property
+    def root_identity(self) -> tuple[int, int]:
+        return self._root_identity
 
     def resolve(self, path: PathInput, *, for_write: bool = False) -> Path:
         del for_write

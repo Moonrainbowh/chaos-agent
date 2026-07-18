@@ -5,6 +5,7 @@ import os
 from ctypes import wintypes
 from pathlib import Path
 
+from ._windows_artifact_handles import handle_identity
 from .errors import WorkspaceError
 
 
@@ -13,7 +14,6 @@ _BACKUP_SEMANTICS = 0x02000000
 _REPARSE_ATTRIBUTE = 0x400
 _DIRECTORY_ATTRIBUTE = 0x10
 _SHARE_READ = 0x1
-_SHARE_ALL = 0x7
 
 
 class _WindowsOpenFailure(Exception):
@@ -27,13 +27,18 @@ class _WindowsLeafMissingError(WorkspaceError):
     """The leaf was absent while its verified parent chain was held."""
 
 
-def open_guarded_file(expected: Path, root: Path) -> int:
+def open_guarded_file(
+    expected: Path,
+    root: Path,
+    root_identity: tuple[int, int] | None = None,
+) -> int:
     """Open a leaf while verified parent directory handles prevent replacement."""
     parent_handles: list[int] = []
     descriptor: int | None = None
     try:
         for parent in _parent_paths(expected, root):
-            parent_handles.append(_open_parent(parent))
+            expected_identity = root_identity if _same_path(parent, root) else None
+            parent_handles.append(_open_parent(parent, expected_identity))
         descriptor = _open_leaf(expected)
     except BaseException:
         _close_all(parent_handles)
@@ -49,12 +54,9 @@ def open_guarded_file(expected: Path, root: Path) -> int:
 
 
 def _parent_paths(expected: Path, root: Path) -> tuple[Path, ...]:
-    try:
-        relative = expected.relative_to(root)
-        current = root
-    except ValueError:
-        current = Path(expected.anchor)
-        relative = expected.relative_to(current)
+    del root
+    current = Path(expected.anchor)
+    relative = expected.relative_to(current)
     parents = [current]
     for part in relative.parts[:-1]:
         current = current / part
@@ -62,7 +64,9 @@ def _parent_paths(expected: Path, root: Path) -> tuple[Path, ...]:
     return tuple(parents)
 
 
-def _open_parent(path: Path) -> int:
+def _open_parent(
+    path: Path, expected_identity: tuple[int, int] | None = None
+) -> int:
     try:
         handle = _create_handle(
             path,
@@ -81,6 +85,11 @@ def _open_parent(path: Path) -> int:
             raise WorkspaceError(f"guarded parent is unsafe: {path.name}")
         if os.path.normcase(str(final_path)) != os.path.normcase(str(path)):
             raise WorkspaceError(f"guarded parent resolved elsewhere: {path.name}")
+        if (
+            expected_identity is not None
+            and handle_identity(handle) != expected_identity
+        ):
+            raise WorkspaceError(f"guarded parent identity changed: {path.name}")
     except BaseException as error:
         _close_after_failure(handle)
         if isinstance(error, OSError) and not isinstance(error, WorkspaceError):
@@ -96,7 +105,7 @@ def _open_leaf(expected: Path) -> int:
         handle = _create_handle(
             expected,
             desired_access=0x80000000,
-            share_mode=_SHARE_ALL,
+            share_mode=_SHARE_READ,
             flags=_OPEN_REPARSE_POINT | _BACKUP_SEMANTICS,
         )
     except _WindowsOpenFailure as error:
@@ -200,6 +209,10 @@ def _strip_device_prefix(value: str) -> str:
     if value.startswith("\\\\?\\"):
         return value[4:]
     return value
+
+
+def _same_path(left: Path, right: Path) -> bool:
+    return os.path.normcase(str(left)) == os.path.normcase(str(right))
 
 
 def _handle_to_descriptor(handle: int) -> int:

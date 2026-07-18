@@ -99,7 +99,7 @@ class WorkspaceSnapshotStore:
         self.guard = guard
         self._artifacts = SnapshotArtifacts(product_state_root, guard.root)
         self.root = self._artifacts.root
-        self._workspace_fingerprint = _workspace_fingerprint(guard.root)
+        self._workspace_fingerprint = _workspace_fingerprint(guard)
 
     @property
     def workspace_fingerprint(self) -> str:
@@ -215,8 +215,10 @@ def _limit(name: str, value: int, *, allow_zero: bool) -> int:
     return value
 
 
-def _workspace_fingerprint(root: Path) -> str:
-    identity = os.path.normcase(str(root.resolve(strict=True))).encode("utf-8")
+def _workspace_fingerprint(guard: WorkspacePathGuard) -> str:
+    path = os.path.normcase(str(guard.root)).encode("utf-8")
+    native = ":".join(str(value) for value in guard.root_identity).encode("ascii")
+    identity = path + b"\0" + native
     return _sha256(b"workspace-snapshot-v1\0" + identity)
 
 

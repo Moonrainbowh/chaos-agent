@@ -34,22 +34,22 @@ def open_directory(path: Path) -> int:
     return int(handle)
 
 
-def directory_identity(path: Path) -> tuple[int, ...]:
+def directory_identity(path: Path) -> tuple[int, int]:
     handle = open_directory(path)
     try:
         if os.path.normcase(str(_final_path(handle))) != os.path.normcase(str(path)):
             raise WorkspaceError("snapshot artifact directory resolved elsewhere")
-        return _handle_identity(handle)
+        return handle_identity(handle)
     finally:
         close_handle(handle)
 
 
 def verify_directory(
-    handle: int, expected_path: Path, expected_identity: tuple[int, ...]
+    handle: int, expected_path: Path, expected_identity: tuple[int, int]
 ) -> None:
     final = _final_path(handle)
     same_path = os.path.normcase(str(final)) == os.path.normcase(str(expected_path))
-    if not same_path or _handle_identity(handle) != expected_identity:
+    if not same_path or handle_identity(handle) != expected_identity:
         raise WorkspaceError("snapshot artifact directory identity changed")
 
 
@@ -96,7 +96,7 @@ def nt_function(name: str):
     return getattr(ctypes.WinDLL("ntdll", use_last_error=True), name)
 
 
-def _handle_identity(handle: int) -> tuple[int, ...]:
+def handle_identity(handle: int) -> tuple[int, int]:
     class FileInformation(ctypes.Structure):
         _fields_ = (
             ("attributes", wintypes.DWORD),
@@ -119,7 +119,8 @@ def _handle_identity(handle: int) -> tuple[int, ...]:
         raise ctypes.WinError(ctypes.get_last_error())
     if not information.attributes & 0x10 or information.attributes & 0x400:
         raise WorkspaceError("snapshot artifact directory handle is unsafe")
-    return information.volume, information.index_high, information.index_low
+    file_index = (int(information.index_high) << 32) | int(information.index_low)
+    return int(information.volume), file_index
 
 
 def _final_path(handle: int) -> Path:

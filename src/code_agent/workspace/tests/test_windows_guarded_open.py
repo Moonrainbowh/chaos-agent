@@ -21,6 +21,7 @@ class ParentChainSafetyTests(unittest.TestCase):
         self.root = Path(r"C:\workspace")
         self.expected = self.root / "one" / "two" / "file.txt"
         self.paths = (
+            Path(r"C:\\"),
             self.root,
             self.root / "one",
             self.root / "one" / "two",
@@ -29,7 +30,7 @@ class ParentChainSafetyTests(unittest.TestCase):
 
     def test_parents_deny_delete_share_and_remain_open_through_leaf(self) -> None:
         closed: list[int] = []
-        handles = iter((11, 12, 13, 14))
+        handles = iter((11, 12, 13, 14, 15))
 
         def create(path: Path, **_options: int) -> int:
             if path == self.expected:
@@ -48,11 +49,11 @@ class ParentChainSafetyTests(unittest.TestCase):
             self.assertFalse(parent_call.kwargs["share_mode"] & 0x4)
             self.assertTrue(parent_call.kwargs["flags"] & 0x00200000)
             self.assertTrue(parent_call.kwargs["flags"] & 0x02000000)
-        self.assertEqual(closed, [13, 12, 11])
+        self.assertEqual(closed, [14, 13, 12, 11])
 
     def test_parent_share_blocks_in_place_reparse_attack(self) -> None:
         closed: list[int] = []
-        handles = iter((11, 12, 13, 14))
+        handles = iter((11, 12, 13, 14, 15))
         parent_mutated = False
 
         def create(path: Path, **options: int) -> int:
@@ -70,7 +71,7 @@ class ParentChainSafetyTests(unittest.TestCase):
 
         self.assertEqual(descriptor, 9)
         self.assertFalse(parent_mutated)
-        self.assertEqual(closed, [13, 12, 11])
+        self.assertEqual(closed, [14, 13, 12, 11])
 
     def test_external_leaf_stabilizes_every_parent_from_volume_anchor(self) -> None:
         external = Path("D:/approved/deep/file.txt")
@@ -90,7 +91,7 @@ class ParentChainSafetyTests(unittest.TestCase):
         failure = windows_open._WindowsOpenFailure(2, self.paths[1])
 
         def create(path: Path, **_options: int) -> int:
-            if path == self.root:
+            if path == self.paths[0]:
                 return 11
             raise failure
 
@@ -138,7 +139,7 @@ class ParentChainSafetyTests(unittest.TestCase):
     def test_leaf_missing_after_stable_parent_chain_remains_missing(self) -> None:
         for error_code in (2, 3):
             with self.subTest(error_code=error_code):
-                handles = iter((11, 12, 13))
+                handles = iter((11, 12, 13, 14))
 
                 def create(path: Path, **_options: int) -> int:
                     if path == self.expected:
@@ -150,14 +151,14 @@ class ParentChainSafetyTests(unittest.TestCase):
                     with self.assertRaises(windows_open._WindowsLeafMissingError):
                         windows_open.open_guarded_file(self.expected, self.root)
 
-                self.assertEqual(closed, [13, 12, 11])
+                self.assertEqual(closed, [14, 13, 12, 11])
 
     def test_reparse_leaf_is_closed_without_transfer(self) -> None:
         closed: list[int] = []
-        handles = iter((11, 12, 13, 14))
+        handles = iter((11, 12, 13, 14, 15))
 
         def attributes(handle: int) -> int:
-            return 0x400 if handle == 14 else 0x10
+            return 0x400 if handle == 15 else 0x10
 
         with (
             self._safe_patches(
@@ -175,11 +176,11 @@ class ParentChainSafetyTests(unittest.TestCase):
             raised.exception, windows_open._WindowsLeafMissingError
         )
         transfer.assert_not_called()
-        self.assertEqual(closed, [14, 13, 12, 11])
+        self.assertEqual(closed, [15, 14, 13, 12, 11])
 
     def test_failed_leaf_transfer_releases_leaf_and_parents(self) -> None:
         closed: list[int] = []
-        handles = iter((11, 12, 13, 14))
+        handles = iter((11, 12, 13, 14, 15))
 
         with (
             self._safe_patches(
@@ -197,11 +198,11 @@ class ParentChainSafetyTests(unittest.TestCase):
         self.assertNotIsInstance(
             raised.exception, windows_open._WindowsLeafMissingError
         )
-        self.assertEqual(closed, [14, 13, 12, 11])
+        self.assertEqual(closed, [15, 14, 13, 12, 11])
 
     def test_parent_close_failure_preserves_primary_and_closes_all(self) -> None:
         closed: list[int] = []
-        handles = iter((11, 12, 13))
+        handles = iter((11, 12, 13, 14))
 
         def create(path: Path, **_options: int) -> int:
             if path == self.expected:
@@ -217,12 +218,12 @@ class ParentChainSafetyTests(unittest.TestCase):
             with self.assertRaisesRegex(WorkspaceError, "cannot open guarded leaf"):
                 windows_open.open_guarded_file(self.expected, self.root)
 
-        self.assertEqual(closed, [13, 12, 11])
+        self.assertEqual(closed, [14, 13, 12, 11])
 
     def test_parent_close_failure_after_success_closes_descriptor(self) -> None:
         closed: list[int] = []
         close_descriptor = unittest.mock.Mock()
-        handles = iter((11, 12, 13, 14))
+        handles = iter((11, 12, 13, 14, 15))
 
         def close(handle: int) -> None:
             closed.append(handle)
@@ -243,14 +244,14 @@ class ParentChainSafetyTests(unittest.TestCase):
         close_descriptor.assert_called_once_with(9)
 
     def _safe_patches(self, create, closed: list[int], *, close=None):
-        handle_paths = dict(zip((11, 12, 13, 14), self.paths))
+        handle_paths = dict(zip((11, 12, 13, 14, 15), self.paths))
         close_effect = close or (lambda handle: closed.append(handle))
         return _PatchGroup(
             patch.object(windows_open, "_create_handle", side_effect=create),
             patch.object(
                 windows_open,
                 "_handle_attributes",
-                side_effect=lambda handle: 0x80 if handle == 14 else 0x10,
+                side_effect=lambda handle: 0x80 if handle == 15 else 0x10,
             ),
             patch.object(
                 windows_open,
