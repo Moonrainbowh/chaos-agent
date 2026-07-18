@@ -15,6 +15,7 @@ if str(SRC_ROOT) not in sys.path:
 
 from code_agent.workspace.errors import SensitivePathError, WorkspaceError  # noqa: E402
 from code_agent.workspace.git import GitWorkspace  # noqa: E402
+from code_agent.workspace import _windows_guarded_open as windows_open  # noqa: E402
 
 
 def run_git(root: Path, *arguments: str) -> bytes:
@@ -122,18 +123,12 @@ class GitSnapshotSafetyTests(unittest.TestCase):
         outside.write_bytes(b"OUTSIDE_SECRET\n")
         outside_identity = _identity(outside.stat())
         opened_identities: list[tuple[int, int, int]] = []
-        real_os_open = os.open
-
-        def swapped_os_open(file, flags, mode=0o777, *, dir_fd=None):
-            chosen = outside if _same_path(file, safe) else file
-            options = {} if dir_fd is None else {"dir_fd": dir_fd}
-            descriptor = real_os_open(chosen, flags, mode, **options)
-            if chosen == outside:
-                opened_identities.append(_identity(os.fstat(descriptor)))
-            return descriptor
 
         caught: WorkspaceError | None = None
-        with patch("os.open", side_effect=swapped_os_open):
+        patcher = _swapped_open_patch(
+            safe, outside, outside_identity, opened_identities
+        )
+        with patcher:
             try:
                 snapshot = GitWorkspace(self.root).diff_snapshot()
             except WorkspaceError as error:
@@ -142,6 +137,38 @@ class GitSnapshotSafetyTests(unittest.TestCase):
         self.assertIn(outside_identity, opened_identities)
         leaked = caught is None and "OUTSIDE_SECRET" in snapshot.untracked
         self.assertIsInstance(caught, WorkspaceError, f"outside handle accepted; leaked={leaked}")
+
+
+def _swapped_open_patch(
+    safe: Path,
+    outside: Path,
+    outside_identity: tuple[int, int, int],
+    opened_identities: list[tuple[int, int, int]],
+):
+    if os.name == "nt":
+        real_create = windows_open._create_handle
+
+        def swapped_create(file: Path, **options: int) -> int:
+            chosen = outside if _same_path(file, safe) else file
+            handle = real_create(chosen, **options)
+            if chosen == outside:
+                opened_identities.append(outside_identity)
+            return handle
+
+        return patch.object(
+            windows_open, "_create_handle", side_effect=swapped_create
+        )
+    real_os_open = os.open
+
+    def swapped_os_open(file, flags, mode=0o777, *, dir_fd=None):
+        chosen = outside if _same_path(file, safe) else file
+        options = {} if dir_fd is None else {"dir_fd": dir_fd}
+        descriptor = real_os_open(chosen, flags, mode, **options)
+        if chosen == outside:
+            opened_identities.append(_identity(os.fstat(descriptor)))
+        return descriptor
+
+    return patch("os.open", side_effect=swapped_os_open)
 
 
 def _same_path(value: object, expected: Path) -> bool:

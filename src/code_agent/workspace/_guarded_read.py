@@ -5,6 +5,7 @@ import stat
 import sys
 from pathlib import Path
 
+from ._windows_guarded_open import _WindowsLeafMissingError, open_guarded_file
 from .errors import FileTooLargeError, WorkspaceError
 from .paths import PathInput, WorkspacePathGuard
 
@@ -24,30 +25,54 @@ def read_guarded_file(
     expected = guard.resolve(path)
     descriptor: int | None = None
     try:
-        descriptor = _open_existing(expected)
-        opened = os.fstat(descriptor)
-        if not stat.S_ISREG(opened.st_mode):
-            raise WorkspaceError(f"untracked path is not a regular file: {expected.name}")
-        _verify_handle(descriptor, opened, expected, guard)
-        if reject_known_oversize and opened.st_size > max_bytes:
-            raise FileTooLargeError(f"file exceeds {max_bytes} bytes: {expected.name}")
-        return _read_bounded(descriptor, max_bytes)
-    except WorkspaceError:
+        try:
+            descriptor = _open_existing(expected, guard.root)
+            opened = os.fstat(descriptor)
+            if not stat.S_ISREG(opened.st_mode):
+                raise WorkspaceError(
+                    f"untracked path is not a regular file: {expected.name}"
+                )
+            _verify_handle(descriptor, opened, expected, guard)
+            if reject_known_oversize and opened.st_size > max_bytes:
+                raise FileTooLargeError(
+                    f"file exceeds {max_bytes} bytes: {expected.name}"
+                )
+            content = _read_bounded(descriptor, max_bytes)
+        except WorkspaceError:
+            raise
+        except OSError as error:
+            raise WorkspaceError(
+                f"cannot read untracked file: {expected.name}"
+            ) from error
+    except BaseException:
+        _close_descriptor(descriptor, suppress_error=True)
         raise
-    except OSError as error:
-        raise WorkspaceError(f"cannot read untracked file: {expected.name}") from error
-    finally:
-        if descriptor is not None:
-            os.close(descriptor)
+    _close_descriptor(descriptor, suppress_error=False)
+    return content
 
 
-def _open_existing(expected: Path) -> int:
+def _open_existing(expected: Path, root: Path) -> int:
+    if os.name == "nt":
+        try:
+            return open_guarded_file(expected, root)
+        except _WindowsLeafMissingError as error:
+            raise _GuardedFileMissingError(str(error)) from error
     try:
         return os.open(expected, _open_flags())
     except FileNotFoundError as error:
         raise _GuardedFileMissingError(
             f"guarded file is missing: {expected.name}"
         ) from error
+
+
+def _close_descriptor(descriptor: int | None, *, suppress_error: bool) -> None:
+    if descriptor is None:
+        return
+    try:
+        os.close(descriptor)
+    except OSError as error:
+        if not suppress_error:
+            raise WorkspaceError("cannot close guarded file") from error
 
 
 def _open_flags() -> int:
