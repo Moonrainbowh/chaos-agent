@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import shlex
 from dataclasses import dataclass
-from typing import Callable
 
 
 @dataclass(frozen=True)
@@ -34,51 +33,21 @@ _SPECS = (
     CommandSpec("状态", ("status",), "通用", "显示当前状态"),
     CommandSpec("清屏", ("clear",), "通用", "清空本次转录"),
     CommandSpec("退出", ("exit", "quit"), "通用", "请求退出"),
-    CommandSpec("诊断", ("doctor",), "通用", "显示本地诊断"),
-    CommandSpec("追踪", ("trace",), "通用", "显示当前追踪"),
     CommandSpec("新建", ("new",), "会话", "新建会话"),
     CommandSpec("会话", ("sessions",), "会话", "列出会话", requires=("sessions",)),
-    CommandSpec("打开", ("open",), "会话", "打开会话", "<thread-id>", requires=("history",)),
     CommandSpec("恢复", ("restore",), "会话", "恢复会话", "<thread-id>", requires=("history",)),
     CommandSpec("任务", ("tasks",), "任务", "列出任务", requires=("tasks",)),
     CommandSpec("暂停", ("pause",), "任务", "暂停任务", "[task-id]", requires=("tasks",)),
     CommandSpec("继续", ("resume",), "任务", "继续任务", "[task-id]", requires=("tasks",)),
     CommandSpec("停止", ("stop",), "任务", "停止任务", "[task-id]", requires=("tasks",)),
     CommandSpec("接受", ("accept",), "任务", "接受部分交付", "[task-id]", requires=("tasks",)),
-    CommandSpec("引导", ("steer",), "任务", "引导当前任务", "<text>", requires=("tasks",)),
     CommandSpec("差异", ("diff",), "工作区", "显示差异"),
-    CommandSpec("上下文", ("context",), "工作区", "显示上下文预算"),
-    CommandSpec("工具", ("tools",), "工作区", "显示可用工具"),
     CommandSpec("证据", ("evidence",), "工作区", "显示验证证据", "[task-id]", requires=("evidence",)),
-    CommandSpec("模型", ("model",), "能力", "管理模型 profile", "<action>", requires=("profiles",), actions=(
-        CommandAction("列表", ("list",), "列出已配置模型"),
-        CommandAction("使用", ("use",), "选择下一任务模型", "<profile>"),
-    )),
-    CommandSpec("技能", ("skills",), "能力", "管理 Skills", "<action>", requires=("skills",), actions=(
-        CommandAction("列表", ("list",), "列出可用 Skills"),
-        CommandAction("信息", ("info",), "查看 Skill 信息", "<id>"),
-        CommandAction("启用", ("enable",), "启用 Skill", "<id>"),
-        CommandAction("禁用", ("disable",), "禁用 Skill", "<id>"),
-    )),
-    CommandSpec("mcp", (), "能力", "管理 MCP 服务", "<action>", requires=("mcp",), actions=(
-        CommandAction("列表", ("list",), "列出 MCP 服务"),
-        CommandAction("状态", ("status",), "查看服务状态", "[server]"),
-        CommandAction("启用", ("enable",), "启用服务", "<server>"),
-        CommandAction("禁用", ("disable",), "禁用服务", "<server>"),
-        CommandAction("重启", ("restart",), "重启服务", "<server>"),
-        CommandAction("诊断", ("diagnose",), "查看服务诊断", "[server]"),
-    )),
-    CommandSpec("语言", ("language",), "显示", "切换语言", "<language>", actions=(
-        CommandAction("zh-CN", ("zh",), "中文"), CommandAction("en", ("en-US",), "English"),
-    )),
-    CommandSpec("主题", ("theme",), "显示", "切换主题", "<theme>", actions=(
-        CommandAction("signal", (), "信号主题"), CommandAction("symbol", (), "符号主题"), CommandAction("plain", (), "纯文本主题"),
-    )),
-    CommandSpec("颜色", ("color",), "显示", "切换颜色", "<mode>", actions=(
-        CommandAction("auto", (), "自动颜色"), CommandAction("always", (), "始终启用颜色"), CommandAction("never", (), "禁用颜色"),
-    )),
-    CommandSpec("字形", ("glyphs",), "显示", "切换字形", "<mode>", actions=(
-        CommandAction("unicode", (), "Unicode 字形"), CommandAction("ascii", (), "ASCII 字形"),
+    CommandSpec("模式", ("mode",), "能力", "切换下一任务的 Agent mode", "<mode>", requires=("modes",), actions=(
+        CommandAction("low", (), "快速直接"),
+        CommandAction("medium", (), "均衡执行"),
+        CommandAction("high", (), "深度处理"),
+        CommandAction("ultra", (), "复杂任务编排"),
     )),
 )
 
@@ -99,6 +68,19 @@ class CommandRegistry:
 
     def resolve(self, name: str) -> CommandSpec | None:
         return self._lookup.get(name.casefold())
+
+    @staticmethod
+    def resolve_action(spec: CommandSpec, name: str) -> CommandAction | None:
+        query = name.casefold()
+        return next(
+            (
+                action
+                for action in spec.actions
+                if query == action.name.casefold()
+                or any(query == alias.casefold() for alias in action.aliases)
+            ),
+            None,
+        )
 
     def parse(self, text: str, services: set[str] | None = None) -> tuple[CommandSpec | None, tuple[str, ...], str | None]:
         if not isinstance(text, str):

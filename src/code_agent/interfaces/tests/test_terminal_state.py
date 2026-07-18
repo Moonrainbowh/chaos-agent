@@ -34,6 +34,51 @@ from code_agent.sessions.models import (  # noqa: E402
 
 
 class TerminalStateTests(unittest.TestCase):
+    def test_context_and_model_lifecycle_have_distinct_running_phases(self) -> None:
+        state = TerminalState()
+        state.apply(AgentEvent(EventKind.RUN_STARTED, {}))
+
+        state.apply(AgentEvent(EventKind.TURN_STARTED, {}))
+        self.assertEqual(state.status, "building_context")
+
+        state.apply(AgentEvent(EventKind.CONTEXT_BUILT, {}))
+        self.assertEqual(state.status, "waiting_model")
+
+        state.apply(AgentEvent(EventKind.MODEL_STARTED, {}))
+        self.assertEqual(state.status, "waiting_model")
+
+        state.apply(
+            AgentEvent(
+                EventKind.MODEL_EVENT,
+                {
+                    "event": ModelEvent(
+                        ModelEventKind.TEXT_DELTA, text="first token"
+                    ).to_dict()
+                },
+            )
+        )
+        self.assertEqual(state.status, "running")
+
+    def test_action_request_takes_precedence_over_waiting_for_model(self) -> None:
+        state = TerminalState()
+        state.apply(AgentEvent(EventKind.MODEL_STARTED, {}))
+
+        state.apply(
+            AgentEvent(
+                EventKind.ACTION_REQUESTED,
+                {
+                    "request": {
+                        "id": "call-1",
+                        "name": "read_file",
+                        "arguments": {"path": "src/a.py"},
+                    }
+                },
+            )
+        )
+
+        self.assertEqual(state.status, "running")
+        self.assertEqual(state.active_action, "read_file")
+
     def test_user_pause_cancellation_is_not_presented_as_an_error(self) -> None:
         state = TerminalState()
         state.begin_run()

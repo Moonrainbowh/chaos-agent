@@ -161,11 +161,15 @@ class RootActionDispatcher:
         if request.name == "run_command":
             if self.runtime is None:
                 raise RuntimeError("local runtime is unavailable")
-            result = await self.runtime.run(
-                CommandSpec(cwd=Path("."), powershell_script=_text(arguments, "command")),
-                cancellation,
-                None,
-            )
+            try:
+                result = await self.runtime.run(
+                    CommandSpec(cwd=Path("."), powershell_script=_text(arguments, "command")),
+                    cancellation,
+                    None,
+                )
+            finally:
+                if self.invalidate_cache is not None:
+                    self.invalidate_cache(())
             return command_action_result(request, result)
         if request.name == "run_verification":
             return await self._run_verification(request, cancellation)
@@ -187,11 +191,15 @@ class RootActionDispatcher:
         )
         if isinstance(command, VerificationUnavailable):
             return _error(request, "verification unavailable", command.reason)
-        result = await self.runtime.run(
-            CommandSpec(cwd=Path(command.cwd), argv=command.argv, timeout_s=command.timeout_s),
-            cancellation,
-            None,
-        )
+        try:
+            result = await self.runtime.run(
+                CommandSpec(cwd=Path(command.cwd), argv=command.argv, timeout_s=command.timeout_s),
+                cancellation,
+                None,
+            )
+        finally:
+            if self.invalidate_cache is not None:
+                self.invalidate_cache(())
         action_result = command_action_result(request, result)
         return ActionResult(
             action_result.request_id,

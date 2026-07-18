@@ -2,10 +2,10 @@
 以冻结的任务模式和可审计的父子关系组合多个独立 Agent 运行，在不复制单 Agent 内核的前提下提供有界委派。
 
 ## 边界
-- 负责：定义并解析 `low`、`medium`、`high`、`ultra` 任务模式，将模式映射为已批准的 provider profile、提示策略、工具能力集合、推理参数和有限预算。
-- 负责：严格区分 Agent 模式与权限模式；任务模式只控制能力、成本、延迟和执行预算，不改变 `ApprovalMode` 或 `ActionPolicy`。
+- 负责：定义并解析 `low`、`medium`、`high`、`ultra` 任务模式，将模式映射为已批准的主 Agent provider profile、提示策略和推理参数。
+- 负责：严格区分 Agent 模式与权限模式；四档模式共享同一完整工具集合和 Ultra 级硬预算，模式只改变主模型、推理强度和编排策略，不改变 `ApprovalMode` 或 `ActionPolicy`。
 - 负责：在新任务或恢复边界冻结模式、角色和资源快照；活动任务不得隐式换模型、提高预算或静默降级。
-- 负责：声明主 Agent、通用 Subagent、Oracle、Review、Search、Librarian 和已验证自定义 Agent 的角色约束。
+- 负责：声明主 Agent、通用 Subagent、Oracle、Review、Search、Librarian 和已验证自定义 Agent 的角色约束；子 Agent profile 按角色稳定路由，不从父模式降级推导。
 - 负责：创建隔离的子 thread/task，并限制递归深度、并发数、子任务数、运行时间、模型、token 和工具预算。
 - 负责：从父任务预算中租借并累计子 Agent 消耗；委派不能产生额外的无限预算。
 - 负责：传播暂停、取消和失败；父任务终止后不得遗留继续执行的孤立子 Agent。

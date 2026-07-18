@@ -16,6 +16,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from code_agent_win.app import RootActionDispatcher, _session_path, create_application  # noqa: E402
+from code_agent_win import agent_modes  # noqa: E402
 from code_agent_win.cli import _split_global_options, _split_mode_option, run  # noqa: E402
 from code_agent.core.cancellation import CancellationError, CancellationToken  # noqa: E402
 from code_agent.core.engine import AgentEngine  # noqa: E402
@@ -29,12 +30,14 @@ from code_agent.runtime.models import CommandResult, TerminationReason  # noqa: 
 from code_agent.context.builder import WorkspaceContextBuilder  # noqa: E402
 from code_agent.context.compaction import DeterministicCompactor  # noqa: E402
 from code_agent.context.models import ContextConfig  # noqa: E402
+from code_agent.context.repo_index import RepoIndexService  # noqa: E402
 from code_agent.context.repo_map import RepoMapBuilder  # noqa: E402
 from code_agent.context.cache import RepoMapCache  # noqa: E402
 from code_agent.context.rules import RuleLoader  # noqa: E402
 from code_agent.interfaces.terminal_state import ApprovalBroker  # noqa: E402
 from code_agent.policy.engine import ActionPolicy, PolicyConfig  # noqa: E402
 from code_agent.policy.models import ApprovalMode  # noqa: E402
+from code_agent.orchestration.models import AgentDefinition, AgentRole  # noqa: E402
 from code_agent.sessions.repository import SQLiteSessionRepository  # noqa: E402
 from code_agent.workspace.files import WorkspaceFiles  # noqa: E402
 from code_agent.workspace.ignore import IgnoreRules  # noqa: E402
@@ -87,6 +90,39 @@ class CliFailureTests(unittest.IsolatedAsyncioTestCase):
 
 
 class ApplicationConstructionTests(unittest.TestCase):
+    def test_all_modes_share_complete_tools_and_plugin_contributions(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            runtime = load_runtime_config(
+                env={
+                    "CHAOS_CONFIG": str(Path(temporary) / "missing.toml"),
+                    "CHAOS_API": "responses",
+                    "CHAOS_BASE_URL": "https://api.example.test",
+                    "CHAOS_MODEL": "default-model",
+                    "CHAOS_API_KEY_ENV": "KEY",
+                }
+            )
+        profiles = {runtime.profile: runtime.profiles[0]}
+
+        mode_env = {
+            f"CHAOS_MODE_{mode.value.upper()}_PROFILE": runtime.profile
+            for mode in agent_modes.AgentMode
+        }
+        with patch.dict("os.environ", mode_env):
+            registry, _ = agent_modes.build_mode_registry(profiles, runtime.profile)
+        definitions = registry.definitions()
+
+        self.assertEqual(
+            {definition.tool_names for definition in definitions},
+            {agent_modes.ALL_TOOLS},
+        )
+        main_tools_for_mode = getattr(agent_modes, "main_tools_for_mode", None)
+        self.assertIsNotNone(main_tools_for_mode)
+        for definition in definitions:
+            self.assertEqual(
+                main_tools_for_mode(definition.tool_names, ("plugin.inspect",)),
+                definition.tool_names + ("plugin.inspect",),
+            )
+
     def test_tui_uses_the_session_repository_for_history(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()
@@ -101,7 +137,24 @@ class ApplicationConstructionTests(unittest.TestCase):
                     return_value=root / "sessions.sqlite3",
                 ):
                     with patch("code_agent_win.app.load_runtime_config", return_value=runtime):
-                        application = create_application(root)
+                        mode_env = {
+                            f"CHAOS_MODE_{mode.value.upper()}_PROFILE": runtime.profile
+                            for mode in agent_modes.AgentMode
+                        }
+                        with patch.dict("os.environ", mode_env):
+                            application = create_application(root)
+                            main_context = application.controller._engine._context._inner
+                            child_agent = AgentDefinition(
+                                "shared-index-child",
+                                AgentRole.SEARCH,
+                                application.mode,
+                                "Inspect the repository.",
+                                ("read_file",),
+                            )
+                            child_engine, _ = application.subagents._runner._factory(
+                                child_agent
+                            )
+                            child_context = child_engine._context._inner
 
         self.assertIs(application.tui.sessions, application.tui.history)
         self.assertIs(application.tui.evidence, application.tui.sessions)
@@ -109,6 +162,87 @@ class ApplicationConstructionTests(unittest.TestCase):
         self.assertEqual(application.mode.model, "test")
         self.assertIsNotNone(application.plugins)
         self.assertIsNotNone(application.subagents)
+        self.assertIsInstance(application.repo_index, RepoIndexService)
+        self.assertIs(main_context.repo_map.index, application.repo_index)
+        self.assertIs(child_context.repo_map.index, application.repo_index)
+
+
+class ModeSwitchIntegrationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_successful_write_refreshes_the_shared_repo_index(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            source = root / "service.py"
+            source.write_text("def before():\n    pass\n", encoding="utf-8")
+            runtime = load_runtime_config(env={
+                "CHAOS_CONFIG": str(root / "missing.toml"), "CHAOS_API": "responses",
+                "CHAOS_BASE_URL": "https://api.example.test", "CHAOS_MODEL": "test",
+                "CHAOS_API_KEY_ENV": "KEY", "CHAOS_APPROVAL_MODE": "auto",
+            })
+            mode_env = {
+                f"CHAOS_MODE_{mode.value.upper()}_PROFILE": runtime.profile
+                for mode in agent_modes.AgentMode
+            }
+            with patch("code_agent_win.app._model_client", side_effect=lambda _: object()):
+                with patch("code_agent_win.app._session_path", return_value=root / "sessions.sqlite3"):
+                    with patch("code_agent_win.app.load_runtime_config", return_value=runtime):
+                        with patch.dict("os.environ", mode_env):
+                            application = create_application(root)
+
+            before = application.repo_index.snapshot_for_turn()
+            result = await application.dispatcher.dispatch(
+                ActionRequest(
+                    "write-indexed-file",
+                    "write_file",
+                    {
+                        "path": "service.py",
+                        "content": "def after():\n    pass\n",
+                    },
+                ),
+                CancellationToken(),
+            )
+            after = application.repo_index.snapshot_for_turn()
+
+            self.assertFalse(result.is_error)
+            self.assertGreater(after.generation, before.generation)
+            self.assertEqual(
+                tuple(symbol.name for symbol in after.entries[0].symbols),
+                ("after",),
+            )
+            await application.aclose()
+
+    async def test_tui_mode_switch_rebuilds_runner_and_updates_application_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            runtime = load_runtime_config(env={
+                "CHAOS_CONFIG": str(root / "missing.toml"), "CHAOS_API": "responses",
+                "CHAOS_BASE_URL": "https://api.example.test", "CHAOS_MODEL": "test",
+                "CHAOS_API_KEY_ENV": "KEY",
+            })
+            mode_env = {
+                f"CHAOS_MODE_{mode.value.upper()}_PROFILE": runtime.profile
+                for mode in agent_modes.AgentMode
+            }
+            with patch("code_agent_win.app._model_client", side_effect=lambda _: object()):
+                with patch("code_agent_win.app._session_path", return_value=root / "sessions.sqlite3"):
+                    with patch("code_agent_win.app.load_runtime_config", return_value=runtime):
+                        with patch.dict("os.environ", mode_env):
+                            application = create_application(root)
+
+            previous_runner = application.controller._engine
+            previous_repo_map = previous_runner._context._inner.repo_map
+            selected = await application.tui.modes.use("high", idle=True)
+            rebuilt_repo_map = application.controller._engine._context._inner.repo_map
+
+            self.assertEqual(selected.name, "high")
+            self.assertEqual(application.mode.definition.mode.value, "high")
+            self.assertEqual(application.tui.modes.current.name, "high")
+            self.assertIsNot(application.controller._engine, previous_runner)
+            self.assertIs(rebuilt_repo_map.index, application.repo_index)
+            self.assertIs(
+                rebuilt_repo_map.view_cache,
+                previous_repo_map.view_cache,
+            )
+            await application.aclose()
 
     def test_session_path_copies_the_legacy_data_file(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

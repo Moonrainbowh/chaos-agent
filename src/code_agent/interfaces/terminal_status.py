@@ -8,6 +8,18 @@ def status_presentation(
     status: str, summary: str, action: str | None, language: Language, theme: Theme, spinner_index: int
 ) -> tuple[str, str, str | None]:
     symbols = theme is Theme.SYMBOL
+    if status in {"building_context", "waiting_model"}:
+        labels = {
+            "building_context": ("正在准备工作区", "preparing workspace"),
+            "waiting_model": ("正在等待模型", "waiting for model"),
+        }
+        zh, en = labels[status]
+        spinner = "◐◓◑◒" if symbols else "|/-\\"
+        return (
+            zh if language is Language.ZH_CN else en,
+            spinner[spinner_index % len(spinner)],
+            "38;5;250",
+        )
     if status == "running":
         detail = action or ("正在生成回复" if language is Language.ZH_CN else "generating response")
         prefix = "处理中 · " if language is Language.ZH_CN else "Working · "

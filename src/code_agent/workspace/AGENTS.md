@@ -17,7 +17,7 @@
 - `WorkspaceError` 及其专用子类：表达路径、敏感文件、文本类型、大小、扫描上限、超时与编辑冲突 | 无副作用
 - `WorkspacePathGuard(root).resolve(path): Path`：规范化路径并执行 containment 与敏感路径策略 | 检查路径元数据 | `allow_outside` 仅供已批准 dispatcher 使用；链接/reparse 组件及任意层级 `.git`、`.chaos-agent`、`.code-agent` 始终受保护
 - `IgnoreRules.from_workspace(root): IgnoreRules`：加载内置忽略项和根 `.gitignore` 的常用规则子集 | 读取根 `.gitignore` | 支持顺序反选，不是完整 Git parser
-- `WorkspaceFiles.list_files(root, ...): tuple[str, ...]`：在有限扫描预算内按全局路径顺序枚举可访问的非忽略文件；显式外部 `root` 可递归枚举 | 扫描超限显式失败，不返回伪完整结果
+- `WorkspaceFiles.list_files(root, ...): tuple[str, ...]`、`invalidate_inventory()`：在有限扫描预算内按全局路径顺序枚举可访问的非忽略文件；工作区根目录结果以 TTL、根 mtime 和至多 16 个预算变体的 LRU 短期复用，失效请求不等待正在进行的枚举并在其结束后丢弃旧缓存，显式外部 `root` 每次独立递归枚举 | 扫描超限显式失败，不返回伪完整结果
 - `WorkspaceFiles.read_text(...): TextDocument`：按包含式行范围读取 UTF-8/UTF-8 BOM 文本 | 读取单个文件 | 拒绝二进制与超限文件
 - `WorkspaceFiles.search(...): tuple[SearchMatch, ...]`：在有限扫描预算和全局 deadline 内执行 literal/regex 文本搜索 | deadline 覆盖目录枚举与文件匹配 | 超时不返回部分结果
 - `WorkspaceEditor`: 有界读取现有文件，生成写入/单次替换 Diff 并校验哈希后原子应用 | 单文件同目录临时写入与替换

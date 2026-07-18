@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from threading import RLock
 from typing import Sequence
 
 from code_agent.workspace.errors import FileTooLargeError, WorkspaceError
@@ -35,6 +36,8 @@ class RuleLoader:
         self.guard = guard
         self.files = files
         self.config = config
+        self._root_extension_cache: tuple[int, tuple[str, ...]] | None = None
+        self._root_extension_lock = RLock()
 
     def load(self, cwd: PathInput | None = None) -> tuple[ProjectRule, ...]:
         """Load root, root extension, then cwd-chain rules in priority order."""
@@ -97,21 +100,41 @@ class RuleLoader:
         return resolved
 
     def _root_extensions(self) -> list[tuple[str, int]]:
+        signature = self._root_directory_signature()
+        with self._root_extension_lock:
+            cached = self._root_extension_cache
+            if (
+                signature is not None
+                and cached is not None
+                and cached[0] == signature
+            ):
+                return [(path, 0) for path in cached[1]]
+            extensions = tuple(self._discover_root_extensions())
+            if signature is not None:
+                self._root_extension_cache = (signature, extensions)
+            return [(path, 0) for path in extensions]
+
+    def _discover_root_extensions(self) -> list[str]:
         try:
-            paths = self.files.list_files(
-                max_entries=self.config.repo_scan,
-                max_scanned_entries=max(1_000, self.config.repo_scan * 20),
-            )
-        except (OSError, WorkspaceError) as error:
+            entries = tuple(self.guard.root.iterdir())
+        except OSError as error:
             raise ContextError("cannot discover root rule extensions") from error
-        extensions = [
-            path
-            for path in paths
-            if "/" not in path
-            and path.startswith("AGENTS.")
-            and path.endswith(".md")
-        ]
-        return [(path, 0) for path in sorted(extensions)]
+        extensions: list[str] = []
+        for path in entries:
+            if not path.name.startswith("AGENTS.") or not path.name.endswith(".md"):
+                continue
+            try:
+                if not path.is_symlink() and path.is_file():
+                    extensions.append(path.name)
+            except OSError:
+                continue
+        return sorted(extensions)
+
+    def _root_directory_signature(self) -> int | None:
+        try:
+            return self.guard.root.stat().st_mtime_ns
+        except OSError:
+            return None
 
     def _ancestor_rules(self, cwd: Path) -> list[tuple[str, int]]:
         relative = cwd.relative_to(self.guard.root)

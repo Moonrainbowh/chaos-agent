@@ -15,6 +15,9 @@ class ModeAwareWindowsTerminalApp(WindowsTerminalApp):
         self._plugin_errors = plugin_errors
         self._announced = False
 
+    def update_capability(self, capability: ModePermissionView) -> None:
+        self._capability = capability
+
     async def run(self, *, thread_id: str | None = None) -> None:
         if not self._announced:
             for line in self._capability.lines():

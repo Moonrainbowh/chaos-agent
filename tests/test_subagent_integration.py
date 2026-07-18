@@ -16,7 +16,7 @@ from code_agent.orchestration.models import (
 )
 from code_agent.orchestration.modes import ModeRegistry, standard_mode_definitions
 from code_agent.providers.config import ApiProtocol, ModelProfile, ProviderConfig
-from code_agent_win.agent_modes import default_child_mode
+from code_agent_win import agent_modes
 from code_agent_win.subagents import EngineChildRunner, SubagentRuntime, SubagentTool
 
 
@@ -181,7 +181,7 @@ class EngineChildRunnerTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(result.is_error)
         await runtime.aclose()
 
-    async def test_parent_mode_defaults_select_requested_child_profile(self) -> None:
+    async def test_child_role_selects_profile_independently_of_parent_mode(self) -> None:
         registry, profiles = _runtime()
 
         class Supervisor:
@@ -192,27 +192,30 @@ class EngineChildRunnerTests(unittest.IsolatedAsyncioTestCase):
                 )
 
         cases = {
-            AgentMode.MEDIUM: AgentMode.LOW,
-            AgentMode.HIGH: AgentMode.LOW,
-            AgentMode.ULTRA: AgentMode.MEDIUM,
+            AgentRole.SEARCH: AgentMode.LOW,
+            AgentRole.LIBRARIAN: AgentMode.LOW,
+            AgentRole.SUBAGENT: AgentMode.MEDIUM,
+            AgentRole.REVIEW: AgentMode.HIGH,
+            AgentRole.ORACLE: AgentMode.HIGH,
         }
-        for parent, expected_child in cases.items():
-            with self.subTest(parent=parent.value):
+        for role, expected_child in cases.items():
+            with self.subTest(role=role.value):
                 supervisor = Supervisor()
-                tool = SubagentTool(
-                    supervisor, registry, profiles, default_child_mode(parent)
-                )  # type: ignore[arg-type]
+                tool = SubagentTool(supervisor, registry, profiles)  # type: ignore[arg-type]
                 await tool.dispatch(
                     ActionRequest(
-                        f"child-{parent.value}",
+                        f"child-{role.value}",
                         "delegate_agent",
-                        {"objective": "review", "role": "review"},
+                        {"objective": "bounded work", "role": role.value},
                     ),
                     CancellationToken(),
                 )
                 self.assertEqual(
                     supervisor.request.agent.mode.definition.mode, expected_child
                 )
+                child_mode_for_role = getattr(agent_modes, "child_mode_for_role", None)
+                self.assertIsNotNone(child_mode_for_role)
+                self.assertEqual(child_mode_for_role(role), expected_child)
 
 
 if __name__ == "__main__":

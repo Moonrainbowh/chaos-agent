@@ -69,6 +69,12 @@ class TerminalState:
             if isinstance(thread_id, str):
                 self.thread_id = thread_id
             self.begin_run()
+        elif event.kind in {
+            EventKind.TURN_STARTED,
+            EventKind.CONTEXT_BUILT,
+            EventKind.MODEL_STARTED,
+        }:
+            self._update_status(event)
         elif event.kind in {EventKind.TASK_CREATED, EventKind.TASK_STATUS_CHANGED, EventKind.TASK_PAUSED}:
             task_id = event.payload.get("task_id")
             status = event.payload.get("status")
@@ -88,6 +94,7 @@ class TerminalState:
         elif event.kind is EventKind.ACTION_REQUESTED:
             self._capture_diff(event)
             self._answer_parts = []
+            self.status = "running"
             self.active_action = _action_name(event)
             request = event.payload.get("request")
             if isinstance(request, Mapping) and isinstance(request.get("id"), str):
@@ -114,6 +121,9 @@ class TerminalState:
             return
         statuses = {
             EventKind.RUN_STARTED: "running",
+            EventKind.TURN_STARTED: "building_context",
+            EventKind.CONTEXT_BUILT: "waiting_model",
+            EventKind.MODEL_STARTED: "waiting_model",
             EventKind.ERROR: "error",
             EventKind.COMPLETED: "completed",
         }
@@ -130,6 +140,7 @@ class TerminalState:
         except (KeyError, TypeError, ValueError):
             return
         if model_event.kind is ModelEventKind.TEXT_DELTA and model_event.text:
+            self.status = "running"
             self._answer_parts.append(model_event.text)
 
     def _apply_completed_message(self, event: AgentEvent) -> None:

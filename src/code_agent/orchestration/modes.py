@@ -120,29 +120,30 @@ def _normalize(values: Mapping[AgentMode | str, object], *, allow_partial: bool 
 
 
 def _defaults() -> dict[AgentMode, tuple[str, ReasoningEffort, EngineLimits, str]]:
+    shared_limits = EngineLimits(120, 256, 64, 800_000, 1_000_000)
     return {
         AgentMode.LOW: (
-            "focused",
+            "direct",
             ReasoningEffort.LOW,
-            EngineLimits(20, 64, 24, 100_000, 500_000),
-            "Fast bounded execution for clear tasks.",
+            shared_limits,
+            "Execute directly and delegate only when a bounded specialist would materially help.",
         ),
         AgentMode.MEDIUM: (
             "balanced",
             ReasoningEffort.MEDIUM,
-            EngineLimits(50, 128, 50, 200_000, 1_000_000),
-            "Balanced execution for ordinary multi-step work.",
+            shared_limits,
+            "Handle ordinary multi-step work directly and use one specialist when useful.",
         ),
         AgentMode.HIGH: (
-            "deep",
-            ReasoningEffort.XHIGH,
-            EngineLimits(80, 192, 64, 400_000, 1_000_000),
-            "Extended reasoning for difficult cross-cutting work.",
+            "deliberate",
+            ReasoningEffort.HIGH,
+            shared_limits,
+            "Lead difficult work directly and delegate independent or specialist checks when useful.",
         ),
         AgentMode.ULTRA: (
-            "frontier",
+            "orchestrated",
             ReasoningEffort.XHIGH,
-            EngineLimits(120, 256, 64, 800_000, 1_000_000),
-            "Maximum bounded capability for open-ended work.",
+            shared_limits,
+            "Orchestrate open-ended work, parallelize independent tasks, and request independent review for risky changes.",
         ),
     }

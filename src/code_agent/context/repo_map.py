@@ -1,88 +1,89 @@
 from __future__ import annotations
 
-import ast
 import re
+from collections import OrderedDict
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from pathlib import PurePosixPath
-from typing import Iterable, Sequence
+from threading import RLock
 
-from code_agent.workspace.errors import WorkspaceError
 from code_agent.workspace.files import WorkspaceFiles
 
 from .cache import RepoMapCache
-from .errors import RepoMapError
-from .models import ContextConfig, RepoEntry, Symbol
+from .models import ContextConfig, RepoEntry
+from .repo_index import RepoIndexService, RepoIndexSnapshot
+from .repo_scan import RepoFileFacts, RepoFileScanner
 from .tokens import estimate_tokens, truncate_to_tokens
 
 
-_MAX_SOURCE_BYTES = 256_000
-_MAX_LINE_CHARS = 4_000
-_MAX_SYMBOLS = 200
-_PYTHON_SUFFIX = ".py"
-_DECLARATION_SUFFIXES = frozenset(
-    {".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".go", ".rs", ".java", ".cs"}
-)
-_JS_TYPE = re.compile(
-    r"^\s*(?:(?:export|default|declare|abstract)\s+)*(class|interface|type|enum)\s+([A-Za-z_$][\w$]*)"
-)
-_JS_FUNCTION = re.compile(
-    r"^\s*(?:(?:export|default|declare)\s+)*(?:async\s+)?function\s+([A-Za-z_$][\w$]*)"
-)
-_RUST_DECL = re.compile(
-    r'^\s*(?:(?:pub(?:\([^)]*\))?|async|unsafe|const|extern(?:\s+"[^"]+")?)\s+)*(struct|enum|trait|type|fn)\s+([A-Za-z_]\w*)'
-)
-_GO_TYPE = re.compile(r"^\s*type\s+([A-Za-z_]\w*)\s*(struct|interface)?")
-_GO_FUNC = re.compile(
-    r"^\s*func\s+(?:\([^)]*\)\s*)?([A-Za-z_]\w*)\s*(?:\[|\()"
-)
-_JVM_TYPE = re.compile(
-    r"^\s*(?:(?:public|private|protected|internal|static|abstract|sealed|final|partial|open)\s+)*(class|interface|enum|struct|record)\s+([A-Za-z_]\w*)"
-)
 _QUERY_TOKEN = re.compile(r"[\w.-]+", re.UNICODE)
 
 
 @dataclass(frozen=True)
-class _ImportRef:
-    module: str
-    level: int = 0
-    names: tuple[str, ...] = ()
+class _RepoViewKey:
+    generation: int
+    query: str
+    touched_files: tuple[str, ...]
+    token_budget: int
 
 
-class _UncacheableScan(Exception):
-    """A read or parse failure that must not become a successful cache entry."""
+class RepoMapViewCache:
+    """A bounded LRU of rendered views keyed by immutable index generation."""
 
+    def __init__(self, *, max_entries: int = 64) -> None:
+        if isinstance(max_entries, bool) or not isinstance(max_entries, int):
+            raise TypeError("max_entries must be an integer")
+        if max_entries <= 0:
+            raise ValueError("max_entries must be positive")
+        self.max_entries = max_entries
+        self._entries: OrderedDict[_RepoViewKey, str] = OrderedDict()
+        self._lock = RLock()
 
-class RepoMapBuilder:
-    """Build a bounded clean-room map, not a complete language parser."""
+    def __len__(self) -> int:
+        with self._lock:
+            return len(self._entries)
 
-    def __init__(
+    def get_or_build(
         self,
-        files: WorkspaceFiles,
-        config: ContextConfig,
-        *,
-        cache: RepoMapCache | None = None,
-    ) -> None:
-        if not isinstance(files, WorkspaceFiles):
-            raise TypeError("files must be WorkspaceFiles")
-        if not isinstance(config, ContextConfig):
-            raise TypeError("config must be a ContextConfig")
-        if files.guard.root != config.workspace_root:
-            raise ValueError("workspace files root must match config.workspace_root")
-        self.files = files
-        self.config = config
-        self.cache = cache or RepoMapCache(config.workspace_root)
+        key: _RepoViewKey,
+        build: Callable[[], str],
+    ) -> tuple[str, int, int]:
+        with self._lock:
+            cached = self._entries.get(key)
+            if cached is not None:
+                self._entries.move_to_end(key)
+                return cached, 1, 0
+            rendered = build()
+            self._entries[key] = rendered
+            self._entries.move_to_end(key)
+            while len(self._entries) > self.max_entries:
+                self._entries.popitem(last=False)
+            return rendered, 0, 1
+
+    def clear(self) -> None:
+        with self._lock:
+            self._entries.clear()
+
+
+class RepoMapViewBuilder:
+    """Rank and render one lightweight view from an immutable index snapshot."""
 
     def build(
-        self, query: str = "", touched_files: Sequence[str] = ()
+        self,
+        snapshot: RepoIndexSnapshot,
+        query: str = "",
+        touched_files: Sequence[str] = (),
     ) -> tuple[RepoEntry, ...]:
+        if not isinstance(snapshot, RepoIndexSnapshot):
+            raise TypeError("snapshot must be a RepoIndexSnapshot")
         if not isinstance(query, str):
             raise TypeError("query must be text")
         if any(not isinstance(path, str) or not path for path in touched_files):
             raise ValueError("touched_files must contain non-empty paths")
-        return _rank(self._scan(), query, touched_files)
+        return _rank(snapshot.entries, query, touched_files)
 
     def render(
         self,
+        snapshot: RepoIndexSnapshot,
         query: str,
         touched_files: Sequence[str],
         token_budget: int,
@@ -95,7 +96,7 @@ class RepoMapBuilder:
             return ""
         chunks: list[str] = []
         used = 0
-        for entry in self.build(query, touched_files):
+        for entry in self.build(snapshot, query, touched_files):
             chunk = _render_entry(entry)
             separator = "\n" if chunks else ""
             cost = estimate_tokens(separator + chunk)
@@ -106,179 +107,138 @@ class RepoMapBuilder:
             if not chunks:
                 return truncate_to_tokens(chunk, token_budget)
             break
-        rendered = "\n".join(chunks)
-        return truncate_to_tokens(rendered, token_budget)
+        return truncate_to_tokens("\n".join(chunks), token_budget)
 
-    def _scan(self) -> tuple[RepoEntry, ...]:
-        try:
-            paths = self.files.list_files(
-                max_entries=self.config.repo_scan,
-                max_scanned_entries=max(1_000, self.config.repo_scan * 20),
+
+class RepoMapBuilder:
+    """Compatibility facade over a shared index and a pure per-turn view."""
+
+    def __init__(
+        self,
+        files: WorkspaceFiles,
+        config: ContextConfig,
+        *,
+        cache: RepoMapCache | None = None,
+        index: RepoIndexService | None = None,
+        view_cache: RepoMapViewCache | None = None,
+    ) -> None:
+        if not isinstance(files, WorkspaceFiles):
+            raise TypeError("files must be WorkspaceFiles")
+        if not isinstance(config, ContextConfig):
+            raise TypeError("config must be a ContextConfig")
+        if files.guard.root != config.workspace_root:
+            raise ValueError(
+                "workspace files root must match config.workspace_root"
             )
-        except (OSError, WorkspaceError) as error:
-            raise RepoMapError("bounded repository scan failed") from error
-        module_index = _module_index(paths)
-        entries: list[RepoEntry] = []
-        for path in paths:
-            absolute = self.files.guard.resolve(path)
-            try:
-                parsed, source_facts = self.cache.get_or_scan_facts(
-                    absolute, lambda: self._scan_file(path)
-                )
-                entries.append(
-                    RepoEntry(
-                        path,
-                        parsed.symbols,
-                        _resolve_imports(path, _imports(source_facts), module_index),
-                        parsed.size_bytes,
-                    )
-                )
-            except _UncacheableScan:
-                entries.append(RepoEntry(path, size_bytes=self._file_size(path)))
-        return tuple(entries)
-
-    def _scan_file(self, path: str) -> tuple[RepoEntry, tuple[_ImportRef, ...]]:
-        suffix = PurePosixPath(path).suffix.casefold()
-        if suffix not in _DECLARATION_SUFFIXES and suffix != _PYTHON_SUFFIX:
-            return RepoEntry(path, size_bytes=self._file_size(path)), ()
-        try:
-            document = self.files.read_text(path, max_bytes=_MAX_SOURCE_BYTES)
-            size = len(document.text.encode("utf-8"))
-        except (OSError, UnicodeError, WorkspaceError):
-            raise _UncacheableScan from None
-        if suffix == _PYTHON_SUFFIX:
-            parsed = _parse_python(path, document.text)
-            if parsed is None:
-                raise _UncacheableScan
-            symbols, imports = parsed
-        else:
-            symbols, imports = _parse_declarations(path, suffix, document.text), ()
-        return RepoEntry(path, symbols, size_bytes=size), imports
-
-    def _file_size(self, path: str) -> int:
-        try:
-            return self.files.guard.resolve(path).stat().st_size
-        except (OSError, WorkspaceError):
-            return 0
-
-
-class _PythonSymbols(ast.NodeVisitor):
-    def __init__(self, path: str) -> None:
-        self.path = path
-        self.stack: list[str] = []
-        self.symbols: list[Symbol] = []
-
-    def visit_ClassDef(self, node: ast.ClassDef) -> None:
-        self._visit_named(node, "class")
-
-    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
-        self._visit_named(node, "function")
-
-    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
-        self._visit_named(node, "async_function")
-
-    def _visit_named(self, node: ast.AST, kind: str) -> None:
-        name = getattr(node, "name")
-        qualified = ".".join((*self.stack, name))
-        self.symbols.append(Symbol(self.path, qualified, kind, node.lineno))
-        self.stack.append(name)
-        self.generic_visit(node)
-        self.stack.pop()
-
-
-def _parse_python(
-    path: str, text: str
-) -> tuple[tuple[Symbol, ...], tuple[_ImportRef, ...]] | None:
-    try:
-        tree = ast.parse(text)
-    except (SyntaxError, ValueError, TypeError, MemoryError):
-        return None
-    visitor = _PythonSymbols(path)
-    visitor.visit(tree)
-    imports: list[_ImportRef] = []
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            imports.extend(_ImportRef(alias.name) for alias in node.names)
-        elif isinstance(node, ast.ImportFrom):
-            imports.append(
-                _ImportRef(
-                    node.module or "",
-                    node.level,
-                    tuple(alias.name for alias in node.names if alias.name != "*"),
-                )
+        if index is not None and not isinstance(index, RepoIndexService):
+            raise TypeError("index must be a RepoIndexService")
+        if index is not None and index.files is not files:
+            raise ValueError("index and repo map must share WorkspaceFiles")
+        if view_cache is not None and not isinstance(
+            view_cache, RepoMapViewCache
+        ):
+            raise TypeError("view_cache must be a RepoMapViewCache")
+        self.files = files
+        self.config = config
+        self.cache = cache or RepoMapCache(config.workspace_root)
+        self._file_scanner: RepoFileScanner | None = None
+        if index is None:
+            self._file_scanner = RepoFileScanner(files)
+            index = RepoIndexService(
+                files,
+                max_files=config.repo_scan,
+                scan_file=lambda path: self._scan_file(path),
             )
-    return tuple(visitor.symbols[:_MAX_SYMBOLS]), tuple(imports)
+        self.index = index
+        self.view = RepoMapViewBuilder()
+        self.view_cache = (
+            view_cache if view_cache is not None else RepoMapViewCache()
+        )
+
+    def build(
+        self, query: str = "", touched_files: Sequence[str] = ()
+    ) -> tuple[RepoEntry, ...]:
+        snapshot = self.index.snapshot_for_turn()
+        return self.view.build(snapshot, query, touched_files)
+
+    def render(
+        self,
+        query: str,
+        touched_files: Sequence[str],
+        token_budget: int,
+    ) -> str:
+        rendered, _, _ = self.render_with_metrics(
+            query, touched_files, token_budget
+        )
+        return rendered
+
+    def render_with_metrics(
+        self,
+        query: str,
+        touched_files: Sequence[str],
+        token_budget: int,
+    ) -> tuple[str, int, int]:
+        if not isinstance(query, str):
+            raise TypeError("query must be text")
+        checked_touched = tuple(touched_files)
+        if any(
+            not isinstance(path, str) or not path
+            for path in checked_touched
+        ):
+            raise ValueError("touched_files must contain non-empty paths")
+        if isinstance(token_budget, bool) or not isinstance(token_budget, int):
+            raise TypeError("token_budget must be an integer")
+        if token_budget < 0:
+            raise ValueError("token_budget must not be negative")
+        if token_budget == 0:
+            return "", 0, 0
+        snapshot = self.index.snapshot_for_turn()
+        key = _RepoViewKey(
+            snapshot.generation,
+            _normalize_query(query),
+            _normalize_touched(checked_touched),
+            token_budget,
+        )
+        return self.view_cache.get_or_build(
+            key,
+            lambda: self.view.render(
+                snapshot,
+                query,
+                checked_touched,
+                token_budget,
+            ),
+        )
+
+    def invalidate(self, paths: Sequence[str]) -> None:
+        self.index.invalidate(paths)
+
+    def _scan_file(self, path: str) -> RepoFileFacts:
+        if self._file_scanner is None:
+            raise RuntimeError("shared index owns file scanning")
+        return self._file_scanner.scan(path)
 
 
-def _parse_declarations(path: str, suffix: str, text: str) -> tuple[Symbol, ...]:
-    symbols: list[Symbol] = []
-    for line_number, line in enumerate(text.splitlines(), start=1):
-        if len(line) > _MAX_LINE_CHARS:
-            continue
-        declarations: list[tuple[str, str]] = []
-        if suffix in {".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx"}:
-            if match := _JS_TYPE.match(line):
-                declarations.append((match.group(2), match.group(1)))
-            if match := _JS_FUNCTION.match(line):
-                declarations.append((match.group(1), "function"))
-        elif suffix == ".rs" and (match := _RUST_DECL.match(line)):
-            declarations.append((match.group(2), "function" if match.group(1) == "fn" else match.group(1)))
-        elif suffix == ".go":
-            if match := _GO_TYPE.match(line):
-                declarations.append((match.group(1), match.group(2) or "type"))
-            if match := _GO_FUNC.match(line):
-                declarations.append((match.group(1), "function"))
-        elif suffix in {".java", ".cs"} and (match := _JVM_TYPE.match(line)):
-            declarations.append((match.group(2), match.group(1)))
-        symbols.extend(Symbol(path, name, kind, line_number) for name, kind in declarations)
-        if len(symbols) >= _MAX_SYMBOLS:
-            break
-    return tuple(symbols[:_MAX_SYMBOLS])
+def _normalize_query(query: str) -> str:
+    return " ".join(query.casefold().split())
 
 
-def _module_index(paths: Iterable[str]) -> dict[str, str]:
-    index: dict[str, str] = {}
-    for path in paths:
-        if not path.endswith(".py"):
-            continue
-        module = path[:-3].replace("/", ".")
-        if module.endswith(".__init__"):
-            module = module[: -len(".__init__")]
-        if module:
-            index.setdefault(module, path)
-    return index
-
-
-def _resolve_imports(
-    path: str, refs: Sequence[_ImportRef], index: dict[str, str]
-) -> tuple[str, ...]:
-    current = path[:-3].replace("/", ".")
-    package = current[: -len(".__init__")] if current.endswith(".__init__") else current.rpartition(".")[0]
-    dependencies: set[str] = set()
-    for ref in refs:
-        if ref.level:
-            parts = package.split(".") if package else []
-            climb = ref.level - 1
-            if climb > len(parts):
-                continue
-            prefix = parts[: len(parts) - climb]
-            base = ".".join((*prefix, *filter(None, ref.module.split("."))))
-        else:
-            base = ref.module
-        candidates = [f"{base}.{name}".strip(".") for name in ref.names]
-        candidates.append(base)
-        for candidate in candidates:
-            if candidate in index and index[candidate] != path:
-                dependencies.add(index[candidate])
-    return tuple(sorted(dependencies))
-
-
-def _imports(source_facts: Sequence[object]) -> tuple[_ImportRef, ...]:
-    return tuple(item for item in source_facts if isinstance(item, _ImportRef))
+def _normalize_touched(paths: Sequence[str]) -> tuple[str, ...]:
+    return tuple(
+        sorted(
+            {
+                path.replace("\\", "/")
+                .removeprefix("./")
+                .casefold()
+                for path in paths
+            }
+        )
+    )
 
 
 def _rank(
-    entries: Sequence[RepoEntry], query: str, touched_files: Sequence[str]
+    entries: Sequence[RepoEntry],
+    query: str,
+    touched_files: Sequence[str],
 ) -> tuple[RepoEntry, ...]:
     indegree = {entry.path: 0 for entry in entries}
     for entry in entries:
@@ -286,7 +246,10 @@ def _rank(
             if dependency in indegree:
                 indegree[dependency] += 1
     tokens = tuple(dict.fromkeys(_QUERY_TOKEN.findall(query.casefold())))
-    touched = {path.replace("\\", "/").removeprefix("./").casefold() for path in touched_files}
+    touched = {
+        path.replace("\\", "/").removeprefix("./").casefold()
+        for path in touched_files
+    }
 
     def score(entry: RepoEntry) -> int:
         path = entry.path.casefold()
@@ -303,13 +266,28 @@ def _rank(
                 value += 35 if token == name else 20 if token in name else 0
         return value
 
-    return tuple(sorted(entries, key=lambda entry: (-score(entry), entry.path.casefold(), entry.path)))
+    return tuple(
+        sorted(
+            entries,
+            key=lambda entry: (
+                -score(entry),
+                entry.path.casefold(),
+                entry.path,
+            ),
+        )
+    )
 
 
 def _render_entry(entry: RepoEntry) -> str:
     lines = [entry.path]
     if entry.symbols:
-        lines.append("  " + ", ".join(f"{item.kind}:{item.name}:{item.line}" for item in entry.symbols))
+        lines.append(
+            "  "
+            + ", ".join(
+                f"{item.kind}:{item.name}:{item.line}"
+                for item in entry.symbols
+            )
+        )
     if entry.dependencies:
         lines.append("  deps:" + ",".join(entry.dependencies))
     return "\n".join(lines)

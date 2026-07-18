@@ -4,7 +4,7 @@ import os
 from collections.abc import Mapping
 
 from code_agent.orchestration.modes import ModeRegistry, standard_mode_definitions
-from code_agent.orchestration.models import AgentMode, ModeSnapshot
+from code_agent.orchestration.models import AgentMode, AgentRole, ModeSnapshot
 from code_agent.providers.config import ModelProfile
 
 
@@ -24,12 +24,7 @@ def build_mode_registry(
         if configured not in profiles:
             raise ValueError(f"mode profile is not configured: {mode.value} -> {configured}")
         bindings[mode] = configured
-    tools = {
-        AgentMode.LOW: READ_TOOLS,
-        AgentMode.MEDIUM: TYPED_WRITE_TOOLS + ("delegate_agent",),
-        AgentMode.HIGH: ALL_TOOLS,
-        AgentMode.ULTRA: ALL_TOOLS,
-    }
+    tools = {mode: ALL_TOOLS for mode in AgentMode}
     registry = ModeRegistry(
         standard_mode_definitions(bindings, tools_by_mode=tools)
     )
@@ -50,14 +45,25 @@ def mode_prompt(snapshot: ModeSnapshot) -> str:
     return (
         f"Task mode: {definition.mode.value}. Prompt policy: {definition.prompt_policy}. "
         f"Reasoning effort: {definition.reasoning_effort.value}. "
+        f"Orchestration policy: {definition.description} "
         "Mode changes capability and cost only; it never grants permission."
     )
 
 
-def default_child_mode(parent_mode: AgentMode) -> AgentMode:
-    return {
-        AgentMode.LOW: AgentMode.LOW,
-        AgentMode.MEDIUM: AgentMode.LOW,
-        AgentMode.HIGH: AgentMode.LOW,
-        AgentMode.ULTRA: AgentMode.MEDIUM,
-    }[parent_mode]
+def main_tools_for_mode(
+    mode_tools: tuple[str, ...], plugin_tools: tuple[str, ...]
+) -> tuple[str, ...]:
+    return mode_tools + plugin_tools
+
+
+def child_mode_for_role(role: AgentRole) -> AgentMode:
+    try:
+        return {
+            AgentRole.SEARCH: AgentMode.LOW,
+            AgentRole.LIBRARIAN: AgentMode.LOW,
+            AgentRole.SUBAGENT: AgentMode.MEDIUM,
+            AgentRole.REVIEW: AgentMode.HIGH,
+            AgentRole.ORACLE: AgentMode.HIGH,
+        }[role]
+    except KeyError:
+        raise ValueError(f"role has no child profile route: {role.value}") from None

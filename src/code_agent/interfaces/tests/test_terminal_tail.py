@@ -23,6 +23,8 @@ class TerminalTailPaletteTests(unittest.TestCase):
 
     def test_non_idle_task_states_never_fall_back_to_ready(self) -> None:
         expected = {
+            "building_context": "正在准备工作区",
+            "waiting_model": "正在等待模型",
             "verifying": "验证中",
             "paused": "已暂停",
             "waiting_decision": "等待决定",

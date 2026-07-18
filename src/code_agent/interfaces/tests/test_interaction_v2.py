@@ -14,7 +14,8 @@ from code_agent.interfaces.interaction import (
     plugin_interaction,
     render_interaction,
 )
-from code_agent.interfaces.picker import PickerItem, PickerSource, PickerState
+from code_agent.interfaces.command_registry import REGISTRY
+from code_agent.interfaces.picker import PickerItem, PickerSource, PickerState, command_picker_items
 from code_agent.interfaces.steering_view import SteeringQueueView, SteeringStage
 from code_agent.interfaces.tui_interactions import TuiInteractions
 from code_agent.core.events import EventKind
@@ -67,6 +68,25 @@ class PickerStateTests(unittest.TestCase):
         self.assertEqual(picker.selected.identifier, "command-11")  # type: ignore[union-attr]
         self.assertIn("12/12", picker.rows(80)[-1])
         self.assertTrue(any("command-11" in row for row in picker.rows(80)))
+
+    def test_exact_command_completions_keep_the_selected_command_name(self) -> None:
+        services = {"sessions", "history", "tasks", "evidence", "modes"}
+        items = command_picker_items(REGISTRY.all(), services)
+
+        for spec in REGISTRY.all():
+            picker = PickerState(items)
+            picker.update_query(spec.name)
+            with self.subTest(command=spec.name):
+                self.assertTrue(picker.accept().completion.startswith("/" + spec.name))  # type: ignore[union-attr]
+
+    def test_actions_stay_disabled_when_the_parent_command_is_unavailable(self) -> None:
+        mode = REGISTRY.resolve("模式")
+
+        items = command_picker_items(REGISTRY.all(), set(), parent=mode)
+
+        self.assertTrue(items)
+        self.assertTrue(all(not item.enabled for item in items))
+        self.assertTrue(all(item.disabled_reason == "requires modes" for item in items))
 
 
 class SteeringQueueViewTests(unittest.TestCase):

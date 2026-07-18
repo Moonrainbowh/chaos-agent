@@ -17,13 +17,13 @@
 - 负责：从不可信模型或工具文本中剥离终端控制序列；ANSI 样式只能由本地可信显示事件生成，并支持 `auto`、`always`、`never` 颜色模式及 ASCII 回退。
 - 负责：从单一命令注册表生成解析、帮助、调色板、补全、显示标签与动态可用性；命令只委托注入的控制器或只读服务，不直接执行工具、修改配置或调用 provider。
 - 负责：输入 `/` 时完整展示当前可用的一级命令目录；选中无参数命令后一次 `Enter` 立即执行，选中复合命令后一次 `Enter` 进入由同一注册表生成的二级动作菜单，不要求重复确认同一选择。
-- 负责：命令二级菜单以结构化动作声明模型、Skills、MCP、任务和显示设置等合法操作；返回、取消、禁用原因和缺少后续实体选择均保持可见，不把自由文本参数伪装成可枚举菜单。
+- 负责：一级命令仅保留帮助、状态、会话恢复、前台任务控制、差异、证据和 Agent mode；`/模式` 二级菜单直接列举 low/medium/high/ultra，返回、取消、禁用原因保持可见。
 - 负责：底部状态栏左侧显示动态任务状态，右侧显示模型、耗时等稳定上下文；窗口变窄时按优先级隐藏右侧信息，动态文本不得左右跳动。
 - 不负责：复制 Agent 状态机、直接执行工具、直接访问 provider、切换活动任务的模型，或绕过 `ActionPolicy` 权限决定。
 - 不负责：接管 Windows Terminal 字体、调色板、复制设置或鼠标选择；不提供默认全屏仪表板、固定顶部栏或应用自有滚动历史。
 - 不负责：首版 Linux/macOS 端到端适配、IDE 插件、Web UI、远程多用户服务或桌面应用。
 - 同一 TUI 同时只管理一个前台任务；运行中的普通输入作为 steering 排队，而非创建第二任务。
-- `Esc` 暂停并创建 checkpoint，关闭 TUI 中断并创建 checkpoint，显式停止转为失败；语言切换只替换 UI catalog，不改变模型上下文或工作区文件。
+- `Esc` 暂停并创建 checkpoint，关闭 TUI 中断并创建 checkpoint，显式停止转为失败；运行中的普通输入作为 steering，不额外暴露重复命令。
 - 负责在单栏转录中呈现 evidence-backed completion、partial/unverified 差异、当前未满足条件及 `/证据`、`/evidence` 查询；不自行判定验证成功。
 - 负责：在输入区上方提供键盘可操作的上下文 Picker；命令、会话、模式/模型、Skills、MCP 和插件贡献共用选择、过滤、补全、禁用原因与错误恢复语义。
 - 负责：明确分开展示 Agent 模式与访问权限，并显示模式对应的实际模型、Oracle、成本/延迟定位和下一任务生效边界。
@@ -36,7 +36,7 @@
 - 负责：从类型化写入结果和注入的只读 Git 服务生成 diff 统计与有界 unified diff；支持文件/区块导航、评论反馈、路径过滤、窄屏布局和 `NO_COLOR` 回退。
 - 负责：stage/unstage 等改变 Git 索引的操作只能由显式用户命令委托 typed Git action，并经过与其他写动作相同的策略、审批和审计；界面不直接调用 Git。
 - 负责：会话 Picker 显示标题、预览、状态、更新时间和消息数；读取与恢复语义分离，超长 Thread 使用分页、窗口读取和搜索。
-- 负责：模式、模型、Skills、MCP 和插件操作显示当前值、来源、信任、健康、风险与生效边界，不接收密钥、任意 URL 或启动命令。
+- 负责：模式操作显示当前 mode、实际模型和生效边界，不接收 profile、密钥、任意 URL、启动命令或权限变更。
 - 负责：原始 reasoning 不进入转录、状态或会话；只呈现本地生命周期推导的活动标签，或 provider 明确标注、脱敏且有界的 reasoning summary。
 - 负责：维持一个前台父任务、追加式单栏转录和最小动态尾部；子 Agent 是该任务内的层级执行，不引入默认全屏、多栏、固定侧栏或卡片化仪表盘。
 - 不负责：调度子 Agent、生成语义摘要、执行插件提案，或把 mode、Oracle、插件和 UI 选择解释为权限授权或 verification evidence。
@@ -47,7 +47,7 @@
 - `AgentController`、`ForegroundTaskController`: 向交互和非交互调用暴露同一核心事件与前台任务控制 | 调用内核 | 仅实际 created/running 执行阻止并发启动，paused/interrupted 等可恢复记录不得永久锁死新会话
 - `ForegroundTaskController.interrupt(task_id, reason)`: 取消活动 token 并持久化 `INTERRUPTED` checkpoint | SQLite I/O | 不在 runner 返回时兜底完成任务
 - `parse_command`、`execute_command`: 解析并委托稳定 CLI 语义，文本命令复用可信 Markdown 终端渲染 | 写入调用方输出 | 不直接输出模型 Markdown 控制标记，不直接退出或组合依赖
-- `parse_tui_command(text)`、`filter_palette(input)`: 解析斜杠命令并筛选已接入的候选 | 无副作用 | 以结构化错误恢复，不显示占位或危险命令
+- `parse_tui_command(text)`、`filter_palette(input)`: 解析斜杠命令并筛选已接入的候选 | 无副作用 | 精确命令名和别名优先于描述匹配，完整参数原样提交，以结构化错误恢复且不显示未接通、占位或危险命令
 - `CommandRegistry`: 声明命令、别名、参数、依赖、可用性与执行委托 | 无副作用 | 是解析、帮助、调色板和补全的唯一目录
 - `CommandAction`、`CommandRegistry.resolve(...)`：声明并解析复合命令的二级动作 | 无副作用 | 只列举真实接通动作，需要自由文本参数时保留输入边界
 - `InputEvent`、`ExitGuard`: 归一键盘/粘贴/控制信号并实施双击退出状态机 | 进程内状态 | 粘贴不提交，状态机可注入时钟
@@ -61,5 +61,6 @@
 - `HostInteraction`、`InteractionBroker`、`plugin_interaction`：统一 Host 与插件的 `notify`、`confirm`、`input`、`select` 请求及可取消结果 | 异步状态 | 插件请求转换为 Host 所有的交互，不接受预填用户答案。
 - `DiffController.load(...)`、`DiffView`：优先从注入的只读 Git 服务读取真实 unified diff，并提供文件导航、路径过滤和评论 | 只读服务调用/进程内状态 | 不直接 stage、unstage 或执行 Git。
 - `ModePermissionView`：分开展示模式实际模型、Oracle、推理强度、生效边界与访问权限 | 无副作用 | 模式信息绝不解释为授权。
+- `ModeControl.list()`、`use(name, idle)`：列出冻结的四档 mode 并在空闲边界委托运行时切换 | 调用注入的异步重建回调 | 回调成功后才更新当前 mode，活动任务和未知 mode 失败闭合。
 - `TuiInteractions`：把 Picker、可见审批、steering 生命周期和结构化 diff 委托给单栏 TUI | 终端显示/进程内状态 | 审批默认拒绝，`Enter` 明确选择，`Esc` 取消。
 - `AgentRunStatusProjection.observe(view)`：将子 Agent 状态变化投影为去重、有界的生命周期行 | 进程内状态 | 只消费 Orchestration 快照，不从工具名称猜测状态。

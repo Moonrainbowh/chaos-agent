@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import sys
 import tempfile
 import unittest
@@ -14,9 +15,12 @@ if str(SRC_ROOT) not in sys.path:
 from code_agent_win.app import RootActionDispatcher  # noqa: E402
 from code_agent.core.cancellation import CancellationToken  # noqa: E402
 from code_agent.core.models import ActionRequest, ActionResult  # noqa: E402
+from code_agent.core.task import TaskAuthorization  # noqa: E402
 from code_agent.interfaces.terminal_state import ApprovalBroker  # noqa: E402
 from code_agent.policy.engine import ActionPolicy, PolicyConfig  # noqa: E402
 from code_agent.policy.models import ApprovalMode  # noqa: E402
+from code_agent.runtime.models import CommandResult, TerminationReason  # noqa: E402
+from code_agent.verification.local_adapter import LocalVerificationAdapter  # noqa: E402
 from code_agent.workspace.edits import WorkspaceEditor  # noqa: E402
 from code_agent.workspace.files import WorkspaceFiles  # noqa: E402
 from code_agent.workspace.ignore import IgnoreRules  # noqa: E402
@@ -93,6 +97,95 @@ class RootActionDispatcherTests(unittest.IsolatedAsyncioTestCase):
         result = await dispatcher.dispatch(ActionRequest("call-1", "write_file", {"path": "note.txt", "content": "after\n"}), CancellationToken())
         self.assertTrue(result.is_error)
         self.assertEqual(invalidated, [])
+
+    async def test_completed_command_invalidates_workspace_derived_caches(self) -> None:
+        class Runtime:
+            async def run(self, spec, cancellation, sink):
+                return CommandResult(
+                    argv=("powershell",),
+                    display_command="Set-Content generated.txt x",
+                    returncode=0,
+                    reason=TerminationReason.EXITED,
+                    stdout=b"",
+                    stderr=b"",
+                    duration_s=0,
+                    truncated=False,
+                    cwd=".",
+                )
+
+        invalidated: list[tuple[str, ...]] = []
+        guard = WorkspacePathGuard(self.root)
+        approvals = ApprovalBroker()
+        dispatcher = RootActionDispatcher(
+            WorkspaceFiles(guard, IgnoreRules.from_workspace(self.root)),
+            WorkspaceEditor(guard),
+            ActionPolicy(
+                PolicyConfig(ApprovalMode.FULL_LOCAL, workspace_root=self.root)
+            ),
+            approvals,
+            runtime=Runtime(),
+            invalidate_cache=lambda paths: invalidated.append(tuple(paths)),
+        )
+        dispatcher.interactive = True
+
+        running = asyncio.create_task(
+            dispatcher.dispatch(
+                ActionRequest(
+                    "call-1",
+                    "run_command",
+                    {"command": "Set-Content generated.txt x"},
+                ),
+                CancellationToken(),
+            )
+        )
+        approval = await approvals.next_request()
+        approvals.resolve(approval.request_id, True)
+        result = await running
+
+        self.assertFalse(result.is_error)
+        self.assertEqual(invalidated, [()])
+
+    async def test_completed_verification_invalidates_workspace_derived_caches(self) -> None:
+        class Runtime:
+            async def run(self, spec, cancellation, sink):
+                return CommandResult(
+                    argv=("python",),
+                    display_command="python -m compileall .",
+                    returncode=0,
+                    reason=TerminationReason.EXITED,
+                    stdout=b"",
+                    stderr=b"",
+                    duration_s=0,
+                    truncated=False,
+                    cwd=".",
+                )
+
+        invalidated: list[tuple[str, ...]] = []
+        guard = WorkspacePathGuard(self.root)
+        dispatcher = RootActionDispatcher(
+            WorkspaceFiles(guard, IgnoreRules.from_workspace(self.root)),
+            WorkspaceEditor(guard),
+            ActionPolicy(
+                PolicyConfig(ApprovalMode.AUTO, workspace_root=self.root)
+            ),
+            ApprovalBroker(),
+            runtime=Runtime(),
+            verification=LocalVerificationAdapter(self.root),
+            invalidate_cache=lambda paths: invalidated.append(tuple(paths)),
+        )
+
+        result = await dispatcher.dispatch(
+            ActionRequest(
+                "call-1",
+                "run_verification",
+                {"kind": "python_compileall"},
+            ),
+            CancellationToken(),
+            TaskAuthorization.local_workspace(str(self.root)),
+        )
+
+        self.assertFalse(result.is_error)
+        self.assertEqual(invalidated, [()])
 
     async def test_ask_mode_rejects_noninteractive_write_without_waiting(self) -> None:
         guard = WorkspacePathGuard(self.root)

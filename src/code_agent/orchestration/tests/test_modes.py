@@ -51,11 +51,15 @@ class ModeRegistryTests(unittest.TestCase):
             (
                 ReasoningEffort.LOW,
                 ReasoningEffort.MEDIUM,
-                ReasoningEffort.XHIGH,
+                ReasoningEffort.HIGH,
                 ReasoningEffort.XHIGH,
             ),
         )
         self.assertEqual(len({item.prompt_policy for item in definitions}), 4)
+        self.assertEqual(
+            {item.limits for item in definitions},
+            {EngineLimits(120, 256, 64, 800_000, 1_000_000)},
+        )
 
     def test_freeze_records_actual_models_and_round_trips(self) -> None:
         registry = ModeRegistry(

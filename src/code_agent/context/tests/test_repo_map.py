@@ -49,7 +49,11 @@ class RepoMapBuilderTests(unittest.TestCase):
         config: ContextConfig | None = None,
         cache: RepoMapCache | None = None,
     ) -> RepoMapBuilder:
-        return RepoMapBuilder(self.files, config or self.config, cache=cache)
+        return RepoMapBuilder(
+            self.files,
+            config or self.config,
+            cache=cache,
+        )
 
     def entries_by_path(self) -> dict[str, object]:
         return {entry.path: entry for entry in self.builder().build()}
@@ -200,6 +204,7 @@ class RepoMapBuilderTests(unittest.TestCase):
         builder = self.builder(cache=RepoMapCache())
         self.assertEqual(builder.build(query="first")[0].path, "module.py")
         self.write("module.py", "def second_symbol():\n    pass\n")
+        builder.invalidate(("module.py",))
 
         entries = builder.build(query="second_symbol")
 
@@ -233,6 +238,7 @@ class RepoMapBuilderTests(unittest.TestCase):
         self.assertEqual(first["consumer.py"].dependencies, ())
 
         self.write("provider.py", "def provide():\n    pass\n")
+        builder.invalidate(("provider.py",))
         second = builder.build()
         updated = {entry.path: entry for entry in second}
 

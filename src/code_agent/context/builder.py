@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from typing import Sequence
 
 from code_agent.core.models import ContextBundle, Message, ToolDefinition
@@ -14,6 +15,23 @@ from .repo_map import RepoMapBuilder
 from .rules import RuleLoader
 from .tokens import estimate_tokens
 from .task_state import render_task_state
+
+
+_GREETING = frozenset(
+    {
+        "hi",
+        "hello",
+        "hey",
+        "你好",
+        "您好",
+        "在吗",
+        "谢谢",
+        "早上好",
+        "下午好",
+        "晚上好",
+    }
+)
+_GREETING_PUNCTUATION = re.compile(r"[\s!！?？,.，。]+")
 
 
 class WorkspaceContextBuilder:
@@ -102,13 +120,16 @@ class WorkspaceContextBuilder:
         )
         compacted = self.compactor.compact(working, allocation.message_tokens)
         query = user_input or _latest_user_text(compacted.messages)
-        rendered_map, cache_hits, cache_misses = self.repo_map.cache.measure_operation(
-            lambda: self.repo_map.render(
-                query,
-                (),
-                allocation.repo_map_tokens,
+        if self.config.repo_map_enabled and _requires_repo_map(query):
+            rendered_map, cache_hits, cache_misses = (
+                self.repo_map.render_with_metrics(
+                    query,
+                    _touched_files(task_state),
+                    allocation.repo_map_tokens,
+                )
             )
-        )
+        else:
+            rendered_map, cache_hits, cache_misses = "", 0, 0
         system_prompt = prefix + rendered_map
         prompt_tokens = (
             estimate_tokens(system_prompt)
@@ -142,6 +163,19 @@ def _latest_user_text(messages: Sequence[Message]) -> str:
         if message.role == "user":
             return message.content
     return ""
+
+
+def _requires_repo_map(query: str) -> bool:
+    normalized = _GREETING_PUNCTUATION.sub("", query).casefold()
+    return normalized not in _GREETING
+
+
+def _touched_files(task_state: TaskState) -> tuple[str, ...]:
+    return tuple(
+        dict.fromkeys(
+            (*task_state.files_changed, *task_state.files_read)
+        )
+    )
 
 
 def _render_tools(tools: Sequence[ToolDefinition]) -> str:

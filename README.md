@@ -71,9 +71,10 @@ $env:CHAOS_BASE_URL = "https://api.openai.com"
 $env:CHAOS_MODEL = "gpt-4.1-mini"
 ```
 
-Profile limits belong in the TOML provider table. The terminal `/模型 列表` and
-`/模型 使用 <profile>` commands expose only configured profiles; switching is
-allowed only while idle and never accepts a URL, protocol, or API key.
+Profile limits belong in the TOML provider table. In the terminal, `/模式`
+shows the current mode and each mode's bound model; `/模式
+low|medium|high|ultra` rebuilds the main runtime while idle and applies to the
+next task. It never accepts a URL, protocol, API key, or permission change.
 
 Provider selection values:
 
@@ -105,11 +106,10 @@ medium transcript spacing, cyan emphasis, dim-gray tool records, and green
 only for task-level completion. The live tail keeps a single bordered composer;
 typing `/` places keyboard-selectable command candidates above it; `Up`/`Down`
 move, `Enter` completes or selects, and `Esc` closes the Picker. Disabled
-candidates retain a visible reason. The status row
-keeps dynamic work on the left and model/elapsed context on the right when
-space allows. `/主题 signal|symbol|plain`, `/字形`, and `/颜色` change only
-application rendering and never modify the terminal font or profile. `signal`
-and `plain` retain ASCII-compatible fallbacks; `NO_COLOR` disables ANSI color.
+candidates retain a visible reason. `/帮助` prints the compact, grouped command
+set, while `/帮助 <command>` explains one command. The status row keeps dynamic
+work on the left and model/elapsed context on the right when space allows.
+`NO_COLOR` disables ANSI color.
 
 Skills are discovered only from `%USERPROFILE%\.agents\skills\<id>` and
 `<workspace>\.agents\skills\<id>`, each containing `SKILL.md` with optional
@@ -119,12 +119,10 @@ cannot register tools, execute scripts, call the network, or change policy.
 
 MCP configuration uses approved, structured stdio entries under
 `[mcp.servers.<name>]`: `command`, `args`, optional `cwd`, an environment-name
-allowlist, `tool_risks`, plus `enabled` and `approved`. `/mcp 启用 <server>`
-starts an approved server through the installed SDK, discovers only tools with
-a local `read`/`write`/`network`/`critical` risk mapping, and exposes those as
-`mcp.<server>.<tool>`. They then route through the same policy decision and
-approval boundary as built-in tools. `/mcp 禁用` and `/mcp 重启` close the
-managed SDK session before removing or rediscovering tools.
+allowlist, `tool_risks`, plus `enabled` and `approved`. Approved servers are
+started through the installed SDK, expose only tools with a local
+`read`/`write`/`network`/`critical` risk mapping, and route through the same
+policy and approval boundary as built-in tools.
 
 Declarative plugins are discovered from
 `%LOCALAPPDATA%\chaos-agent\plugins\<id>\plugin.json` and
@@ -156,11 +154,10 @@ paths outside the workspace, unknown tools, and critical commands remain
 blocked or require an explicit decision.
 
 Use `Esc` or `/暂停 <task-id>` to pause, `/继续 <task-id>` to resume, `/停止
-<task-id>` to stop, `/任务` to inspect tasks, and `/引导 <text>` to queue
-guidance. Process commands are `chaos-agent task list` and `chaos-agent task resume
-<task-id> [instruction]`. Chinese Windows uses Chinese task chrome by default;
-`/language en` selects English UI labels. Paths, commands, model names, Git
-refs, and raw tool data are never translated.
+<task-id>` to stop, and `/任务` to inspect tasks. Ordinary input submitted while
+a task is running queues guidance for that same task. Process commands are
+`chaos-agent task list` and `chaos-agent task resume <task-id> [instruction]`.
+Paths, commands, model names, Git refs, and raw tool data are never translated.
 
 Bracketed multi-line paste normalizes CRLF/CR to LF and inserts one bounded
 input block without submitting it. Pressing `Ctrl+C` once pauses/rejects/clears

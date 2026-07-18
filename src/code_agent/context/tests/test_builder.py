@@ -6,6 +6,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 SRC_ROOT = Path(__file__).resolve().parents[3]
@@ -75,7 +76,7 @@ class WorkspaceContextBuilderTests(unittest.IsolatedAsyncioTestCase):
             bundle.measurements["repo_map_tokens"],
             self.config.prompt_budget.max_repo_map_tokens,
         )
-        self.assertGreater(bundle.measurements["cache_misses"], 0)
+        self.assertEqual(bundle.measurements["cache_misses"], 1)
         self.assertEqual(bundle.measurements["cache_hits"], 0)
         self.assertEqual(bundle.measurements["removed_message_count"], 0)
         again = await self.builder.build(history, "inspect tool", (), TaskState.empty())
@@ -99,6 +100,70 @@ class WorkspaceContextBuilderTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Root constraint.", bundle.system_prompt)
         self.assertIn("src/tool.py", bundle.system_prompt)
         self.assertLessEqual(len(bundle.messages), len(history))
+
+    async def test_disabled_repo_map_never_scans_workspace_files(self) -> None:
+        config = ContextConfig(
+            self.root,
+            self.cwd,
+            "Stable system prefix.",
+            repo_scan=100,
+            repo_map_enabled=False,
+        )
+        guard = WorkspacePathGuard(self.root)
+        files = WorkspaceFiles(guard, IgnoreRules.from_workspace(self.root))
+        repo_map = RepoMapBuilder(files, config)
+        builder = WorkspaceContextBuilder(
+            config,
+            RuleLoader(guard, files, config),
+            repo_map,
+            DeterministicCompactor(config),
+        )
+
+        with patch.object(
+            repo_map,
+            "render_with_metrics",
+            side_effect=AssertionError("repo map must stay disabled"),
+        ):
+            bundle = await builder.build(
+                (), "explain this directory", (), TaskState.empty()
+            )
+
+        self.assertNotIn("src/tool.py", bundle.system_prompt)
+        self.assertEqual(bundle.measurements["cache_hits"], 0)
+        self.assertEqual(bundle.measurements["cache_misses"], 0)
+
+    async def test_greeting_skips_repo_map_in_a_project_context(self) -> None:
+        with patch.object(
+            self.builder.repo_map,
+            "render_with_metrics",
+            side_effect=AssertionError("greetings must not scan the repository"),
+        ):
+            bundle = await self.builder.build(
+                (), "你好！", (), TaskState.empty()
+            )
+
+        self.assertNotIn("src/tool.py", bundle.system_prompt)
+        self.assertEqual(bundle.measurements["cache_hits"], 0)
+        self.assertEqual(bundle.measurements["cache_misses"], 0)
+
+    async def test_build_passes_changed_then_read_paths_to_turn_view(self) -> None:
+        task_state = TaskState(
+            files_read=("src/read.py", "src/shared.py"),
+            files_changed=("src/changed.py", "src/shared.py"),
+        )
+
+        with patch.object(
+            self.builder.repo_map,
+            "render_with_metrics",
+            wraps=self.builder.repo_map.render_with_metrics,
+        ) as render:
+            await self.builder.build((), "repair", (), task_state)
+
+        self.assertEqual(render.call_count, 1)
+        self.assertEqual(
+            render.call_args.args[1],
+            ("src/changed.py", "src/shared.py", "src/read.py"),
+        )
 
     async def test_build_rejects_invalid_message_sequences(self) -> None:
         with self.assertRaises(TypeError):
@@ -152,11 +217,13 @@ class WorkspaceContextBuilderTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_concurrent_builds_attribute_cache_counts_to_their_own_render(self) -> None:
         class SlowRepoMapBuilder(RepoMapBuilder):
-            def render(
+            def render_with_metrics(
                 self, query: str, touched_files: tuple[str, ...], token_budget: int
-            ) -> str:
+            ) -> tuple[str, int, int]:
                 time.sleep(0.05)
-                return super().render(query, touched_files, token_budget)
+                return super().render_with_metrics(
+                    query, touched_files, token_budget
+                )
 
         guard = WorkspacePathGuard(self.root)
         files = WorkspaceFiles(guard, IgnoreRules.from_workspace(self.root))
@@ -168,8 +235,8 @@ class WorkspaceContextBuilderTests(unittest.IsolatedAsyncioTestCase):
         )
 
         first, second = await asyncio.gather(
-            builder.build((), "first", (), TaskState.empty()),
-            builder.build((), "second", (), TaskState.empty()),
+            builder.build((), "same", (), TaskState.empty()),
+            builder.build((), "same", (), TaskState.empty()),
         )
 
         counts = sorted(
@@ -178,7 +245,7 @@ class WorkspaceContextBuilderTests(unittest.IsolatedAsyncioTestCase):
                 for bundle in (first, second)
             )
         )
-        self.assertEqual(counts, [(0, 3), (3, 0)])
+        self.assertEqual(counts, [(0, 1), (1, 0)])
 
 
 if __name__ == "__main__":

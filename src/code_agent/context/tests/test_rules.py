@@ -4,6 +4,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 SRC_ROOT = Path(__file__).resolve().parents[3]
@@ -80,6 +81,33 @@ class RuleLoaderTests(unittest.TestCase):
             "root", "python", "zeta", "source", "feature"
         ])
         self.assertEqual(sum(rule.path == "AGENTS.md" for rule in rules), 1)
+
+    def test_root_extension_discovery_does_not_enumerate_the_workspace(self) -> None:
+        self.write("AGENTS.python.md", "python")
+
+        with patch.object(
+            self.files,
+            "list_files",
+            side_effect=AssertionError("recursive workspace listing is forbidden"),
+        ):
+            rules = self.loader().load()
+
+        self.assertEqual([rule.path for rule in rules], ["AGENTS.python.md"])
+
+    def test_unchanged_root_extension_names_are_discovered_once_per_loader(self) -> None:
+        self.write("AGENTS.python.md", "python")
+        loader = self.loader()
+
+        with patch.object(
+            loader,
+            "_discover_root_extensions",
+            wraps=loader._discover_root_extensions,
+        ) as discover:
+            first = loader.load()
+            second = loader.load()
+
+        self.assertEqual(first, second)
+        self.assertEqual(discover.call_count, 1)
 
     def test_missing_rule_files_are_skipped_and_render_has_path_boundaries(self) -> None:
         self.write("src/feature/AGENTS.md", "Use the local contract.")

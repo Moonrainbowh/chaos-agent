@@ -4,9 +4,11 @@ import fnmatch
 import math
 import os
 import time
+from collections import OrderedDict
 from dataclasses import dataclass
 from itertools import islice
 from pathlib import Path
+from threading import RLock
 from typing import Callable, Iterator, Sequence
 
 import regex as regex_lib
@@ -24,6 +26,8 @@ from .paths import WorkspacePathGuard
 
 DEFAULT_MAX_BYTES = 1_000_000
 DEFAULT_MAX_ENTRIES = 10_000
+DEFAULT_INVENTORY_TTL_S = 300.0
+MAX_INVENTORY_CACHE_ENTRIES = 16
 MAX_SEARCH_PATTERN_LENGTH = 10_000
 
 
@@ -53,6 +57,7 @@ class WorkspaceFiles:
         ignore: IgnoreRules,
         *,
         search_timeout_s: float = 2.0,
+        inventory_ttl_s: float = DEFAULT_INVENTORY_TTL_S,
     ) -> None:
         if isinstance(search_timeout_s, bool) or not isinstance(
             search_timeout_s, (int, float)
@@ -60,9 +65,21 @@ class WorkspaceFiles:
             raise TypeError("search_timeout_s must be a number")
         if not math.isfinite(search_timeout_s) or search_timeout_s <= 0:
             raise ValueError("search_timeout_s must be positive and finite")
+        if isinstance(inventory_ttl_s, bool) or not isinstance(
+            inventory_ttl_s, (int, float)
+        ):
+            raise TypeError("inventory_ttl_s must be a number")
+        if not math.isfinite(inventory_ttl_s) or inventory_ttl_s <= 0:
+            raise ValueError("inventory_ttl_s must be positive and finite")
         self.guard = guard
         self.ignore = ignore
         self.search_timeout_s = float(search_timeout_s)
+        self.inventory_ttl_s = float(inventory_ttl_s)
+        self._inventory_cache: OrderedDict[
+            tuple[int, int], tuple[float, int | None, tuple[str, ...]]
+        ] = OrderedDict()
+        self._inventory_lock = RLock()
+        self._inventory_invalidation_requested = False
 
     def list_files(
         self,
@@ -83,7 +100,53 @@ class WorkspaceFiles:
         del sorted  # The underlying iterator is ordered for both modes.
         if root is not None:
             return tuple(islice(self._iter_external_files(root, scan_limit), max_entries))
-        return tuple(islice(self._iter_files(scan_limit), max_entries))
+        key = (max_entries, scan_limit)
+        with self._inventory_lock:
+            if self._inventory_invalidation_requested:
+                self._inventory_cache.clear()
+                self._inventory_invalidation_requested = False
+            now = time.monotonic()
+            expired = tuple(
+                cache_key
+                for cache_key, cached_value in self._inventory_cache.items()
+                if now >= cached_value[0]
+            )
+            for cache_key in expired:
+                self._inventory_cache.pop(cache_key, None)
+            root_signature = _directory_signature(self.guard.root)
+            cached = self._inventory_cache.get(key)
+            if (
+                cached is not None
+                and now < cached[0]
+                and root_signature == cached[1]
+            ):
+                self._inventory_cache.move_to_end(key)
+                return cached[2]
+            listed = tuple(islice(self._iter_files(scan_limit), max_entries))
+            if self._inventory_invalidation_requested:
+                self._inventory_cache.clear()
+                self._inventory_invalidation_requested = False
+                return listed
+            self._inventory_cache[key] = (
+                now + self.inventory_ttl_s,
+                root_signature,
+                listed,
+            )
+            self._inventory_cache.move_to_end(key)
+            while len(self._inventory_cache) > MAX_INVENTORY_CACHE_ENTRIES:
+                self._inventory_cache.popitem(last=False)
+            return listed
+
+    def invalidate_inventory(self) -> None:
+        """Discard cached workspace-root listings after possible file changes."""
+        self._inventory_invalidation_requested = True
+        if not self._inventory_lock.acquire(blocking=False):
+            return
+        try:
+            self._inventory_cache.clear()
+            self._inventory_invalidation_requested = False
+        finally:
+            self._inventory_lock.release()
 
     def read_text(
         self,
@@ -308,3 +371,10 @@ def _scan_limit(max_entries: int, supplied: int | None) -> int:
     if supplied <= 0:
         raise ValueError("max_scanned_entries must be positive")
     return supplied
+
+
+def _directory_signature(path: Path) -> int | None:
+    try:
+        return path.stat().st_mtime_ns
+    except OSError:
+        return None

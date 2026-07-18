@@ -16,7 +16,6 @@ from code_agent.core.models import (
 )
 from code_agent.orchestration.models import (
     AgentDefinition,
-    AgentMode,
     AgentRole,
     AgentUsage,
     ChildRunRequest,
@@ -29,6 +28,7 @@ from code_agent.orchestration.modes import ModeRegistry
 from code_agent.orchestration.supervisor import ChildRunSupervisor
 from code_agent.orchestration.supervisor import ChildRunSupervisor
 from code_agent.providers.config import ModelProfile
+from code_agent_win.agent_modes import child_mode_for_role
 
 
 _READ_ONLY_ROLES = {
@@ -120,19 +120,17 @@ class SubagentTool:
         supervisor: ChildRunSupervisor,
         mode_registry: ModeRegistry,
         profiles: dict[str, ModelProfile],
-        default_mode: AgentMode = AgentMode.MEDIUM,
     ) -> None:
         self._supervisor = supervisor
         self._modes = mode_registry
         self._profiles = profiles
-        self._default_mode = default_mode
 
     async def dispatch(
         self, request: ActionRequest, cancellation: CancellationToken
     ) -> ActionResult:
         arguments = request.arguments
         role = AgentRole(str(arguments["role"]))
-        snapshot = self._modes.freeze(self._default_mode, self._profiles)
+        snapshot = self._modes.freeze(child_mode_for_role(role), self._profiles)
         allowed = snapshot.definition.tool_names
         may_write = role is AgentRole.SUBAGENT and any(
             name in {"write_file", "replace_text", "run_verification", "run_command"}
@@ -197,13 +195,11 @@ class SubagentRuntime:
         runner: EngineChildRunner,
         mode_registry: ModeRegistry,
         profiles: dict[str, ModelProfile],
-        default_child_mode: AgentMode = AgentMode.MEDIUM,
         budget: ParentBudget = ParentBudget(),
     ) -> None:
         self._runner = runner
         self._modes = mode_registry
         self._profiles = profiles
-        self._default_child_mode = default_child_mode
         self._budget = budget
         self._parent: ContextVar[str] = ContextVar("subagent_parent", default="adhoc")
         self._supervisors: dict[str, ChildRunSupervisor] = {}
@@ -245,7 +241,6 @@ class SubagentRuntime:
             supervisor,
             self._modes,
             self._profiles,
-            self._default_child_mode,
         ).dispatch(request, cancellation)
 
     async def release(self, parent_id: str) -> None:

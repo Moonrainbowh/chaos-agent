@@ -88,7 +88,17 @@ class PickerState:
             text = " ".join((item.label, item.identifier, item.detail, *item.keywords)).casefold()
             if not all(term in text for term in terms):
                 continue
-            score = sum(4 if item.label.casefold().startswith(term) else 1 for term in terms)
+            label = item.label.casefold().lstrip("/")
+            label_tail = label.rsplit(" ", 1)[-1]
+            keywords = tuple(value.casefold() for value in item.keywords)
+            score = sum(
+                100 if term == label
+                else 50 if term == label_tail
+                else 40 if term in keywords
+                else 4 if label.startswith(term)
+                else 1
+                for term in terms
+            )
             ranked.append((-score, order, item))
         ranked.sort(key=lambda value: (value[0], value[1]))
         return tuple(value[2] for value in ranked)
@@ -151,7 +161,11 @@ def command_picker_items(
     result = []
     values = parent.actions if parent is not None else specs
     for spec in values:
-        missing = tuple(value for value in getattr(spec, "requires", ()) if value not in available)
+        requirements = (
+            *getattr(parent, "requires", ()),
+            *getattr(spec, "requires", ()),
+        )
+        missing = tuple(dict.fromkeys(value for value in requirements if value not in available))
         prefix = f"/{parent.name} " if parent is not None else "/"
         has_next = bool(spec.usage or (parent is None and spec.actions))
         result.append(

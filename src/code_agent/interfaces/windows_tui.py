@@ -21,6 +21,7 @@ from .terminal_status import status_context, status_presentation, status_snapsho
 from .terminal_tail import LiveTailGeometry, clear_live_tail, render_live_tail_frame
 from .terminal_state import ApprovalBroker, ApprovalRequest, TerminalState
 from .profile_control import ProfileControl
+from .mode_control import ModeControl
 from code_agent.skills.registry import SkillActivation
 from code_agent.mcp.registry import McpRegistry
 from .task_controller import ForegroundTaskController
@@ -30,7 +31,6 @@ from .evidence_view import format_evidence_summary
 from .tui_input import apply_paste, handle_interrupt
 from .command_availability import available_services
 from .tui_builtin_commands import handle_builtin_command
-from .tui_mcp_commands import handle_mcp_command
 from .tui_interactions import TuiInteractions
 from .diff_view import GitDiffSource
 class SessionBrowser(Protocol):
@@ -41,9 +41,9 @@ class EvidenceReader(Protocol):
 class WindowsTerminalApp:
     """Append-only Windows Terminal interaction without alternate-screen control."""
 
-    def __init__(self, controller: AgentController, approvals: ApprovalBroker, *, sessions: Optional[SessionBrowser] = None, evidence: Optional[EvidenceReader] = None, tasks: ForegroundTaskController | None = None, history: Optional[ThreadHistoryReader] = None, profiles: ProfileControl | None = None, skills: SkillActivation | None = None, mcp: McpRegistry | None = None, diff_source: GitDiffSource | None = None, write: Optional[Callable[[str], object]] = None) -> None:
+    def __init__(self, controller: AgentController, approvals: ApprovalBroker, *, sessions: Optional[SessionBrowser] = None, evidence: Optional[EvidenceReader] = None, tasks: ForegroundTaskController | None = None, history: Optional[ThreadHistoryReader] = None, profiles: ProfileControl | None = None, modes: ModeControl | None = None, skills: SkillActivation | None = None, mcp: McpRegistry | None = None, diff_source: GitDiffSource | None = None, write: Optional[Callable[[str], object]] = None) -> None:
         self.controller, self.approvals = controller, approvals
-        self.sessions, self.evidence, self.tasks, self.history, self.profiles, self.skills, self.mcp, self._write = sessions, evidence, tasks, history, profiles, skills, mcp, write or stdout_write
+        self.sessions, self.evidence, self.tasks, self.history, self.profiles, self.modes, self.skills, self.mcp, self._write = sessions, evidence, tasks, history, profiles, modes, skills, mcp, write or stdout_write
         self.state = TerminalState(); self.input = InputBuffer(); self.current_thread_id: str | None = None
         self.exit_guard = ExitGuard()
         self.interactions = TuiInteractions(diff_source)
@@ -133,7 +133,7 @@ class WindowsTerminalApp:
             palette=palette,
             status_icon=icon,
             status_color=status_color,
-            status_context=status_context(self.profiles.current.model if self.profiles else None, self._run_started_at, time.monotonic()),
+            status_context=status_context(self._current_model(), self._run_started_at, time.monotonic()),
             previous=self._tail_geometry,
         )
         self._write(frame.text)
@@ -186,68 +186,54 @@ class WindowsTerminalApp:
         if builtin is not None: return builtin
         if command.kind is TuiCommandKind.DIFF: await self.interactions.show_diff(self)
         elif command.kind is TuiCommandKind.STATUS:
-            self._append(DisplayKind.METADATA, status_snapshot(self.state.status, self.active_task_id or self.state.task_id, self.current_thread_id, self.profiles.current.model if self.profiles else None))
-        elif command.kind is TuiCommandKind.HELP: self._append(DisplayKind.METADATA, " ".join(item.display for item in REGISTRY.available(available_services(self))))
-        elif command.kind is TuiCommandKind.LANGUAGE:
-            value = (command.instruction or "").casefold()
-            if value in {"zh", "zh-cn"}:
-                self.catalog = catalog_for(Language.ZH_CN)
-            elif value in {"en", "en-us"}:
-                self.catalog = catalog_for(Language.EN_US)
+            self._append(DisplayKind.METADATA, status_snapshot(self.state.status, self.active_task_id or self.state.task_id, self.current_thread_id, self._current_model()))
+        elif command.kind is TuiCommandKind.HELP:
+            if command.instruction:
+                spec = REGISTRY.resolve(command.instruction)
+                if spec is None or spec not in REGISTRY.available(available_services(self)):
+                    self._append(DisplayKind.ERROR, "unknown or unavailable slash command"); return False
+                self._append(DisplayKind.METADATA, f"{spec.display} · {spec.description}")
             else:
-                self._append(DisplayKind.ERROR, "language must be zh-CN or en")
-                return False
-            self._append(DisplayKind.METADATA, "语言已切换" if self.catalog.language is Language.ZH_CN else "language updated")
-        elif command.kind is TuiCommandKind.THEME:
-            try: self.theme = Theme(command.instruction or "")
-            except ValueError: self._append(DisplayKind.ERROR, "theme must be signal, symbol, or plain"); return False
-            self._append(DisplayKind.METADATA, "theme updated")
-        elif command.kind is TuiCommandKind.COLOR:
-            try: self.color = ColorMode(command.instruction or "")
-            except ValueError: self._append(DisplayKind.ERROR, "color must be auto, always, or never"); return False
-            self._append(DisplayKind.METADATA, "color updated")
-        elif command.kind is TuiCommandKind.GLYPHS:
-            glyphs = command.instruction
-            if glyphs == "ascii": self.theme = Theme.SIGNAL
-            elif glyphs == "unicode": self.theme = Theme.SYMBOL
-            else: self._append(DisplayKind.ERROR, "glyphs must be ascii or unicode"); return False
-            self._append(DisplayKind.METADATA, "glyphs updated")
-        elif command.kind is TuiCommandKind.MODEL:
-            if self.profiles is None: self._append(DisplayKind.ERROR, "model profiles are unavailable"); return False
-            if command.instruction in {None, "列表", "list"}:
-                self._append(DisplayKind.METADATA, " | ".join(f"{item.name}:{item.model}" for item in self.profiles.list()))
-            elif command.instruction.startswith("使用 ") or command.instruction.startswith("use "):
-                name = command.instruction.split(maxsplit=1)[1]
-                try: selected = await self.profiles.use(name, idle=self._run_task is None or self._run_task.done())
-                except (ValueError, RuntimeError) as error: self._append(DisplayKind.ERROR, str(error)); return False
-                self._append(DisplayKind.METADATA, f"model selected: {selected.name}:{selected.model}")
-            else: self._append(DisplayKind.ERROR, "model expects list or use <profile>"); return False
-        elif command.kind is TuiCommandKind.SKILLS:
-            if self.skills is None: self._append(DisplayKind.ERROR, "skills are unavailable"); return False
-            action, _, identifier = (command.instruction or "").partition(" ")
-            if action in {"", "列表", "list"}: self._append(DisplayKind.METADATA, " | ".join(skill.identifier for skill in self.skills.available()))
-            elif action in {"信息", "info"} and identifier: self._append(DisplayKind.METADATA, self.skills.info(identifier).description)
-            elif action in {"启用", "enable"} and identifier: self.skills.activate(identifier, approved=True); self._append(DisplayKind.METADATA, f"skill enabled: {identifier}")
-            elif action in {"禁用", "disable"} and identifier: self.skills.deactivate(identifier); self._append(DisplayKind.METADATA, f"skill disabled: {identifier}")
-            else: self._append(DisplayKind.ERROR, "skills expects list, info, enable, or disable"); return False
-        elif command.kind is TuiCommandKind.MCP: return await handle_mcp_command(self, command.instruction)
+                self._append(
+                    DisplayKind.METADATA,
+                    _format_command_help(REGISTRY.available(available_services(self))),
+                )
+        elif command.kind is TuiCommandKind.MODE:
+            if self.modes is None: self._append(DisplayKind.ERROR, "agent modes are unavailable"); return False
+            if command.instruction is None:
+                current = self.modes.current
+                choices = " | ".join(f"{item.name}:{item.model}" for item in self.modes.list())
+                self._append(DisplayKind.METADATA, f"current {current.name}:{current.model} | {choices}")
+            else:
+                try:
+                    selected = await self.modes.use(
+                        command.instruction,
+                        idle=self._run_task is None or self._run_task.done(),
+                    )
+                except (ValueError, RuntimeError) as error:
+                    self._append(DisplayKind.ERROR, str(error)); return False
+                self._append(DisplayKind.METADATA, f"mode selected: {selected.name} · {selected.model}")
         elif command.kind is TuiCommandKind.EVIDENCE:
-            task_id = self.active_task_id or self.state.task_id
+            task_id = command.instruction or self.active_task_id or self.state.task_id
             if self.evidence is None or not task_id:
                 self._append(DisplayKind.ERROR, "evidence is unavailable"); return False
             self._append(DisplayKind.METADATA, format_evidence_summary(await self.evidence.list_verification_evidence(task_id)))
         elif self.tasks and command.kind is TuiCommandKind.TASKS:
             records = await self.tasks.list(include_terminal=True); self._append(DisplayKind.METADATA, " | ".join(f"{item.id}:{localize_task_status(item.status.value, self.catalog)}" for item in records))
-        elif self.tasks and command.kind in {TuiCommandKind.PAUSE, TuiCommandKind.STOP, TuiCommandKind.ACCEPT, TuiCommandKind.RESUME, TuiCommandKind.STEER}:
+        elif self.tasks and command.kind in {TuiCommandKind.PAUSE, TuiCommandKind.STOP, TuiCommandKind.ACCEPT, TuiCommandKind.RESUME}:
             task_id = command.task_id or self.active_task_id
             if not task_id: self._append(DisplayKind.ERROR, "no active task"); return False
             if command.kind is TuiCommandKind.PAUSE: await self.tasks.pause(task_id)
             elif command.kind is TuiCommandKind.STOP: await self.tasks.stop(task_id)
             elif command.kind is TuiCommandKind.ACCEPT: await self.tasks.accept_partial(task_id, command.instruction or "user accepted partial delivery")
-            elif command.kind is TuiCommandKind.STEER: await self.interactions.steer(self, task_id, command.instruction or "")
             else: self._run_task = asyncio.create_task(self._consume_task(task_id, "continue safely"))
         else: self._append(DisplayKind.ERROR, "command is unavailable")
         return True
+
+    def _current_model(self) -> str | None:
+        if self.modes is not None:
+            return self.modes.current.model
+        return self.profiles.current.model if self.profiles else None
 
     async def _listen_approvals(self) -> None:
         while True: self._pending_approval = await self.approvals.next_request(); self._approval_done.clear(); self.redraw(); await self._approval_done.wait()
@@ -295,3 +281,14 @@ class WindowsTerminalApp:
         for task in (self._run_task, self._approval_task, self._animation_task):
             if task: task.cancel()
         await asyncio.gather(*(task for task in (self._run_task, self._approval_task, self._animation_task) if task), return_exceptions=True)
+
+
+def _format_command_help(specs: Sequence[object]) -> str:
+    groups: dict[str, list[str]] = {}
+    for spec in specs:
+        groups.setdefault(spec.group, []).append(f"  {spec.display} · {spec.description}")
+    return "\n".join(
+        line
+        for group, commands in groups.items()
+        for line in (group, *commands)
+    )

@@ -95,8 +95,12 @@ class TuiInteractions:
             app.input.clear()
             return True
         if key == "\r":
+            if _is_complete_command(app.input.text, available_services(app)):
+                await app.submit(app.input.submit())
+                return True
             selection = self.picker.accept()
             if selection is None:
+                await app.submit(app.input.submit())
                 return True
             app.input.replace(selection.completion)
             if selection.completion.endswith(" "):
@@ -129,3 +133,23 @@ def _picker_context(text: str) -> tuple[object | None, str]:
     if parent is not None and parent.actions:
         return parent, remainder
     return None, body
+
+
+def _is_complete_command(text: str, services: set[str]) -> bool:
+    spec, arguments, error = REGISTRY.parse(text, services)
+    if error or spec is None:
+        return False
+    if arguments:
+        if spec.actions:
+            action = REGISTRY.resolve_action(spec, arguments[0])
+            if (
+                action is not None
+                and len(arguments) == 1
+                and action.usage
+                and not text[-1].isspace()
+            ):
+                return False
+        return True
+    if text[-1].isspace() and not spec.actions:
+        return True
+    return spec.usage.startswith("[")

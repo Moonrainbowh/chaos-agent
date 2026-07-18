@@ -205,7 +205,7 @@ class InputBufferTests(unittest.TestCase):
 
 
 class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
-    async def test_palette_executes_leaf_with_one_enter_and_opens_compound_menu(self) -> None:
+    async def test_palette_executes_leaf_with_one_enter_and_opens_mode_menu(self) -> None:
         app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker(), write=lambda _: None)
         app.input.replace("/状态")
 
@@ -214,11 +214,74 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(app.input.text, "")
         self.assertEqual(app.state.entries[-1].kind, DisplayKind.METADATA)
 
-        app.profiles = type("Profiles", (), {"current": type("Profile", (), {"model": "test-model"})()})()
-        app.input.replace("/模型")
+        app.modes = type("Modes", (), {"current": type("Mode", (), {"model": "test-model"})()})()
+        app.input.replace("/模式")
         await app.handle_key("\r")
-        self.assertEqual(app.input.text, "/模型 ")
-        self.assertTrue(any("/模型 列表" in row for row in app.interactions.rows(app)))
+        self.assertEqual(app.input.text, "/模式 ")
+        self.assertTrue(any("/模式 high" in row for row in app.interactions.rows(app)))
+
+    async def test_help_is_grouped_multiline_and_omits_removed_commands(self) -> None:
+        app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker(), write=lambda _: None)
+
+        self.assertTrue(await app.submit("/帮助"))
+
+        help_text = app.state.entries[-1].text
+        self.assertIn("通用\n", help_text)
+        self.assertIn("/帮助", help_text)
+        self.assertIn("/状态", help_text)
+        self.assertNotIn("/颜色", help_text)
+        self.assertNotIn("/模型", help_text)
+
+    async def test_exact_mode_command_never_selects_another_command(self) -> None:
+        app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker(), write=lambda _: None)
+        app.modes = type("Modes", (), {"current": type("Mode", (), {"model": "test-model"})()})()
+        app.input.replace("/")
+        app.interactions.rows(app)
+        app.interactions.picker.move(-1)
+        app.input.replace("/模式")
+
+        await app.handle_key("\r")
+
+        self.assertEqual(app.input.text, "/模式 ")
+
+    async def test_enter_submits_complete_restore_command_without_picker_replacement(self) -> None:
+        app = WindowsTerminalApp(
+            AgentController(FakeEngine(())), ApprovalBroker(), history=object(), write=lambda _: None,
+        )
+        seen = []
+
+        async def restore(thread_id: str) -> bool:
+            seen.append(thread_id)
+            return True
+
+        app.restore_thread = restore
+        app.input.replace("/恢复 T-042")
+
+        await app.handle_key("\r")
+
+        self.assertEqual(seen, ["T-042"])
+        self.assertEqual(app.input.text, "")
+
+    async def test_enter_switches_mode_and_updates_status_model(self) -> None:
+        class Modes:
+            current = type("Mode", (), {"name": "medium", "model": "old-model"})()
+
+            async def use(self, name: str, *, idle: bool):
+                self.seen = (name, idle)
+                self.current = type("Mode", (), {"name": name, "model": "new-model"})()
+                return self.current
+
+        modes = Modes()
+        app = WindowsTerminalApp(
+            AgentController(FakeEngine(())), ApprovalBroker(), modes=modes, write=lambda _: None,
+        )
+        app.input.replace("/模式 high")
+
+        await app.handle_key("\r")
+
+        self.assertEqual(modes.seen, ("high", True))
+        self.assertIn("mode selected: high · new-model", app.state.entries[-1].text)
+        self.assertEqual(app.input.text, "")
 
     async def test_user_cancellation_is_a_pause_not_an_error_entry(self) -> None:
         class CancelledTasks:

@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import sys
 import tempfile
+import threading
 import unittest
 from dataclasses import FrozenInstanceError
 from pathlib import Path
@@ -19,7 +20,10 @@ from code_agent.workspace.errors import (  # noqa: E402
     WorkspaceError,
 )
 import code_agent.workspace.files as files_module  # noqa: E402
-from code_agent.workspace.files import WorkspaceFiles  # noqa: E402
+from code_agent.workspace.files import (  # noqa: E402
+    MAX_INVENTORY_CACHE_ENTRIES,
+    WorkspaceFiles,
+)
 from code_agent.workspace.ignore import IgnoreRules  # noqa: E402
 from code_agent.workspace.paths import WorkspacePathGuard  # noqa: E402
 
@@ -59,6 +63,116 @@ class WorkspaceFilesTestCase(unittest.TestCase):
 
 
 class ListFilesTests(WorkspaceFilesTestCase):
+    def test_equal_root_listings_reuse_one_bounded_inventory_scan(self) -> None:
+        (self.root / "a.py").write_text("a", encoding="utf-8")
+        files = self.files()
+
+        with patch.object(
+            files, "_iter_files", wraps=files._iter_files
+        ) as iter_files:
+            first = files.list_files(max_entries=10, max_scanned_entries=100)
+            second = files.list_files(max_entries=10, max_scanned_entries=100)
+
+        self.assertEqual(first, ("a.py",))
+        self.assertEqual(second, first)
+        self.assertEqual(iter_files.call_count, 1)
+
+    def test_inventory_invalidation_refreshes_a_cached_root_listing(self) -> None:
+        (self.root / "src").mkdir()
+        (self.root / "src" / "a.py").write_text("a", encoding="utf-8")
+        files = self.files()
+
+        self.assertEqual(
+            files.list_files(max_entries=10, max_scanned_entries=100),
+            ("src/a.py",),
+        )
+        (self.root / "src" / "b.py").write_text("b", encoding="utf-8")
+        self.assertEqual(
+            files.list_files(max_entries=10, max_scanned_entries=100),
+            ("src/a.py",),
+        )
+
+        files.invalidate_inventory()
+
+        self.assertEqual(
+            files.list_files(max_entries=10, max_scanned_entries=100),
+            ("src/a.py", "src/b.py"),
+        )
+
+    def test_inventory_invalidation_does_not_wait_for_active_enumeration(self) -> None:
+        files = self.files()
+        scan_started = threading.Event()
+        release_scan = threading.Event()
+        invalidated = threading.Event()
+        calls = 0
+
+        def generated() -> object:
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                scan_started.set()
+                release_scan.wait(2)
+            yield "a.py"
+
+        with patch.object(files, "_iter_files", side_effect=lambda _: generated()):
+            listed: list[tuple[str, ...]] = []
+            listing = threading.Thread(
+                target=lambda: listed.append(
+                    files.list_files(
+                        max_entries=10,
+                        max_scanned_entries=100,
+                    )
+                )
+            )
+            listing.start()
+            self.assertTrue(scan_started.wait(1))
+            invalidator = threading.Thread(
+                target=lambda: (
+                    files.invalidate_inventory(),
+                    invalidated.set(),
+                )
+            )
+            invalidator.start()
+            try:
+                self.assertTrue(invalidated.wait(0.5))
+            finally:
+                release_scan.set()
+            listing.join(timeout=1)
+            invalidator.join(timeout=1)
+
+            refreshed = files.list_files(
+                max_entries=10,
+                max_scanned_entries=100,
+            )
+
+        self.assertEqual(listed, [("a.py",)])
+        self.assertEqual(refreshed, ("a.py",))
+        self.assertEqual(calls, 2)
+
+    def test_inventory_cache_evicts_old_budget_variants(self) -> None:
+        (self.root / "a.py").write_text("a", encoding="utf-8")
+        files = self.files()
+
+        with patch.object(
+            files, "_iter_files", wraps=files._iter_files
+        ) as iter_files:
+            for max_entries in range(1, MAX_INVENTORY_CACHE_ENTRIES + 2):
+                files.list_files(
+                    max_entries=max_entries,
+                    max_scanned_entries=100,
+                )
+            calls_after_distinct_budgets = iter_files.call_count
+            files.list_files(max_entries=1, max_scanned_entries=100)
+
+        self.assertEqual(
+            calls_after_distinct_budgets,
+            MAX_INVENTORY_CACHE_ENTRIES + 1,
+        )
+        self.assertEqual(
+            iter_files.call_count,
+            calls_after_distinct_budgets + 1,
+        )
+
     def test_scan_budget_stops_flat_directory_at_budget_plus_one(self) -> None:
         for index in range(10):
             (self.root / f"file-{index}.txt").write_text("x", encoding="utf-8")

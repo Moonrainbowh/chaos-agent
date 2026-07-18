@@ -1,23 +1,25 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
 
 from code_agent.config.loader import load_runtime_config
 from code_agent.context.builder import WorkspaceContextBuilder
-from code_agent.context.cache import RepoMapCache
 from code_agent.context.compaction import DeterministicCompactor
 from code_agent.context.models import ContextConfig
-from code_agent.context.repo_map import RepoMapBuilder
+from code_agent.context.repo_index import RepoIndexService
+from code_agent.context.repo_map import RepoMapBuilder, RepoMapViewCache
+from code_agent.context.repo_scan import RepoFileScanner
 from code_agent.context.rules import RuleLoader
 from code_agent.core.engine import AgentEngine
 from code_agent.core.limits import EngineLimits
 from code_agent.interfaces.approval import ApprovalBroker
 from code_agent.interfaces.capability_view import ModePermissionView, PermissionSummary
 from code_agent.interfaces.controller import AgentController
-from code_agent.interfaces.profile_control import ProfileControl
+from code_agent.interfaces.mode_control import ModeControl
 from code_agent.interfaces.task_controller import ForegroundTaskController
 from code_agent.mcp.official_sdk import OfficialMcpSdkAdapter
 from code_agent.mcp.registry import McpController, McpRegistry
@@ -41,8 +43,8 @@ from code_agent.workspace.paths import WorkspacePathGuard
 from code_agent_win.action_dispatcher import RootActionDispatcher
 from code_agent_win.agent_modes import (
     build_mode_registry,
-    default_child_mode,
     freeze_mode,
+    main_tools_for_mode,
     mode_prompt,
 )
 from code_agent_win.app_ui import (
@@ -55,6 +57,7 @@ from code_agent_win.runtime_support import host_risks, model_client, replace_mod
 from code_agent_win.subagents import EngineChildRunner, RestrictedDispatcher, SubagentRuntime
 from code_agent_win.tool_support import discover_git_workspace, windows_system_prompt
 from code_agent_win.tools import tool_definitions
+from code_agent_win.workspace_context import workspace_uses_repo_map
 
 
 _model_client = model_client
@@ -71,6 +74,7 @@ class Application:
     mode: ModeSnapshot | None = None
     plugins: PluginHost | None = None
     subagents: SubagentRuntime | None = None
+    repo_index: RepoIndexService | None = None
 
     async def aclose(self) -> None:
         if self.subagents is not None:
@@ -95,7 +99,10 @@ def create_application(
     guard = WorkspacePathGuard(root)
     files = WorkspaceFiles(guard, IgnoreRules.from_workspace(root))
     git = discover_git_workspace(root)
-    cache = RepoMapCache(root)
+    repo_scanner = RepoFileScanner(files)
+    repo_index = RepoIndexService(files, scan_file=repo_scanner.scan)
+    repo_view_cache = RepoMapViewCache()
+    repo_map_enabled = workspace_uses_repo_map(root, git_available=git is not None)
     runtime_config = load_runtime_config(cli_profile=profile_name)
     configured_profiles = {profile.name: profile for profile in runtime_config.profiles}
     modes, _ = build_mode_registry(configured_profiles, runtime_config.profile)
@@ -106,16 +113,30 @@ def create_application(
         initial = replace_model(initial, model_name)
         configured_profiles[initial_name] = initial
         snapshot = freeze_mode(modes, configured_profiles, snapshot.definition.mode.value)
+    mode_snapshots = {
+        mode: modes.freeze(mode, configured_profiles)
+        for mode in AgentMode
+    }
 
     skills = SkillActivation(SkillRegistry.discover(root))
 
     def context_for(mode: ModeSnapshot) -> object:
         prompt = windows_system_prompt(git is not None) + "\n\n" + mode_prompt(mode)
-        config = ContextConfig(root, root, prompt)
+        config = ContextConfig(
+            root,
+            root,
+            prompt,
+            repo_map_enabled=repo_map_enabled,
+        )
         context = WorkspaceContextBuilder(
             config,
             RuleLoader(guard, files, config),
-            RepoMapBuilder(files, config, cache=cache),
+            RepoMapBuilder(
+                files,
+                config,
+                index=repo_index,
+                view_cache=repo_view_cache,
+            ),
             DeterministicCompactor(config),
         )
         return SkillContextBuilder(context, skills)
@@ -141,6 +162,11 @@ def create_application(
     policy = ActionPolicy(
         PolicyConfig(runtime_config.approval_mode, workspace_root=root, mcp_risks=mcp_risks)
     )
+
+    def invalidate_workspace_context(paths: Sequence[str]) -> None:
+        repo_index.invalidate(paths)
+        files.invalidate_inventory()
+
     dispatcher = RootActionDispatcher(
         files,
         WorkspaceEditor(guard),
@@ -151,7 +177,7 @@ def create_application(
         verification=LocalVerificationAdapter(root),
         mcp=mcp,
         plugins=plugin_bridge,
-        invalidate_cache=cache.invalidate,
+        invalidate_cache=invalidate_workspace_context,
     )
     sessions = SQLiteSessionRepository(_session_path())
 
@@ -168,24 +194,33 @@ def create_application(
         EngineChildRunner(child_engine),
         modes,
         configured_profiles,
-        default_child_mode(snapshot.definition.mode),
     )
     dispatcher.subagents = subagents
     plugin_names = tuple(tool.name for tool in plugin_bridge.definitions())
-    main_tools = snapshot.definition.tool_names + (
-        plugin_names if snapshot.definition.mode in {AgentMode.HIGH, AgentMode.ULTRA} else ()
-    )
-    main_dispatcher = RestrictedDispatcher(dispatcher, main_tools)
+    def main_dispatcher_for(selected: ModeSnapshot) -> RestrictedDispatcher:
+        main_tools = main_tools_for_mode(selected.definition.tool_names, plugin_names)
+        return RestrictedDispatcher(dispatcher, main_tools)
+
+    main_dispatcher = main_dispatcher_for(snapshot)
     model = _model_client(initial.provider)
     initial_runner = _engine_for(
         model, initial, context_for(snapshot), main_dispatcher, sessions, root, snapshot
     )
     controller = AgentController(initial_runner)
 
+    active_snapshot = snapshot
+    build_snapshot = snapshot
+
     async def build_runtime(profile: ModelProfile) -> ProviderRuntime:
         client = _model_client(profile.provider)
         runner = _engine_for(
-            client, profile, context_for(snapshot), main_dispatcher, sessions, root, snapshot
+            client,
+            profile,
+            context_for(build_snapshot),
+            main_dispatcher_for(build_snapshot),
+            sessions,
+            root,
+            build_snapshot,
         )
         return ProviderRuntime(profile, client, runner)
 
@@ -196,13 +231,34 @@ def create_application(
         controller.replace_runner,
     )
 
-    async def apply_profile(profile: ModelProfile) -> None:
-        if profile.name != snapshot.definition.profile_id:
-            raise RuntimeError("profile is bound by the selected mode; choose another mode for the next task")
-        await manager.switch(profile.name, idle=True)
+    application_ref: list[Application] = []
+    tui_ref: list[ModeAwareWindowsTerminalApp] = []
 
-    profile_control = ProfileControl(
-        configured_profiles, snapshot.definition.profile_id, apply_profile
+    async def apply_mode(selected: ModeSnapshot) -> None:
+        nonlocal active_snapshot, build_snapshot
+        previous = active_snapshot
+        build_snapshot = selected
+        try:
+            await manager.switch(selected.definition.profile_id, idle=True)
+        except Exception:
+            build_snapshot = previous
+            raise
+        active_snapshot = selected
+        if application_ref:
+            application_ref[0].mode = selected
+        if tui_ref:
+            tui_ref[0].update_capability(
+                ModePermissionView(
+                    selected,
+                    PermissionSummary(runtime_config.approval_mode, str(root), False, True),
+                    applies_next_task=True,
+                )
+            )
+
+    mode_control = ModeControl(
+        mode_snapshots,
+        snapshot.definition.mode,
+        apply_mode,
     )
 
     def profile_facts() -> tuple[str, str, str, str]:
@@ -215,7 +271,7 @@ def create_application(
         )
 
     async def resolve_profile(name: str) -> None:
-        if name != snapshot.definition.profile_id:
+        if name != active_snapshot.definition.profile_id:
             raise RuntimeError("recorded task mode profile is unavailable")
         if manager.current.profile.name != name:
             await manager.switch(name, idle=True)
@@ -239,17 +295,29 @@ def create_application(
         evidence=sessions,
         history=sessions,
         tasks=foreground,
-        profiles=profile_control,
+        modes=mode_control,
         skills=skills,
         mcp=mcp,
         diff_source=GitDiffAdapter(git),
         capability=capability,
         plugin_errors=plugin_errors,
     )
+    tui_ref.append(tui)
     subagents.subscribe(lambda view: tui.interactions.observe_agent(tui, view))
-    return Application(
-        controller, foreground, tui, dispatcher, manager, mcp, snapshot, plugin_host, subagents
+    application = Application(
+        controller,
+        foreground,
+        tui,
+        dispatcher,
+        manager,
+        mcp,
+        snapshot,
+        plugin_host,
+        subagents,
+        repo_index,
     )
+    application_ref.append(application)
+    return application
 
 
 def _engine_for(

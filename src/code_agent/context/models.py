@@ -49,6 +49,7 @@ class ContextConfig:
     message_tokens: Optional[int] = None
     recent_messages: int = 12
     prompt_budget: PromptBudget = field(default_factory=PromptBudget)
+    repo_map_enabled: bool = True
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -59,6 +60,8 @@ class ContextConfig:
             raise TypeError("system_prompt must be text")
         if not self.system_prompt.strip():
             raise ValueError("system_prompt must be non-empty")
+        if not isinstance(self.repo_map_enabled, bool):
+            raise TypeError("repo_map_enabled must be a boolean")
         for label in (
             "max_rule_bytes",
             "max_rules_total",
