@@ -17,7 +17,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from code_agent.workspace.edits import WorkspaceEditor  # noqa: E402
-from code_agent.workspace.errors import FileTooLargeError, WorkspaceError  # noqa: E402
+from code_agent.workspace.errors import SnapshotIntegrityError, WorkspaceError  # noqa: E402
 from code_agent.workspace.paths import WorkspacePathGuard  # noqa: E402
 import code_agent.workspace._atomic_artifact_write as writer_module  # noqa: E402
 from code_agent.workspace.snapshot_store import (  # noqa: E402
@@ -153,7 +153,7 @@ class SnapshotIntegrityTests(unittest.TestCase):
             self.guard, self.artifacts, max_manifest_bytes=limit
         )
 
-        with self.assertRaises(FileTooLargeError):
+        with self.assertRaises(SnapshotIntegrityError):
             bounded.load(self.handle)
 
     def test_atomic_manifest_failure_cleans_same_directory_temporary_file(self) -> None:

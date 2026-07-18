@@ -8,8 +8,8 @@ import uuid
 from pathlib import Path
 
 from ._atomic_artifact_write import AtomicArtifactWriter
-from ._guarded_read import read_guarded_file
-from .errors import FileTooLargeError, WorkspaceError
+from ._guarded_read import _GuardedFileMissingError, read_guarded_file
+from .errors import FileTooLargeError, SnapshotMissingError, WorkspaceError
 from .paths import PathInput
 
 
@@ -33,25 +33,35 @@ class SnapshotArtifacts:
         raise WorkspaceError("cannot allocate a unique snapshot identifier")
 
     def read_manifest(self, identifier: str, limit: int) -> bytes:
-        return self._read(f"manifests/{identifier}.json", limit)
+        return self._read_referenced(
+            f"manifests/{identifier}.json", limit, artifact="manifest"
+        )
 
     def write_manifest(self, identifier: str, content: bytes) -> None:
         self.writer.write(self._path(f"manifests/{identifier}.json"), content)
 
     def read_blob(self, digest: str, limit: int) -> bytes:
-        return self._read(f"blobs/{digest}", limit)
+        return self._read_referenced(f"blobs/{digest}", limit, artifact="blob")
 
     def ensure_blob(self, digest: str, content: bytes) -> None:
         relative = f"blobs/{digest}"
         target = self._path(relative)
         if target.exists():
-            stored = self._read(relative, len(content))
+            stored = self._read_raw(relative, len(content))
             if stored != content or _sha256(stored) != digest:
                 raise WorkspaceError("content-addressed snapshot blob is corrupt")
             return
         self.writer.write(target, content)
 
-    def _read(self, relative: str, limit: int) -> bytes:
+    def _read_referenced(self, relative: str, limit: int, *, artifact: str) -> bytes:
+        try:
+            return self._read_raw(relative, limit)
+        except _GuardedFileMissingError as error:
+            raise SnapshotMissingError(
+                f"referenced snapshot {artifact} is missing"
+            ) from error
+
+    def _read_raw(self, relative: str, limit: int) -> bytes:
         content = read_guarded_file(relative, self.guard, limit)
         if len(content) > limit:
             raise FileTooLargeError(f"snapshot artifact exceeds {limit} bytes")
