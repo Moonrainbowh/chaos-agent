@@ -30,7 +30,7 @@ class ModelRoundTripTests(unittest.TestCase):
         json.dumps(encoded)
         self.assertEqual(model_type.from_dict(encoded), value)
 
-    def test_all_models_round_trip_through_json_compatible_dicts(self) -> None:
+    def test_conversation_models_round_trip_through_json_dicts(self) -> None:
         tool_call = ToolCall(
             id="call-1",
             name="read_file",
@@ -43,6 +43,15 @@ class ModelRoundTripTests(unittest.TestCase):
             name="coder",
             tool_calls=(tool_call,),
         )
+        bundle = ContextBundle(system_prompt="Be precise.", messages=(message,))
+
+        for value in (tool_call, usage, message, bundle):
+            with self.subTest(model=type(value).__name__, value=value):
+                self.assert_round_trip(value, type(value))
+
+        self.assertEqual(usage.total_tokens, 17)
+
+    def test_action_models_round_trip_through_json_dicts(self) -> None:
         request = ActionRequest(
             id="action-1",
             name="read_file",
@@ -63,16 +72,20 @@ class ModelRoundTripTests(unittest.TestCase):
                 "required": ["path"],
             },
         )
-        bundle = ContextBundle(system_prompt="Be precise.", messages=(message,))
+
+        for value in (request, result, definition):
+            with self.subTest(model=type(value).__name__, value=value):
+                self.assert_round_trip(value, type(value))
+
+    def test_model_events_round_trip_through_json_dicts(self) -> None:
+        tool_call = ToolCall(
+            id="call-1",
+            name="read_file",
+            arguments={"path": "README.md", "lines": [1, 20]},
+        )
+        usage = Usage(input_tokens=12, output_tokens=5, cached_input_tokens=3)
 
         for value in (
-            tool_call,
-            usage,
-            message,
-            request,
-            result,
-            definition,
-            bundle,
             ModelEvent(kind=ModelEventKind.TEXT_DELTA, text="hello"),
             ModelEvent(kind=ModelEventKind.TOOL_CALL, tool_call=tool_call),
             ModelEvent(kind=ModelEventKind.USAGE, usage=usage),
@@ -80,8 +93,6 @@ class ModelRoundTripTests(unittest.TestCase):
         ):
             with self.subTest(model=type(value).__name__, value=value):
                 self.assert_round_trip(value, type(value))
-
-        self.assertEqual(usage.total_tokens, 17)
 
     def test_context_bundle_preserves_semantic_numeric_measurements(self) -> None:
         expected = {
