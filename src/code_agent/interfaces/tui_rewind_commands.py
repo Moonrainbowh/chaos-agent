@@ -89,10 +89,11 @@ async def handle_rewind_command(
     if not parts:
         return _result(DisplayKind.ERROR, _USAGE)
     action, arguments = parts[0], parts[1:]
+    action_key = action.casefold()
     try:
-        if action in {"list", "列表"}:
+        if action_key in {"list", "列表"}:
             return await _list_candidates(source, thread_id, arguments)
-        if action in {"preview", "预览"}:
+        if action_key in {"preview", "预览"}:
             return await _preview(source, thread_id, arguments)
         return _result(DisplayKind.ERROR, _USAGE)
     except Exception:

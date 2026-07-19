@@ -67,6 +67,26 @@ class RewindCommandSuccessTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIn("rewind · candidate only", result.text)
                 self.assertTrue(result.handled)
 
+    async def test_english_actions_are_case_insensitive(self) -> None:
+        list_source = RecordingSource()
+        list_result = await handle_rewind_command(
+            list_source, "thread-1", "LiSt"
+        )
+        preview_source = RecordingSource()
+        preview_source.result = make_preview(RewindKind.BOTH)
+        preview_result = await handle_rewind_command(
+            preview_source, "thread-1", "PREVIEW cp-1 both"
+        )
+        self.assertEqual(
+            list_source.calls, [("list", "thread-1", None, 20)]
+        )
+        self.assertEqual(list_result.display_kind, DisplayKind.METADATA)
+        self.assertEqual(
+            preview_source.calls,
+            [("preview", "thread-1", "cp-1", RewindKind.BOTH)],
+        )
+        self.assertEqual(preview_result.display_kind, DisplayKind.METADATA)
+
     async def test_preview_forwards_exact_checkpoint_and_kind(self) -> None:
         for action in ("preview", "预览"):
             for kind in RewindKind:
