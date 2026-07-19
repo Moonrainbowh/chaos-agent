@@ -67,3 +67,6 @@
 - `ModePermissionView`：分开展示模式实际模型、Oracle、推理强度、生效边界与访问权限 | 无副作用 | 模式信息绝不解释为授权。
 - `TuiInteractions`：把 Picker、可见审批、steering 生命周期和结构化 diff 委托给单栏 TUI | 终端显示/进程内状态 | 审批默认拒绝，`Enter` 明确选择，`Esc` 取消。
 - `AgentRunStatusProjection.observe(view)`：将子 Agent 状态变化投影为去重、有界的生命周期行 | 进程内状态 | 只消费 Orchestration 快照，不从工具名称猜测状态。
+- `RewindPreviewSource`、`build_rewind_preview(kind, facts)`：以只读协议接收经集成层验证的纯事实并生成冻结预览 | 无副作用 | 各 kind 只消费对应 facet，原因按稳定优先级排序
+- `render_rewind_preview(...)`、`render_rewind_candidates(...)`：渲染 preview-only、候选 facet、as-of 与有界安全路径 | 无副作用 | 不把候选 facet 当作可用性承诺，不生成 apply 或 Git 操作
+- `handle_rewind_command(source, thread_id, instruction)`：解析并委托 `/回溯`、`/rewind` 的 list/preview | 只调用注入的只读 source | 不选择最新 checkpoint，不调用 controller、provider、tool 或 approval
