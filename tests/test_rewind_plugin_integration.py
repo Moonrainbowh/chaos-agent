@@ -208,7 +208,7 @@ class CaptureCancellationTests(CaptureHarness, unittest.IsolatedAsyncioTestCase)
             task = asyncio.create_task(
                 self.coordinator.apply_edit(self.context, self.request, self.plan)
             )
-            await asyncio.to_thread(started.wait, 2)
+            self.assertTrue(await asyncio.to_thread(started.wait, 2))
             task.cancel()
             finish.set()
             with self.assertRaises(asyncio.CancelledError):
@@ -218,6 +218,7 @@ class CaptureCancellationTests(CaptureHarness, unittest.IsolatedAsyncioTestCase)
 
     async def test_cancelled_prepare_settles_before_gate_release(self) -> None:
         blocker = self.sessions.block["prepare"] = asyncio.Event()
+        prepare_started = self.sessions.started.setdefault("prepare", asyncio.Event())
         started, finish, observe = _blocking_observation(
             self.calls, _prepared().before)
         with self.patches(), unittest.mock.patch(
@@ -226,8 +227,7 @@ class CaptureCancellationTests(CaptureHarness, unittest.IsolatedAsyncioTestCase)
             task = asyncio.create_task(
                 self.coordinator.apply_edit(self.context, self.request, self.plan)
             )
-            while "sessions.prepare" not in self.calls:
-                await asyncio.sleep(0)
+            await asyncio.wait_for(prepare_started.wait(), 2)
             task.cancel()
             blocker.set()
             self.assertTrue(await asyncio.to_thread(started.wait, 2))

@@ -4,6 +4,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -11,7 +12,8 @@ SRC_ROOT = ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from code_agent_win.app import RootActionDispatcher  # noqa: E402
+from code_agent_win.app import RootActionDispatcher, create_application  # noqa: E402
+from code_agent.config.loader import load_runtime_config  # noqa: E402
 from code_agent.core.action_execution import ActionExecutionContext  # noqa: E402
 from code_agent.core.cancellation import CancellationToken  # noqa: E402
 from code_agent.core.models import ActionRequest, ActionResult  # noqa: E402
@@ -131,35 +133,37 @@ class RootActionDispatcherTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(result.is_error)
         self.assertEqual(outside.read_text(encoding="utf-8"), "after")
 
-    async def test_strict_production_guard_rejects_external_before_capture(self) -> None:
-        class Capture:
-            called = False
-
-            async def apply_edit(self, *args):
-                self.called = True
-
+    async def test_production_factory_guard_rejects_external_write(self) -> None:
         outside = self.root.parent / "strict-external.txt"
-        capture = Capture()
-        guard = WorkspacePathGuard(self.root)
-        dispatcher = RootActionDispatcher(
-            WorkspaceFiles(guard, IgnoreRules.from_workspace(self.root)),
-            WorkspaceEditor(guard),
-            ActionPolicy(PolicyConfig(
-                ApprovalMode.FULL_LOCAL, workspace_root=self.root,
-            )),
-            ApprovalBroker(),
-            capture=capture,
-        )
-        result = await dispatcher.dispatch(
+        runtime = load_runtime_config(env={
+            "CHAOS_CONFIG": str(self.root / "missing.toml"),
+            "CHAOS_API": "responses",
+            "CHAOS_BASE_URL": "https://api.example.test",
+            "CHAOS_MODEL": "test",
+            "CHAOS_API_KEY_ENV": "KEY",
+            "CHAOS_APPROVAL_MODE": "full-local",
+        })
+        with patch.dict("os.environ", {
+            "USERPROFILE": str(self.root / "profile"),
+            "LOCALAPPDATA": str(self.root / "localappdata"),
+        }, clear=True), patch(
+            "code_agent_win.app._model_client", return_value=object()
+        ), patch(
+            "code_agent_win.app._session_path",
+            return_value=self.root / "sessions.sqlite3",
+        ), patch("code_agent_win.app.load_runtime_config", return_value=runtime):
+            application = create_application(self.root)
+        self.addAsyncCleanup(application.aclose)
+        result = await application.dispatcher.dispatch(
             ActionRequest(
                 "strict", "write_file",
                 {"path": str(outside), "content": "no"},
             ),
             CancellationToken(),
-            execution_context=ActionExecutionContext("owner", "origin", "strict"),
         )
+        self.assertFalse(application.dispatcher.editor.guard.allow_outside)
         self.assertTrue(result.is_error)
-        self.assertFalse(capture.called)
+        self.assertFalse(outside.exists())
 
     async def test_plugin_verification_records_unknown_gap_once(self) -> None:
         class Capture:

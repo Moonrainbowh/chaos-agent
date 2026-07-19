@@ -49,11 +49,13 @@ class _Sessions:
         self.state = RewindCoverageState.ACTIVE
         self.fail: str | None = None
         self.block: dict[str, asyncio.Event] = {}
+        self.started: dict[str, asyncio.Event] = {}
         self.records: list[object] = []
         self.finished: RewindMutationStatus | None = None
 
     async def _call(self, name: str, value: object) -> object:
         self.calls.append(f"sessions.{name}")
+        self.started.setdefault(name, asyncio.Event()).set()
         event = self.block.get(name)
         if event is not None:
             await event.wait()
@@ -259,7 +261,7 @@ class RewindCaptureTests(CaptureHarness, unittest.IsolatedAsyncioTestCase):
         task = asyncio.create_task(
             self.coordinator.record_gap(self.context, self.request, "unknown-writer")
         )
-        await asyncio.sleep(0)
+        await asyncio.wait_for(self.sessions.started.setdefault("ensure", asyncio.Event()).wait(), 2)
         task.cancel()
         blocker.set()
         with self.assertRaises(asyncio.CancelledError):
@@ -271,8 +273,7 @@ class RewindCaptureTests(CaptureHarness, unittest.IsolatedAsyncioTestCase):
         task = asyncio.create_task(
             self.coordinator.record_gap(self.context, self.request, "unknown-writer")
         )
-        while "sessions.gap" not in self.calls:
-            await asyncio.sleep(0)
+        await asyncio.wait_for(self.sessions.started.setdefault("gap", asyncio.Event()).wait(), 2)
         task.cancel()
         blocker.set()
         with self.assertRaises(asyncio.CancelledError):
