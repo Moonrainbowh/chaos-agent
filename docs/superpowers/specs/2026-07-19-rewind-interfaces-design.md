@@ -1,8 +1,8 @@
 # Rewind Interfaces 设计
 
-**日期：** 2026-07-19  
-**状态：** 已批准方案 A  
-**上游设计：** `2026-07-17-trustworthy-arbitrary-checkpoint-rewind-design.md`  
+**日期：** 2026-07-19
+**状态：** 已批准方案 A
+**上游设计：** `2026-07-17-trustworthy-arbitrary-checkpoint-rewind-design.md`
 **上游路线图：** `2026-07-17-trustworthy-arbitrary-checkpoint-rewind-roadmap.md`
 
 ## 目标
