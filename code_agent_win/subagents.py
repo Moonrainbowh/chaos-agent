@@ -1,34 +1,29 @@
 from __future__ import annotations
 
-import time
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Sequence
 from contextvars import ContextVar, Token
 
+from code_agent.core.action_execution import ActionExecutionContext
 from code_agent.core.cancellation import CancellationToken
-from code_agent.core.events import EventKind
 from code_agent.core.models import (
     ActionRequest,
     ActionResult,
-    Message,
-    ModelEvent,
-    ModelEventKind,
     ToolDefinition,
 )
 from code_agent.orchestration.models import (
     AgentDefinition,
     AgentMode,
     AgentRole,
-    AgentUsage,
     ChildRunRequest,
-    ChildRunResult,
     RunStatus,
     RunView,
 )
 from code_agent.orchestration.budget import BudgetLedger, ParentBudget
 from code_agent.orchestration.modes import ModeRegistry
 from code_agent.orchestration.supervisor import ChildRunSupervisor
-from code_agent.orchestration.supervisor import ChildRunSupervisor
 from code_agent.providers.config import ModelProfile
+
+from code_agent_win.subagent_runner import EngineChildRunner
 
 
 _READ_ONLY_ROLES = {
@@ -52,6 +47,8 @@ class RestrictedDispatcher:
         request: ActionRequest,
         cancellation: CancellationToken,
         task_authorization: object = None,
+        *,
+        execution_context: ActionExecutionContext | None = None,
     ) -> ActionResult:
         if request.name not in self._allowed:
             return ActionResult(
@@ -60,58 +57,12 @@ class RestrictedDispatcher:
                 {"error": "child tool is outside its mode and role"},
                 is_error=True,
             )
-        return await self._inner.dispatch(request, cancellation, task_authorization)
-
-
-class EngineChildRunner:
-    def __init__(self, engine_factory: Callable[[AgentDefinition], tuple[object, object | None]]) -> None:
-        self._factory = engine_factory
-
-    async def run(
-        self, request: ChildRunRequest, cancellation: CancellationToken
-    ) -> ChildRunResult:
-        engine, closer = self._factory(request.agent)
-        started = time.monotonic()
-        answers: list[str] = []
-        tokens = 0
-        tool_calls = 0
-        references = []
-        try:
-            async for event in engine.run(request.objective, cancellation=cancellation):
-                if event.kind is EventKind.RUN_STARTED:
-                    thread_id = event.payload.get("thread_id")
-                    if isinstance(thread_id, str):
-                        from code_agent.orchestration.models import AgentReference
-
-                        references.append(AgentReference("thread", thread_id))
-                elif event.kind is EventKind.ACTION_REQUESTED:
-                    tool_calls += 1
-                elif event.kind is EventKind.MESSAGE_ADDED:
-                    raw = event.payload.get("message")
-                    if isinstance(raw, Mapping):
-                        message = Message.from_dict(raw)
-                        if message.role == "assistant" and message.content:
-                            answers.append(message.content)
-                elif event.kind is EventKind.MODEL_EVENT:
-                    raw = event.payload.get("event")
-                    if isinstance(raw, Mapping):
-                        model_event = ModelEvent.from_dict(raw)
-                        if model_event.kind is ModelEventKind.USAGE and model_event.usage:
-                            tokens += model_event.usage.total_tokens
-            summary = "\n\n".join(answers).strip()[:16_384]
-            if not summary:
-                summary = "Child run completed without a final advisory message."
-            return ChildRunResult(
-                request.run_id,
-                RunStatus.COMPLETED,
-                summary,
-                AgentUsage(tokens, tool_calls, int(time.monotonic() - started)),
-                tuple(references),
-            )
-        finally:
-            close = getattr(closer, "aclose", None)
-            if close is not None:
-                await close()
+        return await self._inner.dispatch(
+            request,
+            cancellation,
+            task_authorization,
+            execution_context=execution_context,
+        )
 
 
 class SubagentTool:

@@ -4,6 +4,7 @@ import asyncio
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
+from code_agent.core.action_execution import ActionExecutionContext
 from code_agent.core.cancellation import CancellationToken
 from code_agent.core.models import ActionRequest, ActionResult, ToolDefinition
 from code_agent.core.task import TaskAuthorization
@@ -64,9 +65,27 @@ class RootActionDispatcher:
         request: ActionRequest,
         cancellation: CancellationToken,
         task_authorization: TaskAuthorization | None = None,
+        *,
+        execution_context: ActionExecutionContext | None = None,
     ) -> ActionResult:
+        del execution_context
         target = self.plugins.targets().get(request.name) if self.plugins else None
         translated = ActionRequest(request.id, target, request.arguments) if target else request
+        rejected = self._preflight(request, translated)
+        if rejected is not None:
+            return rejected
+        rejected = await self._authorize(
+            request, translated, cancellation, task_authorization
+        )
+        if rejected is not None:
+            return rejected
+        return await self._run(request, translated, cancellation)
+
+    def _preflight(
+        self,
+        request: ActionRequest,
+        translated: ActionRequest,
+    ) -> ActionResult | None:
         validation_error = validate_tool_arguments(translated.name, translated.arguments)
         if validation_error is not None:
             return _error(request, "invalid tool arguments", validation_error)
@@ -74,6 +93,15 @@ class RootActionDispatcher:
             mismatch = powershell_compatibility_error(_text(translated.arguments, "command"))
             if mismatch is not None:
                 return _error(request, "shell syntax mismatch", mismatch)
+        return None
+
+    async def _authorize(
+        self,
+        request: ActionRequest,
+        translated: ActionRequest,
+        cancellation: CancellationToken,
+        task_authorization: TaskAuthorization | None,
+    ) -> ActionResult | None:
         decisions = (self.policy.evaluate(request, task_authorization),)
         if translated is not request:
             decisions += (self.policy.evaluate(translated, task_authorization),)
@@ -97,6 +125,14 @@ class RootActionDispatcher:
             )
             if not approved:
                 return _error(request, "action denied by user")
+        return None
+
+    async def _run(
+        self,
+        request: ActionRequest,
+        translated: ActionRequest,
+        cancellation: CancellationToken,
+    ) -> ActionResult:
         try:
             result = await self._execute(translated, cancellation)
             if translated is request:
@@ -125,28 +161,9 @@ class RootActionDispatcher:
             if self.mcp is None:
                 raise RuntimeError("MCP integration is unavailable")
             return _ok(request, {"result": await self.mcp.call(request.name, arguments)})
-        if request.name == "read_file":
-            document = await asyncio.to_thread(self.files.read_text, _text(arguments, "path"))
-            return _ok(request, {"path": document.relative_path, "text": document.text, "total_lines": document.total_lines})
-        if request.name == "list_files":
-            root = arguments.get("root")
-            if root is not None and not isinstance(root, str):
-                raise ValueError("root must be text")
-            return _ok(request, {"files": list(await asyncio.to_thread(self.files.list_files, root))})
-        if request.name == "search_text":
-            matches = await asyncio.to_thread(
-                self.files.search,
-                _text(arguments, "pattern"),
-                bool(arguments.get("regex", False)),
-                bool(arguments.get("case_sensitive", False)),
-            )
-            return _ok(request, {"matches": [match.__dict__ for match in matches]})
-        if request.name in {"write_file", "replace_text"}:
-            plan = await asyncio.to_thread(self._edit_plan, request)
-            await asyncio.to_thread(self.editor.apply, plan)
-            if self.invalidate_cache is not None:
-                self.invalidate_cache((plan.relative_path,))
-            return _ok(request, {"path": plan.relative_path}, {"diff": plan.diff})
+        workspace = await self._execute_workspace(request)
+        if workspace is not None:
+            return workspace
         if request.name == "git_status":
             if self.git is None:
                 raise RuntimeError("git integration is unavailable")
@@ -170,6 +187,35 @@ class RootActionDispatcher:
         if request.name == "run_verification":
             return await self._run_verification(request, cancellation)
         return _error(request, "tool is not implemented")
+
+    async def _execute_workspace(
+        self,
+        request: ActionRequest,
+    ) -> ActionResult | None:
+        arguments = request.arguments
+        if request.name == "read_file":
+            document = await asyncio.to_thread(self.files.read_text, _text(arguments, "path"))
+            return _ok(request, {"path": document.relative_path, "text": document.text, "total_lines": document.total_lines})
+        if request.name == "list_files":
+            root = arguments.get("root")
+            if root is not None and not isinstance(root, str):
+                raise ValueError("root must be text")
+            return _ok(request, {"files": list(await asyncio.to_thread(self.files.list_files, root))})
+        if request.name == "search_text":
+            matches = await asyncio.to_thread(
+                self.files.search,
+                _text(arguments, "pattern"),
+                bool(arguments.get("regex", False)),
+                bool(arguments.get("case_sensitive", False)),
+            )
+            return _ok(request, {"matches": [match.__dict__ for match in matches]})
+        if request.name in {"write_file", "replace_text"}:
+            plan = await asyncio.to_thread(self._edit_plan, request)
+            await asyncio.to_thread(self.editor.apply, plan)
+            if self.invalidate_cache is not None:
+                self.invalidate_cache((plan.relative_path,))
+            return _ok(request, {"path": plan.relative_path}, {"diff": plan.diff})
+        return None
 
     async def _run_verification(
         self, request: ActionRequest, cancellation: CancellationToken

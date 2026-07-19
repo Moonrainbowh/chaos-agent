@@ -12,6 +12,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from code_agent_win.app import RootActionDispatcher  # noqa: E402
+from code_agent.core.action_execution import ActionExecutionContext  # noqa: E402
 from code_agent.core.cancellation import CancellationToken  # noqa: E402
 from code_agent.core.models import ActionRequest, ActionResult  # noqa: E402
 from code_agent.interfaces.terminal_state import ApprovalBroker  # noqa: E402
@@ -40,6 +41,28 @@ class RootActionDispatcherTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(result.is_error)
         self.assertEqual(result.output["text"], "before\n")
         self.assertIn("read_file", [tool.name for tool in self.dispatcher.tools()])
+
+    async def test_root_dispatcher_accepts_core_execution_context(self) -> None:
+        context = ActionExecutionContext("owner", "origin", "call-context")
+
+        result = await self.dispatcher.dispatch(
+            ActionRequest("call-context", "read_file", {"path": "note.txt"}),
+            CancellationToken(),
+            execution_context=context,
+        )
+
+        self.assertFalse(result.is_error)
+        self.assertEqual(result.output["text"], "before\n")
+
+    async def test_read_only_dispatch_still_accepts_none_context(self) -> None:
+        result = await self.dispatcher.dispatch(
+            ActionRequest("call-none", "read_file", {"path": "note.txt"}),
+            CancellationToken(),
+            execution_context=None,
+        )
+
+        self.assertFalse(result.is_error)
+        self.assertEqual(result.output["text"], "before\n")
 
     async def test_full_local_reads_and_writes_explicit_external_file(self) -> None:
         outside = self.root.parent / "outside.txt"
