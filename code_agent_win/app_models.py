@@ -12,6 +12,7 @@ from code_agent.plugins.registry import PluginHost
 
 from code_agent_win.action_dispatcher import RootActionDispatcher
 from code_agent_win.app_ui import ModeAwareWindowsTerminalApp
+from code_agent_win.rewind_runtime import RewindRuntime
 from code_agent_win.subagents import SubagentRuntime
 
 
@@ -26,6 +27,7 @@ class Application:
     mode: ModeSnapshot | None = None
     plugins: PluginHost | None = None
     subagents: SubagentRuntime | None = None
+    rewind: RewindRuntime | None = None
 
     async def aclose(self) -> None:
         if self.subagents is not None:
@@ -57,6 +59,7 @@ class FactoryHost:
     plugin_bridge: Any
     dispatcher: Any
     sessions: Any
+    rewind_write: Any
 
 
 @dataclass

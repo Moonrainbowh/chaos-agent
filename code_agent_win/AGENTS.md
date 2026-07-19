@@ -17,4 +17,6 @@
 - `SubagentTool.dispatch(...)`、`EngineChildRunner.run(...)`：把 `delegate_agent` 转换为受预算、取消和单写者约束的真实子 thread | provider/session/tool 调用 | 子结果始终 advisory，不产生 verification evidence。
 - `load_plugins(...)`、`PluginToolBridge`：发现可信 manifest 并把不可变工具贡献映射到 Host typed action | 读取 manifest/信任文件 | 插件风险与目标 action 风险必须分别通过中央策略。
 - `build_context_runtime(...)`、`PersistingAnchoredCompactor.compact(...)`：组合共享的本地确定性压缩器与语义压缩，并在 Host 持久化脱敏 checkpoint facts | 仅 Host 写入固定八项元数据 | Context Feature 不持久化；revision、summary、source text 和 messages 不进入 payload，持久化错误与取消原样传播。
-- `ModeAwareWindowsTerminalApp`、`GitDiffAdapter`：在 TUI 开始时展示模式/权限分离信息并提供只读实时 diff | 终端/Git 读取 | 不修改 Git index。
+- `WorkspaceMutationGate`、`RewindCaptureCoordinator`、`CoordinatedSessionRepository`：共享一个基础回溯仓库并严格排序 mutation/checkpoint | 写入会话日志和工作区 | 未知写者先持久化 gap。
+- `RewindRuntime`：基于基础仓库和同一快照存储生成双观测只读预览 | 只读会话、快照和工作区 | 不提供 apply、restore、approval、provider 或 Git reset。
+- `ModeAwareWindowsTerminalApp`、`GitDiffAdapter`：展示模式/权限、只读实时 diff，并把 `/rewind` 仅委托给 Interfaces handler | 终端/Git 读取 | 回溯仅预览，不修改 Git index。

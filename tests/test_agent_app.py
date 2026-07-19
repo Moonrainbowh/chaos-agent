@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from io import StringIO
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -14,6 +14,8 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from code_agent.config.loader import load_runtime_config  # noqa: E402
+from code_agent.core.cancellation import CancellationToken  # noqa: E402
+from code_agent.core.models import ActionRequest  # noqa: E402
 from code_agent.sessions.rewind_models import RewindBaseline  # noqa: E402
 from code_agent.sessions.rewind_repository import RewindSessionRepository  # noqa: E402
 from code_agent_win.app import (  # noqa: E402
@@ -25,6 +27,32 @@ from code_agent_win.app import (  # noqa: E402
 )
 from code_agent_win.cli import _split_global_options, _split_mode_option, run  # noqa: E402
 from code_agent_win.rewind_sessions import CoordinatedSessionRepository  # noqa: E402
+from code_agent_win.rewind_runtime import RewindRuntime  # noqa: E402
+
+
+def _configured_application(container: Path):
+    root, product = container / "workspace", container / "state"
+    root.mkdir()
+    runtime = load_runtime_config(env={
+        "CHAOS_CONFIG": str(container / "missing.toml"),
+        "CHAOS_API": "responses",
+        "CHAOS_BASE_URL": "https://api.example.test",
+        "CHAOS_MODEL": "test", "CHAOS_API_KEY_ENV": "KEY",
+        "CHAOS_APPROVAL_MODE": "full-local",
+    })
+    patches = (
+        patch.dict("os.environ", {
+            "USERPROFILE": str(container / "profile"),
+            "LOCALAPPDATA": str(container / "localappdata"),
+        }, clear=True),
+        patch("code_agent_win.app._model_client", return_value=object()),
+        patch("code_agent_win.app._session_path",
+              return_value=product / "sessions.sqlite3"),
+        patch("code_agent_win.app._product_state_root", return_value=product),
+        patch("code_agent_win.app.load_runtime_config", return_value=runtime),
+    )
+    with patches[0], patches[1], patches[2], patches[3], patches[4]:
+        return create_application(root), root, product
 
 
 class ApplicationLifecycleTests(unittest.IsolatedAsyncioTestCase):
@@ -42,8 +70,8 @@ class ApplicationLifecycleTests(unittest.IsolatedAsyncioTestCase):
         model = AsyncCloser("model")
         mcp = AsyncCloser("mcp")
         application = Application(
-            object(), object(), object(), object(), model,
-            mcp=mcp, subagents=subagents,
+            controller=object(), foreground_tasks=object(), tui=object(),
+            dispatcher=object(), model=model, mcp=mcp, subagents=subagents,
         )
 
         await application.aclose()
@@ -92,79 +120,90 @@ class CliFailureTests(unittest.IsolatedAsyncioTestCase):
 
 
 class ApplicationConstructionTests(unittest.TestCase):
-    def test_tui_uses_the_session_repository_for_history(self) -> None:
+    def test_application_uses_coordinated_sessions_for_engine_and_foreground(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            container = Path(temporary).resolve()
-            root = container / "workspace"
-            root.mkdir()
-            product = container / "state"
-            runtime = load_runtime_config(env={
-                "CHAOS_CONFIG": str(root / "missing.toml"),
-                "CHAOS_API": "responses",
-                "CHAOS_BASE_URL": "https://api.example.test",
-                "CHAOS_MODEL": "test",
-                "CHAOS_API_KEY_ENV": "KEY",
-            })
-            with patch.dict(
-                "os.environ",
-                {
-                    "USERPROFILE": str(root / "profile"),
-                    "LOCALAPPDATA": str(container / "localappdata"),
-                },
-                clear=True,
-            ):
-                with patch("code_agent_win.app._model_client", return_value=object()):
-                    with patch(
-                        "code_agent_win.app._session_path",
-                        return_value=product / "sessions.sqlite3",
-                    ):
-                        with patch("code_agent_win.app._product_state_root",
-                                   return_value=product), patch(
-                            "code_agent_win.app.load_runtime_config",
-                            return_value=runtime,
-                        ):
-                            application = create_application(root)
-
-        self.assertIs(application.tui.sessions, application.tui.history)
-        self.assertIs(application.tui.evidence, application.tui.sessions)
+            application, _, _ = _configured_application(Path(temporary).resolve())
+        sessions = application.tui.sessions
+        self.assertIsInstance(sessions, CoordinatedSessionRepository)
+        self.assertIs(application.foreground_tasks._sessions, sessions)
+        self.assertIs(application.controller._engine._journal._repository, sessions)
+        self.assertIs(application.tui.history, sessions)
+        self.assertIs(application.tui.evidence, sessions)
         self.assertEqual(application.mode.definition.mode.value, "medium")
         self.assertEqual(application.mode.model, "test")
         self.assertIsNotNone(application.plugins)
         self.assertIsNotNone(application.subagents)
 
-    def test_application_builds_one_shared_rewind_write_side(self) -> None:
+    def test_application_injects_one_shared_rewind_runtime(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            container = Path(temporary).resolve()
-            root, product = container / "workspace", container / "state"
-            root.mkdir()
-            runtime = load_runtime_config(env={
-                "CHAOS_CONFIG": str(container / "missing.toml"),
-                "CHAOS_API": "responses",
-                "CHAOS_BASE_URL": "https://api.example.test",
-                "CHAOS_MODEL": "test", "CHAOS_API_KEY_ENV": "KEY",
-            })
-            with patch.dict("os.environ", {
-                "USERPROFILE": str(container / "profile"),
-                "LOCALAPPDATA": str(container / "localappdata"),
-            }, clear=True):
-                with patch("code_agent_win.app._model_client",
-                           return_value=object()), patch(
-                    "code_agent_win.app._session_path",
-                    return_value=product / "sessions.sqlite3"
-                ), patch("code_agent_win.app._product_state_root",
-                         return_value=product), patch(
-                    "code_agent_win.app.load_runtime_config",
-                    return_value=runtime
-                ):
-                    application = create_application(root)
+            application, _, _ = _configured_application(Path(temporary).resolve())
+        self.assertIsInstance(application.rewind, RewindRuntime)
+        self.assertIs(application.tui.rewind, application.rewind)
 
+    def test_application_uses_rewind_session_repository(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            application, _, _ = _configured_application(Path(temporary).resolve())
         capture = application.dispatcher.capture
         self.assertIsInstance(capture.sessions, RewindSessionRepository)
-        self.assertIsInstance(application.tui.sessions, CoordinatedSessionRepository)
         self.assertIs(application.tui.sessions._base, capture.sessions)
+        self.assertIs(application.rewind.sessions, capture.sessions)
+        self.assertIs(application.rewind.snapshots, capture.snapshots)
+        self.assertIs(application.rewind.editor, capture.editor)
+        self.assertIs(application.tui.sessions._gate, capture.gate)
+
+    def test_snapshot_product_state_is_outside_workspace(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            application, root, product = _configured_application(Path(temporary).resolve())
+        self.assertFalse(product.is_relative_to(root))
+        self.assertEqual(
+            application.dispatcher.capture.snapshots._artifacts.root,
+            product / "rewind-snapshots",
+        )
+
+    def test_product_state_paths_match_snapshot_and_gate_layout(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            application, _, product = _configured_application(Path(temporary).resolve())
+        capture = application.dispatcher.capture
+        fingerprint = capture.snapshots.workspace_fingerprint
         self.assertEqual(capture.snapshots._artifacts.root, product / "rewind-snapshots")
-        self.assertEqual(capture.gate.path.parent.parent.parent, product)
+        self.assertEqual(
+            capture.gate.path,
+            product / "rewind" / fingerprint / "mutation-gate.sqlite3",
+        )
+        self.assertEqual(
+            capture.sessions._database.path, product / "sessions.sqlite3"
+        )
         self.assertIs(capture.existing_baseline, RewindBaseline.NON_GIT_EXISTING)
+
+    def test_application_uses_keyword_construction(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary, patch(
+            "code_agent_win.app_factory.Application"
+        ) as application_type:
+            _configured_application(Path(temporary).resolve())
+        args, kwargs = application_type.call_args
+        self.assertEqual(args, ())
+        self.assertIn("rewind", kwargs)
+
+
+class ApplicationGuardTests(unittest.IsolatedAsyncioTestCase):
+    async def test_production_guard_rejects_external_path_before_capture(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            application, root, _ = _configured_application(Path(temporary).resolve())
+            outside = root.parent / "outside.txt"
+            capture = application.dispatcher.capture
+            with patch.object(
+                capture, "apply_edit", new=AsyncMock()
+            ) as apply_edit:
+                result = await application.dispatcher.dispatch(
+                    ActionRequest(
+                        "external", "write_file",
+                        {"path": str(outside), "content": "forbidden"},
+                    ),
+                    CancellationToken(),
+                )
+            self.assertTrue(result.is_error)
+            self.assertFalse(outside.exists())
+            apply_edit.assert_not_awaited()
 
     def test_session_path_copies_the_legacy_data_file(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

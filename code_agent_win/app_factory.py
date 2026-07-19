@@ -30,6 +30,7 @@ from code_agent_win.agent_modes import build_mode_registry, default_child_mode, 
 from code_agent_win.app_models import Application, FactoryExecution, FactoryHost
 from code_agent_win.app_ui import GitDiffAdapter, IntegratedForegroundTaskController, ModeAwareWindowsTerminalApp
 from code_agent_win.plugin_runtime import PluginToolBridge, load_plugins
+from code_agent_win.rewind_runtime import RewindRuntime
 from code_agent_win.runtime_support import host_risks, replace_model
 from code_agent_win.rewind_sessions import (
     build_child_engine_factory,
@@ -61,13 +62,26 @@ def create_application(
         session_path_factory, product_state_root,
     )
     execution = _build_execution(host, model_factory, context_factory)
+    rewind = RewindRuntime(
+        host.rewind_write.base,
+        host.rewind_write.snapshots,
+        host.rewind_write.capture.editor,
+    )
     foreground = _foreground(host, execution)
     profiles = _profile_control(host, execution)
-    tui = _tui(host, execution, foreground, profiles)
+    tui = _tui(host, execution, foreground, profiles, rewind)
     execution.subagents.subscribe(lambda view: tui.interactions.observe_agent(tui, view))
     return Application(
-        execution.controller, foreground, tui, host.dispatcher, execution.manager,
-        host.mcp, host.mode, host.plugin_host, execution.subagents,
+        controller=execution.controller,
+        foreground_tasks=foreground,
+        tui=tui,
+        dispatcher=host.dispatcher,
+        model=execution.manager,
+        mcp=host.mcp,
+        mode=host.mode,
+        plugins=host.plugin_host,
+        subagents=execution.subagents,
+        rewind=rewind,
     )
 def _build_host(
     root: Path,
@@ -123,11 +137,10 @@ def _host_integrations(
     )
     bridge = PluginToolBridge(plugin_host)
     risks.update(bridge.risk_map())
-    policy = ActionPolicy(
-        PolicyConfig(config.approval_mode, workspace_root=root, mcp_risks=risks)
-    )
+    policy = ActionPolicy(PolicyConfig(
+        config.approval_mode, workspace_root=root, mcp_risks=risks))
     editor = WorkspaceEditor(guard)
-    rewind = build_rewind_write_side(
+    rewind_write = build_rewind_write_side(
         guard, editor, product_state_root, session_path_factory(),
         has_git=git is not None,
     )
@@ -138,12 +151,13 @@ def _host_integrations(
         verification=LocalVerificationAdapter(root),
         mcp=mcp,
         plugins=bridge,
-        capture=rewind.capture,
+        capture=rewind_write.capture,
         invalidate_cache=cache.invalidate,
     )
     return FactoryHost(
         root, files, guard, git, cache, config, profiles, modes, mode, initial, skills,
-        approvals, mcp, plugin_host, errors, bridge, dispatcher, rewind.coordinated,
+        approvals, mcp, plugin_host, errors, bridge, dispatcher,
+        rewind_write.coordinated, rewind_write,
     )
 
 
@@ -251,6 +265,7 @@ def _tui(
     execution: FactoryExecution,
     foreground: IntegratedForegroundTaskController,
     profiles: ProfileControl,
+    rewind: RewindRuntime,
 ) -> ModeAwareWindowsTerminalApp:
     capability = ModePermissionView(
         host.mode,
@@ -269,6 +284,7 @@ def _tui(
         diff_source=GitDiffAdapter(host.git),
         capability=capability,
         plugin_errors=host.plugin_errors,
+        rewind=rewind,
     )
 
 

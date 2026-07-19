@@ -10,6 +10,7 @@ from code_agent_win.action_dispatcher import RootActionDispatcher
 from code_agent_win.app_factory import create_application as _create_application
 from code_agent_win.app_models import Application
 from code_agent_win.context_runtime import build_context_runtime
+from code_agent_win.rewind_runtime import RewindRuntime
 from code_agent_win.runtime_support import model_client
 
 
@@ -56,6 +57,7 @@ def _session_path() -> Path:
 __all__ = [
     "Application",
     "RootActionDispatcher",
+    "RewindRuntime",
     "_product_state_root",
     "create_application",
 ]
