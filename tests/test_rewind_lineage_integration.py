@@ -136,6 +136,7 @@ class RewindLineageTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(captured[0].task_id, "task")
         self.assertEqual(captured[0].parent_request_id, "delegate")
         self.assertNotEqual(captured[0].origin_thread_id, "main")
+        self.assertEqual(captured[0].origin_thread_id, result.references[0].identifier)
 
     async def test_two_concurrent_children_keep_distinct_parent_request_ids(
         self,
