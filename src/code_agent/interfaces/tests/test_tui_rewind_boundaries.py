@@ -12,16 +12,23 @@ from code_agent.interfaces.tui_rewind_commands import handle_rewind_command
 MODULE = Path(__file__).parents[1] / "tui_rewind_commands.py"
 
 
-class CancellingSource:
+class ControlFlowSignal(BaseException):
+    pass
+
+
+class RaisingSource:
+    def __init__(self, error_type: type[BaseException]) -> None:
+        self.error_type = error_type
+
     async def list_candidates(
         self, thread_id: str, *, cursor: str | None = None, limit: int = 20
     ) -> object:
-        raise asyncio.CancelledError
+        raise self.error_type
 
     async def preview(
         self, thread_id: str, checkpoint_id: str, kind: object
     ) -> object:
-        raise asyncio.CancelledError
+        raise self.error_type
 
 
 class RewindCommandBoundaryTests(unittest.IsolatedAsyncioTestCase):
@@ -46,9 +53,25 @@ class RewindCommandBoundaryTests(unittest.IsolatedAsyncioTestCase):
             relative, {"rewind_models", "rewind_view", "terminal_display"}
         )
 
-    async def test_cancellation_propagates(self) -> None:
-        with self.assertRaises(asyncio.CancelledError):
-            await handle_rewind_command(CancellingSource(), "thread-1", "list")
+    async def test_cancellation_propagates_for_each_source_method(self) -> None:
+        for instruction in ("list", "preview cp-1 both"):
+            with self.subTest(instruction=instruction):
+                with self.assertRaises(asyncio.CancelledError):
+                    await handle_rewind_command(
+                        RaisingSource(asyncio.CancelledError),
+                        "thread-1",
+                        instruction,
+                    )
+
+    async def test_other_base_exceptions_propagate(self) -> None:
+        for instruction in ("list", "preview cp-1 both"):
+            with self.subTest(instruction=instruction):
+                with self.assertRaises(ControlFlowSignal):
+                    await handle_rewind_command(
+                        RaisingSource(ControlFlowSignal),
+                        "thread-1",
+                        instruction,
+                    )
 
 
 if __name__ == "__main__":
