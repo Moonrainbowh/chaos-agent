@@ -123,11 +123,15 @@ class RewindPathTests(unittest.TestCase):
     def test_accepts_canonical_relative_posix_path(self) -> None:
         value = make_path(path="src/a b/file.py")
         self.assertEqual(value.path, "src/a b/file.py")
+        colon_name = make_path(path="namespace:/file.py")
+        self.assertEqual(colon_name.path, "namespace:/file.py")
 
     def test_rejects_noncanonical_or_unsafe_paths(self) -> None:
         invalid_paths = (
             "/root/file",
             "C:/file",
+            "C:relative.py",
+            "z:folder/file.py",
             "src\\file",
             "src//file",
             "./file",
@@ -206,6 +210,24 @@ class RewindFactsTests(unittest.TestCase):
             )
         with self.assertRaises(ValueError):
             make_facts(code_disabled_reason=RewindDisabledReason.SNAPSHOT_MISSING)
+
+    def test_conversation_source_change_also_clears_code_facts(self) -> None:
+        with self.assertRaises(ValueError):
+            make_facts(
+                conversation_disabled_reason=(
+                    RewindDisabledReason.SOURCE_CHANGED_DURING_PREVIEW
+                ),
+                conversation_messages=0,
+            )
+
+    def test_code_source_change_also_clears_conversation_facts(self) -> None:
+        with self.assertRaises(ValueError):
+            make_facts(
+                code_disabled_reason=(
+                    RewindDisabledReason.SOURCE_CHANGED_DURING_PREVIEW
+                ),
+                code_paths=(),
+            )
 
     def test_as_of_and_reasons_require_exact_public_types(self) -> None:
         for changes in (

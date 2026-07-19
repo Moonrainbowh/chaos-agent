@@ -160,6 +160,11 @@ class RewindFacts:
             raise ValueError("disabled conversation facet must be empty")
         if code_reason is not None and paths:
             raise ValueError("disabled code facet must be empty")
+        source_changed = RewindDisabledReason.SOURCE_CHANGED_DURING_PREVIEW
+        if conversation_reason is source_changed and paths:
+            raise ValueError("source change must clear code facts")
+        if code_reason is source_changed and self.conversation_messages != 0:
+            raise ValueError("source change must clear conversation facts")
 
 
 def _validate_reasons(

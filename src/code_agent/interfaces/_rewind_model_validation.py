@@ -93,11 +93,11 @@ def validate_path(value: object) -> str:
         raise ValueError("path must use POSIX separators")
     if path.startswith("/"):
         raise ValueError("path must be relative")
+    if re.match(r"[A-Za-z]:", path):
+        raise ValueError("path must not begin with a drive-like prefix")
     segments = path.split("/")
     if any(segment in ("", ".", "..") for segment in segments):
         raise ValueError("path must be canonical")
-    if segments[0].endswith(":"):
-        raise ValueError("path must not begin with a drive-like segment")
     return path
 
 
