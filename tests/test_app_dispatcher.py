@@ -76,6 +76,31 @@ class RootActionDispatcherTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(write.is_error)
         self.assertEqual(outside.read_text(encoding="utf-8"), "changed\n")
 
+    async def test_external_full_local_write_never_enters_snapshot(self) -> None:
+        class Capture:
+            async def apply_edit(self, *args):
+                raise AssertionError("external path entered capture")
+
+        outside = self.root.parent / "capture-external.txt"
+        outside.write_text("before", encoding="utf-8")
+        guard = WorkspacePathGuard(self.root, allow_outside=True)
+        dispatcher = RootActionDispatcher(
+            WorkspaceFiles(guard, IgnoreRules.from_workspace(self.root)),
+            WorkspaceEditor(guard),
+            ActionPolicy(PolicyConfig(
+                ApprovalMode.FULL_LOCAL, workspace_root=self.root,
+            )),
+            ApprovalBroker(),
+            capture=Capture(),
+        )
+        request = ActionRequest(
+            "external", "write_file",
+            {"path": str(outside), "content": "after"},
+        )
+        result = await dispatcher.dispatch(request, CancellationToken())
+        self.assertFalse(result.is_error)
+        self.assertEqual(outside.read_text(encoding="utf-8"), "after")
+
     async def test_full_local_recursively_lists_an_explicit_external_root(self) -> None:
         outside = self.root.parent / f"{self.root.name}-external-tree"
         (outside / "nested").mkdir(parents=True)
