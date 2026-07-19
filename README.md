@@ -153,9 +153,9 @@ non-network local tests without a prompt for every action. Network access,
 paths outside the workspace, unknown tools, and critical commands remain
 blocked or require an explicit decision.
 
-Use `Esc` or `/暂停 <task-id>` to pause, `/继续 <task-id>` to resume, `/停止
-<task-id>` to stop, and `/任务` to inspect tasks. Ordinary input submitted while
-a task is running queues guidance for that same task. Process commands are
+Use `Esc` to pause and `/任务` to inspect tasks. Ordinary input submitted while
+a task is running queues guidance for that same task. Recovery uses `/会话` and
+`/恢复 <thread-id>`. Process commands are
 `chaos-agent task list` and `chaos-agent task resume <task-id> [instruction]`.
 Paths, commands, model names, Git refs, and raw tool data are never translated.
 

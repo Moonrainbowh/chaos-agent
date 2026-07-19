@@ -161,6 +161,22 @@ def command_picker_items(
     result = []
     values = parent.actions if parent is not None else specs
     for spec in values:
+        if parent is None and spec.actions:
+            missing = tuple(value for value in spec.requires if value not in available)
+            for action in spec.actions:
+                result.append(
+                    PickerItem(
+                        f"{spec.name}:{action.name}",
+                        f"/{spec.name} {action.name}",
+                        PickerSource.COMMAND,
+                        action.description,
+                        (*spec.aliases, *action.aliases),
+                        enabled=not missing,
+                        disabled_reason=("requires " + ", ".join(missing)) if missing else None,
+                        completion=f"/{spec.name} {action.name}",
+                    )
+                )
+            continue
         requirements = (
             *getattr(parent, "requires", ()),
             *getattr(spec, "requires", ()),

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 精简 TUI 斜杠命令并提供真正生效的 `/模式 low|medium|high|ultra` 空闲切换。
+**Goal:** 精简 TUI 斜杠命令并提供一级铺开的 `/模式 low|medium|high|ultra` 空闲切换。
 
 **Architecture:** interfaces 使用单一注册表和注入式 `ModeControl` 表达命令；Windows 组合层按 mode snapshot 重建 provider-bound runner，并在成功后更新 TUI 能力视图。活动任务不允许切换，权限策略保持不变。
 
@@ -19,7 +19,7 @@
 - Test: `src/code_agent/interfaces/tests/test_tui_commands.py`
 - Test: `src/code_agent/interfaces/tests/test_windows_tui.py`
 
-- [ ] 写数据驱动失败测试，断言一级命令恰好为确认后的 15 项，`mode` 解析为 `TuiCommandKind.MODE`。
+- [ ] 写数据驱动失败测试，断言注册表只保留确认后的命令，且 Picker 将四个 mode 铺为一级候选。
 - [ ] 运行定向测试，确认因旧命令仍存在且 `/模式` 缺失而失败。
 - [ ] 最小修改注册表、枚举、解析和帮助渲染。
 - [ ] 运行定向测试并确认通过。
