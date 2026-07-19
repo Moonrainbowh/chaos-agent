@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import re
 from datetime import datetime, timezone
+from enum import Enum
 from typing import TypeVar
 
 
 _SHA256_PATTERN = re.compile(r"[0-9a-f]{64}\Z")
 _T = TypeVar("_T")
+_E = TypeVar("_E", bound=Enum)
 
 
 def validate_text(value: object, field: str, *, maximum: int = 512) -> str:
@@ -77,7 +79,7 @@ def validate_digest(value: object) -> str | None:
 
 def normalize_utc(value: object, field: str) -> datetime:
     """Require an aware datetime and normalize it to UTC."""
-    if not isinstance(value, datetime):
+    if type(value) is not datetime:
         raise TypeError(f"{field} must be a datetime")
     if value.tzinfo is None or value.utcoffset() is None:
         raise ValueError(f"{field} must be timezone-aware")
@@ -112,6 +114,64 @@ def validate_exact_tuple(
     if any(type(item) is not item_type for item in value):
         raise TypeError(f"{field} contains an invalid item")
     return value
+
+
+def validate_optional_enum(
+    value: object,
+    field: str,
+    enum_type: type[_E],
+    allowed: frozenset[_E],
+) -> _E | None:
+    """Require None or an exact allowed enum member."""
+    if value is None:
+        return None
+    if type(value) is not enum_type:
+        raise TypeError(f"{field} must be a {enum_type.__name__} or None")
+    if value not in allowed:
+        raise ValueError(f"{field} is not allowed")
+    return value
+
+
+def validate_ordered_unique_enum_tuple(
+    value: object,
+    field: str,
+    enum_type: type[_E],
+    allowed: frozenset[_E],
+    priority: dict[_E, int],
+) -> tuple[_E, ...]:
+    """Require exact, unique enum members in declared priority order."""
+    items = validate_exact_tuple(value, field, enum_type)
+    if len(set(items)) != len(items):
+        raise ValueError(f"{field} must not contain duplicates")
+    if any(item not in allowed for item in items):
+        raise ValueError(f"{field} contains a disallowed member")
+    positions = tuple(priority[item] for item in items)
+    if positions != tuple(sorted(positions)):
+        raise ValueError(f"{field} must follow enum priority")
+    return items
+
+
+def validate_facet_payloads(
+    conversation_reason: _E | None,
+    code_reason: _E | None,
+    global_reasons: frozenset[_E],
+    conversation_messages: int,
+    code_items: tuple[object, ...],
+) -> None:
+    """Enforce mirrored global reasons and empty disabled facet payloads."""
+    has_global = (
+        conversation_reason in global_reasons or code_reason in global_reasons
+    )
+    if has_global:
+        if conversation_reason is not code_reason:
+            raise ValueError("global reasons must match across facets")
+        if conversation_messages or code_items:
+            raise ValueError("global reason must clear both facet payloads")
+        return
+    if conversation_reason is not None and conversation_messages != 0:
+        raise ValueError("disabled conversation facet must be empty")
+    if code_reason is not None and code_items:
+        raise ValueError("disabled code facet must be empty")
 
 
 def validate_unique_strings(values: tuple[str, ...], field: str) -> None:

@@ -71,6 +71,7 @@ class RewindPreviewReasonTests(unittest.TestCase):
             make_preview(
                 kind=RewindKind.CONVERSATION,
                 disabled_reasons=(RewindDisabledReason.SNAPSHOT_MISSING,),
+                code_paths=(),
                 enabled=False,
                 requires_confirmation=False,
             )
@@ -78,6 +79,7 @@ class RewindPreviewReasonTests(unittest.TestCase):
             make_preview(
                 kind=RewindKind.CODE,
                 disabled_reasons=(RewindDisabledReason.MESSAGE_BOUND_MISSING,),
+                conversation_messages=0,
                 enabled=False,
                 requires_confirmation=False,
             )
@@ -131,6 +133,16 @@ class RewindPreviewReasonTests(unittest.TestCase):
 
 
 class RewindPreviewFieldTests(unittest.TestCase):
+    def test_unselected_preview_facets_are_empty(self) -> None:
+        invalid_values = (
+            {"kind": RewindKind.CONVERSATION, "conversation_messages": 2},
+            {"kind": RewindKind.CODE, "code_paths": (make_path(),)},
+        )
+        for changes in invalid_values:
+            with self.subTest(changes=changes):
+                with self.assertRaises(ValueError):
+                    make_preview(**changes)
+
     def test_enabled_and_confirmation_are_derived_by_invariant(self) -> None:
         for changes in (
             {"disabled_reasons": (), "enabled": False},

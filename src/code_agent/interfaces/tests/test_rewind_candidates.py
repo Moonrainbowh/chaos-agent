@@ -5,12 +5,19 @@ import unittest
 from datetime import datetime, timedelta, timezone
 
 from code_agent.interfaces.rewind_models import (
+    RewindAsOf,
     RewindCheckpointCandidate,
     RewindCheckpointPage,
+    RewindFacts,
 )
 
 
 UTC = timezone.utc
+
+
+class MaliciousDateTime(datetime):
+    def astimezone(self, tz: object = None) -> str:
+        return "not-a-datetime"
 
 
 def make_candidate(number: int = 1, **changes: object) -> RewindCheckpointCandidate:
@@ -41,6 +48,19 @@ class RewindCheckpointCandidateTests(unittest.TestCase):
             with self.subTest(invalid=invalid):
                 with self.assertRaises((TypeError, ValueError)):
                     make_candidate(created_at=invalid)
+
+    def test_datetime_subclasses_are_rejected_at_all_model_boundaries(self) -> None:
+        evil = MaliciousDateTime(2025, 1, 1, tzinfo=UTC)
+        as_of = RewindAsOf(0, 0, 0, 1, "a" * 64, datetime.now(UTC))
+        constructors = (
+            lambda: RewindAsOf(0, 0, 0, 1, "a" * 64, evil),
+            lambda: RewindFacts("cp", "label", evil, as_of, 0, (), None, None),
+            lambda: make_candidate(created_at=evil),
+        )
+        for construct in constructors:
+            with self.subTest(construct=construct):
+                with self.assertRaises(TypeError):
+                    construct()
 
     def test_text_fields_are_bounded_nonblank_strings(self) -> None:
         for field in ("checkpoint_id", "label"):

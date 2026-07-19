@@ -17,6 +17,10 @@ from code_agent.interfaces.rewind_models import (
 
 UTC = timezone.utc
 DIGEST = "a" * 64
+GLOBAL_REASONS = (
+    RewindDisabledReason.CHECKPOINT_NOT_FOUND,
+    RewindDisabledReason.SOURCE_CHANGED_DURING_PREVIEW,
+)
 
 
 def make_as_of(**changes: object) -> RewindAsOf:
@@ -211,23 +215,58 @@ class RewindFactsTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             make_facts(code_disabled_reason=RewindDisabledReason.SNAPSHOT_MISSING)
 
-    def test_conversation_source_change_also_clears_code_facts(self) -> None:
-        with self.assertRaises(ValueError):
-            make_facts(
-                conversation_disabled_reason=(
-                    RewindDisabledReason.SOURCE_CHANGED_DURING_PREVIEW
-                ),
-                conversation_messages=0,
-            )
+    def test_single_sided_global_reason_is_rejected(self) -> None:
+        for reason in GLOBAL_REASONS:
+            for field in (
+                "conversation_disabled_reason",
+                "code_disabled_reason",
+            ):
+                with self.subTest(reason=reason, field=field):
+                    with self.assertRaises(ValueError):
+                        make_facts(
+                            **{
+                                field: reason,
+                                "conversation_messages": 0,
+                                "code_paths": (),
+                            }
+                        )
 
-    def test_code_source_change_also_clears_conversation_facts(self) -> None:
+    def test_different_global_reasons_are_rejected(self) -> None:
         with self.assertRaises(ValueError):
             make_facts(
+                conversation_disabled_reason=RewindDisabledReason.CHECKPOINT_NOT_FOUND,
                 code_disabled_reason=(
                     RewindDisabledReason.SOURCE_CHANGED_DURING_PREVIEW
                 ),
+                conversation_messages=0,
                 code_paths=(),
             )
+
+    def test_mirrored_global_reason_rejects_surviving_facts(self) -> None:
+        for reason in GLOBAL_REASONS:
+            for payload in (
+                {"conversation_messages": 1, "code_paths": ()},
+                {"conversation_messages": 0, "code_paths": (make_path(),)},
+            ):
+                with self.subTest(reason=reason, payload=payload):
+                    with self.assertRaises(ValueError):
+                        make_facts(
+                            conversation_disabled_reason=reason,
+                            code_disabled_reason=reason,
+                            **payload,
+                        )
+
+    def test_matching_global_reasons_accept_empty_payload(self) -> None:
+        for reason in GLOBAL_REASONS:
+            with self.subTest(reason=reason):
+                value = make_facts(
+                    conversation_disabled_reason=reason,
+                    code_disabled_reason=reason,
+                    conversation_messages=0,
+                    code_paths=(),
+                )
+                self.assertIs(value.conversation_disabled_reason, reason)
+                self.assertIs(value.code_disabled_reason, reason)
 
     def test_as_of_and_reasons_require_exact_public_types(self) -> None:
         for changes in (

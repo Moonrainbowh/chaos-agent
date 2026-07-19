@@ -14,7 +14,10 @@ from ._rewind_model_validation import (
     validate_bool,
     validate_digest,
     validate_exact_tuple,
+    validate_facet_payloads,
     validate_nonnegative_int,
+    validate_optional_enum,
+    validate_ordered_unique_enum_tuple,
     validate_path,
     validate_positive_int,
     validate_text,
@@ -42,17 +45,20 @@ class RewindDisabledReason(str, Enum):
     SOURCE_CHANGED_DURING_PREVIEW = "source-changed-during-preview"
 
 
-_CONVERSATION_REASONS = frozenset(
+_GLOBAL_REASONS = frozenset(
     {
         RewindDisabledReason.CHECKPOINT_NOT_FOUND,
-        RewindDisabledReason.MESSAGE_BOUND_MISSING,
-        RewindDisabledReason.MESSAGE_BOUND_INVALID,
         RewindDisabledReason.SOURCE_CHANGED_DURING_PREVIEW,
     }
 )
-_CODE_REASONS = frozenset(
+_CONVERSATION_ONLY_REASONS = frozenset(
     {
-        RewindDisabledReason.CHECKPOINT_NOT_FOUND,
+        RewindDisabledReason.MESSAGE_BOUND_MISSING,
+        RewindDisabledReason.MESSAGE_BOUND_INVALID,
+    }
+)
+_CODE_ONLY_REASONS = frozenset(
+    {
         RewindDisabledReason.CODE_COVERAGE_UNAVAILABLE,
         RewindDisabledReason.CODE_JOURNAL_INCOMPLETE,
         RewindDisabledReason.PENDING_WORKSPACE_MUTATION,
@@ -60,9 +66,10 @@ _CODE_REASONS = frozenset(
         RewindDisabledReason.SNAPSHOT_INVALID,
         RewindDisabledReason.WORKSPACE_CONFLICT,
         RewindDisabledReason.PREVIEW_LIMIT_EXCEEDED,
-        RewindDisabledReason.SOURCE_CHANGED_DURING_PREVIEW,
     }
 )
+_CONVERSATION_REASONS = _GLOBAL_REASONS | _CONVERSATION_ONLY_REASONS
+_CODE_REASONS = _GLOBAL_REASONS | _CODE_ONLY_REASONS
 _REASON_PRIORITY = {
     reason: priority for priority, reason in enumerate(RewindDisabledReason)
 }
@@ -114,13 +121,7 @@ def _validate_optional_reason(
     field: str,
     allowed: frozenset[RewindDisabledReason],
 ) -> RewindDisabledReason | None:
-    if value is None:
-        return None
-    if type(value) is not RewindDisabledReason:
-        raise TypeError(f"{field} must be a RewindDisabledReason or None")
-    if value not in allowed:
-        raise ValueError(f"{field} is not valid for its facet")
-    return value
+    return validate_optional_enum(value, field, RewindDisabledReason, allowed)
 
 
 @dataclass(frozen=True)
@@ -156,32 +157,25 @@ class RewindFacts:
         code_reason = _validate_optional_reason(
             self.code_disabled_reason, "code_disabled_reason", _CODE_REASONS
         )
-        if conversation_reason is not None and self.conversation_messages != 0:
-            raise ValueError("disabled conversation facet must be empty")
-        if code_reason is not None and paths:
-            raise ValueError("disabled code facet must be empty")
-        source_changed = RewindDisabledReason.SOURCE_CHANGED_DURING_PREVIEW
-        if conversation_reason is source_changed and paths:
-            raise ValueError("source change must clear code facts")
-        if code_reason is source_changed and self.conversation_messages != 0:
-            raise ValueError("source change must clear conversation facts")
+        validate_facet_payloads(
+            conversation_reason,
+            code_reason,
+            _GLOBAL_REASONS,
+            self.conversation_messages,
+            paths,
+        )
 
 
 def _validate_reasons(
     value: object, kind: RewindKind
 ) -> tuple[RewindDisabledReason, ...]:
-    reasons = validate_exact_tuple(
-        value, "disabled_reasons", RewindDisabledReason
+    return validate_ordered_unique_enum_tuple(
+        value,
+        "disabled_reasons",
+        RewindDisabledReason,
+        _allowed_reasons(kind),
+        _REASON_PRIORITY,
     )
-    if len(set(reasons)) != len(reasons):
-        raise ValueError("disabled_reasons must not contain duplicates")
-    priorities = tuple(_REASON_PRIORITY[reason] for reason in reasons)
-    if priorities != tuple(sorted(priorities)):
-        raise ValueError("disabled_reasons must follow enum priority")
-    allowed = _allowed_reasons(kind)
-    if any(reason not in allowed for reason in reasons):
-        raise ValueError("disabled reason does not apply to kind")
-    return reasons
 
 
 def _allowed_reasons(kind: RewindKind) -> frozenset[RewindDisabledReason]:
@@ -240,6 +234,10 @@ class RewindPreview:
             self.conversation_messages, "conversation_messages"
         )
         paths = _validate_paths(self.code_paths)
+        if self.kind is RewindKind.CONVERSATION and paths:
+            raise ValueError("conversation preview must not include code paths")
+        if self.kind is RewindKind.CODE and self.conversation_messages != 0:
+            raise ValueError("code preview must not include conversation messages")
         reasons = _validate_reasons(self.disabled_reasons, self.kind)
         if any(reason in _CONVERSATION_REASONS for reason in reasons):
             if self.conversation_messages != 0:
