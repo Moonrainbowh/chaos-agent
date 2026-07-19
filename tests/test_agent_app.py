@@ -14,8 +14,40 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from code_agent.config.loader import load_runtime_config  # noqa: E402
-from code_agent_win.app import RootActionDispatcher, _session_path, create_application  # noqa: E402
+from code_agent_win.app import (  # noqa: E402
+    Application,
+    RootActionDispatcher,
+    _session_path,
+    create_application,
+)
 from code_agent_win.cli import _split_global_options, _split_mode_option, run  # noqa: E402
+
+
+class ApplicationLifecycleTests(unittest.IsolatedAsyncioTestCase):
+    async def test_aclose_closes_each_resource_once_in_order(self) -> None:
+        calls: list[str] = []
+
+        class AsyncCloser:
+            def __init__(self, name: str) -> None:
+                self.name = name
+
+            async def aclose(self) -> None:
+                calls.append(self.name)
+
+        subagents = AsyncCloser("subagents")
+        model = AsyncCloser("model")
+        mcp = AsyncCloser("mcp")
+        application = Application(
+            object(), object(), object(), object(), model,
+            mcp=mcp, subagents=subagents,
+        )
+
+        await application.aclose()
+
+        self.assertEqual(calls, ["subagents", "model", "mcp"])
+        self.assertEqual({name: calls.count(name) for name in calls}, {
+            "subagents": 1, "model": 1, "mcp": 1,
+        })
 
 
 class CliFailureTests(unittest.IsolatedAsyncioTestCase):
