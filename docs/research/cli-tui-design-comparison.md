@@ -27,7 +27,7 @@
 
 1. 保留“正常终端滚屏 + 单列 Transcript + 底部 Composer + 最小动态尾部”。
 2. 把 <strong>任务模式、实际模型、权限姿态、任务状态</strong> 继续作为四个互不替代的状态。
-3. 优先补齐真实 <code>thread_id</code> 驱动的语义 checkpoint、按轮文件快照 / rewind、完整 diff 审阅和可追溯 Source Anchor。
+3. P0 已接入真实 <code>thread_id</code> 驱动的语义 checkpoint、可追溯 Source Anchor、完整 mutation capture 与任意 checkpoint 的只读 rewind preview；破坏性 apply / restore 仍明确不提供。
 4. 在现有 <code>CommandRegistry</code> 上统一 <code>/</code>、快捷键帮助、命令可用性、插件贡献和中英文别名；新增 <code>@</code> 文件与 <code>@@</code> Thread 选择。
 5. 子 Agent 继续保持“结果只作建议、不能代替验证”；增加可观察、可取消、可 steer 的运行视图，并保持单写者租约。
 6. 不采用 Amp 的默认无审批，不把 uv-agent 的任意 Python 作为模型唯一执行边界，不让插件裸执行宿主代码。
@@ -85,7 +85,7 @@ CodeWhale 是独立社区项目，不是 DeepSeek 官方产品。另一个 <code
 | Claude Code | 滚动模式 + 可选 fullscreen + Transcript Viewer | 长任务、后台工作、checkpoint、回溯 | Ctrl+O Transcript、Ctrl+B 后台、双 Esc rewind | 功能和配置面复杂；fullscreen 仍属预览 |
 | uv-agent | ANSI 单列 Transcript + 底部 Composer + 全屏面板 | 单一 Python 出口、可审计脚本、渐进上下文 | run_python 记录、Thread / Skill / MCP mention | 文档与源码漂移；任意 Python 边界过宽 |
 | CodeWhale | Ratatui Header / Transcript / Composer / Sidebar / Footer | 开放模型优先、责任与证据、回滚、Provider 路由 | Plan / Agent / YOLO；side-git / restore | 功能面过宽；YOLO、daemon / fleet 的治理成本 |
-| Chaos4 当前工作树 | Windows 原生滚屏、单列 Transcript、底部动态尾部 | Windows-first、typed tools、任务真相、显式审批 | CommandRegistry、前台任务、steering 证据 | 无 OS 沙箱；checkpoint 尚未 Runtime 接通 |
+| Chaos4 当前工作树 | Windows 原生滚屏、单列 Transcript、底部动态尾部 | Windows-first、typed tools、任务真相、显式审批 | CommandRegistry、前台任务、steering 证据、semantic checkpoint 与只读 rewind preview | 无 OS 沙箱；无 rewind apply / restore |
 
 ### 3.2 共同交互闭环
 
@@ -122,9 +122,9 @@ flowchart LR
 | 可重映射快捷键 | ● | ● | ● | — | — | — |
 | 外部编辑器编辑 Prompt | ● | ● | ● | — | ● | — |
 | 完整 diff 视图 | ◐ | ● | ● | ◐ | ● | ◐ |
-| 按 Turn 文件 checkpoint / rewind | — | — | ● | ◐ | ● | — |
+| 按 Turn 文件 checkpoint / rewind | — | — | ● | ◐ | ● | ◐（任意 checkpoint 只读 preview；无 apply） |
 | resume / continue / fork / branch | ◐ | ● | ● | ● | ● | ◐ |
-| 语义压缩与可追溯 Anchor | ◐ | ◐ | ◐ | ● | ◐ | Unit 已实现、未接 Runtime |
+| 语义压缩与可追溯 Anchor | ◐ | ◐ | ◐ | ● | ◐ | ●（已接 Runtime） |
 | 后台进程 / 任务视图 | ● | ● | ● | ● | ● | — |
 | 子 Agent 可观察与切换 | ◐ | ● | ● | ◐ | ● | ◐ |
 | Skills 延迟加载 | ● | ● | ● | ● | ● | ● |
@@ -404,9 +404,9 @@ CodeWhale 当前以 Rust / Ratatui 构建终端 Agent Harness，强调 Provider 
 
 - <code>pyproject.toml</code> 当前声明版本 1.0.2，入口是 <code>chaos-agent = code_agent_win.cli:main</code>。[项目清单](../../pyproject.toml)
 - 当前工作树在研究开始前已有大量未提交修改和未跟踪文件。本报告保留这些用户工作，不把工作树能力冒充已发布 1.0.2 契约。
-- [Amp-inspired Runtime 记录](../amp-inspired-runtime.md) 报告 2026-07-15 的 554 项自动化测试快照，并明确列出未实机覆盖的 live provider、第三方插件和所有窄屏交互。
+- [Amp-inspired Runtime 记录](../amp-inspired-runtime.md) 分别保留 2026-07-15 的 554 项历史自动化测试快照和 2026-07-19 的 P0 recovery 验收。
 - [Terminal Capabilities 验证记录](../releases/1.1.0-terminal-capabilities-validation.md) 是另一个针对终端 / Profile / Skills / MCP 的验收切片。两份计数口径不同，不能直接相加。
-- 本研究没有重跑源码测试；以下判断是代码 / 契约审计和既有验证记录，不是新的发布验收。
+- 2026-07-16 初稿没有重跑源码测试；后续 P0 recovery 是独立实施与验收切片，Feature 共运行 530 项，其中 526 项通过、4 项平台 skip；root integration 163 项全部通过。自动化合计运行 693 项，其中 689 项通过、4 项 skip。它仍不是已发布 1.0.2 的替代声明。
 
 ### 6.2 已经形成的正确方向
 
@@ -421,19 +421,20 @@ CodeWhale 当前以 Rust / Ratatui 构建终端 Agent Harness，强调 Provider 
 | Skills | <code>.agents/skills</code>、digest 冲突隔离、显式激活 | 安全面优于任意脚本 |
 | MCP | approved stdio、风险映射、统一 ActionPolicy | 正确 |
 | 插件 | declarative manifest、SHA-256 trust、Host typed mapping | 应坚持，不转为裸代码 |
-| Diff | typed write diff + 可注入只读 Git reader、文件统计和 bounded unified diff | 基础具备，仍需补全视角 |
+| Diff | staged / unstaged / untracked / per-turn / since-checkpoint 的有界事实与 scope-aware 只读投影 | P0 审阅视角已交付 |
 | 子 Agent | typed action、取消 / 预算 / 并发、结果 advisory | 正确 |
-| Context | 数值预算、确定性 compaction、事实与模型笔记分离 | 基础扎实 |
+| Context | 真实 `ContextRequest(thread_id, revision, ...)`、数值预算、source-anchored compaction | 已接 Runtime，不伪造 Thread 身份 |
+| Rewind | checkpoint candidate 分页；conversation / code / both 双观测只读 preview | P0 仅预览；无 apply / restore |
 
-本表的本地事实来自 [README](../../README.md)、[interfaces Feature 契约](../../src/code_agent/interfaces/AGENTS.md)、[CommandRegistry](../../src/code_agent/interfaces/command_registry.py) 和 [Amp-inspired Runtime 记录](../amp-inspired-runtime.md)。
+本表的本地事实来自 [README](../../README.md)、[interfaces Feature 契约](../../src/code_agent/interfaces/AGENTS.md)、[Windows Integration 契约](../../code_agent_win/AGENTS.md)、[CommandRegistry](../../src/code_agent/interfaces/command_registry.py)、[P0 Recovery Plan](../superpowers/plans/2026-07-16-cli-tui-p0-recovery-review-plan.md) 和 [Amp-inspired Runtime 记录](../amp-inspired-runtime.md)。
 
-### 6.3 关键缺口
+### 6.3 P0 交付与剩余缺口
 
 | 优先级 | 缺口 | 影响 |
 | --- | --- | --- |
-| P0 | <code>WorkspaceContextBuilder.build(...)</code> 没有 <code>thread_id</code> | 语义 checkpoint、Source Anchor、Thread 搜索无法诚实接入 Runtime |
-| P0 | 没有按 Turn 工作区 snapshot / rewind | 长任务错误后只能人工修复或依赖 Git，不能恢复本轮改动 |
-| P0 | Diff 尚未形成 staged / unstaged / untracked / per-turn 的统一审阅面 | 新文件和跨 Turn 变更可能漏审 |
+| P0 已交付 | 真实 <code>ContextRequest</code> 身份与 Source Anchor | semantic checkpoint 已诚实接入 Runtime |
+| P0 已交付（只读） | 完整 capture coverage、外置 snapshot 与任意 checkpoint rewind preview | 可验证 conversation / code / both 影响；不 apply 或 restore |
+| P0 已交付 | staged / unstaged / untracked / per-turn / since-checkpoint 统一审阅事实 | 新文件与跨 Turn 变更进入有界视图 |
 | P1 | 没有自描述、可重映射 Keymap Catalog | 文档、快捷键和实际 handler 可能漂移 |
 | P1 | 没有 <code>@</code> 文件和 <code>@@</code> Thread Picker | 用户需要手工复制路径 / ID，发现成本高 |
 | P1 | 缺少 Transcript / Run Inspector | 详情要么挤进主 Transcript，要么难以追溯 |
@@ -653,9 +654,9 @@ stateDiagram-v2
 
 ## 11. Context、checkpoint 与 rewind
 
-### 11.1 先修接口，再接语义压缩
+### 11.1 真实身份与语义 checkpoint 已接入
 
-当前阻塞点不是“没有摘要模型”，而是 ContextBuilder 没有 Thread 身份。推荐新增显式请求对象：
+当前 Runtime 为每个 model turn 构造显式、不可变的请求对象：
 
 ~~~text
 ContextRequest
@@ -668,40 +669,53 @@ ContextRequest
   permission_snapshot
   context_pressure
   cancellation
-  timeout
+  timeout_seconds
   budget_lease
 ~~~
 
-只有拿到真实 <code>thread_id</code> 和 revision，Semantic Checkpoint 才能写出可信 Source Anchor。
+真实 <code>thread_id</code> 和正 revision 进入 ContextBuilder 与 semantic
+compactor。Host 只持久化脱敏的 Source Anchor / checkpoint facts，并通过
+coordinated Sessions repository 把 checkpoint 与 workspace mutation
+high-water 排序；不会伪造 Thread 身份，也不会把 summary、source text 或
+messages 写入 checkpoint payload。
 
-### 11.2 每 Turn checkpoint
+### 11.2 完整 mutation capture 与 checkpoint 锚定
 
-每个用户 Turn 开始前记录：
+对 Host 可精确理解的 workspace typed edit，写侧顺序是：
 
-- thread_id、turn_id、parent revision。
-- mode / profile / model / protocol / endpoint host。
-- permission policy 与工具目录 digest。
-- 启动前 dirty baseline。
-- 本 Turn 触碰文件的有界 snapshot。
-- task checklist、budget 和 verification references。
+1. 在共享 cross-process gate 内观察 exact before / planned after 状态。
+2. 把 exact inverse bytes 保存到仓库外的产品状态目录。
+3. 在文件变更前持久化 `PREPARED` mutation、路径 preimage 和 lineage。
+4. 执行 edit，核对 exact postimage 后持久化 `COMPLETED`。
+5. checkpoint 在同一 gate 内锚定 owner、coverage generation 与 mutation
+   high-water，不能观察到过时的变更序列。
 
-每个 Turn 结束后记录：
+对于不能精确捕获文件效果的 writer，Host 必须在执行前持久化
+`unknown-writer` `GAP`。该记录把当前 coverage 标记为 invalidated；后续
+checkpoint 仍可做 conversation preview，但该 coverage 的 code facet
+持续 fail closed。
 
-- write set、diff summary、artifact handles。
-- tool / command exit facts。
-- child receipts。
-- gate evidence。
-- completion classification。
+### 11.3 rewind 的三种只读 facet
 
-### 11.3 rewind 的三种动作
+| Preview kind | Conversation facet | Code facet | 修改会话 / 文件 |
+| --- | --- | --- | :---: |
+| <code>conversation</code> | checkpoint 后经 thread-filtered 边界验证的 message 数 | 不选择 | 否 |
+| <code>code</code> | 不选择 | 完整、排序后的路径与 baseline provenance | 否 |
+| <code>both</code> | 同 conversation | 同 code | 否 |
 
-| 动作 | 改会话 | 改文件 | 说明 |
-| --- | :---: | :---: | --- |
-| 回到消息 | 是 | 否 | fork 新 revision，不删除原 Thread |
-| 回退文件 | 否 | 是 | 恢复本 Turn snapshot，保护启动前 dirty baseline |
-| 同时回退 | 是 | 是 | 先预览受影响文件，再明确确认 |
+`/rewind list [cursor]` 只列出候选；candidate 的 message-bound /
+code-anchor facet 是发现提示，不是可用性承诺。
+<code>/rewind preview &lt;checkpoint-id&gt; &lt;conversation|code|both&gt;</code>
+至多执行两次完整观测，来源在观测间移动时重试并最终 fail closed。
 
-禁止用隐藏的 <code>git reset --hard</code> 实现 rewind。Snapshot 应位于产品状态目录，不能污染或改写用户 Git 历史。
+Code preview 只有在完整 capture coverage、每个 mutation 的 exact inverse
+snapshot / preimage、相邻同路径 continuity 和当前 workspace tip 全部验证
+通过后才可用。只有该完整证据链成立时，UI 才声明保存了 pre-existing
+user bytes；baseline provenance 本身不是证明强度。
+
+当前 `/rewind` 没有 apply、restore、<code>git reset</code>、
+<code>git checkout</code>、approval、provider 或 tool action。Snapshot
+位于产品状态目录，不污染仓库或改写用户 Git 历史。
 
 ### 11.4 compaction
 
@@ -842,6 +856,10 @@ flowchart TB
     CMD --> APP["Application Controller"]
     VIEW --> APP
     APP --> CORE["Core Turn + Task State Machines"]
+    APP --> RW["RewindRuntime · list / preview only"]
+    RW -->|"read only"| RSESS["Sessions bounded observation / coverage journal"]
+    RW -->|"read only"| RSNAP["Validated snapshots / current file states"]
+    RW --> VM
     CORE --> CTX["ContextRequest + Checkpoint + Source Anchors"]
     CORE --> ORCH["Orchestration + Writer Lease + Child Receipts"]
     CORE --> POLICY["ActionPolicy + Permission Profile"]
@@ -859,6 +877,8 @@ flowchart TB
 - Event 是 TUI、CLI、JSONL 和恢复的共同来源。
 - Evidence Ledger 独立于模型消息 compaction。
 - UI 可被替换，Task / Policy / Checkpoint 真相不变。
+- RewindRuntime 只读取 observation、snapshot 和当前文件状态，不调用
+  apply、restore、Git、approval、provider 或 tool action。
 
 ## 17. 分阶段落地路线
 
@@ -876,13 +896,14 @@ flowchart TB
 | policy | permission profile 和 approval decision；不渲染 UI |
 | sessions | checkpoint / revision / artifact 持久化；不执行恢复动作 |
 
-### 阶段 B：P0 实现
+### 阶段 B：P0 已交付（preview-only）
 
-1. 给 ContextBuilder 增加真实 <code>ContextRequest(thread_id, revision, ...)</code>。
-2. 接入已存在的 semantic checkpoint / Source Anchor Units。
-3. 扩展 DiffView：untracked、staged / unstaged、per-turn。
-4. 实现 WorkspaceSnapshot 和三种 rewind 预览。
-5. 给每个关键路径增加 Unit 与迁移测试。
+1. ContextBuilder 已接收真实 <code>ContextRequest(thread_id, revision, ...)</code>。
+2. semantic checkpoint / Source Anchor Units 已接 Runtime。
+3. DiffView 已覆盖 untracked、staged / unstaged、per-turn 和 since-checkpoint。
+4. WorkspaceSnapshot、完整 capture coverage 和三种 rewind preview facet
+   已接入；apply / restore 未交付。
+5. 关键路径已有 Unit、迁移、Runtime 与 TUI integration 测试。
 
 ### 阶段 C：P1 实现
 
@@ -933,12 +954,12 @@ flowchart TB
 | Codex sandbox / approval 分层 | 采用概念，分步实现 | Chaos4 目前缺 OS sandbox，但可先统一状态模型 |
 | Codex 完整 working tree diff | 采用 | 防止漏审 untracked |
 | Claude Transcript Viewer | 改造 | 用正常 scrollback + Inspector，不默认 fullscreen |
-| Claude checkpoint / rewind | 采用 | 当前最大长任务体验缺口 |
+| Claude checkpoint / rewind | 采用只读部分 | 任意 checkpoint 的 conversation / code / both preview 已交付；apply 未采用 |
 | Claude 全功能后台 / cloud | 暂缓 | 需要新的运行与威胁模型 |
 | uv-agent 单 run_python | 拒绝替换 typed tools | 可审计不等于最小权限 |
 | uv-agent 渐进上下文 | 采用 | 与现有 Skill / MCP / Rule 分层一致 |
 | uv-agent NetGain compaction | 试验 | 先接真实 thread_id，再 A/B |
-| CodeWhale side-git restore | 改造 | 用产品状态目录 snapshot，保护 dirty baseline |
+| CodeWhale side-git restore | 仅采用外置 snapshot 与验证链 | 未采用 restore；只有 exact preimage / continuity / current-tip 全部通过才声明保存 baseline |
 | CodeWhale Plan / Agent / YOLO | 只采用轴分离 | 不采用 YOLO 作为日常模式 |
 | CodeWhale Fleet / daemon | 暂缓 | 当前单前台任务是明确契约 |
 
@@ -952,7 +973,7 @@ flowchart TB
 - 上游很多能力依赖云账户、OS 沙箱、独立 Rust / Node Runtime 或大型团队维护，不能从 UI 截图推导可移植性。
 - 功能面越大，命令、键位、配置、权限和恢复的组合状态越多。uv-agent 的同发布契约漂移已经说明“快速加功能”会损害可信度。
 - CodeWhale 和 Claude 的高自治模式都需要额外 classifier、protected paths、snapshot、worktree 或云隔离；只复制一个“YOLO”按钮最危险。
-- Chaos4 当前 semantic checkpoint 已有 Unit，真正瓶颈是身份契约，不是再写一套摘要 UI。
+- Chaos4 的真实身份、checkpoint / mutation ordering 与只读 preview 已接通；当前刻意边界是无破坏性 apply / restore，而不是再写一套摘要 UI。
 
 因此本报告把“恢复能力、审阅能力、可发现性、证据链”排在“更多并行、更多远程、更多自动发布”之前。
 
@@ -964,7 +985,7 @@ flowchart TB
 - uv-agent 的 CLI / 键位漂移结论绑定 v0.21.4 固定提交，不代表未来提交没有修复。
 - CodeWhale 的 main 分支 README 与架构文档在访问时存在相邻版本号差异，因此报告只依赖稳定设计事实，并使用固定提交做身份和截图证据。
 - 官方图片是视觉参考，可能滞后于当前 CLI；本报告没有做用户实验、性能基准或无障碍审计。
-- Chaos4 工作树原本已脏；本研究没有修改源码、没有重新运行现有 554 项测试快照，也没有把未提交功能称为正式发布。
+- Chaos4 工作树在 2026-07-16 初稿研究前已脏；初稿没有修改源码或重跑 554 项历史快照。后续 P0 recovery 是独立实施切片，Feature 共运行 530 项，其中 526 项通过、4 项平台 skip；root integration 163 项全部通过。它没有被冒充为已发布 1.0.2。
 
 复现方式：按下方来源链接访问官方材料，并在目标发布版本运行各产品自己的 <code>--help</code>、keymap / commands、tools、permissions 和 version 命令，再与本报告快照比较。
 

@@ -110,9 +110,9 @@ Record these contracts without adding implementation or new Unit entries:
 Core: one immutable ContextRequest carries real thread_id and positive revision.
 Context: compaction receives identity and cancellation but never persists checkpoints.
 Thread Intelligence: derived checkpoints expose stable source ranges and remain untrusted.
-Workspace: snapshots live outside the repository and restore the pre-turn bytes, including a dirty baseline.
+Workspace: snapshots live outside the repository and persist exact pre-mutation bytes for validation; rewind views do not restore files.
 Sessions: checkpoints record message/event bounds and opaque artifact handles.
-Interfaces: diff and rewind views are read-only projections; preview is distinct from apply.
+Interfaces: diff and rewind views are read-only projections; preview exists and apply does not.
 ```
 
 - [x] **Step 2: Contract review**
@@ -505,7 +505,7 @@ git commit -m "feat: add scope aware diff review"
 
 - [x] **Step 1: Write failing snapshot integrity tests**
 
-Test an existing dirty file, a missing future file, binary bytes, duplicate paths, tampered blob digest, traversal in a manifest, aggregate size limit, and restore to the exact pre-turn bytes.
+Test an existing dirty file, a missing future file, binary bytes, duplicate paths, tampered blob digest, traversal in a manifest, aggregate size limit, and an internal WorkspaceEditor round-trip to the exact pre-turn bytes. This primitive is not exposed by `/rewind`.
 
 - [x] **Step 2: Verify RED**
 
@@ -553,8 +553,8 @@ and `617313b`.
 
 ### Task 7: Build code/conversation/both rewind previews
 
-> **Decision gate:** Task 6 established durable checkpoint bounds and guarded
-> snapshot storage, but the current repository does not yet persist a complete
+> **Historical decision gate:** At Task 6 completion, durable checkpoint bounds
+> and guarded snapshot storage existed, but the repository did not yet persist a complete
 > checkpoint-relative mutation journal, the pre-mutation dirty baseline, or a
 > trusted checkpoint-to-snapshot association. `message_sequence` is a global
 > SQLite sequence, so conversation rewind counts also require a thread-filtered
@@ -570,6 +570,8 @@ and `617313b`.
 > reviewed worker-executable child plans are linked from it. Together they
 > supersede the abbreviated Task 7 steps below while preserving this roadmap's
 > preview-only/no-hidden-Git-reset acceptance boundary.
+> The approved scope was completed by
+> `docs/superpowers/plans/2026-07-19-rewind-integration-feature.md`.
 
 **Stage:** Interfaces Feature implementation, followed by integration
 
@@ -583,57 +585,38 @@ and `617313b`.
 - Modify: `code_agent_win/app_ui.py`
 - Modify: `tests/test_agent_app.py`
 
-- [ ] **Step 1: Write failing preview tests**
+- [x] **Step 1: Write failing preview tests**
 
-```python
-preview = build_rewind_preview(
-    RewindKind.BOTH,
-    checkpoint,
-    snapshot_handle,
-    current_dirty_paths=("user-before.txt",),
-)
-self.assertEqual(preview.code_paths, ("agent-change.txt",))
-self.assertGreater(preview.conversation_messages, 0)
-self.assertFalse(preview.requires_git_reset)
-self.assertTrue(preview.requires_confirmation)
-```
+Tests cover paginated candidate listing and arbitrary-checkpoint previews for
+`conversation`, `code`, and `both`. Candidate message-bound and code-anchor
+facets are discovery hints, not availability promises. Old checkpoints without
+bounds, incomplete capture coverage, durable unknown-writer gaps, missing or
+invalid snapshots, broken path continuity, and a changed current tip fail
+closed with stable facet-specific reasons.
 
-Old checkpoints without bounds and missing/tampered snapshots must return a disabled preview with a stable reason.
-
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest src.code_agent.interfaces.tests.test_rewind_view -v
 ```
 
-- [ ] **Step 3: Implement side-effect-free view models**
+- [x] **Step 3: Implement side-effect-free view models**
 
-```python
-class RewindKind(str, Enum):
-    CONVERSATION = "conversation"
-    CODE = "code"
-    BOTH = "both"
+The Interfaces layer projects immutable, facet-aware candidates and previews.
+It never restores files, mutates Sessions, requests approval, or calls a
+provider or tool.
 
-@dataclass(frozen=True)
-class RewindPreview:
-    kind: RewindKind
-    checkpoint_id: str
-    code_paths: tuple[str, ...]
-    conversation_messages: int
-    dirty_baseline_paths: tuple[str, ...]
-    enabled: bool
-    reason: str | None
-    requires_confirmation: bool = True
-    requires_git_reset: bool = False
-```
+- [x] **Step 4: Add integration preview service**
 
-The Interfaces layer never restores files or mutates Sessions.
+`RewindRuntime` exposes only `list_candidates(...)` and
+`preview(thread_id, checkpoint_id, kind)`. It performs at most two complete
+observations. A code preview requires complete mutation-capture coverage,
+validated exact inverse snapshot preimages, adjacent path continuity, and a
+matching current workspace tip. Any unknown writer first records a durable
+`GAP`, invalidating code rewind for that coverage. No apply, restore,
+`git reset`, `git checkout`, approval, provider, or tool action is available.
 
-- [ ] **Step 4: Add integration preview service**
-
-`RewindRuntime.preview(thread_id, checkpoint_id, kind)` loads the checkpoint and snapshot handle, verifies the snapshot manifest, and returns `RewindPreview`. It does not expose an apply action in this P0 plan; explicit apply requires a separate policy-reviewed typed action after preview acceptance.
-
-- [ ] **Step 5: Verify Interfaces/integration GREEN and commit separately**
+- [x] **Step 5: Verify Interfaces/integration GREEN and commit separately**
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s src/code_agent/interfaces/tests -p 'test_*.py' -v
@@ -655,11 +638,14 @@ git commit -m "feat: integrate diff and rewind projections"
 - Modify: `code_agent_win/AGENTS.md`
 - Test: all Feature and root suites
 
-- [ ] **Step 1: Update only verified user-facing claims**
+- [x] **Step 1: Update only verified user-facing claims**
 
-Document exact P0 behavior, command/view availability, snapshot location, no-hidden-`git reset` guarantee, and the distinction between rewind preview and a future policy-gated apply action. Change the research report's current-state table only for capabilities proven by tests.
+Document exact P0 behavior, command/view availability, snapshot location, the
+no-hidden-`git reset` guarantee, and the preview-only boundary. No apply or
+destructive restore was delivered. Change the research report's current-state
+table only for capabilities proven by tests.
 
-- [ ] **Step 2: Run every suite**
+- [x] **Step 2: Run every suite**
 
 ```powershell
 $python = '.\.venv\Scripts\python.exe'
@@ -676,7 +662,11 @@ if ($LASTEXITCODE -ne 0) { throw 'failed root integration suite' }
 
 Expected: zero failures/errors; platform-guarded skips must remain explicitly reported.
 
-- [ ] **Step 3: Run structural checks**
+Observed on 2026-07-19: Feature suites ran 530 tests, with 526 passing and 4
+explicit platform skips; root integration passed 163 tests. The automated
+total was 693 run, with 689 passing and 4 skipped.
+
+- [x] **Step 3: Run structural checks**
 
 ```powershell
 python -m compileall -q src code_agent_win tests
@@ -686,7 +676,7 @@ git status --short
 
 Expected: compile success, no whitespace errors, and only plan-related branch changes.
 
-- [ ] **Step 4: Commit integration docs**
+- [x] **Step 4: Commit integration docs**
 
 ```powershell
 git add README.md docs/amp-inspired-runtime.md docs/research/cli-tui-design-comparison.md code_agent_win/AGENTS.md
@@ -699,7 +689,7 @@ git commit -m "docs: record p0 cli tui recovery delivery"
 - Context events derive from a request carrying the actual thread ID and positive revision.
 - Semantic checkpoint metadata can resolve to a stable source range without storing source text in the event payload.
 - Working-tree review includes staged, unstaged, and untracked files; per-turn data cannot be silently replaced by live Git data.
-- Snapshots restore pre-turn bytes, including pre-existing dirty content, and never use `git reset`, `checkout`, or repository-local hidden state.
-- Rewind is preview-only in this delivery and always requires explicit confirmation before any future apply action.
+- Exact pre-mutation inverse snapshots live outside the repository. Code projection is emitted only after snapshot/preimage, path-continuity, and current-tip validation; `/rewind` never calls restore, `git reset`, or `git checkout`.
+- Rewind is preview-only in this delivery. Only list and preview exist, and they make no approval, provider, or tool call.
 - Mode and permission remain independent; no new UI operation grants authority.
 - All Feature suites and root integration tests pass from the isolated worktree.

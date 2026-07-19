@@ -16,20 +16,25 @@ not a claim of source compatibility or copied behavior.
 | Steering | `queued`, `steered`, `dequeued`, and `applied` remain distinct with queue count. | `TURN_STARTED` proves dequeue; `CONTEXT_BUILT` proves application to rebuilt context. |
 | Approval | Action, mapped target, risk, reason, No/Yes selection, `Enter`, and `Esc` are visible in the dynamic tail. | Host-owned approval broker; default selection is No. |
 | Diff | Recorded typed write diff is parsed; an injected Git reader can replace it with current workspace diff. | File statistics, bounded unified lines, path filter, file navigation, and comment model tests. |
+| Context and checkpoints | Each model turn carries a real thread ID and positive revision in an immutable `ContextRequest`; sanitized semantic checkpoint facts are persisted by the Host and ordered with the workspace mutation high-water. | Source-anchor, context-runtime, coordinated-session, and checkpoint-ordering tests. |
+| Rewind preview | `/rewind list` paginates arbitrary checkpoint candidates; `/rewind preview` projects `conversation`, `code`, or `both` through two bounded observations. | Complete capture coverage, durable `GAP`, exact snapshot/preimage, path-continuity, current-tip, candidate, Runtime, and TUI integration tests. |
 
-## Implemented But Not Yet Runtime-integrated
+## Runtime-integrated Recovery Boundaries
 
 Semantic checkpoints, source anchors, bounded thread index/search, and
-revision-aware `read_thread` are complete Feature Units. They are deliberately
-not connected to `WorkspaceContextBuilder` yet. Its public `build(messages,
-user_input, tools, task_state)` contract has no thread identity, so an
-integration adapter cannot create truthful `SourceAnchor.thread_id` values.
+revision-aware `read_thread` are connected through the real per-turn
+`ContextRequest`. The Windows Host persists the sanitized checkpoint facts and
+serializes checkpoint anchors with the mutation journal; it does not guess
+thread identity or persist summary/source text in the checkpoint payload.
 
-The current runtime therefore retains deterministic compaction. The next safe
-revision is to add an explicit context request carrying `thread_id`, context
-pressure, cancellation, timeout, and task budget lease. After that change, the
-semantic compactor can run near 90% pressure and persist its checkpoint through
-the session repository without guessing identity or hiding model usage.
+Arbitrary-checkpoint rewind remains preview-only. Candidate message-bound and
+code-anchor facets are discovery hints, not availability promises. A code
+facet requires complete mutation-capture coverage plus validated exact inverse
+snapshot preimages, adjacent path continuity, and a matching current workspace
+tip. Any writer with unknown exact effects first persists a durable `GAP`,
+which invalidates code rewind for that coverage. `/rewind` exposes no apply or
+restore action, performs no `git reset` or `git checkout`, requests no approval,
+and calls no provider or typed tool.
 
 ## Deliberate Differences
 
@@ -40,10 +45,13 @@ the session repository without guessing identity or hiding model usage.
 - Plugins, modes, Skills, MCP, and Oracle choices do not imply authorization.
 - The app does not run a daemon, background continuation service, automatic
   worktree, commit, or push.
+- Unlike Claude Code or CodeWhale restore flows, Chaos Agent's `/rewind`
+  surface lists candidates and renders previews but does not mutate
+  conversations, files, Sessions, or the Git index.
 
-## Acceptance Snapshot
+## Acceptance Snapshots
 
-Recorded on 2026-07-15:
+### Historical snapshot: 2026-07-15
 
 - 17 Feature suites: 515 tests passed.
 - Root integration: 39 tests passed.
@@ -62,3 +70,15 @@ Not included in this automated acceptance: a paid/live provider child-agent
 run, an installed third-party plugin, or hands-on Windows Terminal checks of
 every narrow-width Picker/approval/diff interaction. Those remain manual gates,
 not implied by the passing unit and integration suites.
+
+### P0 recovery acceptance: 2026-07-19
+
+- Feature suites: 530 tests run, with 526 passing and 4 explicitly reported
+  platform skips.
+- Root integration: 163 tests passed.
+- Automated total: 693 tests run, with 689 passing and 4 platform skips.
+- The recovery acceptance covers real context identity, checkpoint/mutation
+  ordering, complete typed-edit capture, durable unknown-writer gaps, validated
+  snapshots, two-observation rewind projection, and read-only TUI delegation.
+- It does not claim an apply, restore, `git reset`, `git checkout`, approval,
+  provider, or tool action from `/rewind`.
