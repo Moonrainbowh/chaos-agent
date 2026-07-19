@@ -25,11 +25,12 @@ from code_agent.skills.registry import SkillActivation
 from code_agent.mcp.registry import McpRegistry
 from .task_controller import ForegroundTaskController
 from .tui_commands import ParseOutcome, TuiCommandKind, parse_tui_command
-from .i18n import Language, catalog_for, localize_task_status, select_runtime_language
+from .i18n import catalog_for, localize_task_status, select_runtime_language
 from .evidence_view import format_evidence_summary
 from .tui_input import apply_paste, handle_interrupt
 from .command_availability import available_services
 from .tui_builtin_commands import handle_builtin_command
+from .tui_display_commands import handle_display_command
 from .tui_mcp_commands import handle_mcp_command
 from .tui_interactions import TuiInteractions
 from .diff_view import GitDiffSource
@@ -184,34 +185,12 @@ class WindowsTerminalApp:
         assert command is not None
         builtin = await handle_builtin_command(self, command)
         if builtin is not None: return builtin
+        display = await handle_display_command(self, command)
+        if display is not None: return display
         if command.kind is TuiCommandKind.DIFF: await self.interactions.show_diff(self)
         elif command.kind is TuiCommandKind.STATUS:
             self._append(DisplayKind.METADATA, status_snapshot(self.state.status, self.active_task_id or self.state.task_id, self.current_thread_id, self.profiles.current.model if self.profiles else None))
         elif command.kind is TuiCommandKind.HELP: self._append(DisplayKind.METADATA, " ".join(item.display for item in REGISTRY.available(available_services(self))))
-        elif command.kind is TuiCommandKind.LANGUAGE:
-            value = (command.instruction or "").casefold()
-            if value in {"zh", "zh-cn"}:
-                self.catalog = catalog_for(Language.ZH_CN)
-            elif value in {"en", "en-us"}:
-                self.catalog = catalog_for(Language.EN_US)
-            else:
-                self._append(DisplayKind.ERROR, "language must be zh-CN or en")
-                return False
-            self._append(DisplayKind.METADATA, "语言已切换" if self.catalog.language is Language.ZH_CN else "language updated")
-        elif command.kind is TuiCommandKind.THEME:
-            try: self.theme = Theme(command.instruction or "")
-            except ValueError: self._append(DisplayKind.ERROR, "theme must be signal, symbol, or plain"); return False
-            self._append(DisplayKind.METADATA, "theme updated")
-        elif command.kind is TuiCommandKind.COLOR:
-            try: self.color = ColorMode(command.instruction or "")
-            except ValueError: self._append(DisplayKind.ERROR, "color must be auto, always, or never"); return False
-            self._append(DisplayKind.METADATA, "color updated")
-        elif command.kind is TuiCommandKind.GLYPHS:
-            glyphs = command.instruction
-            if glyphs == "ascii": self.theme = Theme.SIGNAL
-            elif glyphs == "unicode": self.theme = Theme.SYMBOL
-            else: self._append(DisplayKind.ERROR, "glyphs must be ascii or unicode"); return False
-            self._append(DisplayKind.METADATA, "glyphs updated")
         elif command.kind is TuiCommandKind.MODEL:
             if self.profiles is None: self._append(DisplayKind.ERROR, "model profiles are unavailable"); return False
             if command.instruction in {None, "列表", "list"}:
