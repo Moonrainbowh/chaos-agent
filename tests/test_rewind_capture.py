@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import threading
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -129,6 +130,18 @@ def _prepared() -> PreparedEditState:
         before,
         after,
     )
+
+
+def _blocking_observation(calls: list[str], state: WorkspaceFileState):
+    started, finish = threading.Event(), threading.Event()
+
+    def observe(editor: object, paths: tuple[str, ...]):
+        calls.append("workspace.observe")
+        started.set()
+        finish.wait(2)
+        return (state,)
+
+    return started, finish, observe
 
 
 class CaptureHarness:
@@ -265,3 +278,22 @@ class RewindCaptureTests(CaptureHarness, unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(asyncio.CancelledError):
             await task
         self.assertLess(self.calls.index("sessions.gap"), self.calls.index("gate.release"))
+
+    async def test_post_observe_cancellation_reconciles_before_release(self) -> None:
+        started, finish, observe = _blocking_observation(
+            self.calls, _prepared().after)
+        with patch.multiple(
+            "code_agent_win.rewind_capture",
+            prepare_edit_state=lambda editor, plan: _prepared(),
+            observe_file_states=observe,
+        ):
+            task = asyncio.create_task(
+                self.coordinator.apply_edit(self.context, self.request, self.plan)
+            )
+            self.assertTrue(await asyncio.to_thread(started.wait, 2))
+            task.cancel()
+            finish.set()
+            with self.assertRaises(asyncio.CancelledError):
+                await task
+        self.assertIs(self.sessions.finished, RewindMutationStatus.COMPLETED)
+        self.assertLess(self.calls.index("sessions.complete"), self.calls.index("gate.release"))

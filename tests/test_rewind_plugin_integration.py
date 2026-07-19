@@ -10,24 +10,21 @@ from code_agent.core.action_execution import ActionExecutionContext
 from code_agent.core.cancellation import CancellationError, CancellationToken
 from code_agent.core.models import ActionRequest, ActionResult
 from code_agent.interfaces.terminal_state import ApprovalBroker
-from code_agent.policy.models import (
-    DecisionOutcome,
-    PolicyDecision,
-    RiskLevel,
-)
+from code_agent.policy.models import DecisionOutcome, PolicyDecision, RiskLevel
 from code_agent.sessions.rewind_models import RewindMutationStatus
 from code_agent.workspace.edits import WorkspaceEditor
 from code_agent.workspace.files import WorkspaceFiles
 from code_agent.workspace.ignore import IgnoreRules
 from code_agent.workspace.paths import WorkspacePathGuard
 from code_agent_win.action_dispatcher import RootActionDispatcher
-from tests.test_rewind_capture import CaptureHarness, _prepared
+from tests.test_rewind_capture import CaptureHarness, _blocking_observation, _prepared
 
 
 class _Capture:
     def __init__(self) -> None:
         self.calls: list[tuple[str, str]] = []
         self.error: BaseException | None = None
+        self.cancel: CancellationToken | None = None
 
     async def apply_edit(self, context: object, request: ActionRequest, plan: object) -> None:
         self.calls.append(("edit", request.name))
@@ -36,6 +33,8 @@ class _Capture:
 
     async def record_gap(self, context: object, request: ActionRequest, reason: str) -> None:
         self.calls.append(("gap", request.name))
+        if self.cancel is not None:
+            self.cancel.cancel("after gap")
         if self.error is not None:
             raise self.error
 
@@ -141,7 +140,13 @@ class DispatcherCaptureTests(unittest.IsolatedAsyncioTestCase):
             self.dispatcher(plugins=_Plugins("read_file", "read")),
             ActionRequest("request", "plugin.demo", {"path": "note.txt"}),
         )
+        mcp = _Mcp("read")
+        await self.dispatch(
+            self.dispatcher(mcp=mcp, risk="read"),
+            ActionRequest("request", "mcp.demo.tool", {}),
+        )
         self.assertEqual(self.capture.calls, [])
+        self.assertTrue(mcp.called)
 
     async def test_delegate_parent_creates_no_mutation_or_gap(self) -> None:
         await self.dispatch(
@@ -169,6 +174,20 @@ class DispatcherCaptureTests(unittest.IsolatedAsyncioTestCase):
                 self.dispatcher(mcp=_Mcp("write"), risk="write"),
                 ActionRequest("request", "mcp.demo.tool", {}),
             )
+
+    async def test_post_gap_cancellation_prevents_direct_and_plugin_mcp_call(self) -> None:
+        for plugins in (None, _Plugins("mcp.demo.tool", "write")):
+            with self.subTest(plugin=plugins is not None):
+                token, mcp = CancellationToken(), _Mcp("write")
+                self.capture.cancel = token
+                name = "plugin.demo" if plugins is not None else "mcp.demo.tool"
+                request = ActionRequest("request", name, {})
+                with self.assertRaises(CancellationError):
+                    await self.dispatcher(mcp=mcp, plugins=plugins).dispatch(
+                        request, token, execution_context=self.context
+                    )
+                self.assertFalse(mcp.called)
+                self.capture.calls.clear()
 
 
 class CaptureCancellationTests(CaptureHarness, unittest.IsolatedAsyncioTestCase):
@@ -199,8 +218,11 @@ class CaptureCancellationTests(CaptureHarness, unittest.IsolatedAsyncioTestCase)
 
     async def test_cancelled_prepare_settles_before_gate_release(self) -> None:
         blocker = self.sessions.block["prepare"] = asyncio.Event()
-        self.observed = _prepared().before
-        with self.patches():
+        started, finish, observe = _blocking_observation(
+            self.calls, _prepared().before)
+        with self.patches(), unittest.mock.patch(
+            "code_agent_win.rewind_capture.observe_file_states", observe
+        ):
             task = asyncio.create_task(
                 self.coordinator.apply_edit(self.context, self.request, self.plan)
             )
@@ -208,6 +230,9 @@ class CaptureCancellationTests(CaptureHarness, unittest.IsolatedAsyncioTestCase)
                 await asyncio.sleep(0)
             task.cancel()
             blocker.set()
+            self.assertTrue(await asyncio.to_thread(started.wait, 2))
+            task.cancel()
+            finish.set()
             with self.assertRaises(asyncio.CancelledError):
                 await task
         self.assertNotIn("editor.apply", self.calls)
@@ -225,6 +250,7 @@ class CaptureCancellationTests(CaptureHarness, unittest.IsolatedAsyncioTestCase)
                 token.cancel("after write")
 
         dispatcher = self._dispatcher(Capture())
+        dispatcher.invalidate_cache = lambda paths: journal.append("cache")
         request = ActionRequest(
             "request", "write_file", {"path": "note.txt", "content": "after"}
         )
@@ -232,7 +258,7 @@ class CaptureCancellationTests(CaptureHarness, unittest.IsolatedAsyncioTestCase)
             await dispatcher.dispatch(
                 request, token, execution_context=self.context
             )
-        self.assertEqual(journal, ["completed"])
+        self.assertEqual(journal, ["completed", "cache"])
 
     async def test_cache_invalidates_only_after_completed_journal(self) -> None:
         events: list[str] = []
@@ -255,8 +281,7 @@ class CaptureCancellationTests(CaptureHarness, unittest.IsolatedAsyncioTestCase)
         self.assertEqual(events, ["sessions.complete", "cache.invalidate"])
 
     def _dispatcher(
-        self,
-        capture: object,
+        self, capture: object,
         invalidated: list[tuple[str, ...]] | None = None,
     ) -> RootActionDispatcher:
         temporary = tempfile.TemporaryDirectory()

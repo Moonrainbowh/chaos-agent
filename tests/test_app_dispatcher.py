@@ -22,6 +22,9 @@ from code_agent.workspace.edits import WorkspaceEditor  # noqa: E402
 from code_agent.workspace.files import WorkspaceFiles  # noqa: E402
 from code_agent.workspace.ignore import IgnoreRules  # noqa: E402
 from code_agent.workspace.paths import WorkspacePathGuard  # noqa: E402
+from code_agent.verification.python_adapter import PythonVerificationAdapter  # noqa: E402
+from tests.test_agent_app_full_stack import _RecordingRuntime  # noqa: E402
+from tests.test_rewind_plugin_integration import _AllowPolicy  # noqa: E402
 
 
 class RootActionDispatcherTests(unittest.IsolatedAsyncioTestCase):
@@ -127,6 +130,76 @@ class RootActionDispatcherTests(unittest.IsolatedAsyncioTestCase):
         result = await dispatcher.dispatch(request, CancellationToken())
         self.assertFalse(result.is_error)
         self.assertEqual(outside.read_text(encoding="utf-8"), "after")
+
+    async def test_strict_production_guard_rejects_external_before_capture(self) -> None:
+        class Capture:
+            called = False
+
+            async def apply_edit(self, *args):
+                self.called = True
+
+        outside = self.root.parent / "strict-external.txt"
+        capture = Capture()
+        guard = WorkspacePathGuard(self.root)
+        dispatcher = RootActionDispatcher(
+            WorkspaceFiles(guard, IgnoreRules.from_workspace(self.root)),
+            WorkspaceEditor(guard),
+            ActionPolicy(PolicyConfig(
+                ApprovalMode.FULL_LOCAL, workspace_root=self.root,
+            )),
+            ApprovalBroker(),
+            capture=capture,
+        )
+        result = await dispatcher.dispatch(
+            ActionRequest(
+                "strict", "write_file",
+                {"path": str(outside), "content": "no"},
+            ),
+            CancellationToken(),
+            execution_context=ActionExecutionContext("owner", "origin", "strict"),
+        )
+        self.assertTrue(result.is_error)
+        self.assertFalse(capture.called)
+
+    async def test_plugin_verification_records_unknown_gap_once(self) -> None:
+        class Capture:
+            calls = 0
+
+            async def record_gap(self, context, request, reason):
+                self.calls += 1
+
+        class Plugins:
+            def targets(self):
+                return {"plugin.demo": "run_verification"}
+
+            def risk_map(self):
+                return {"plugin.demo": "write"}
+
+            def definitions(self):
+                return ()
+
+        guard, capture = WorkspacePathGuard(self.root), Capture()
+        dispatcher = RootActionDispatcher(
+            WorkspaceFiles(guard, IgnoreRules.from_workspace(self.root)),
+            WorkspaceEditor(guard),
+            _AllowPolicy(),
+            ApprovalBroker(),
+            runtime=_RecordingRuntime((0,)),
+            verification=PythonVerificationAdapter(self.root),
+            plugins=Plugins(),
+            capture=capture,
+        )
+        result = await dispatcher.dispatch(
+            ActionRequest(
+                "plugin-verify", "plugin.demo", {"kind": "python_unittest"},
+            ),
+            CancellationToken(),
+            execution_context=ActionExecutionContext(
+                "owner", "origin", "plugin-verify",
+            ),
+        )
+        self.assertFalse(result.is_error)
+        self.assertEqual(capture.calls, 1)
 
     async def test_full_local_recursively_lists_an_explicit_external_root(self) -> None:
         outside = self.root.parent / f"{self.root.name}-external-tree"

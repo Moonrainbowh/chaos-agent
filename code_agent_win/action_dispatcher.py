@@ -194,7 +194,8 @@ class RootActionDispatcher:
             )
             return command_action_result(request, result)
         if request.name == "run_verification":
-            return await self._run_verification(request, cancellation, context)
+            return await self._run_verification(
+                request, cancellation, context, gap_recorded)
         return _error(request, "tool is not implemented")
 
     async def _execute_workspace(
@@ -225,19 +226,18 @@ class RootActionDispatcher:
                     raise TypeError("execution_context is required for capture")
                 cancellation.raise_if_cancelled()
                 await self.capture.apply_edit(context, request, plan)
-                cancellation.raise_if_cancelled()
             else:
                 await asyncio.to_thread(self.editor.apply, plan)
             if self.invalidate_cache is not None:
                 self.invalidate_cache((plan.relative_path,))
+            cancellation.raise_if_cancelled()
             return _ok(request, {"path": plan.relative_path}, {"diff": plan.diff})
         return None
 
     async def _run_verification(
-        self,
-        request: ActionRequest,
-        cancellation: CancellationToken,
+        self, request: ActionRequest, cancellation: CancellationToken,
         context: ActionExecutionContext | None,
+        gap_recorded: bool,
     ) -> ActionResult:
         if self.runtime is None or self.verification is None:
             return _error(request, "verification unavailable")
@@ -251,7 +251,8 @@ class RootActionDispatcher:
         )
         if isinstance(command, VerificationUnavailable):
             return _error(request, "verification unavailable", command.reason)
-        await record_unknown_gap(self.capture, context, request, cancellation)
+        if not gap_recorded:
+            await record_unknown_gap(self.capture, context, request, cancellation)
         result = await self.runtime.run(
             CommandSpec(cwd=Path(command.cwd), argv=command.argv, timeout_s=command.timeout_s),
             cancellation,

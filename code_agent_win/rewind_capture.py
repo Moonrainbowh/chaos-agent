@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+from pathlib import Path, PureWindowsPath
 from typing import Awaitable, Generic, TypeVar
 
 from code_agent.core.action_execution import ActionExecutionContext
@@ -45,10 +46,8 @@ class RewindCaptureCoordinator:
     ) -> None:
         if not isinstance(existing_baseline, RewindBaseline):
             raise TypeError("existing_baseline must be a RewindBaseline")
-        self.sessions = sessions
-        self.editor = editor
-        self.snapshots = snapshots
-        self.gate = gate
+        self.sessions, self.editor = sessions, editor
+        self.snapshots, self.gate = snapshots, gate
         self.existing_baseline = existing_baseline
         self.workspace_fingerprint = snapshots.workspace_fingerprint
 
@@ -69,50 +68,43 @@ class RewindCaptureCoordinator:
                 return
             prepared = await _worker(prepare_edit_state, self.editor, plan)
             handle = await _worker(self.snapshots.save, prepared.snapshot)
-            mutation_request = _mutation_request(
+            mutation = await self._prepare_or_abort(_mutation_request(
                 context, request, coverage.token, prepared, handle.to_dict(),
                 self.existing_baseline,
-            )
-            mutation = await self._prepare_or_abort(
-                mutation_request, prepared
-            )
+            ), prepared)
             failure = await self._apply_worker(plan)
             if failure is not None:
                 await self._reconcile(prepared, mutation.mutation_id)
                 raise failure
-            observed = await _observe(self.editor, prepared.before.relative_path)
+            observation = await _observe_settled(
+                self.editor, prepared.before.relative_path)
+            if observation.cancellation is not None:
+                await self._reconcile(
+                    prepared, mutation.mutation_id, observation.value)
+            observed = _raise_settled(observation)
             if observed != prepared.after:
                 raise RuntimeError("workspace postimage does not match the edit plan")
-            completed = await _ordered(
-                self.sessions.complete_rewind_mutation(mutation.mutation_id)
-            )
-            _raise_settled(completed)
+            _raise_settled(await _ordered(
+                self.sessions.complete_rewind_mutation(mutation.mutation_id)))
         finally:
             await lease.release()
 
     async def record_gap(
-        self,
-        context: ActionExecutionContext,
-        request: ActionRequest,
-        reason: str,
+        self, context: ActionExecutionContext, request: ActionRequest, reason: str,
     ) -> None:
         _validate_identity(context, request)
         lease = await self.gate.acquire()
         try:
             coverage = await self._ensure()
-            outcome = await _ordered(
-                self.sessions.record_rewind_gap(
-                    _gap_request(context, request, coverage.token, reason)
-                )
-            )
+            gap = _gap_request(context, request, coverage.token, reason)
+            outcome = await _ordered(self.sessions.record_rewind_gap(gap))
             _raise_settled(outcome)
         finally:
             await lease.release()
 
     async def _ensure(self) -> object:
-        outcome = await _ordered(
-            self.sessions.ensure_rewind_coverage(self.workspace_fingerprint)
-        )
+        outcome = await _ordered(self.sessions.ensure_rewind_coverage(
+            self.workspace_fingerprint))
         return _raise_settled(outcome)
 
     async def _apply_invalidated(
@@ -123,32 +115,34 @@ class RewindCaptureCoordinator:
         coverage: object,
     ) -> None:
         gap = _gap_request(
-            context, request, coverage, "coverage-already-invalidated"
-        )
+            context, request, coverage, "coverage-already-invalidated")
         _raise_settled(await _ordered(self.sessions.record_rewind_gap(gap)))
         failure = await self._apply_worker(plan)
         if failure is not None:
             raise failure
 
     async def _prepare_or_abort(
-        self,
-        request: RewindMutationPrepare,
-        prepared: PreparedEditState,
+        self, request: RewindMutationPrepare, prepared: PreparedEditState,
     ) -> object:
         outcome = await _ordered(self.sessions.prepare_rewind_mutation(request))
         if outcome.cancellation is None:
             return _raise_settled(outcome)
         if outcome.value is not None:
-            observed = await _observe(self.editor, prepared.before.relative_path)
-            if observed != prepared.before:
-                raise RuntimeError("workspace changed during cancelled prepare")
-            mutation_id = outcome.value.mutation_id
-            aborted = await _ordered(
-                self.sessions.abort_rewind_mutation(mutation_id)
-            )
-            if aborted.error is not None:
-                raise aborted.error
+            cleanup = await _settle_task(asyncio.create_task(
+                self._abort_prepared(prepared, outcome.value.mutation_id)))
+            if cleanup.error is not None:
+                raise cleanup.error
         raise outcome.cancellation
+
+    async def _abort_prepared(
+        self, prepared: PreparedEditState, mutation_id: str,
+    ) -> None:
+        observed = _raise_settled(
+            await _observe_settled(self.editor, prepared.before.relative_path))
+        if observed != prepared.before:
+            raise RuntimeError("workspace changed during cancelled prepare")
+        _raise_settled(await _ordered(
+            self.sessions.abort_rewind_mutation(mutation_id)))
 
     async def _apply_worker(self, plan: EditPlan) -> BaseException | None:
         outcome = await _settle_task(
@@ -159,12 +153,13 @@ class RewindCaptureCoordinator:
         return outcome.error
 
     async def _reconcile(
-        self,
-        prepared: PreparedEditState,
-        mutation_id: str,
+        self, prepared: PreparedEditState, mutation_id: str,
+        observed: WorkspaceFileState | None = None,
     ) -> None:
         try:
-            observed = await _observe(self.editor, prepared.before.relative_path)
+            if observed is None:
+                observed = (await _observe_settled(
+                    self.editor, prepared.before.relative_path)).value
             if observed == prepared.before:
                 await _ordered(self.sessions.abort_rewind_mutation(mutation_id))
             elif observed == prepared.after:
@@ -174,8 +169,7 @@ class RewindCaptureCoordinator:
 
 
 def _validate_identity(
-    context: ActionExecutionContext,
-    request: ActionRequest,
+    context: ActionExecutionContext, request: ActionRequest,
 ) -> None:
     if type(context) is not ActionExecutionContext:
         raise TypeError("context must be an ActionExecutionContext")
@@ -186,11 +180,8 @@ def _validate_identity(
 
 
 def _mutation_request(
-    context: ActionExecutionContext,
-    request: ActionRequest,
-    coverage: object,
-    prepared: PreparedEditState,
-    handle: dict[str, object],
+    context: ActionExecutionContext, request: ActionRequest, coverage: object,
+    prepared: PreparedEditState, handle: dict[str, object],
     existing_baseline: RewindBaseline,
 ) -> RewindMutationPrepare:
     before, after = prepared.before, prepared.after
@@ -209,10 +200,8 @@ def _mutation_request(
 
 
 def _gap_request(
-    context: ActionExecutionContext,
-    request: ActionRequest,
-    coverage: object,
-    reason: str,
+    context: ActionExecutionContext, request: ActionRequest,
+    coverage: object, reason: str,
 ) -> RewindGapPrepare:
     return RewindGapPrepare(
         coverage, context.owner_thread_id, context.origin_thread_id,
@@ -221,11 +210,21 @@ def _gap_request(
     )
 
 
-async def _observe(editor: object, path: str) -> WorkspaceFileState:
-    states = await _worker(observe_file_states, editor, (path,))
+async def _observe_settled(
+    editor: object, path: str,
+) -> _Settled[WorkspaceFileState]:
+    outcome = await _settle_task(asyncio.create_task(
+        asyncio.to_thread(observe_file_states, editor, (path,))
+    ))
+    states = outcome.value
+    if states is None:
+        return _Settled(error=outcome.error, cancellation=outcome.cancellation)
     if type(states) is not tuple or len(states) != 1:
-        raise RuntimeError("workspace observation is incomplete")
-    return states[0]
+        return _Settled(
+            error=RuntimeError("workspace observation is incomplete"),
+            cancellation=outcome.cancellation,
+        )
+    return _Settled(states[0], outcome.error, outcome.cancellation)
 
 
 async def _worker(function: object, *args: object) -> object:
@@ -263,7 +262,6 @@ def _raise_settled(outcome: _Settled[_Result]) -> _Result:
     return outcome.value  # type: ignore[return-value]
 
 
-__all__ = ["RewindCaptureCoordinator"]
 async def record_unknown_gap(
     capture: object | None,
     context: ActionExecutionContext | None,
@@ -276,6 +274,7 @@ async def record_unknown_gap(
         raise TypeError("execution_context is required for capture")
     cancellation.raise_if_cancelled()
     await capture.record_gap(context, request, "unknown-writer")
+    cancellation.raise_if_cancelled()
 
 
 def plugin_requires_gap(
@@ -295,6 +294,4 @@ def mcp_requires_gap(mcp: object | None, name: str) -> bool:
 
 
 def is_external_plan(path: str) -> bool:
-    from pathlib import Path, PureWindowsPath
-
     return Path(path).is_absolute() or PureWindowsPath(path).is_absolute()
