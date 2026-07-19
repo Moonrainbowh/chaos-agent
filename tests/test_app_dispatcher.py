@@ -64,6 +64,33 @@ class RootActionDispatcherTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(result.is_error)
         self.assertEqual(result.output["text"], "before\n")
 
+    async def test_legacy_mcp_without_risk_api_runs_when_capture_is_disabled(self) -> None:
+        class Mcp:
+            def definitions(self):
+                return ()
+
+            async def call(self, name, arguments):
+                return "read"
+
+        guard = WorkspacePathGuard(self.root)
+        dispatcher = RootActionDispatcher(
+            WorkspaceFiles(guard, IgnoreRules.from_workspace(self.root)),
+            WorkspaceEditor(guard),
+            ActionPolicy(PolicyConfig(
+                ApprovalMode.FULL_LOCAL,
+                workspace_root=self.root,
+                mcp_risks={"mcp.demo.read": "read"},
+            )),
+            ApprovalBroker(),
+            mcp=Mcp(),
+        )
+        result = await dispatcher.dispatch(
+            ActionRequest("mcp-read", "mcp.demo.read", {}),
+            CancellationToken(),
+        )
+        self.assertFalse(result.is_error)
+        self.assertEqual(result.output["result"], "read")
+
     async def test_full_local_reads_and_writes_explicit_external_file(self) -> None:
         outside = self.root.parent / "outside.txt"
         outside.write_bytes(b"external\n")

@@ -49,6 +49,7 @@ class _Sessions:
         self.fail: str | None = None
         self.block: dict[str, asyncio.Event] = {}
         self.records: list[object] = []
+        self.finished: RewindMutationStatus | None = None
 
     async def _call(self, name: str, value: object) -> object:
         self.calls.append(f"sessions.{name}")
@@ -73,10 +74,22 @@ class _Sessions:
         )
 
     async def complete_rewind_mutation(self, mutation_id: str) -> object:
-        return await self._call("complete", SimpleNamespace(mutation_id=mutation_id))
+        result = await self._call(
+            "complete", SimpleNamespace(
+                mutation_id=mutation_id, status=RewindMutationStatus.COMPLETED,
+            ),
+        )
+        self.finished = result.status
+        return result
 
     async def abort_rewind_mutation(self, mutation_id: str) -> object:
-        return await self._call("abort", SimpleNamespace(mutation_id=mutation_id))
+        result = await self._call(
+            "abort", SimpleNamespace(
+                mutation_id=mutation_id, status=RewindMutationStatus.ABORTED,
+            ),
+        )
+        self.finished = result.status
+        return result
 
     async def record_rewind_gap(self, request: object) -> object:
         self.records.append(request)

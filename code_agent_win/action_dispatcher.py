@@ -125,7 +125,10 @@ class RootActionDispatcher:
         context: ActionExecutionContext | None,
     ) -> ActionResult:
         try:
-            plugin_gap = plugin_requires_gap(self.plugins, request, translated)
+            plugin_gap = (
+                self.capture is not None
+                and plugin_requires_gap(self.plugins, request, translated)
+            )
             if plugin_gap:
                 await record_unknown_gap(self.capture, context, translated, cancellation)
             result = await self._execute(
@@ -160,7 +163,9 @@ class RootActionDispatcher:
         if request.name.startswith("mcp."):
             if self.mcp is None:
                 raise RuntimeError("MCP integration is unavailable")
-            if not gap_recorded and mcp_requires_gap(self.mcp, request.name):
+            if self.capture is not None and not gap_recorded and mcp_requires_gap(
+                self.mcp, request.name
+            ):
                 await record_unknown_gap(self.capture, context, request, cancellation)
             return _ok(request, {"result": await self.mcp.call(request.name, arguments)})
         workspace = await self._execute_workspace(request, cancellation, context)

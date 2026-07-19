@@ -15,6 +15,7 @@ from code_agent.policy.models import (
     PolicyDecision,
     RiskLevel,
 )
+from code_agent.sessions.rewind_models import RewindMutationStatus
 from code_agent.workspace.edits import WorkspaceEditor
 from code_agent.workspace.files import WorkspaceFiles
 from code_agent.workspace.ignore import IgnoreRules
@@ -211,13 +212,16 @@ class CaptureCancellationTests(CaptureHarness, unittest.IsolatedAsyncioTestCase)
                 await task
         self.assertNotIn("editor.apply", self.calls)
         self.assertIn("sessions.abort", self.calls)
+        self.assertIs(self.sessions.finished, RewindMutationStatus.ABORTED)
         self.assertLess(self.calls.index("sessions.abort"), self.calls.index("gate.release"))
 
     async def test_token_cancellation_after_write_preserves_completed_journal(self) -> None:
         token = CancellationToken()
+        journal: list[str] = []
 
         class Capture:
             async def apply_edit(inner, context, request, plan):
+                journal.append("completed")
                 token.cancel("after write")
 
         dispatcher = self._dispatcher(Capture())
@@ -228,15 +232,17 @@ class CaptureCancellationTests(CaptureHarness, unittest.IsolatedAsyncioTestCase)
             await dispatcher.dispatch(
                 request, token, execution_context=self.context
             )
+        self.assertEqual(journal, ["completed"])
 
     async def test_cache_invalidates_only_after_completed_journal(self) -> None:
-        invalidated: list[tuple[str, ...]] = []
+        events: list[str] = []
 
         class Capture:
             async def apply_edit(inner, context, request, plan):
-                raise RuntimeError("completion")
+                events.append("sessions.complete")
 
-        dispatcher = self._dispatcher(Capture(), invalidated)
+        dispatcher = self._dispatcher(Capture())
+        dispatcher.invalidate_cache = lambda paths: events.append("cache.invalidate")
         result = await dispatcher.dispatch(
             ActionRequest(
                 "request", "write_file",
@@ -245,8 +251,8 @@ class CaptureCancellationTests(CaptureHarness, unittest.IsolatedAsyncioTestCase)
             CancellationToken(),
             execution_context=self.context,
         )
-        self.assertTrue(result.is_error)
-        self.assertEqual(invalidated, [])
+        self.assertFalse(result.is_error)
+        self.assertEqual(events, ["sessions.complete", "cache.invalidate"])
 
     def _dispatcher(
         self,
