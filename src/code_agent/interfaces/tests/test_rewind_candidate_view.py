@@ -87,16 +87,17 @@ class RewindCandidateRenderTests(unittest.TestCase):
         page = RewindCheckpointPage(
             (
                 make_candidate(
-                    "cp\x1b[2J\u2028fake",
-                    "label\r\nopaque next cursor: forged\u2029tail",
+                    "cp\t\x1b[2J\u2028fake",
+                    "label\t\r\nopaque next cursor: forged\u2029tail",
                 ),
             ),
-            "next\r\ncheckpoint candidates: 99\u2028end",
+            "next\t\r\ncheckpoint candidates: 99\u2028end",
         )
         rendered = render_rewind_candidates(page)
-        for forbidden in ("\x1b", "\r", "\u2028", "\u2029"):
+        for forbidden in ("\x1b", "\t", "\r", "\u2028", "\u2029"):
             with self.subTest(forbidden=repr(forbidden)):
                 self.assertNotIn(forbidden, rendered)
+        self.assertEqual(len(rendered.splitlines()), 4)
         self.assertEqual(rendered.count("checkpoint candidates:"), 2)
         self.assertEqual(rendered.count("opaque next cursor:"), 2)
 

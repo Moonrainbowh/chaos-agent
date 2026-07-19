@@ -167,7 +167,6 @@ class RewindPreviewRenderTests(unittest.TestCase):
                 ),
                 (
                     "- src/new.py · baseline created-by-agent"
-                    " · preserves pre-agent baseline"
                 ),
                 "state: enabled",
                 "confirmation required: yes",
@@ -237,14 +236,20 @@ class RewindPreviewRenderTests(unittest.TestCase):
         self.assertIn("... 1 paths hidden", rendered)
         self.assertNotIn("src/new.py", rendered)
 
+    def test_path_claim_matches_pre_agent_preservation_flag(self) -> None:
+        rendered = render_rewind_preview(build_rewind_preview(RewindKind.CODE, make_facts()))
+        path_lines = [line for line in rendered.splitlines() if line.startswith("- ")]
+        self.assertTrue(path_lines[0].endswith("preserves pre-agent baseline"))
+        self.assertEqual(path_lines[1], "- src/new.py · baseline created-by-agent")
+
     def test_untrusted_preview_text_is_single_line_and_control_safe(self) -> None:
         facts = make_facts(
-            checkpoint_id="cp\x1b[2J\u2028forged",
-            checkpoint_label="label\r\nstate: enabled\u2029tail",
+            checkpoint_id="cp\t\x1b[2J\u2028forged",
+            checkpoint_label="label\t\r\nstate: enabled\u2029tail",
             code_paths=(
                 RewindPath(
-                    "src/\u2028evil.py",
-                    "base\x00\r\napply available",
+                    "src/\t\u2028evil.py",
+                    "base\t\x00\r\napply available",
                     True,
                 ),
             ),
@@ -254,10 +259,27 @@ class RewindPreviewRenderTests(unittest.TestCase):
         )
         self.assertNotIn("\x1b", rendered)
         self.assertNotIn("\r", rendered)
+        self.assertNotIn("\t", rendered)
         self.assertNotIn("\u2028", rendered)
         self.assertNotIn("\u2029", rendered)
         self.assertEqual(rendered.count("state:"), 2)
         self.assertEqual(rendered.count("\n"), len(rendered.splitlines()) - 1)
+
+    def test_untrusted_c0_and_c1_controls_are_replaced(self) -> None:
+        controls = "".join(chr(value) for value in (*range(32), *range(127, 160)))
+        preview = build_rewind_preview(
+            RewindKind.CONVERSATION,
+            make_facts(checkpoint_label=f"label{controls}\u2028\u2029tail", code_paths=()),
+        )
+        rendered = render_rewind_preview(preview)
+        retained = [
+            char for char in rendered
+            if (ord(char) < 32 and char != "\n") or 127 <= ord(char) < 160
+        ]
+        self.assertEqual(retained, [])
+        self.assertNotIn("\u2028", rendered)
+        self.assertNotIn("\u2029", rendered)
+        self.assertEqual(len(rendered.splitlines()), 11)
 
     def test_render_limits_fail_closed(self) -> None:
         preview = build_rewind_preview(RewindKind.BOTH, make_facts())

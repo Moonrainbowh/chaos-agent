@@ -38,7 +38,7 @@ def _validate_row_limit(value: object, field: str) -> int:
 
 
 def _single_line(value: object) -> str:
-    return " ".join(safe_text(value).splitlines())
+    return " ".join(safe_text(value).replace("\t", "?").splitlines())
 
 
 def _utc_text(value: datetime) -> str:
@@ -121,7 +121,11 @@ def _path_lines(preview: RewindPreview, limit: int) -> list[str]:
         (
             f"- {_single_line(item.path)}"
             f" · baseline {_single_line(item.baseline_provenance)}"
-            " · preserves pre-agent baseline"
+            + (
+                " · preserves pre-agent baseline"
+                if item.preserves_pre_agent_baseline
+                else ""
+            )
         )
         for item in preview.code_paths[:limit]
     ]
