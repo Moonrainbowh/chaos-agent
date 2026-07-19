@@ -22,7 +22,7 @@ from code_agent.workspace.git import GitCommandError, GitWorkspace
 
 from code_agent_win.plugin_runtime import PluginToolBridge
 from code_agent_win.rewind_capture import is_external_plan, mcp_requires_gap, plugin_requires_gap, record_unknown_gap
-from code_agent_win.subagents import SubagentTool
+from code_agent_win.subagents import SubagentRuntime, SubagentTool
 from code_agent_win.tool_support import command_action_result, git_error_result
 from code_agent_win.tools import powershell_compatibility_error, tool_definitions, validate_tool_arguments
 
@@ -148,9 +148,7 @@ class RootActionDispatcher:
             return _error(request, "action failed", type(error).__name__)
 
     async def _execute(
-        self,
-        request: ActionRequest,
-        cancellation: CancellationToken,
+        self, request: ActionRequest, cancellation: CancellationToken,
         context: ActionExecutionContext | None,
         *,
         gap_recorded: bool,
@@ -159,6 +157,8 @@ class RootActionDispatcher:
         if request.name == "delegate_agent":
             if self.subagents is None:
                 return _error(request, "subagent runtime unavailable")
+            if isinstance(self.subagents, SubagentRuntime):
+                return await self.subagents.dispatch(request, cancellation, execution_context=context)
             return await self.subagents.dispatch(request, cancellation)
         if request.name.startswith("mcp."):
             if self.mcp is None:

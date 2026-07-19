@@ -32,14 +32,21 @@ def create_application(
         model_factory=_model_client,
         session_path_factory=_session_path,
         context_factory=build_context_runtime,
+        product_state_root=_product_state_root(),
     )
 
 
-def _session_path() -> Path:
+def _product_state_root() -> Path:
     base = os.getenv("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
     directory = Path(base) / "chaos-agent"
-    legacy = Path(base) / "code-agent" / "sessions.sqlite3"
     directory.mkdir(parents=True, exist_ok=True)
+    return directory
+
+
+def _session_path() -> Path:
+    directory = _product_state_root()
+    base = directory.parent
+    legacy = Path(base) / "code-agent" / "sessions.sqlite3"
     current = directory / "sessions.sqlite3"
     if not current.exists() and legacy.exists():
         migrate_legacy_session_database(legacy, current)
@@ -49,5 +56,6 @@ def _session_path() -> Path:
 __all__ = [
     "Application",
     "RootActionDispatcher",
+    "_product_state_root",
     "create_application",
 ]

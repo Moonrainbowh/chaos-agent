@@ -105,7 +105,9 @@ class EngineChildRunnerTests(unittest.IsolatedAsyncioTestCase):
                 )
 
         runtime = SubagentRuntime(
-            EngineChildRunner(lambda _: (Engine(), None)), registry, profiles
+            EngineChildRunner(lambda _agent, _parent: (Engine(), None)),
+            registry,
+            profiles,
         )
         statuses = []
         runtime.subscribe(lambda view: statuses.append(view.status))
@@ -145,7 +147,9 @@ class EngineChildRunnerTests(unittest.IsolatedAsyncioTestCase):
         )
         request = ChildRunRequest("parent", "review", agent, 1, 100, 4, 30, "child-1")
 
-        result = await EngineChildRunner(lambda _: (Engine(), None)).run(
+        result = await EngineChildRunner(
+            lambda _agent, _parent: (Engine(), None)
+        ).run(
             request, CancellationToken()
         )
 
@@ -196,7 +200,9 @@ class EngineChildRunnerTests(unittest.IsolatedAsyncioTestCase):
                 )
 
         runtime = SubagentRuntime(
-            EngineChildRunner(lambda _: (Engine(), None)), registry, profiles
+            EngineChildRunner(lambda _agent, _parent: (Engine(), None)),
+            registry,
+            profiles,
         )
         first_token = runtime.activate("parent-1")
         for index in range(8):

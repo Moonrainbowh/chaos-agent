@@ -3,13 +3,10 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
-
 from code_agent.context.cache import RepoMapCache
 from code_agent.context.models import ContextConfig
 from code_agent.context.repo_map import RepoMapBuilder
 from code_agent.context.rules import RuleLoader
-from code_agent.core.engine import AgentEngine
-from code_agent.core.limits import EngineLimits
 from code_agent.interfaces.approval import ApprovalBroker
 from code_agent.interfaces.capability_view import ModePermissionView, PermissionSummary
 from code_agent.interfaces.controller import AgentController
@@ -17,15 +14,13 @@ from code_agent.interfaces.profile_control import ProfileControl
 from code_agent.mcp.official_sdk import OfficialMcpSdkAdapter
 from code_agent.mcp.registry import McpController, McpRegistry
 from code_agent.mcp.stdio_manager import StdioMcpManager
-from code_agent.orchestration.models import AgentDefinition, AgentMode, ModeSnapshot
+from code_agent.orchestration.models import AgentMode, ModeSnapshot
 from code_agent.policy.engine import ActionPolicy, PolicyConfig
 from code_agent.providers.config import ModelProfile
 from code_agent.providers.runtime_manager import ProviderRuntime, ProviderRuntimeManager
 from code_agent.runtime.local import WindowsLocalRuntime
-from code_agent.sessions.repository import SQLiteSessionRepository
 from code_agent.skills.registry import SkillActivation, SkillRegistry
 from code_agent.verification.local_adapter import LocalVerificationAdapter
-from code_agent.verification.task_service import LedgerTaskVerificationService
 from code_agent.workspace.edits import WorkspaceEditor
 from code_agent.workspace.files import WorkspaceFiles
 from code_agent.workspace.ignore import IgnoreRules
@@ -36,6 +31,11 @@ from code_agent_win.app_models import Application, FactoryExecution, FactoryHost
 from code_agent_win.app_ui import GitDiffAdapter, IntegratedForegroundTaskController, ModeAwareWindowsTerminalApp
 from code_agent_win.plugin_runtime import PluginToolBridge, load_plugins
 from code_agent_win.runtime_support import host_risks, replace_model
+from code_agent_win.rewind_sessions import (
+    build_child_engine_factory,
+    build_engine,
+    build_rewind_write_side,
+)
 from code_agent_win.subagents import EngineChildRunner, RestrictedDispatcher, SubagentRuntime
 from code_agent_win.tool_support import discover_git_workspace, windows_system_prompt
 from code_agent_win.tools import tool_definitions
@@ -49,6 +49,7 @@ def create_application(
     model_factory: Callable[[object], object],
     session_path_factory: Callable[[], Path],
     context_factory: Callable[..., object],
+    product_state_root: Path,
 ) -> Application:
     if profile_name is not None and (
         not isinstance(profile_name, str) or not profile_name.strip()
@@ -56,7 +57,8 @@ def create_application(
         raise ValueError("profile_name must be non-blank text")
     root = (workspace_root or Path.cwd()).resolve()
     host = _build_host(
-        root, model_name, profile_name, mode_name, load_config, session_path_factory
+        root, model_name, profile_name, mode_name, load_config,
+        session_path_factory, product_state_root,
     )
     execution = _build_execution(host, model_factory, context_factory)
     foreground = _foreground(host, execution)
@@ -74,6 +76,7 @@ def _build_host(
     mode_name: str | None,
     load_config: Callable[..., Any],
     session_path_factory: Callable[[], Path],
+    product_state_root: Path,
 ) -> FactoryHost:
     guard = WorkspacePathGuard(root)
     files = WorkspaceFiles(guard, IgnoreRules.from_workspace(root))
@@ -90,7 +93,7 @@ def _build_host(
         mode = freeze_mode(modes, profiles, mode.definition.mode.value)
     return _host_integrations(
         root, guard, files, git, cache, config, profiles, modes, mode, initial,
-        session_path_factory,
+        session_path_factory, product_state_root,
     )
 def _host_integrations(
     root: Path,
@@ -104,6 +107,7 @@ def _host_integrations(
     mode: ModeSnapshot,
     initial: ModelProfile,
     session_path_factory: Callable[[], Path],
+    product_state_root: Path,
 ) -> FactoryHost:
     skills = SkillActivation(SkillRegistry.discover(root))
     approvals = ApprovalBroker()
@@ -111,11 +115,9 @@ def _host_integrations(
     manager = StdioMcpManager(lambda server: OfficialMcpSdkAdapter(tool_risks=server.tool_risks))
     mcp = McpController(McpRegistry(config.mcp_servers), manager, risks)
     plugin_host, errors = load_plugins(
-        root,
-        modes,
-        host_actions=tuple(
-            tool.name for tool in tool_definitions(include_git=git is not None)
-        ),
+        root, modes,
+        host_actions=tuple(tool.name for tool in tool_definitions(
+            include_git=git is not None)),
         host_risks=host_risks(),
         controllers=("review", "task", "session"),
     )
@@ -124,19 +126,24 @@ def _host_integrations(
     policy = ActionPolicy(
         PolicyConfig(config.approval_mode, workspace_root=root, mcp_risks=risks)
     )
+    editor = WorkspaceEditor(guard)
+    rewind = build_rewind_write_side(
+        guard, editor, product_state_root, session_path_factory(),
+        has_git=git is not None,
+    )
     dispatcher = RootActionDispatcher(
-        files, WorkspaceEditor(guard), policy, approvals,
+        files, editor, policy, approvals,
         git=git,
         runtime=WindowsLocalRuntime(root),
         verification=LocalVerificationAdapter(root),
         mcp=mcp,
         plugins=bridge,
+        capture=rewind.capture,
         invalidate_cache=cache.invalidate,
     )
-    sessions = SQLiteSessionRepository(session_path_factory())
     return FactoryHost(
         root, files, guard, git, cache, config, profiles, modes, mode, initial, skills,
-        approvals, mcp, plugin_host, errors, bridge, dispatcher, sessions,
+        approvals, mcp, plugin_host, errors, bridge, dispatcher, rewind.coordinated,
     )
 
 
@@ -144,12 +151,15 @@ def _context_for(
     host: FactoryHost,
     mode: ModeSnapshot,
     context_factory: Callable[..., object],
+    sessions: object | None = None,
 ) -> object:
     prompt = windows_system_prompt(host.git is not None) + "\n\n" + mode_prompt(mode)
     config = ContextConfig(host.root, host.root, prompt)
     rules = RuleLoader(host.guard, host.files, config)
     repo_map = RepoMapBuilder(host.files, config, cache=host.cache)
-    return context_factory(config, rules, repo_map, host.skills, host.sessions)
+    return context_factory(
+        config, rules, repo_map, host.skills, sessions or host.sessions
+    )
 
 
 def _build_execution(
@@ -157,16 +167,11 @@ def _build_execution(
     model_factory: Callable[[object], object],
     context_factory: Callable[..., object],
 ) -> FactoryExecution:
-    def child_engine(agent: AgentDefinition) -> tuple[AgentEngine, object]:
-        profile = host.profiles[agent.mode.definition.profile_id]
-        client = model_factory(profile.provider)
-        restricted = RestrictedDispatcher(host.dispatcher, agent.effective_tools)
-        engine = _engine_for(
-            client, profile, _context_for(host, agent.mode, context_factory), restricted,
-            host.sessions, host.root, agent.mode,
-        )
-        return engine, client
-
+    child_engine = build_child_engine_factory(
+        host, model_factory,
+        lambda mode, sessions: _context_for(
+            host, mode, context_factory, sessions),
+    )
     subagents = SubagentRuntime(
         EngineChildRunner(child_engine), host.modes, host.profiles,
         default_child_mode(host.mode.definition.mode),
@@ -177,7 +182,7 @@ def _build_execution(
     main_tools = host.mode.definition.tool_names + extras
     main_dispatcher = RestrictedDispatcher(host.dispatcher, main_tools)
     model = model_factory(host.initial.provider)
-    runner = _engine_for(
+    runner = build_engine(
         model, host.initial, _context_for(host, host.mode, context_factory), main_dispatcher,
         host.sessions, host.root, host.mode,
     )
@@ -185,7 +190,7 @@ def _build_execution(
 
     async def build_runtime(profile: ModelProfile) -> ProviderRuntime:
         client = model_factory(profile.provider)
-        next_runner = _engine_for(
+        next_runner = build_engine(
             client, profile, _context_for(host, host.mode, context_factory), main_dispatcher,
             host.sessions, host.root, host.mode,
         )
@@ -264,34 +269,6 @@ def _tui(
         diff_source=GitDiffAdapter(host.git),
         capability=capability,
         plugin_errors=host.plugin_errors,
-    )
-
-
-def _engine_for(
-    model: object,
-    profile: ModelProfile,
-    context: object,
-    dispatcher: object,
-    sessions: object,
-    workspace_root: Path,
-    mode: ModeSnapshot,
-) -> AgentEngine:
-    mode_limits = mode.definition.limits
-    limits = EngineLimits(
-        min(profile.max_agent_rounds, mode_limits.max_agent_rounds),
-        min(profile.max_tool_calls, mode_limits.max_tool_calls),
-        min(profile.max_tool_calls_per_round, mode_limits.max_tool_calls_per_round),
-        min(profile.context_window + profile.max_output_tokens, mode_limits.max_total_tokens),
-        mode_limits.max_assistant_chars,
-    )
-    return AgentEngine(
-        model,
-        context,
-        dispatcher,
-        sessions,
-        limits=limits,
-        model_name=profile.provider.model,
-        verification=LedgerTaskVerificationService(workspace_root, sessions),
     )
 
 

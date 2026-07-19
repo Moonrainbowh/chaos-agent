@@ -200,9 +200,11 @@ class ContextRuntimeFactoryTests(unittest.TestCase):
 
     def test_application_calls_context_runtime_factory_after_sessions_exist(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary).resolve()
+            container = Path(temporary).resolve()
+            root, product = container / "workspace", container / "state"
+            root.mkdir()
             runtime = load_runtime_config(env={
-                "CHAOS_CONFIG": str(root / "missing.toml"), "CHAOS_API": "responses",
+                "CHAOS_CONFIG": str(container / "missing.toml"), "CHAOS_API": "responses",
                 "CHAOS_BASE_URL": "https://api.example.test", "CHAOS_MODEL": "test",
                 "CHAOS_API_KEY_ENV": "KEY",
             })
@@ -213,11 +215,13 @@ class ContextRuntimeFactoryTests(unittest.TestCase):
                 return build_context_runtime(*args)
 
             with patch.dict("os.environ", {
-                "USERPROFILE": str(root / "profile"),
-                "LOCALAPPDATA": str(root / "localappdata"),
+                "USERPROFILE": str(container / "profile"),
+                "LOCALAPPDATA": str(container / "localappdata"),
             }, clear=True):
                 with patch("code_agent_win.app._model_client", return_value=object()), patch(
-                    "code_agent_win.app._session_path", return_value=root / "sessions.sqlite3"
+                    "code_agent_win.app._session_path", return_value=product / "sessions.sqlite3"
+                ), patch(
+                    "code_agent_win.app._product_state_root", return_value=product
                 ), patch("code_agent_win.app.load_runtime_config", return_value=runtime), patch(
                     "code_agent_win.app.build_context_runtime", side_effect=recording_factory
                 ):

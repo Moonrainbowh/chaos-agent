@@ -182,7 +182,11 @@ class SubagentRuntime:
         self._parent.reset(token)
 
     async def dispatch(
-        self, request: ActionRequest, cancellation: CancellationToken
+        self,
+        request: ActionRequest,
+        cancellation: CancellationToken,
+        *,
+        execution_context: ActionExecutionContext | None = None,
     ) -> ActionResult:
         parent_id = self._parent.get()
         supervisor = self._supervisors.get(parent_id)
@@ -192,12 +196,16 @@ class SubagentRuntime:
             )
             supervisor.subscribe(self._publish)
             self._supervisors[parent_id] = supervisor
-        return await SubagentTool(
-            supervisor,
-            self._modes,
-            self._profiles,
-            self._default_child_mode,
-        ).dispatch(request, cancellation)
+        token = self._runner.bind_execution_context(execution_context)
+        try:
+            return await SubagentTool(
+                supervisor,
+                self._modes,
+                self._profiles,
+                self._default_child_mode,
+            ).dispatch(request, cancellation)
+        finally:
+            self._runner.reset_execution_context(token)
 
     async def release(self, parent_id: str) -> None:
         supervisor = self._supervisors.pop(parent_id, None)

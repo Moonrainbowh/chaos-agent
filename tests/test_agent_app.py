@@ -14,13 +14,17 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from code_agent.config.loader import load_runtime_config  # noqa: E402
+from code_agent.sessions.rewind_models import RewindBaseline  # noqa: E402
+from code_agent.sessions.rewind_repository import RewindSessionRepository  # noqa: E402
 from code_agent_win.app import (  # noqa: E402
     Application,
     RootActionDispatcher,
+    _product_state_root,
     _session_path,
     create_application,
 )
 from code_agent_win.cli import _split_global_options, _split_mode_option, run  # noqa: E402
+from code_agent_win.rewind_sessions import CoordinatedSessionRepository  # noqa: E402
 
 
 class ApplicationLifecycleTests(unittest.IsolatedAsyncioTestCase):
@@ -90,7 +94,10 @@ class CliFailureTests(unittest.IsolatedAsyncioTestCase):
 class ApplicationConstructionTests(unittest.TestCase):
     def test_tui_uses_the_session_repository_for_history(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary).resolve()
+            container = Path(temporary).resolve()
+            root = container / "workspace"
+            root.mkdir()
+            product = container / "state"
             runtime = load_runtime_config(env={
                 "CHAOS_CONFIG": str(root / "missing.toml"),
                 "CHAOS_API": "responses",
@@ -102,16 +109,17 @@ class ApplicationConstructionTests(unittest.TestCase):
                 "os.environ",
                 {
                     "USERPROFILE": str(root / "profile"),
-                    "LOCALAPPDATA": str(root / "localappdata"),
+                    "LOCALAPPDATA": str(container / "localappdata"),
                 },
                 clear=True,
             ):
                 with patch("code_agent_win.app._model_client", return_value=object()):
                     with patch(
                         "code_agent_win.app._session_path",
-                        return_value=root / "sessions.sqlite3",
+                        return_value=product / "sessions.sqlite3",
                     ):
-                        with patch(
+                        with patch("code_agent_win.app._product_state_root",
+                                   return_value=product), patch(
                             "code_agent_win.app.load_runtime_config",
                             return_value=runtime,
                         ):
@@ -123,6 +131,40 @@ class ApplicationConstructionTests(unittest.TestCase):
         self.assertEqual(application.mode.model, "test")
         self.assertIsNotNone(application.plugins)
         self.assertIsNotNone(application.subagents)
+
+    def test_application_builds_one_shared_rewind_write_side(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            container = Path(temporary).resolve()
+            root, product = container / "workspace", container / "state"
+            root.mkdir()
+            runtime = load_runtime_config(env={
+                "CHAOS_CONFIG": str(container / "missing.toml"),
+                "CHAOS_API": "responses",
+                "CHAOS_BASE_URL": "https://api.example.test",
+                "CHAOS_MODEL": "test", "CHAOS_API_KEY_ENV": "KEY",
+            })
+            with patch.dict("os.environ", {
+                "USERPROFILE": str(container / "profile"),
+                "LOCALAPPDATA": str(container / "localappdata"),
+            }, clear=True):
+                with patch("code_agent_win.app._model_client",
+                           return_value=object()), patch(
+                    "code_agent_win.app._session_path",
+                    return_value=product / "sessions.sqlite3"
+                ), patch("code_agent_win.app._product_state_root",
+                         return_value=product), patch(
+                    "code_agent_win.app.load_runtime_config",
+                    return_value=runtime
+                ):
+                    application = create_application(root)
+
+        capture = application.dispatcher.capture
+        self.assertIsInstance(capture.sessions, RewindSessionRepository)
+        self.assertIsInstance(application.tui.sessions, CoordinatedSessionRepository)
+        self.assertIs(application.tui.sessions._base, capture.sessions)
+        self.assertEqual(capture.snapshots._artifacts.root, product / "rewind-snapshots")
+        self.assertEqual(capture.gate.path.parent.parent.parent, product)
+        self.assertIs(capture.existing_baseline, RewindBaseline.NON_GIT_EXISTING)
 
     def test_session_path_copies_the_legacy_data_file(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -153,6 +195,15 @@ class ApplicationConstructionTests(unittest.TestCase):
                 current = _session_path()
 
             self.assertEqual(current, root / "chaos-agent" / "sessions.sqlite3")
+
+    def test_product_state_root_uses_the_chaos_agent_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+
+            with patch("code_agent_win.app.os.getenv", return_value=str(root)):
+                current = _product_state_root()
+
+            self.assertEqual(current, root / "chaos-agent")
 
 
 if __name__ == "__main__":

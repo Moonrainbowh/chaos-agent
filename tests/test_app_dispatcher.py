@@ -135,6 +135,9 @@ class RootActionDispatcherTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_production_factory_guard_rejects_external_write(self) -> None:
         outside = self.root.parent / "strict-external.txt"
+        product_temp = tempfile.TemporaryDirectory(dir=self.root.parent)
+        self.addCleanup(product_temp.cleanup)
+        product_state = Path(product_temp.name)
         runtime = load_runtime_config(env={
             "CHAOS_CONFIG": str(self.root / "missing.toml"),
             "CHAOS_API": "responses",
@@ -151,6 +154,8 @@ class RootActionDispatcherTests(unittest.IsolatedAsyncioTestCase):
         ), patch(
             "code_agent_win.app._session_path",
             return_value=self.root / "sessions.sqlite3",
+        ), patch(
+            "code_agent_win.app._product_state_root", return_value=product_state,
         ), patch("code_agent_win.app.load_runtime_config", return_value=runtime):
             application = create_application(self.root)
         self.addAsyncCleanup(application.aclose)
