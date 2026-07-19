@@ -56,7 +56,7 @@ class WorkspaceMutationGateTests(unittest.IsolatedAsyncioTestCase):
             await lease.release()
 
     async def test_subprocess_holder_causes_bounded_timeout(self) -> None:
-        process = self._holder()
+        process = await self._holder()
         try:
             gate = WorkspaceMutationGate(self.state_root, _FINGERPRINT)
             with self.assertRaises(WorkspaceGateTimeout):
@@ -82,7 +82,7 @@ class WorkspaceMutationGateTests(unittest.IsolatedAsyncioTestCase):
         await next_lease.release()
 
     async def test_crashed_holder_is_released_by_sqlite(self) -> None:
-        process = self._holder()
+        process = await self._holder()
         self._stop_holder(process)
         gate = WorkspaceMutationGate(self.state_root, _FINGERPRINT)
         lease = await gate.acquire(timeout_s=1.0)
@@ -142,14 +142,30 @@ class WorkspaceMutationGateTests(unittest.IsolatedAsyncioTestCase):
 
         gate = WorkspaceMutationGate(self.state_root, _FINGERPRINT)
         with patch("code_agent_win.rewind_gate._open_transaction", delayed):
-            acquiring = asyncio.create_task(gate.acquire(timeout_s=2.0))
-            await asyncio.to_thread(started.wait, 2)
+            acquiring = asyncio.create_task(gate.acquire(timeout_s=5.0))
+            self.assertTrue(await asyncio.to_thread(started.wait, 2))
             acquiring.cancel()
             await asyncio.sleep(0)
             self.assertFalse(acquiring.done())
             proceed.set()
             with self.assertRaises(asyncio.CancelledError):
                 await acquiring
+        lease = await gate.acquire(timeout_s=1.0)
+        await lease.release()
+
+    async def test_granted_instance_lock_then_cancel_releases_ownership(self) -> None:
+        original_wait = asyncio.wait
+
+        async def cancel_after_grant(tasks, **kwargs):
+            result = await original_wait(tasks, **kwargs)
+            asyncio.current_task().cancel()
+            await asyncio.sleep(0)
+            return result
+
+        gate = WorkspaceMutationGate(self.state_root, _FINGERPRINT)
+        with patch("code_agent_win.rewind_gate.asyncio.wait", cancel_after_grant):
+            with self.assertRaises(asyncio.CancelledError):
+                await gate.acquire(timeout_s=1.0)
         lease = await gate.acquire(timeout_s=1.0)
         await lease.release()
 
@@ -177,7 +193,7 @@ class WorkspaceMutationGateTests(unittest.IsolatedAsyncioTestCase):
 
         with patch("code_agent_win.rewind_gate._rollback_close", delayed):
             releasing = asyncio.create_task(lease.release())
-            await asyncio.to_thread(started.wait, 2)
+            self.assertTrue(await asyncio.to_thread(started.wait, 2))
             releasing.cancel()
             contender = WorkspaceMutationGate(self.state_root, _FINGERPRINT)
             with self.assertRaises(WorkspaceGateTimeout):
@@ -209,7 +225,7 @@ class WorkspaceMutationGateTests(unittest.IsolatedAsyncioTestCase):
         error.sqlite_errorcode = 5 | (2 << 8)
         self.assertTrue(_is_lock_contention(error))
 
-    def _holder(self) -> subprocess.Popen[bytes]:
+    async def _holder(self) -> subprocess.Popen[bytes]:
         process = subprocess.Popen(
             [sys.executable, "-u", "-c", _HOLDER, str(self.state_root), _FINGERPRINT],
             cwd=Path(__file__).resolve().parents[1],
@@ -217,17 +233,29 @@ class WorkspaceMutationGateTests(unittest.IsolatedAsyncioTestCase):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
-        assert process.stdout is not None
-        self.assertEqual(process.stdout.readline().strip(), b"READY")
-        return process
+        try:
+            assert process.stdout is not None
+            loop = asyncio.get_running_loop()
+            deadline = loop.time() + 5.0
+            line = await asyncio.wait_for(
+                asyncio.to_thread(process.stdout.readline),
+                deadline - loop.time(),
+            )
+            self.assertEqual(line.strip(), b"READY")
+            return process
+        except BaseException:
+            self._stop_holder(process)
+            raise
 
     def _stop_holder(self, process: subprocess.Popen[bytes]) -> None:
-        if process.poll() is None:
-            process.kill()
-        process.wait(timeout=5)
-        for stream in (process.stdin, process.stdout, process.stderr):
-            if stream is not None:
-                stream.close()
+        try:
+            if process.poll() is None:
+                process.kill()
+            process.wait(timeout=5)
+        finally:
+            for stream in (process.stdin, process.stdout, process.stderr):
+                if stream is not None:
+                    stream.close()
 
 
 if __name__ == "__main__":

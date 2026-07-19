@@ -5,6 +5,7 @@ import math
 import numbers
 import sqlite3
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import TypeVar
 
@@ -45,20 +46,15 @@ class WorkspaceMutationGate:
         timeout_s: float = 5.0,
     ) -> WorkspaceGateLease:
         timeout = _timeout(timeout_s)
-        deadline = time.monotonic() + timeout
-        try:
-            await asyncio.wait_for(
-                self._lock.acquire(),
-                _remaining(deadline),
-            )
-        except asyncio.TimeoutError:
-            raise WorkspaceGateTimeout("workspace mutation gate timed out") from None
-        remaining = _remaining(deadline)
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + timeout
+        await _acquire_instance_lock(self._lock, deadline)
+        remaining = _remaining(deadline, loop.time)
         if remaining <= 0:
             self._lock.release()
             raise WorkspaceGateTimeout("workspace mutation gate timed out")
         worker = asyncio.create_task(
-            asyncio.to_thread(_open_transaction, self.path, deadline)
+            asyncio.to_thread(_open_transaction, self.path, deadline, loop.time)
         )
         try:
             connection = await asyncio.shield(worker)
@@ -152,18 +148,87 @@ def _timeout(value: object) -> float:
     return timeout
 
 
-def _remaining(deadline: float) -> float:
-    return max(0.0, deadline - time.monotonic())
+async def _acquire_instance_lock(
+    lock: asyncio.Lock,
+    deadline: float,
+) -> None:
+    loop = asyncio.get_running_loop()
+    acquire = asyncio.create_task(lock.acquire())
+    timeout = loop.create_future()
+    handle = loop.call_at(deadline, _expire_wait, timeout)
+    try:
+        await asyncio.wait(
+            (acquire, timeout),
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+    except asyncio.CancelledError:
+        _cancel_timeout(handle, timeout)
+        acquired, _ = await _cancelled_lock_waiter(acquire)
+        if acquired:
+            lock.release()
+        raise
+    if acquire.done():
+        acquired = acquire.result()
+        _cancel_timeout(handle, timeout)
+        if not acquired:
+            raise RuntimeError("asyncio lock acquisition returned false")
+        return
+    handle.cancel()
+    acquired, cancelled = await _cancelled_lock_waiter(acquire)
+    if acquired:
+        lock.release()
+    if cancelled:
+        raise asyncio.CancelledError
+    raise WorkspaceGateTimeout("workspace mutation gate timed out")
+
+
+def _expire_wait(future: asyncio.Future[None]) -> None:
+    if not future.done():
+        future.set_result(None)
+
+
+def _cancel_timeout(
+    handle: asyncio.TimerHandle,
+    future: asyncio.Future[None],
+) -> None:
+    handle.cancel()
+    if not future.done():
+        future.cancel()
+
+
+async def _cancelled_lock_waiter(
+    task: asyncio.Task[bool],
+) -> tuple[bool, bool]:
+    if not task.done():
+        task.cancel()
+    caller_cancelled = False
+    while not task.done():
+        try:
+            await asyncio.shield(asyncio.sleep(0))
+        except asyncio.CancelledError:
+            caller_cancelled = True
+    try:
+        return task.result(), caller_cancelled
+    except asyncio.CancelledError:
+        return False, caller_cancelled
+
+
+def _remaining(
+    deadline: float,
+    clock: Callable[[], float],
+) -> float:
+    return max(0.0, deadline - clock())
 
 
 def _open_transaction(
     path: Path,
     deadline: float,
+    clock: Callable[[], float] = time.monotonic,
 ) -> sqlite3.Connection:
     connection: sqlite3.Connection | None = None
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        remaining = _remaining(deadline)
+        remaining = _remaining(deadline, clock)
         if remaining <= 0:
             raise WorkspaceGateTimeout("workspace mutation gate timed out")
         sqlite_timeout = min(
@@ -176,7 +241,7 @@ def _open_transaction(
             isolation_level=None,
             check_same_thread=False,
         )
-        remaining = _remaining(deadline)
+        remaining = _remaining(deadline, clock)
         if remaining <= 0:
             raise WorkspaceGateTimeout("workspace mutation gate timed out")
         bounded = min(remaining, _MAX_BUSY_TIMEOUT_MS / 1000)
