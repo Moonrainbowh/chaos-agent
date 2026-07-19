@@ -50,6 +50,10 @@ _SPECS = (
     CommandSpec("上下文", ("context",), "工作区", "显示上下文预算"),
     CommandSpec("工具", ("tools",), "工作区", "显示可用工具"),
     CommandSpec("证据", ("evidence",), "工作区", "显示验证证据", "[task-id]", requires=("evidence",)),
+    CommandSpec("回溯", ("rewind",), "工作区", "只读预览 checkpoint 回溯", "<action>", requires=("rewind",), actions=(
+        CommandAction("列表", ("list",), "列出 checkpoint 候选", "[cursor]"),
+        CommandAction("预览", ("preview",), "预览 checkpoint 回溯", "<checkpoint-id> <conversation|code|both>"),
+    )),
     CommandSpec("模型", ("model",), "能力", "管理模型 profile", "<action>", requires=("profiles",), actions=(
         CommandAction("列表", ("list",), "列出已配置模型"),
         CommandAction("使用", ("use",), "选择下一任务模型", "<profile>"),
