@@ -10,6 +10,7 @@ SRC_ROOT = Path(__file__).resolve().parents[3]
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
+from code_agent.core.action_execution import ActionExecutionContext  # noqa: E402
 from code_agent.core.engine import AgentEngine  # noqa: E402
 from code_agent.core.errors import (  # noqa: E402
     ModelStreamError,
@@ -61,6 +62,10 @@ class AgentEngineToolTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             actions.requests,
             [ActionRequest(id="call-1", name="read_file", arguments={"path": "a.txt"})],
+        )
+        self.assertEqual(
+            actions.contexts,
+            [ActionExecutionContext("thread-1", "thread-1", "call-1")],
         )
         messages = sessions.messages["thread-1"]
         self.assertEqual(messages[1], Message(role="assistant", tool_calls=(call,)))
@@ -115,6 +120,7 @@ class AgentEngineToolTests(unittest.IsolatedAsyncioTestCase):
         events = [event async for event in engine.run("inspect")]
 
         self.assertEqual(actions.requests, [])
+        self.assertEqual(actions.contexts, [])
         feedback = json.loads(sessions.messages["thread-1"][2].content)
         self.assertTrue(feedback["is_error"])
         self.assertEqual(feedback["output"]["error"], "tool is not available")

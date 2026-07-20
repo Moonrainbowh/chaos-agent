@@ -15,7 +15,10 @@ if str(SRC_ROOT) not in sys.path:
 
 from code_agent.core.events import AgentEvent, EventKind  # noqa: E402
 from code_agent.core.models import Message  # noqa: E402
-from code_agent.sessions._database import SCHEMA_VERSION  # noqa: E402
+from code_agent.sessions._database import (  # noqa: E402
+    SCHEMA_VERSION,
+    _MIGRATIONS,
+)
 from code_agent.sessions.errors import (  # noqa: E402
     SessionCorruptionError,
     SessionMigrationError,
@@ -68,6 +71,31 @@ def create_v3_database(path: Path) -> None:
             PRAGMA user_version = 3;
             """
         )
+
+
+def advance_v3_database(path: Path, target: int) -> None:
+    with sqlite3.connect(path) as connection:
+        for version in range(4, target + 1):
+            for statement in _MIGRATIONS[version]:
+                connection.execute(statement)
+        connection.execute(f"PRAGMA user_version = {target}")
+
+
+def insert_legacy_checkpoint(path: Path) -> None:
+    timestamp = "2026-07-11T00:00:00Z"
+    connection = sqlite3.connect(path)
+    try:
+        connection.execute(
+            "INSERT INTO threads VALUES (?, ?, ?, ?, ?)",
+            ("legacy", timestamp, timestamp, None, "active"),
+        )
+        connection.execute(
+            "INSERT INTO checkpoints VALUES (?, ?, ?, ?, ?)",
+            ("checkpoint", "legacy", "old", "{}", timestamp),
+        )
+        connection.commit()
+    finally:
+        connection.close()
 
 
 class SessionMigrationTests(unittest.IsolatedAsyncioTestCase):
@@ -125,6 +153,42 @@ class SessionMigrationTests(unittest.IsolatedAsyncioTestCase):
             }
         self.assertEqual(version, SCHEMA_VERSION)
         self.assertIn("task_states", tables)
+
+    async def test_v3_checkpoint_migrates_without_rewind_bounds(self) -> None:
+        create_v3_database(self.database)
+        insert_legacy_checkpoint(self.database)
+
+        checkpoint = (
+            await SQLiteSessionRepository(self.database).list_checkpoints("legacy")
+        )[0]
+
+        self.assertIsNone(checkpoint.message_sequence)
+        self.assertIsNone(checkpoint.event_sequence)
+
+    async def test_v9_checkpoint_migrates_without_rewind_bounds(self) -> None:
+        create_v3_database(self.database)
+        advance_v3_database(self.database, 9)
+        insert_legacy_checkpoint(self.database)
+
+        checkpoint = (
+            await SQLiteSessionRepository(self.database).list_checkpoints("legacy")
+        )[0]
+
+        self.assertIsNone(checkpoint.message_sequence)
+        self.assertIsNone(checkpoint.event_sequence)
+
+    def test_v10_missing_checkpoint_bound_column_fails_schema_check(self) -> None:
+        create_v3_database(self.database)
+        advance_v3_database(self.database, 9)
+        connection = sqlite3.connect(self.database)
+        try:
+            connection.execute("PRAGMA user_version = 10")
+            connection.commit()
+        finally:
+            connection.close()
+
+        with self.assertRaises(SessionCorruptionError):
+            SQLiteSessionRepository(self.database)
 
     def test_future_schema_version_is_rejected_without_mutation(self) -> None:
         with sqlite3.connect(self.database) as connection:

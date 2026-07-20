@@ -5,6 +5,7 @@
 - 负责：稳定系统前缀、分层 `AGENTS.md` 规则发现、按需 repo map、相关文件选择和 token 预算。
 - 负责：在进程内维护可增量更新、带 generation 的仓库事实快照，并从稳定快照生成本轮轻量 Repo Map。
 - 负责：保留近期原文的确定性压缩，并为后续实验性压缩策略提供接口。
+- 负责：压缩接收请求的 `thread_id`、`revision` 与 cancellation，但绝不持久化 checkpoint。
 - 不负责：发起模型请求、修改文件、运行命令或持久化完整会话。
 - 不负责：第二阶段不将 Repo Index 持久化到磁盘，不依赖文件监控器或向量数据库。
 - 不负责：将整个仓库或所有扩展说明无条件注入提示词。
@@ -23,5 +24,5 @@
 - `RepoMapViewBuilder`、`RepoMapViewCache`: 从不可变快照按 query、touched paths 和 token budget 排序、裁剪并缓存本轮视图 | 维护最多 64 项的 generation-aware LRU | 只查询已有 Index，不读取工作区
 - `RepoMapBuilder.build/render/render_with_metrics`: 兼容入口，组合共享 Repo Index 与轻量 Turn Repo Map | 首次或收到失效通知时刷新索引 | 同一 generation/query/touched/budget 复用视图；输出不超过 token 预算
 - `DeterministicCompactor.compact(messages): CompactionResult`: 以确定规则压缩旧消息，同时保留最近消息与工具调用/结果配对 | 无副作用 | 不依赖模型摘要
-- `WorkspaceContextBuilder.build(messages, user_input, tools, task_state): ContextBundle`: 按规则、工具、任务状态、按需 repo map 和消息的动态预算组装稳定系统提示词及本地数值度量 | 在线程池中读取工作区 | 非项目上下文或问候不触发 repo map；规则超出 3,000 token 立即失败；度量不含提示、规则或源码；非空输入只追加一个 user 消息
+- `WorkspaceContextBuilder.build(request): ContextBundle`: 按规则、工具、任务状态、按需 repo map 和消息的动态预算组装稳定系统提示词及本地数值度量，可选执行 source-anchored semantic compaction，并始终以确定性压缩施加最终硬边界 | 在线程池中读取工作区 | 透传真实 thread identity、revision 与 cancellation；非项目上下文或问候不触发 repo map；Context 不持久化；规则超出 3,000 token 立即失败；度量不含提示、规则或源码；非空输入只追加一个 user 消息
 - `render_task_state(state, token_budget): str`: 按优先级渲染有界持久任务事实 | 无副作用 | 事实在工作笔记之前，工作笔记始终标记为未验证

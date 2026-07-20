@@ -16,6 +16,7 @@ if str(SRC_ROOT) not in sys.path:
 
 from code_agent.workspace.git import (  # noqa: E402
     GitCommandError,
+    GitOutputLimitError,
     GitTimeoutError,
     GitWorkspace,
 )
@@ -226,6 +227,73 @@ class GitOutputLimitTests(unittest.TestCase):
         self.assertEqual(first.join_timeouts, [0.0])
         self.assertEqual(second.join_timeouts, [0.0])
 
+    def test_diff_snapshot_shares_one_budget_across_command_outputs(self) -> None:
+        workspace = GitWorkspace(self.root, max_output_bytes=10)
+        staged_names = type("Result", (), {
+            "argv": ("git",), "returncode": 0, "stdout": b"a\0", "stderr": b""
+        })()
+        unstaged_names = type("Result", (), {
+            "argv": ("git",), "returncode": 0, "stdout": b"b\0", "stderr": b""
+        })()
+        staged = type("Result", (), {
+            "argv": ("git",), "returncode": 0, "stdout": b"123456", "stderr": b""
+        })()
+
+        with patch.object(
+            workspace, "_invoke", side_effect=(staged_names, unstaged_names, staged)
+        ):
+            with self.assertRaises(GitOutputLimitError) as raised:
+                workspace.diff_snapshot()
+
+        self.assertEqual(raised.exception.max_output_bytes, 10)
+
+    def test_diff_snapshot_charges_paths_reads_and_rendered_untracked_diff(self) -> None:
+        subprocess.run(["git", "init", "-q"], cwd=self.root, check=True, shell=False)
+        (self.root / "a.txt").write_text("hello\n", encoding="utf-8")
+
+        with self.assertRaises(GitOutputLimitError) as raised:
+            GitWorkspace(self.root, max_output_bytes=64).diff_snapshot()
+
+        self.assertEqual(raised.exception.max_output_bytes, 64)
+
+    def test_exact_snapshot_budget_succeeds_until_first_extra_byte(self) -> None:
+        subprocess.run(["git", "init", "-q"], cwd=self.root, check=True, shell=False)
+        subprocess.run(["git", "config", "core.autocrlf", "false"], cwd=self.root, check=True, shell=False)
+        tracked = self.root / "tracked.txt"
+        tracked.write_bytes(b"old\n")
+        subprocess.run(["git", "add", "tracked.txt"], cwd=self.root, check=True, shell=False)
+        subprocess.run(
+            ["git", "-c", "user.name=Test", "-c", "user.email=test@example.invalid",
+             "commit", "-q", "-m", "baseline"], cwd=self.root, check=True, shell=False,
+        )
+        tracked.write_bytes(b"new\n")
+        subprocess.run(["git", "add", "tracked.txt"], cwd=self.root, check=True, shell=False)
+        raw = subprocess.run(
+            ["git", "-c", "core.pager=cat", "--literal-pathspecs", "diff",
+             "--no-ext-diff", "--no-textconv", "--cached", "--no-renames", "--", "tracked.txt"],
+            cwd=self.root, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=False,
+        )
+        self.assertEqual(raw.stderr, b"")
+        names = subprocess.run(
+            ["git", "diff", "--no-ext-diff", "--no-textconv", "--cached",
+             "--name-only", "-z", "--no-renames", "--"], cwd=self.root, check=True,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=False,
+        )
+        self.assertEqual((names.stdout, names.stderr), (b"tracked.txt\0", b""))
+        total = len(raw.stdout) + 2 * len(names.stdout)
+
+        snapshot = GitWorkspace(self.root, max_output_bytes=total).diff_snapshot()
+
+        self.assertEqual(snapshot.staged, raw.stdout.decode("utf-8"))
+        self.assertEqual((snapshot.unstaged, snapshot.untracked, snapshot.untracked_paths), ("", "", ()))
+        with self.assertRaises(GitOutputLimitError):
+            GitWorkspace(self.root, max_output_bytes=total - 1).diff_snapshot()
+
+    def test_untracked_stat_over_remaining_is_a_structured_limit(self) -> None:
+        subprocess.run(["git", "init", "-q"], cwd=self.root, check=True, shell=False)
+        (self.root / "a").write_bytes(b"12")
+        with self.assertRaises(GitOutputLimitError):
+            GitWorkspace(self.root, max_output_bytes=5).diff_snapshot()
 
 if __name__ == "__main__":
     unittest.main()

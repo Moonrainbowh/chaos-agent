@@ -40,9 +40,14 @@ class WorkspacePathGuard:
         if not root_path.exists() or not root_path.is_dir():
             raise ValueError("workspace root must be an existing directory")
         self.root = root_path.resolve(strict=True)
+        self._root_identity = _directory_identity(self.root)
         self.allow_sensitive = bool(allow_sensitive)
         self.allow_outside = bool(allow_outside)
         self._local_config_directories = _local_config_directories()
+
+    @property
+    def root_identity(self) -> tuple[int, int]:
+        return self._root_identity
 
     def resolve(self, path: PathInput, *, for_write: bool = False) -> Path:
         """Return a canonical in-workspace path, including for new files."""
@@ -158,3 +163,12 @@ def _is_within(path: Path, root: Path) -> bool:
         return True
     except ValueError:
         return False
+
+
+def _directory_identity(path: Path) -> tuple[int, int]:
+    if os.name == "nt":
+        from ._windows_artifact_handles import directory_identity
+
+        return directory_identity(path)
+    metadata = path.stat()
+    return int(metadata.st_dev), int(metadata.st_ino)

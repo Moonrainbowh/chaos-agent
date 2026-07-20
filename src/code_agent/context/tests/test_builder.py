@@ -6,6 +6,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from threading import Event
 from unittest.mock import patch
 
 
@@ -21,11 +22,27 @@ from code_agent.context.models import ContextConfig  # noqa: E402
 from code_agent.context.repo_map import RepoMapBuilder  # noqa: E402
 from code_agent.context.rules import RuleLoader  # noqa: E402
 from code_agent.context.tokens import estimate_tokens  # noqa: E402
+from code_agent.core.cancellation import CancellationError, CancellationToken  # noqa: E402
+from code_agent.core.context_request import ContextRequest  # noqa: E402
 from code_agent.core.models import Message, ToolDefinition  # noqa: E402
 from code_agent.core.task_state import TaskState  # noqa: E402
 from code_agent.workspace.files import WorkspaceFiles  # noqa: E402
 from code_agent.workspace.ignore import IgnoreRules  # noqa: E402
 from code_agent.workspace.paths import WorkspacePathGuard  # noqa: E402
+
+
+def _context_request(**updates: object) -> ContextRequest:
+    values = {
+        "thread_id": "thread-1",
+        "revision": 1,
+        "messages": (),
+        "user_input": "",
+        "tools": (),
+        "task_state": TaskState.empty(),
+        "cancellation": CancellationToken(),
+    }
+    values.update(updates)
+    return ContextRequest(**values)  # type: ignore[arg-type]
 
 
 class WorkspaceContextBuilderTests(unittest.IsolatedAsyncioTestCase):
@@ -63,7 +80,9 @@ class WorkspaceContextBuilderTests(unittest.IsolatedAsyncioTestCase):
     async def test_build_uses_stable_prefix_rules_map_and_one_user_message(self) -> None:
         history = (Message(role="assistant", content="Earlier answer."),)
 
-        bundle = await self.builder.build(history, "inspect tool", (), TaskState.empty())
+        bundle = await self.builder.build(
+            _context_request(messages=history, user_input="inspect tool")
+        )
 
         self.assertEqual(bundle.messages, history + (Message(role="user", content="inspect tool"),))
         self.assertTrue(bundle.system_prompt.startswith("Stable system prefix."))
@@ -79,12 +98,66 @@ class WorkspaceContextBuilderTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(bundle.measurements["cache_misses"], 1)
         self.assertEqual(bundle.measurements["cache_hits"], 0)
         self.assertEqual(bundle.measurements["removed_message_count"], 0)
-        again = await self.builder.build(history, "inspect tool", (), TaskState.empty())
+        again = await self.builder.build(
+            _context_request(messages=history, user_input="inspect tool")
+        )
         self.assertEqual(bundle, again)
         self.assertEqual(
             again.measurements["cache_hits"],
             bundle.measurements["cache_misses"],
         )
+
+    async def test_build_rejects_non_context_requests(self) -> None:
+        with self.assertRaisesRegex(TypeError, "request must be a ContextRequest"):
+            await self.builder.build(object())  # type: ignore[arg-type]
+
+    async def test_build_propagates_pre_cancelled_request_before_background_work(self) -> None:
+        cancellation = CancellationToken()
+        cancellation.cancel("stop context build")
+
+        with self.assertRaises(CancellationError) as raised:
+            await self.builder.build(_context_request(cancellation=cancellation))
+
+        self.assertEqual(raised.exception.reason, "stop context build")
+        self.assertEqual(self.builder.repo_map.cache.counters(), (0, 0))
+
+    async def test_build_propagates_cancellation_during_background_work(self) -> None:
+        entered = Event()
+        release = Event()
+
+        class BlockingRepoMapBuilder(RepoMapBuilder):
+            def render_with_metrics(
+                self, query: str, touched_files: tuple[str, ...], token_budget: int
+            ) -> tuple[str, int, int]:
+                entered.set()
+                if not release.wait(5):
+                    raise TimeoutError("test did not release repo map render")
+                return super().render_with_metrics(
+                    query, touched_files, token_budget
+                )
+
+        guard = WorkspacePathGuard(self.root)
+        files = WorkspaceFiles(guard, IgnoreRules.from_workspace(self.root))
+        builder = WorkspaceContextBuilder(
+            self.config,
+            RuleLoader(guard, files, self.config),
+            BlockingRepoMapBuilder(files, self.config),
+            DeterministicCompactor(self.config),
+        )
+        cancellation = CancellationToken()
+        request = _context_request(cancellation=cancellation)
+        build_task = asyncio.create_task(builder.build(request))
+
+        try:
+            self.assertTrue(await asyncio.to_thread(entered.wait, 5))
+            cancellation.cancel("cancel during context build")
+            release.set()
+            with self.assertRaises(CancellationError) as raised:
+                await build_task
+            self.assertEqual(raised.exception.reason, "cancel during context build")
+        finally:
+            release.set()
+            await asyncio.gather(build_task, return_exceptions=True)
 
     async def test_empty_user_input_rebuilds_history_without_adding_empty_message(self) -> None:
         history = (
@@ -93,7 +166,7 @@ class WorkspaceContextBuilderTests(unittest.IsolatedAsyncioTestCase):
             Message(role="user", content="latest request"),
         )
 
-        bundle = await self.builder.build(history, "", (), TaskState.empty())
+        bundle = await self.builder.build(_context_request(messages=history))
 
         self.assertNotIn(Message(role="user", content=""), bundle.messages)
         self.assertEqual(bundle.messages[-1].content, "latest request")
@@ -125,7 +198,7 @@ class WorkspaceContextBuilderTests(unittest.IsolatedAsyncioTestCase):
             side_effect=AssertionError("repo map must stay disabled"),
         ):
             bundle = await builder.build(
-                (), "explain this directory", (), TaskState.empty()
+                _context_request(user_input="explain this directory")
             )
 
         self.assertNotIn("src/tool.py", bundle.system_prompt)
@@ -139,7 +212,7 @@ class WorkspaceContextBuilderTests(unittest.IsolatedAsyncioTestCase):
             side_effect=AssertionError("greetings must not scan the repository"),
         ):
             bundle = await self.builder.build(
-                (), "你好！", (), TaskState.empty()
+                _context_request(user_input="你好！")
             )
 
         self.assertNotIn("src/tool.py", bundle.system_prompt)
@@ -157,7 +230,9 @@ class WorkspaceContextBuilderTests(unittest.IsolatedAsyncioTestCase):
             "render_with_metrics",
             wraps=self.builder.repo_map.render_with_metrics,
         ) as render:
-            await self.builder.build((), "repair", (), task_state)
+            await self.builder.build(
+                _context_request(user_input="repair", task_state=task_state)
+            )
 
         self.assertEqual(render.call_count, 1)
         self.assertEqual(
@@ -165,9 +240,9 @@ class WorkspaceContextBuilderTests(unittest.IsolatedAsyncioTestCase):
             ("src/changed.py", "src/shared.py", "src/read.py"),
         )
 
-    async def test_build_rejects_invalid_message_sequences(self) -> None:
+    def test_context_request_rejects_invalid_message_sequences(self) -> None:
         with self.assertRaises(TypeError):
-            await self.builder.build(("not a message",), "request", (), TaskState.empty())  # type: ignore[arg-type]
+            _context_request(messages=("not a message",))
 
     async def test_build_reserves_tools_before_dynamically_capping_messages(self) -> None:
         config = ContextConfig(
@@ -188,8 +263,10 @@ class WorkspaceContextBuilderTests(unittest.IsolatedAsyncioTestCase):
         tool = ToolDefinition("inspect", "x" * 3_600, {"type": "object"})
         history = (Message(role="user", content="y" * 12_000),)
 
-        without_tools = await builder.build(history, "", (), TaskState.empty())
-        with_tools = await builder.build(history, "", (tool,), TaskState.empty())
+        without_tools = await builder.build(_context_request(messages=history))
+        with_tools = await builder.build(
+            _context_request(messages=history, tools=(tool,))
+        )
 
         self.assertLess(
             estimate_tokens(with_tools.messages[-1].content),
@@ -198,10 +275,11 @@ class WorkspaceContextBuilderTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_build_keeps_real_prompt_within_budget_before_safety(self) -> None:
         tools = (ToolDefinition("inspect", "Read workspace information.", {"type": "object"}),)
-        bundle = await self.builder.build(
-            (Message(role="user", content="history " * 4_000),), "inspect tool",
-            tools, TaskState.empty(),
-        )
+        bundle = await self.builder.build(_context_request(
+            messages=(Message(role="user", content="history " * 4_000),),
+            user_input="inspect tool",
+            tools=tools,
+        ))
         rendered_messages = sum(estimate_tokens(message.content) + 1 for message in bundle.messages)
         rendered_tools = sum(estimate_tokens(str(tool.to_dict())) for tool in tools)
         self.assertLessEqual(
@@ -213,7 +291,7 @@ class WorkspaceContextBuilderTests(unittest.IsolatedAsyncioTestCase):
         (self.root / "AGENTS.md").write_text("x" * 12_100, encoding="utf-8")
 
         with self.assertRaisesRegex(RuleLimitError, "3,000"):
-            await self.builder.build((), "request", (), TaskState.empty())
+            await self.builder.build(_context_request(user_input="request"))
 
     async def test_concurrent_builds_attribute_cache_counts_to_their_own_render(self) -> None:
         class SlowRepoMapBuilder(RepoMapBuilder):
@@ -235,8 +313,8 @@ class WorkspaceContextBuilderTests(unittest.IsolatedAsyncioTestCase):
         )
 
         first, second = await asyncio.gather(
-            builder.build((), "same", (), TaskState.empty()),
-            builder.build((), "same", (), TaskState.empty()),
+            builder.build(_context_request(user_input="same")),
+            builder.build(_context_request(user_input="same")),
         )
 
         counts = sorted(

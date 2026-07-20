@@ -26,7 +26,7 @@ from code_agent.skills.registry import SkillActivation
 from code_agent.mcp.registry import McpRegistry
 from .task_controller import ForegroundTaskController
 from .tui_commands import ParseOutcome, TuiCommandKind, parse_tui_command
-from .i18n import Language, catalog_for, localize_task_status, select_runtime_language
+from .i18n import catalog_for, localize_task_status, select_runtime_language
 from .evidence_view import format_evidence_summary
 from .tui_input import apply_paste, handle_interrupt
 from .command_availability import available_services

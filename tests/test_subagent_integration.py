@@ -2,9 +2,17 @@ from __future__ import annotations
 
 import unittest
 
+from code_agent.core.action_execution import ActionExecutionContext
 from code_agent.core.cancellation import CancellationToken
 from code_agent.core.events import AgentEvent, EventKind
-from code_agent.core.models import ActionRequest, Message, ModelEvent, ModelEventKind, Usage
+from code_agent.core.models import (
+    ActionRequest,
+    ActionResult,
+    Message,
+    ModelEvent,
+    ModelEventKind,
+    Usage,
+)
 from code_agent.orchestration.models import (
     AgentDefinition,
     AgentMode,
@@ -17,7 +25,12 @@ from code_agent.orchestration.models import (
 from code_agent.orchestration.modes import ModeRegistry, standard_mode_definitions
 from code_agent.providers.config import ApiProtocol, ModelProfile, ProviderConfig
 from code_agent_win import agent_modes
-from code_agent_win.subagents import EngineChildRunner, SubagentRuntime, SubagentTool
+from code_agent_win.subagents import (
+    EngineChildRunner,
+    RestrictedDispatcher,
+    SubagentRuntime,
+    SubagentTool,
+)
 
 
 def _runtime():
@@ -47,6 +60,39 @@ def _runtime():
     return registry, profiles
 
 
+class RestrictedDispatcherTests(unittest.IsolatedAsyncioTestCase):
+    async def test_restricted_dispatcher_forwards_execution_context_by_keyword(
+        self,
+    ) -> None:
+        class Inner:
+            def tools(self):
+                return ()
+
+            async def dispatch(
+                self,
+                request,
+                cancellation,
+                task_authorization=None,
+                *,
+                execution_context=None,
+            ):
+                self.context = execution_context
+                return ActionResult(request.id, request.name, {})
+
+        inner = Inner()
+        restricted = RestrictedDispatcher(inner, ("read_file",))
+        context = ActionExecutionContext("owner", "origin", "call-1")
+
+        result = await restricted.dispatch(
+            ActionRequest("call-1", "read_file", {"path": "note.txt"}),
+            CancellationToken(),
+            execution_context=context,
+        )
+
+        self.assertFalse(result.is_error)
+        self.assertIs(inner.context, context)
+
+
 class EngineChildRunnerTests(unittest.IsolatedAsyncioTestCase):
     async def test_runtime_publishes_live_child_statuses(self) -> None:
         registry, profiles = _runtime()
@@ -59,7 +105,9 @@ class EngineChildRunnerTests(unittest.IsolatedAsyncioTestCase):
                 )
 
         runtime = SubagentRuntime(
-            EngineChildRunner(lambda _: (Engine(), None)), registry, profiles
+            EngineChildRunner(lambda _agent, _parent: (Engine(), None)),
+            registry,
+            profiles,
         )
         statuses = []
         runtime.subscribe(lambda view: statuses.append(view.status))
@@ -99,7 +147,9 @@ class EngineChildRunnerTests(unittest.IsolatedAsyncioTestCase):
         )
         request = ChildRunRequest("parent", "review", agent, 1, 100, 4, 30, "child-1")
 
-        result = await EngineChildRunner(lambda _: (Engine(), None)).run(
+        result = await EngineChildRunner(
+            lambda _agent, _parent: (Engine(), None)
+        ).run(
             request, CancellationToken()
         )
 
@@ -150,7 +200,9 @@ class EngineChildRunnerTests(unittest.IsolatedAsyncioTestCase):
                 )
 
         runtime = SubagentRuntime(
-            EngineChildRunner(lambda _: (Engine(), None)), registry, profiles
+            EngineChildRunner(lambda _agent, _parent: (Engine(), None)),
+            registry,
+            profiles,
         )
         first_token = runtime.activate("parent-1")
         for index in range(8):

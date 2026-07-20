@@ -110,9 +110,23 @@ class RecordRepositoryMixin:
 
         def write(connection: sqlite3.Connection) -> None:
             _require_thread(connection, thread_id)
+            message_sequence = _thread_maximum(
+                connection, "messages", thread_id
+            )
+            event_sequence = _thread_maximum(connection, "events", thread_id)
             connection.execute(
-                "INSERT INTO checkpoints VALUES (?, ?, ?, ?, ?)",
-                (identifier, thread_id, label, encode_metadata(data), timestamp),
+                "INSERT INTO checkpoints(id, thread_id, label, metadata, "
+                "created_at, message_sequence, event_sequence) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    identifier,
+                    thread_id,
+                    label,
+                    encode_metadata(data),
+                    timestamp,
+                    message_sequence,
+                    event_sequence,
+                ),
             )
             _touch_thread(connection, thread_id, timestamp)
 
@@ -138,6 +152,8 @@ class RecordRepositoryMixin:
                         label=row["label"],
                         metadata=decode_metadata(row["metadata"]),
                         created_at=decode_datetime(row["created_at"], "checkpoint"),
+                        message_sequence=row["message_sequence"],
+                        event_sequence=row["event_sequence"],
                     )
                     for row in rows
                 )
@@ -145,6 +161,18 @@ class RecordRepositoryMixin:
                 raise SessionCorruptionError("invalid persisted checkpoint") from error
 
         return await self._database.read(read)  # type: ignore[attr-defined]
+
+
+def _thread_maximum(
+    connection: sqlite3.Connection, table: str, thread_id: str
+) -> int:
+    if table not in {"messages", "events"}:
+        raise ValueError("unsupported sequence table")
+    row = connection.execute(
+        f"SELECT COALESCE(MAX(sequence), 0) FROM {table} WHERE thread_id = ?",
+        (thread_id,),
+    ).fetchone()
+    return int(row[0])
 
 
 def _require_thread(connection: sqlite3.Connection, thread_id: str) -> None:

@@ -69,6 +69,7 @@ class SemanticCompactor:
     async def compact(
         self,
         thread_id: str,
+        revision: int,
         messages: Sequence[Message],
         *,
         context_tokens: int,
@@ -76,6 +77,7 @@ class SemanticCompactor:
         target_tokens: int,
         cancellation: CancellationToken | None = None,
     ) -> SemanticCompactionResult:
+        _validate_request_identity(thread_id, revision)
         checked = tuple(messages)
         if not checked or any(not isinstance(item, Message) for item in checked):
             raise ValueError("messages must contain Message values")
@@ -107,14 +109,27 @@ class SemanticCompactor:
                 checked[protected_count:source_end], start=protected_count
             )
         )
+        return await self._semantic_result(
+            checked, sources, protected_count, source_end, target_tokens, token
+        )
+
+    async def _semantic_result(
+        self,
+        messages: tuple[Message, ...],
+        sources: tuple[AnchoredMessage, ...],
+        protected_count: int,
+        source_end: int,
+        target_tokens: int,
+        cancellation: CancellationToken,
+    ) -> SemanticCompactionResult:
         request = SummaryRequest(
             sources, self._summary_tokens, self._model_token_budget
         )
         try:
             response = await asyncio.wait_for(
-                self._summarizer.summarize(request, token), self._timeout
+                self._summarizer.summarize(request, cancellation), self._timeout
             )
-            token.raise_if_cancelled()
+            cancellation.raise_if_cancelled()
             if not isinstance(response, SummaryResponse):
                 raise TypeError("summarizer returned an invalid response")
             if response.usage.output_tokens > self._summary_tokens:
@@ -127,7 +142,7 @@ class SemanticCompactor:
                 content=_checkpoint_prompt(checkpoint),
             )
             return SemanticCompactionResult(
-                checked[:protected_count] + (prompt,) + checked[source_end:],
+                messages[:protected_count] + (prompt,) + messages[source_end:],
                 checkpoint,
                 True,
                 False,
@@ -135,7 +150,7 @@ class SemanticCompactor:
         except (CancellationError, asyncio.CancelledError):
             raise
         except Exception:
-            return self._fallback_result(checked, target_tokens)
+            return self._fallback_result(messages, target_tokens)
 
     def _fallback_result(
         self, messages: tuple[Message, ...], target_tokens: int
@@ -175,6 +190,17 @@ def _closed_prefix_count(messages: tuple[Message, ...], keep_recent: int) -> int
         if retained >= keep_recent:
             break
     return first_tail
+
+
+def _validate_request_identity(thread_id: str, revision: int) -> None:
+    if not isinstance(thread_id, str):
+        raise TypeError("thread_id must be a string")
+    if not thread_id.strip():
+        raise ValueError("thread_id must not be blank")
+    if isinstance(revision, bool) or not isinstance(revision, int):
+        raise TypeError("revision must be an integer")
+    if revision <= 0:
+        raise ValueError("revision must be positive")
 
 
 def _checkpoint_prompt(checkpoint: SemanticCheckpoint) -> str:

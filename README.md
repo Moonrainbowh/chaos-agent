@@ -8,6 +8,7 @@ It is a clean-room implementation. It takes architectural lessons from projects 
 
 - Uses OpenAI Responses, OpenAI Chat Completions, or Anthropic Messages through one streaming model protocol.
 - Keeps sessions, messages, events, goals, and checkpoints in a versioned SQLite database.
+- Lists checkpoint candidates and renders read-only arbitrary-checkpoint rewind previews for conversation, code, or both.
 - Discovers hierarchical `AGENTS.md` rules, builds a bounded repository map, and compacts history deterministically.
 - Freezes `low`, `medium`, `high`, or `ultra` task modes to an actual provider profile, model, prompt policy, tool set, reasoning effort, and execution limits. Modes never grant permission.
 - Runs bounded advisory Subagent, Oracle, Review, Search, and Librarian children through the same typed tools, policy checks, cancellation tree, and cumulative parent budget.
@@ -172,6 +173,26 @@ target, risk, and reason, default to `No`, and require `Enter` or `Esc`.
 `/diff` prefers a fresh diff from the injected read-only Git adapter and renders
 file statistics plus bounded unified diff lines.
 
+### Checkpoint Rewind Previews
+
+`/rewind list [cursor]` returns a bounded page of checkpoint candidates.
+`/rewind preview <checkpoint-id> <conversation|code|both>` renders one
+read-only facet selection. Candidate message-bound and code-anchor flags are
+discovery hints, not promises that the corresponding preview facet is
+available.
+
+The code facet is available only for complete mutation-capture coverage after
+the runtime validates every exact inverse snapshot and preimage, adjacent
+per-path continuity, and the current workspace tip. A writer whose exact file
+effects are unknown records a durable `GAP` before execution and invalidates
+code rewind for that coverage. The preview reports preservation of pre-existing
+user bytes only after the earliest exact baseline and the complete validation
+chain pass.
+
+`/rewind` is preview-only. It exposes no apply or restore action, performs no
+`git reset` or `git checkout`, does not request approval, and does not call a
+provider or typed tool.
+
 Tasks persist lifecycle state, checkpoints, and cumulative budgets. Closing the
 terminal, sleep, hibernate, shutdown, or reboot does not keep work running;
 the next foreground session resumes from a checkpoint and never replays an
@@ -208,13 +229,13 @@ retained from the existing model profile and persistent budget work; this
 feature measures their context environment for later evidence-based tuning and
 does not tune those limits.
 
-The semantic checkpoint, bounded thread index, authorized thread-tree search,
-and revision-aware `read_thread` Feature are implemented and tested, but the
-current `ContextBuilder.build(...)` integration protocol does not carry a
-`thread_id`. Chaos Agent therefore keeps deterministic compaction active in the
-runtime rather than generating checkpoint anchors with a fabricated thread
-identity. The required interface revision is recorded in
-`docs/amp-inspired-runtime.md`.
+Each model turn now carries the real thread ID and positive revision in an
+immutable `ContextRequest`. The runtime can therefore use source-anchored
+compaction without fabricating identity, persist its sanitized semantic
+checkpoint facts through the coordinated Sessions repository, and order each
+checkpoint against the workspace mutation high-water. The bounded thread index,
+authorized thread-tree search, and revision-aware `read_thread` remain
+available independently of rewind preview.
 
 ## Development Status
 

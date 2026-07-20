@@ -46,6 +46,10 @@ _SPECS = (
         CommandAction("high", (), "深度处理"),
         CommandAction("ultra", (), "复杂任务编排"),
     )),
+    CommandSpec("回溯", ("rewind",), "工作区", "只读预览 checkpoint 回溯", "<action>", requires=("rewind",), actions=(
+        CommandAction("列表", ("list",), "列出 checkpoint 候选", "[cursor]"),
+        CommandAction("预览", ("preview",), "预览 checkpoint 回溯", "<checkpoint-id> <conversation|code|both>"),
+    )),
 )
 
 

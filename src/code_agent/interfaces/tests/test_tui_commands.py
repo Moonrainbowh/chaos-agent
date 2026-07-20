@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import unittest
 
+from code_agent.interfaces.command_availability import available_services
 from code_agent.interfaces.command_registry import REGISTRY
 from code_agent.interfaces.tui_commands import TuiCommandKind, parse_tui_command
 
@@ -59,7 +60,7 @@ class TuiCommandTests(unittest.TestCase):
                 "帮助", "状态", "清屏", "退出",
                 "新建", "会话", "恢复",
                 "任务", "接受",
-                "差异", "证据", "模式",
+                "差异", "证据", "模式", "回溯",
             ),
         )
 
@@ -72,3 +73,63 @@ class TuiCommandTests(unittest.TestCase):
         )
         self.assertEqual(parse_tui_command("/mode high").command.kind, TuiCommandKind.MODE)
         self.assertEqual(parse_tui_command("/模式 high").command.instruction, "high")
+
+    def test_rewind_registry_is_read_only_and_has_exact_actions(self) -> None:
+        rewind = REGISTRY.resolve("rewind")
+        self.assertEqual(rewind.name, "回溯")
+        self.assertEqual(rewind.aliases, ("rewind",))
+        self.assertEqual(rewind.group, "工作区")
+        self.assertEqual(rewind.description, "只读预览 checkpoint 回溯")
+        self.assertEqual(rewind.usage, "<action>")
+        self.assertEqual(rewind.requires, ("rewind",))
+        self.assertEqual(
+            tuple((item.name, item.aliases, item.description, item.usage) for item in rewind.actions),
+            (
+                ("列表", ("list",), "列出 checkpoint 候选", "[cursor]"),
+                (
+                    "预览",
+                    ("preview",),
+                    "预览 checkpoint 回溯",
+                    "<checkpoint-id> <conversation|code|both>",
+                ),
+            ),
+        )
+
+    def test_rewind_preserves_raw_instruction_and_malformed_quotes(self) -> None:
+        parsed = parse_tui_command(
+            '/rewind preview "checkpoint one" both', {"rewind"}
+        )
+        malformed = parse_tui_command(
+            '/rewind preview "unterminated', {"rewind"}
+        )
+        chinese = parse_tui_command('/回溯 列表 "opaque cursor"', {"rewind"})
+        self.assertEqual(parsed.command.kind, TuiCommandKind.REWIND)
+        self.assertEqual(
+            parsed.command.instruction, 'preview "checkpoint one" both'
+        )
+        self.assertEqual(
+            malformed.command.instruction, 'preview "unterminated'
+        )
+        self.assertEqual(chinese.command.instruction, '列表 "opaque cursor"')
+
+    def test_default_and_explicit_empty_services_do_not_enable_rewind(self) -> None:
+        self.assertEqual(
+            parse_tui_command("/rewind list").error,
+            "unknown or unavailable slash command",
+        )
+        self.assertEqual(
+            parse_tui_command("/任务", set()).error,
+            "unknown or unavailable slash command",
+        )
+        self.assertEqual(
+            parse_tui_command("/rewind list", set()).error,
+            "unknown or unavailable slash command",
+        )
+
+    def test_available_services_only_exposes_non_null_rewind_source(self) -> None:
+        missing = type("App", (), {})()
+        absent = type("App", (), {"rewind": None})()
+        present = type("App", (), {"rewind": object()})()
+        self.assertNotIn("rewind", available_services(missing))
+        self.assertNotIn("rewind", available_services(absent))
+        self.assertIn("rewind", available_services(present))

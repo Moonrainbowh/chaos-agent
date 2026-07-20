@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator, Mapping, Sequence
 
+from code_agent.core.action_execution import ActionExecutionContext
 from code_agent.core.cancellation import CancellationToken
+from code_agent.core.context_request import ContextRequest
 from code_agent.core.events import AgentEvent
 from code_agent.core.models import (
     ActionRequest,
@@ -12,6 +14,7 @@ from code_agent.core.models import (
     ModelEvent,
     ToolDefinition,
 )
+from code_agent.core.task import TaskAuthorization
 from code_agent.core.task_state import TaskState
 from code_agent.core.task_state import reduce_task_state
 from code_agent.core.limits import EngineLimits, TaskBudget
@@ -43,19 +46,17 @@ class FakeModelClient:
 class FakeContextBuilder:
     def __init__(self, measurements: Mapping[str, int] | None = None) -> None:
         self.calls: list[tuple[tuple[Message, ...], str, tuple[ToolDefinition, ...], TaskState]] = []
+        self.requests: list[ContextRequest] = []
         self.measurements = dict(measurements or {})
 
-    async def build(
-        self,
-        messages: Sequence[Message],
-        user_input: str,
-        tools: Sequence[ToolDefinition],
-        task_state: TaskState,
-    ) -> ContextBundle:
-        history = tuple(messages)
-        self.calls.append((history, user_input, tuple(tools), task_state))
-        if user_input:
-            history += (Message(role="user", content=user_input),)
+    async def build(self, request: ContextRequest) -> ContextBundle:
+        self.requests.append(request)
+        history = request.messages
+        self.calls.append(
+            (history, request.user_input, request.tools, request.task_state)
+        )
+        if request.user_input:
+            history += (Message(role="user", content=request.user_input),)
         return ContextBundle(
             system_prompt="system",
             messages=history,
@@ -71,6 +72,8 @@ class FakeActionDispatcher:
         self.outcomes = list(outcomes)
         self.requests: list[ActionRequest] = []
         self.tokens: list[CancellationToken] = []
+        self.authorizations: list[TaskAuthorization | None] = []
+        self.contexts: list[ActionExecutionContext | None] = []
         self._tools = (
             ToolDefinition(
                 name="read_file",
@@ -83,10 +86,17 @@ class FakeActionDispatcher:
         return self._tools
 
     async def dispatch(
-        self, request: ActionRequest, cancellation: CancellationToken, *args: object
+        self,
+        request: ActionRequest,
+        cancellation: CancellationToken,
+        task_authorization: TaskAuthorization | None = None,
+        *,
+        execution_context: ActionExecutionContext | None = None,
     ) -> ActionResult:
         self.requests.append(request)
         self.tokens.append(cancellation)
+        self.authorizations.append(task_authorization)
+        self.contexts.append(execution_context)
         outcome = self.outcomes.pop(0)
         if isinstance(outcome, BaseException):
             raise outcome

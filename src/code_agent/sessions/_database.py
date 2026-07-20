@@ -7,6 +7,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TypeVar
 
+from ._rewind_schema import REWIND_MIGRATION, REWIND_REQUIRED_COLUMNS
 from .errors import (
     SessionCorruptionError,
     SessionError,
@@ -15,7 +16,7 @@ from .errors import (
 )
 
 
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 11
 _BUSY_TIMEOUT_MS = 5_000
 _SQLITE_CORRUPT = 11
 _SQLITE_NOTADB = 26
@@ -74,6 +75,11 @@ _MIGRATIONS: dict[int, tuple[str, ...]] = {
         "CREATE INDEX verification_runs_task_created ON verification_runs(task_id, created_at)",
         "CREATE INDEX verification_evidence_task_created ON verification_evidence(task_id, created_at)",
     ),
+    10: (
+        "ALTER TABLE checkpoints ADD COLUMN message_sequence INTEGER",
+        "ALTER TABLE checkpoints ADD COLUMN event_sequence INTEGER",
+    ),
+    11: REWIND_MIGRATION,
 }
 
 _REQUIRED_COLUMNS = {
@@ -84,7 +90,10 @@ _REQUIRED_COLUMNS = {
         "id", "thread_id", "objective", "status", "metadata", "created_at",
         "updated_at",
     },
-    "checkpoints": {"id", "thread_id", "label", "metadata", "created_at"},
+    "checkpoints": {
+        "id", "thread_id", "label", "metadata", "created_at",
+        "message_sequence", "event_sequence",
+    },
     "task_budgets": {"thread_id", "model_name", "max_agent_rounds", "max_tool_calls", "max_tool_calls_per_round", "max_total_tokens", "model_turns", "tool_calls", "input_tokens", "output_tokens", "repair_cycles", "repeated_failures", "last_failure_signature", "active_seconds", "warned_at_80", "warned_at_90"},
     "task_states": {"thread_id", "payload", "updated_at"},
     "tasks": {"id", "thread_id", "contract", "status", "stop_reason", "created_at", "updated_at"},
@@ -94,6 +103,7 @@ _REQUIRED_COLUMNS = {
     "verification_runs": {"id", "task_id", "generation", "subject_hash", "status", "created_at", "completed_at"},
     "verification_evidence": {"id", "run_id", "task_id", "payload", "created_at"},
     "task_completions": {"task_id", "revision", "generation", "subject_hash", "assessment", "created_at"},
+    **REWIND_REQUIRED_COLUMNS,
 }
 
 
@@ -187,6 +197,13 @@ class SessionDatabase:
             columns = {row[1] for row in rows}
             if not expected.issubset(columns):
                 raise SessionCorruptionError(f"session schema is missing {table}")
+        stored_sql = {
+            row[0] for row in connection.execute(
+                "SELECT sql FROM sqlite_master WHERE sql IS NOT NULL"
+            )
+        }
+        if not set(REWIND_MIGRATION).issubset(stored_sql):
+            raise SessionCorruptionError("session schema is missing rewind DDL")
 
     def _execute(
         self,

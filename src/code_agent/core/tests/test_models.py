@@ -30,7 +30,7 @@ class ModelRoundTripTests(unittest.TestCase):
         json.dumps(encoded)
         self.assertEqual(model_type.from_dict(encoded), value)
 
-    def test_all_models_round_trip_through_json_compatible_dicts(self) -> None:
+    def test_conversation_models_round_trip_through_json_dicts(self) -> None:
         tool_call = ToolCall(
             id="call-1",
             name="read_file",
@@ -43,6 +43,15 @@ class ModelRoundTripTests(unittest.TestCase):
             name="coder",
             tool_calls=(tool_call,),
         )
+        bundle = ContextBundle(system_prompt="Be precise.", messages=(message,))
+
+        for value in (tool_call, usage, message, bundle):
+            with self.subTest(model=type(value).__name__, value=value):
+                self.assert_round_trip(value, type(value))
+
+        self.assertEqual(usage.total_tokens, 17)
+
+    def test_action_models_round_trip_through_json_dicts(self) -> None:
         request = ActionRequest(
             id="action-1",
             name="read_file",
@@ -63,16 +72,20 @@ class ModelRoundTripTests(unittest.TestCase):
                 "required": ["path"],
             },
         )
-        bundle = ContextBundle(system_prompt="Be precise.", messages=(message,))
+
+        for value in (request, result, definition):
+            with self.subTest(model=type(value).__name__, value=value):
+                self.assert_round_trip(value, type(value))
+
+    def test_model_events_round_trip_through_json_dicts(self) -> None:
+        tool_call = ToolCall(
+            id="call-1",
+            name="read_file",
+            arguments={"path": "README.md", "lines": [1, 20]},
+        )
+        usage = Usage(input_tokens=12, output_tokens=5, cached_input_tokens=3)
 
         for value in (
-            tool_call,
-            usage,
-            message,
-            request,
-            result,
-            definition,
-            bundle,
             ModelEvent(kind=ModelEventKind.TEXT_DELTA, text="hello"),
             ModelEvent(kind=ModelEventKind.TOOL_CALL, tool_call=tool_call),
             ModelEvent(kind=ModelEventKind.USAGE, usage=usage),
@@ -81,7 +94,22 @@ class ModelRoundTripTests(unittest.TestCase):
             with self.subTest(model=type(value).__name__, value=value):
                 self.assert_round_trip(value, type(value))
 
-        self.assertEqual(usage.total_tokens, 17)
+    def test_context_bundle_preserves_semantic_numeric_measurements(self) -> None:
+        expected = {
+            "semantic_triggered": 1,
+            "semantic_fallback": 0,
+            "semantic_source_count": 3,
+        }
+        measurements = dict(expected)
+
+        bundle = ContextBundle(system_prompt="Prompt", measurements=measurements)
+        measurements["semantic_source_count"] = 99
+
+        self.assertEqual(dict(bundle.measurements), expected)
+        restored = ContextBundle.from_dict(bundle.to_dict())
+        self.assertEqual(dict(restored.measurements), expected)
+        with self.assertRaises(TypeError):
+            bundle.measurements["semantic_triggered"] = 0  # type: ignore[index]
 
 
 class ModelValidationTests(unittest.TestCase):
@@ -140,6 +168,35 @@ class ModelValidationTests(unittest.TestCase):
             with self.subTest(value=value):
                 with self.assertRaises((TypeError, ValueError)):
                     Usage(input_tokens=value)  # type: ignore[arg-type]
+
+    def test_context_bundle_rejects_invalid_semantic_counter_values(self) -> None:
+        semantic_keys = (
+            "semantic_triggered",
+            "semantic_fallback",
+            "semantic_source_count",
+        )
+        for key in semantic_keys:
+            for value in (True, -1, 1.5):
+                with self.subTest(key=key, value=value):
+                    with self.assertRaises((TypeError, ValueError)):
+                        ContextBundle(
+                            system_prompt="Prompt",
+                            measurements={key: value},  # type: ignore[dict-item]
+                        )
+
+    def test_context_bundle_rejects_text_and_unknown_measurements(self) -> None:
+        invalid_measurements = (
+            {"semantic_summary": 1},
+            {"semantic_unknown": 1},
+            {"semantic_source_count": "three"},
+        )
+        for measurements in invalid_measurements:
+            with self.subTest(measurements=measurements):
+                with self.assertRaises((TypeError, ValueError)):
+                    ContextBundle(
+                        system_prompt="Prompt",
+                        measurements=measurements,  # type: ignore[arg-type]
+                    )
 
     def test_model_event_requires_payload_matching_its_kind(self) -> None:
         tool_call = ToolCall(id="call-1", name="read_file", arguments={})

@@ -1,0 +1,189 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import AsyncIterator, Optional
+
+from .cancellation import CancellationError, CancellationToken
+from .context_request import ContextRequest, budget_lease
+from .errors import AgentEngineError, ContextBuildError, EngineLimitError, ModelStreamError
+from .events import AgentEvent, EventKind
+from .limits import TaskBudget, add_usage
+from .models import (
+    ContextBundle,
+    Message,
+    ModelEventKind,
+    ToolCall,
+    ToolDefinition,
+    Usage,
+)
+from .task import TaskRecord
+from .task_supervisor import TaskSupervisor
+
+
+@dataclass(slots=True)
+class _RunState:
+    thread_id: str
+    token: CancellationToken
+    task: TaskRecord | None
+    budget: TaskBudget
+    supervisor: TaskSupervisor | None
+    prior_messages: tuple[Message, ...] = ()
+    messages: tuple[Message, ...] = ()
+    used_call_ids: set[str] = field(default_factory=set)
+    total_usage: Usage = field(default_factory=Usage)
+    stop_requested: bool = False
+
+
+@dataclass(slots=True)
+class _TurnState:
+    number: int
+    tools: tuple[ToolDefinition, ...]
+    tool_names: set[str]
+    text_parts: list[str] = field(default_factory=list)
+    calls: list[ToolCall] = field(default_factory=list)
+
+
+def _validate_run_arguments(user_input: str, thread_id: Optional[str]) -> None:
+    if not isinstance(user_input, str):
+        raise TypeError("user_input must be a string")
+    if not user_input.strip():
+        raise ValueError("user_input must not be blank")
+    if thread_id is not None and (
+        not isinstance(thread_id, str) or not thread_id.strip()
+    ):
+        raise ValueError("thread_id must be a non-blank string or None")
+
+
+class AgentEngineRunMixin:
+    """Prepare one run and stream model events into its mutable state."""
+
+    async def _start_run(
+        self,
+        thread_id: Optional[str],
+        cancellation: Optional[CancellationToken],
+        task: TaskRecord | None,
+    ) -> tuple[_RunState, AgentEvent]:
+        token = cancellation or CancellationToken()
+        active_thread = thread_id or await self._journal.create_thread()
+        if task is not None and task.thread_id != active_thread:
+            raise ValueError("task must belong to the active thread")
+        budget = await self._journal.get_or_create_task_budget(
+            active_thread, self._model_name, self._limits
+        )
+        supervisor = TaskSupervisor(task.contract, budget) if task else None
+        state = _RunState(active_thread, token, task, budget, supervisor)
+        started = AgentEvent(
+            kind=EventKind.RUN_STARTED,
+            payload={"thread_id": active_thread},
+        )
+        await self._journal.append_event(active_thread, started)
+        return state, started
+
+    async def _prepare_request(
+        self, state: _RunState, user_input: str
+    ) -> tuple[AgentEvent, Message]:
+        state.token.raise_if_cancelled()
+        state.prior_messages = await self._journal.load_messages(state.thread_id)
+        if state.task is not None and self._verification is not None:
+            prepared = await self._verification.prepare(
+                state.task, await self._journal.load_task_state(state.thread_id)
+            )
+            await self._journal.save_task_state(state.thread_id, prepared)
+        user_message = Message(role="user", content=user_input)
+        await self._journal.append_message(state.thread_id, user_message)
+        added = self._journal.message_added(user_message)
+        await self._journal.append_event(state.thread_id, added)
+        return added, user_message
+
+    async def _build_turn_context(
+        self, state: _RunState, turn: _TurnState, user_input: str
+    ) -> ContextBundle:
+        source_messages = (
+            await self._journal.load_messages(state.thread_id)
+            if state.task is not None
+            else state.prior_messages if turn.number == 1 else state.messages
+        )
+        source_input = user_input if turn.number == 1 else ""
+        try:
+            task_state = await self._journal.load_task_state(state.thread_id)
+            bundle = await self._context.build(
+                ContextRequest(
+                    thread_id=state.thread_id,
+                    revision=state.budget.model_turns,
+                    messages=source_messages,
+                    user_input=source_input,
+                    tools=turn.tools,
+                    task_state=task_state,
+                    cancellation=state.token,
+                    mode_snapshot=self._context_mode_snapshot,
+                    permission_snapshot=self._context_permission_snapshot,
+                    budget_lease=budget_lease(state.budget),
+                )
+            )
+            if not isinstance(bundle, ContextBundle):
+                raise TypeError("context builder returned an invalid bundle")
+            return bundle
+        except CancellationError:
+            raise
+        except Exception:
+            raise ContextBuildError("context build failed") from None
+
+    async def _stream_model_events(
+        self, state: _RunState, turn: _TurnState, bundle: ContextBundle
+    ) -> AsyncIterator[AgentEvent]:
+        completed = False
+        try:
+            stream = self._model.stream(
+                bundle.system_prompt, bundle.messages, turn.tools
+            )
+            async for model_event in stream:
+                state.token.raise_if_cancelled()
+                if completed:
+                    raise ModelStreamError(
+                        "model emitted an event after completion"
+                    )
+                self._accumulate_model_event(
+                    model_event, turn.text_parts, turn.calls
+                )
+                if model_event.kind is ModelEventKind.COMPLETED:
+                    completed = True
+                streamed = AgentEvent(
+                    EventKind.MODEL_EVENT,
+                    {"event": model_event.to_dict()},
+                )
+                await self._journal.append_event(state.thread_id, streamed)
+                yield streamed
+                if model_event.usage is not None:
+                    async for warning in self._record_model_usage(
+                        state, model_event.usage
+                    ):
+                        yield warning
+        except (AgentEngineError, CancellationError):
+            raise
+        except Exception:
+            raise ModelStreamError("model stream failed") from None
+        if not completed:
+            raise ModelStreamError("model stream ended before completion")
+
+    async def _record_model_usage(
+        self, state: _RunState, usage: Usage
+    ) -> AsyncIterator[AgentEvent]:
+        state.total_usage = add_usage(state.total_usage, usage)
+        if state.task is not None:
+            await self._journal.consume_task_usage(state.task.id, usage)
+            thresholds = await self._journal.mark_task_budget_warnings(
+                state.task.id
+            )
+            for threshold in thresholds:
+                warning = AgentEvent(
+                    EventKind.TASK_BUDGET_WARNING,
+                    {
+                        "task_id": state.task.id,
+                        "threshold": threshold,
+                        "reason": f"token budget reached {threshold}%",
+                    },
+                )
+                await self._journal.append_event(state.thread_id, warning)
+                yield warning
+        if state.total_usage.total_tokens > self._limits.max_total_tokens:
+            raise EngineLimitError("token budget exceeded")

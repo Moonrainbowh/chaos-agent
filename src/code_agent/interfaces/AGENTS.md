@@ -34,12 +34,16 @@
 - 负责：以紧凑追加行呈现工具和子 Agent 生命周期、目标、耗时、结果及有界事实；详细内容通过稳定 ID 按需查询，不重写历史滚动区。
 - 负责：父任务运行期间持续投影每个子 Agent 的 queued、running、completed、failed 和 cancelled 状态、角色、目标摘要、耗时及有界用量；父任务中断是正常控制结果，不显示异常类名或通用错误。
 - 负责：从类型化写入结果和注入的只读 Git 服务生成 diff 统计与有界 unified diff；支持文件/区块导航、评论反馈、路径过滤、窄屏布局和 `NO_COLOR` 回退。
+- 负责：diff/rewind views 仅为只读投影，严格区分 preview 与 apply；不运行 Git、不授予权限、不重写用户历史。
 - 负责：stage/unstage 等改变 Git 索引的操作只能由显式用户命令委托 typed Git action，并经过与其他写动作相同的策略、审批和审计；界面不直接调用 Git。
 - 负责：会话 Picker 显示标题、预览、状态、更新时间和消息数；读取与恢复语义分离，超长 Thread 使用分页、窗口读取和搜索。
 - 负责：模式操作显示当前 mode、实际模型和生效边界，不接收 profile、密钥、任意 URL、启动命令或权限变更。
 - 负责：原始 reasoning 不进入转录、状态或会话；只呈现本地生命周期推导的活动标签，或 provider 明确标注、脱敏且有界的 reasoning summary。
 - 负责：维持一个前台父任务、追加式单栏转录和最小动态尾部；子 Agent 是该任务内的层级执行，不引入默认全屏、多栏、固定侧栏或卡片化仪表盘。
 - 不负责：调度子 Agent、生成语义摘要、执行插件提案，或把 mode、Oracle、插件和 UI 选择解释为权限授权或 verification evidence。
+
+- 负责：纯 rewind 模型、稳定禁用原因、候选分页、只读 source 委托和有界安全渲染。
+- 不负责：Sessions 查询、snapshot 加载、文件恢复、Git 操作、apply 授权或 provider 调用。
 
 ## Units
 - `format_evidence_summary(records)`: 渲染有界 evidence 摘要 | 无副作用 | 不将 UI 文本升级为完成裁决
@@ -59,8 +63,11 @@
 - `PickerState`、`PickerItem`：统一命令、会话、模式、Skill、MCP 和插件候选的过滤、键盘选择、补全和禁用原因 | 进程内状态 | `Esc` 取消，不执行候选动作。
 - `SteeringQueueView`：投影 queued、steered、dequeued、applied 及队列数量 | 进程内状态 | 只依据持久 `TURN_STARTED`、`CONTEXT_BUILT` 边界推进消费和应用状态。
 - `HostInteraction`、`InteractionBroker`、`plugin_interaction`：统一 Host 与插件的 `notify`、`confirm`、`input`、`select` 请求及可取消结果 | 异步状态 | 插件请求转换为 Host 所有的交互，不接受预填用户答案。
-- `DiffController.load(...)`、`DiffView`：优先从注入的只读 Git 服务读取真实 unified diff，并提供文件导航、路径过滤和评论 | 只读服务调用/进程内状态 | 不直接 stage、unstage 或执行 Git。
+- `DiffController.load(...)`、`DiffView`：按 working tree/facet/turn/checkpoint scope 投影 recorded 或只读 Git unified diff，并保留来源、新鲜度、stale、文件导航、路径过滤和 scope 评论 | 只读服务调用/进程内状态 | recorded scope 不调用 live source；不直接 stage、unstage 或执行 Git。
 - `ModePermissionView`：分开展示模式实际模型、Oracle、推理强度、生效边界与访问权限 | 无副作用 | 模式信息绝不解释为授权。
 - `ModeControl.list()`、`use(name, idle)`：列出冻结的四档 mode 并在空闲边界委托运行时切换 | 调用注入的异步重建回调 | 回调成功后才更新当前 mode，活动任务和未知 mode 失败闭合。
 - `TuiInteractions`：把 Picker、可见审批、steering 生命周期和结构化 diff 委托给单栏 TUI | 终端显示/进程内状态 | 审批默认拒绝，`Enter` 明确选择，`Esc` 取消。
 - `AgentRunStatusProjection.observe(view)`：将子 Agent 状态变化投影为去重、有界的生命周期行 | 进程内状态 | 只消费 Orchestration 快照，不从工具名称猜测状态。
+- `RewindPreviewSource`、`build_rewind_preview(kind, facts)`：以只读协议接收经集成层验证的纯事实并生成冻结预览 | 无副作用 | 各 kind 只消费对应 facet，原因按稳定优先级排序
+- `render_rewind_preview(...)`、`render_rewind_candidates(...)`：渲染 preview-only、候选 facet、as-of 与有界安全路径 | 无副作用 | 不把候选 facet 当作可用性承诺，不生成 apply 或 Git 操作
+- `handle_rewind_command(source, thread_id, instruction)`：解析并委托 `/回溯`、`/rewind` 的 list/preview | 只调用注入的只读 source | 不选择最新 checkpoint，不调用 controller、provider、tool 或 approval

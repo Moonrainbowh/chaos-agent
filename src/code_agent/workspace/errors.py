@@ -31,3 +31,11 @@ class SearchTimeoutError(WorkspaceError):
 
 class WorkspaceScanLimitError(WorkspaceError):
     """Raised before a directory scan can exceed its entry budget."""
+
+
+class SnapshotMissingError(WorkspaceError):
+    """A referenced snapshot manifest or blob does not exist."""
+
+
+class SnapshotIntegrityError(WorkspaceError):
+    """A snapshot artifact exists but fails integrity validation."""

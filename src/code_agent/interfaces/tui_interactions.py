@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from .command_availability import available_services
 from .command_registry import REGISTRY
-from .diff_view import DiffController, GitDiffSource
+from .diff_view import DiffController, DiffScope, GitDiffSource
 from .picker import PickerState, command_picker_items
 from .terminal_display import DisplayKind
 from .steering_view import SteeringQueueView, SteeringStage
@@ -110,7 +110,7 @@ class TuiInteractions:
         return False
 
     async def show_diff(self, app: object) -> None:
-        view = await self.diff.load(app.state.diff)
+        view = await self.diff.load(DiffScope.WORKING_TREE, app.state.diff)
         for entry in view.render():
             app.state.entries.append(entry)
             app.state.transcript.append(entry.text)

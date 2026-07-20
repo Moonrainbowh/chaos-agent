@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
+from ._workspace_read import read_current
 from .errors import (
     BinaryFileError,
     EditConflictError,
@@ -75,7 +76,7 @@ class WorkspaceEditor:
             raise TypeError("after_text must be text")
         target = self.guard.resolve(path, for_write=True)
         relative = self.guard.relative(target).as_posix()
-        before, existed = _read_current(target, self.max_file_bytes)
+        before, existed = read_current(self.guard, target, self.max_file_bytes)
         before_hash = _sha256(before) if existed else None
         _check_expected(before_hash, expected_sha256)
         before_text = _decode_existing(before, target) if existed else ""
@@ -101,7 +102,7 @@ class WorkspaceEditor:
         if not old_text:
             raise ValueError("old_text must be non-empty")
         target = self.guard.resolve(path, for_write=True)
-        before, existed = _read_current(target, self.max_file_bytes)
+        before, existed = read_current(self.guard, target, self.max_file_bytes)
         if not existed:
             raise WorkspaceError(f"cannot replace text in a missing file: {target}")
         before_hash = _sha256(before)
@@ -124,7 +125,7 @@ class WorkspaceEditor:
         if not isinstance(plan, EditPlan):
             raise TypeError("plan must be an EditPlan")
         target = self.guard.resolve(plan.relative_path, for_write=True)
-        current, exists = _read_current(target, self.max_file_bytes)
+        current, exists = read_current(self.guard, target, self.max_file_bytes)
         current_hash = _sha256(current) if exists else None
         if exists != plan.existed or current_hash != plan.before_sha256:
             raise EditConflictError(f"file changed after planning: {plan.relative_path}")
@@ -150,7 +151,7 @@ class WorkspaceEditor:
                 raise ValueError(f"duplicate snapshot path: {relative}")
             seen.add(relative)
             remaining = max_total_bytes - total
-            content, existed = _read_current(target, remaining)
+            content, existed = read_current(self.guard, target, remaining)
             total += len(content)
             if total > max_total_bytes:
                 raise FileTooLargeError(
@@ -183,25 +184,6 @@ class WorkspaceEditor:
 
 
 WorkspaceEdits = WorkspaceEditor
-
-
-def _read_current(path: Path, max_bytes: int) -> tuple[bytes, bool]:
-    if not path.exists():
-        return b"", False
-    if not path.is_file():
-        raise WorkspaceError(f"not a regular file: {path}")
-    try:
-        if path.stat().st_size > max_bytes:
-            raise FileTooLargeError(f"file exceeds {max_bytes} bytes: {path}")
-        with path.open("rb") as stream:
-            content = stream.read(max_bytes + 1)
-        if len(content) > max_bytes:
-            raise FileTooLargeError(f"file exceeds {max_bytes} bytes: {path}")
-        return content, True
-    except FileTooLargeError:
-        raise
-    except OSError as error:
-        raise WorkspaceError(f"cannot read file: {path}") from error
 
 
 def _decode_existing(data: bytes, path: Path) -> str:

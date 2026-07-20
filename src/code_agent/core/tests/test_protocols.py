@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 import unittest
 from collections.abc import AsyncIterator, Sequence
+from inspect import Parameter, signature
 from pathlib import Path
 
 
@@ -10,7 +11,9 @@ SRC_ROOT = Path(__file__).resolve().parents[3]
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
+from code_agent.core.action_execution import ActionExecutionContext  # noqa: E402
 from code_agent.core.cancellation import CancellationToken  # noqa: E402
+from code_agent.core.context_request import ContextRequest  # noqa: E402
 from code_agent.core._session_io import SessionJournal  # noqa: E402
 from code_agent.core.errors import SessionPersistenceError  # noqa: E402
 from code_agent.core.events import AgentEvent, EventKind  # noqa: E402
@@ -29,6 +32,7 @@ from code_agent.core.protocols import (  # noqa: E402
     ModelClient,
     SessionRepository,
 )
+from code_agent.core.task import TaskAuthorization  # noqa: E402
 from code_agent.core.task_state import TaskState  # noqa: E402
 
 
@@ -43,23 +47,43 @@ class FakeModelClient:
 
 
 class FakeContextBuilder:
-    async def build(
-        self,
-        messages: Sequence[Message],
-        user_input: str,
-        tools: Sequence[ToolDefinition],
-        task_state: TaskState,
-    ) -> ContextBundle:
-        return ContextBundle(system_prompt=user_input, messages=messages)
+    async def build(self, request: ContextRequest) -> ContextBundle:
+        return ContextBundle(
+            system_prompt=request.user_input,
+            messages=request.messages,
+        )
+
+
+def context_request(**updates: object) -> ContextRequest:
+    values = {
+        "thread_id": "thread-1",
+        "revision": 1,
+        "messages": (Message("user", "hello"),),
+        "user_input": "system",
+        "tools": (),
+        "task_state": TaskState.empty(),
+        "cancellation": CancellationToken(),
+    }
+    values.update(updates)
+    return ContextRequest(**values)  # type: ignore[arg-type]
 
 
 class FakeActionDispatcher:
+    def __init__(self) -> None:
+        self.context: ActionExecutionContext | None = None
+
     def tools(self) -> Sequence[ToolDefinition]:
         return ()
 
     async def dispatch(
-        self, request: ActionRequest, cancellation: CancellationToken
+        self,
+        request: ActionRequest,
+        cancellation: CancellationToken,
+        task_authorization: TaskAuthorization | None = None,
+        *,
+        execution_context: ActionExecutionContext | None = None,
     ) -> ActionResult:
+        self.context = execution_context
         return ActionResult(
             request_id=request.id,
             name=request.name,
@@ -129,22 +153,94 @@ class ProtocolImplementationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_context_builder_fake_builds_bundle(self) -> None:
         builder: ContextBuilder = FakeContextBuilder()
-        message = Message(role="user", content="hello")
+        request = context_request()
 
-        bundle = await builder.build((message,), "system", (), TaskState.empty())
+        bundle = await builder.build(request)
 
         self.assertEqual(
             bundle,
-            ContextBundle(system_prompt="system", messages=(message,)),
+            ContextBundle(system_prompt="system", messages=request.messages),
         )
+
+    def test_context_request_rejects_invalid_identity_and_typed_values(self) -> None:
+        invalid_values = (
+            ("thread_id", " "),
+            ("revision", 0),
+            ("revision", True),
+            ("user_input", object()),
+            ("messages", []),
+            ("messages", (object(),)),
+            ("tools", []),
+            ("tools", (object(),)),
+            ("task_state", object()),
+            ("cancellation", object()),
+        )
+        for field, value in invalid_values:
+            with self.subTest(field=field, value=value), self.assertRaises((TypeError, ValueError)):
+                context_request(**{field: value})
+
+    def test_context_request_rejects_invalid_pressure_and_timeout(self) -> None:
+        invalid_values = (
+            ("context_pressure", True),
+            ("context_pressure", float("inf")),
+            ("context_pressure", -0.1),
+            ("context_pressure", 1.1),
+            ("timeout_seconds", True),
+            ("timeout_seconds", float("nan")),
+            ("timeout_seconds", 0),
+        )
+        for field, value in invalid_values:
+            with self.subTest(field=field, value=value), self.assertRaises((TypeError, ValueError)):
+                context_request(**{field: value})
+
+        self.assertEqual(context_request(timeout_seconds=10**1_000).timeout_seconds, 10**1_000)
+
+    def test_context_request_freezes_and_validates_json_mappings(self) -> None:
+        for field in ("mode_snapshot", "permission_snapshot"):
+            source = {"nested": [1, {"enabled": True}]}
+            request = context_request(**{field: source})
+            source["nested"].append(2)
+            frozen = getattr(request, field)
+            self.assertEqual(frozen["nested"], (1, {"enabled": True}))
+            with self.assertRaises(TypeError):
+                frozen["extra"] = 1
+            for invalid in ([], {"bad": object()}, {"bad": float("inf")}):
+                with self.subTest(field=field, invalid=invalid), self.assertRaises((TypeError, ValueError)):
+                    context_request(**{field: invalid})
+
+        source = {"model_turns": 1}
+        request = context_request(budget_lease=source)
+        source["model_turns"] = 2
+        self.assertEqual(request.budget_lease["model_turns"], 1)
+        with self.assertRaises(TypeError):
+            request.budget_lease["model_turns"] = 2
+
+    def test_context_request_rejects_non_integer_budget_values(self) -> None:
+        with self.assertRaises(TypeError):
+            context_request(budget_lease=[])  # type: ignore[arg-type]
+        for value in ("1", [1], {"value": 1}, 1.0, True, -1):
+            with self.subTest(value=value), self.assertRaises((TypeError, ValueError)):
+                context_request(budget_lease={"model_turns": value})
+
+    def test_action_dispatcher_declares_keyword_only_context(self) -> None:
+        parameter = signature(ActionDispatcher.dispatch).parameters[
+            "execution_context"
+        ]
+
+        self.assertIs(parameter.kind, Parameter.KEYWORD_ONLY)
+        self.assertIsNone(parameter.default)
 
     async def test_action_dispatcher_fake_dispatches_request(self) -> None:
         dispatcher: ActionDispatcher = FakeActionDispatcher()
         request = ActionRequest(id="action-1", name="read_file", arguments={})
+        context = ActionExecutionContext("owner", "origin", "action-1")
 
-        result = await dispatcher.dispatch(request, CancellationToken())
+        result = await dispatcher.dispatch(
+            request, CancellationToken(), execution_context=context
+        )
 
         self.assertEqual(dispatcher.tools(), ())
+        self.assertEqual(dispatcher.context, context)
         self.assertEqual(
             result,
             ActionResult(

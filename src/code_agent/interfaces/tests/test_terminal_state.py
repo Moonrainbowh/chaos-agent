@@ -33,6 +33,56 @@ from code_agent.sessions.models import (  # noqa: E402
 )
 
 
+def _persisted_thread_history() -> RestoredThread:
+    return RestoredThread(
+        thread_id="thread-1",
+        messages=(
+            Message(role="user", content="inspect"),
+            Message(role="assistant", content="done"),
+            Message(role="tool", name="read_file", content="raw output"),
+        ),
+        events=(
+            AgentEvent(
+                EventKind.ACTION_REQUESTED,
+                {
+                    "request": {
+                        "id": "call-1",
+                        "name": "read_file",
+                        "arguments": {"diff": "--- a/x\n+++ b/x"},
+                    }
+                },
+            ),
+            AgentEvent(
+                EventKind.ACTION_COMPLETED,
+                {
+                    "result": ActionResult(
+                        request_id="call-1",
+                        name="read_file",
+                        output={"content": "x"},
+                    ).to_dict()
+                },
+            ),
+            AgentEvent(EventKind.COMPLETED, {"thread_id": "thread-1"}),
+        ),
+        goals=(
+            GoalRecord(
+                id="goal-1",
+                thread_id="thread-1",
+                objective="inspect repository",
+                status=GoalStatus.ACTIVE,
+            ),
+        ),
+        checkpoints=(
+            CheckpointRecord(
+                id="checkpoint-1",
+                thread_id="thread-1",
+                label="before edits",
+                created_at=datetime(2026, 7, 11, tzinfo=timezone.utc),
+            ),
+        ),
+    )
+
+
 class TerminalStateTests(unittest.TestCase):
     def test_context_and_model_lifecycle_have_distinct_running_phases(self) -> None:
         state = TerminalState()
@@ -115,55 +165,7 @@ class TerminalStateTests(unittest.TestCase):
 
     def test_restore_projects_persisted_thread_state(self) -> None:
         state = TerminalState()
-        history = RestoredThread(
-            thread_id="thread-1",
-            messages=(
-                Message(role="user", content="inspect"),
-                Message(role="assistant", content="done"),
-                Message(role="tool", name="read_file", content="raw output"),
-            ),
-            events=(
-                AgentEvent(
-                    EventKind.ACTION_REQUESTED,
-                    {
-                        "request": {
-                            "id": "call-1",
-                            "name": "read_file",
-                            "arguments": {"diff": "--- a/x\n+++ b/x"},
-                        }
-                    },
-                ),
-                AgentEvent(
-                    EventKind.ACTION_COMPLETED,
-                    {
-                        "result": ActionResult(
-                            request_id="call-1",
-                            name="read_file",
-                            output={"content": "x"},
-                        ).to_dict()
-                    },
-                ),
-                AgentEvent(EventKind.COMPLETED, {"thread_id": "thread-1"}),
-            ),
-            goals=(
-                GoalRecord(
-                    id="goal-1",
-                    thread_id="thread-1",
-                    objective="inspect repository",
-                    status=GoalStatus.ACTIVE,
-                ),
-            ),
-            checkpoints=(
-                CheckpointRecord(
-                    id="checkpoint-1",
-                    thread_id="thread-1",
-                    label="before edits",
-                    created_at=datetime(2026, 7, 11, tzinfo=timezone.utc),
-                ),
-            ),
-        )
-
-        state.restore(history)
+        state.restore(_persisted_thread_history())
 
         self.assertEqual(state.thread_id, "thread-1")
         self.assertEqual(state.status, "completed")
