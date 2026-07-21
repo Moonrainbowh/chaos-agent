@@ -40,13 +40,19 @@ class StreamingTuiTests(unittest.IsolatedAsyncioTestCase):
                 yield AgentEvent(EventKind.COMPLETED, {})
 
         output: list[str] = []
+        draft_visible = asyncio.Event()
+
+        def write(value: str) -> None:
+            output.append(value)
+            if "live text" in _plain(value):
+                draft_visible.set()
+
         app = WindowsTerminalApp(
-            AgentController(GatedEngine()), ApprovalBroker(), write=output.append
+            AgentController(GatedEngine()), ApprovalBroker(), write=write
         )
 
         await app.submit("inspect")
-        await asyncio.sleep(0.05)
-
+        await asyncio.wait_for(draft_visible.wait(), timeout=1)
         self.assertIn("live text", _plain("".join(output)))
         release.set()
         await app.wait_idle()
@@ -62,12 +68,19 @@ class StreamingTuiTests(unittest.IsolatedAsyncioTestCase):
                 yield AgentEvent(EventKind.CANCELLED, {"reason": "user requested pause"})
 
         output: list[str] = []
+        draft_visible = asyncio.Event()
+
+        def write(value: str) -> None:
+            output.append(value)
+            if "unfinished" in _plain(value):
+                draft_visible.set()
+
         app = WindowsTerminalApp(
-            AgentController(GatedEngine()), ApprovalBroker(), write=output.append
+            AgentController(GatedEngine()), ApprovalBroker(), write=write
         )
 
         await app.submit("inspect")
-        await asyncio.sleep(0.05)
+        await asyncio.wait_for(draft_visible.wait(), timeout=1)
         release.set()
         await app.wait_idle()
 
