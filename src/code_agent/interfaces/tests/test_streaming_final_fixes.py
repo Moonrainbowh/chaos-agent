@@ -180,6 +180,7 @@ class StreamingLifecycleTests(unittest.IsolatedAsyncioTestCase):
             AgentController(GatedEngine()), ApprovalBroker(), write=output.append
         )
         await app.submit("inspect")
+        app._next_spinner_at = float("inf")
         await asyncio.sleep(0.06)
         settled_count = len(output)
         await asyncio.sleep(0.02)
