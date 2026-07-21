@@ -53,7 +53,13 @@ def render_entry(entry: DisplayEntry, width: int, *, theme: Theme = Theme.SYMBOL
     prefix = f"[{marker}]" if theme is Theme.PLAIN else marker
     code = _COLORS.get(entry.kind)
     content_width = max(1, width - display_width(prefix) - 1)
-    lines = _markdown_lines(entry.text, content_width, theme) if entry.kind is DisplayKind.AGENT else [_RenderLine(line) for line in entry.text.splitlines() or [""]]
+    if entry.kind is DisplayKind.AGENT:
+        lines = _markdown_lines(entry.text, content_width, theme)
+    elif entry.kind is DisplayKind.PARTIAL_AGENT:
+        body = [_RenderLine(line) for line in safe_text(entry.text).splitlines() or [""]]
+        lines = [_RenderLine("未完成回答", "partial_label"), *body]
+    else:
+        lines = [_RenderLine(line) for line in entry.text.splitlines() or [""]]
     rendered = []
     for index, line in enumerate(lines):
         leader = prefix if index == 0 else " " * display_width(prefix)
@@ -191,7 +197,9 @@ def _pad_display(value: str, width: int) -> str:
 def _style_line(leader: str, value: str, code: str | None, color: ColorMode, *, role: str, kind: DisplayKind) -> str:
     plain = f"{leader} {value}"
     styled_leader = colorize(leader, code, color) if leader.strip() else leader
-    if role in {"heading", "table_header"}:
+    if role == "partial_label":
+        body_code = WARNING_YELLOW
+    elif role in {"heading", "table_header"}:
         body_code = BRIGHT_CYAN
     elif role == "table_border":
         body_code = DIM_GRAY
