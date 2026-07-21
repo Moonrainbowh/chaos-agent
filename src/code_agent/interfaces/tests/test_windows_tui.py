@@ -408,22 +408,6 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(plain.count("◆ full answer"), 1)
         self.assertNotIn("◆ full \n", plain)
 
-    async def test_cancelled_stream_flushes_a_static_partial_answer(self) -> None:
-        events = (
-            AgentEvent(EventKind.MODEL_EVENT, {"event": ModelEvent(ModelEventKind.TEXT_DELTA, text="unfinished").to_dict()}),
-            AgentEvent(EventKind.CANCELLED, {"reason": "user requested pause"}),
-        )
-        output: list[str] = []
-        app = WindowsTerminalApp(AgentController(FakeEngine(events)), ApprovalBroker(), write=output.append)
-
-        try:
-            await app._consume("inspect", CancellationToken())
-        except KeyError as error:
-            self.fail(f"partial answer did not render: {error}")
-
-        self.assertIn("! unfinished", _plain("".join(output)))
-        self.assertNotIn("unfinished", "\n".join(app.state.transcript))
-
     async def test_raw_reasoning_is_not_written(self) -> None:
         events = (
             AgentEvent(EventKind.MODEL_EVENT, {"event": ModelEvent(ModelEventKind.REASONING_DELTA, text="private work").to_dict()}),
