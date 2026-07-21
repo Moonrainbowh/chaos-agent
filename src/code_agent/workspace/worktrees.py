@@ -11,6 +11,11 @@ from typing import Iterable
 
 from .errors import WorkspaceError
 from ._git_worktrees import FixedGitWorktreeCommands
+from ._worktree_lifecycle_ops import (
+    attach_cleanup_errors,
+    prune_managed,
+    remove_managed,
+)
 from .git import DEFAULT_MAX_OUTPUT_BYTES, GitWorkspace
 from .paths import PathInput
 
@@ -66,7 +71,10 @@ class WorktreeManager:
         git = self._git(source_root)
         if not git.is_repository():
             raise WorkspaceError("source root is not a Git worktree")
-        common_dir = FixedGitWorktreeCommands(git).common_dir()
+        commands = FixedGitWorktreeCommands(git)
+        if commands.top_level() != git.root:
+            raise WorkspaceError("source root must be the exact Git top-level")
+        common_dir = commands.common_dir()
         normalized = os.path.normcase(str(common_dir))
         repository_id = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
         return RepositoryIdentity(repository_id, common_dir)
@@ -84,17 +92,23 @@ class WorktreeManager:
         if commands.branch_exists(branch_name):
             raise WorkspaceError(f"managed worktree branch already exists: {branch_name}")
         target = self._prepare_target(identity.repository_id, lineage_id)
+        added = False
         try:
             commands.add(branch_name, target, head_commit)
-            self._verify_source_unchanged(git, commands, head_commit, status)
+            added = True
+            self._verify_created(
+                git, commands, identity, target, branch_name, head_commit, status
+            )
         except Exception as error:
-            self._compensate_create(git, identity, target, branch_name, head_commit, error)
+            self._compensate_create(
+                git, identity, target, branch_name, head_commit, error, added=added
+            )
             raise
         return ManagedWorktree(
             identity.repository_id,
             lineage_id,
             source,
-            target.resolve(strict=True),
+            target,
             branch_name,
             head_commit,
         )
@@ -102,36 +116,10 @@ class WorktreeManager:
     def remove(
         self, worktree: ManagedWorktree, *, confirmed: bool, active: bool
     ) -> None:
-        if not confirmed:
-            raise WorkspaceError("managed worktree removal requires confirmation")
-        if active:
-            raise WorkspaceError("active managed worktree cannot be removed")
-        source_git, identity = self._require_trusted_record(worktree)
-        if not self._is_owned_worktree(worktree.root, identity, worktree.branch_name):
-            raise WorkspaceError("managed path does not belong to the recorded repository")
-        if self._git(worktree.root).status_porcelain():
-            raise WorkspaceError("dirty managed worktree cannot be removed")
-        FixedGitWorktreeCommands(source_git).remove(worktree.root)
-        if worktree.root.exists() or worktree.root.is_symlink():
-            raise WorkspaceError("managed worktree path still exists after Git removal")
+        remove_managed(self, worktree, confirmed=confirmed, active=active)
 
     def prune(self, records: Iterable[ManagedWorktree]) -> tuple[Path, ...]:
-        groups: dict[Path, tuple[FixedGitWorktreeCommands, set[Path]]] = {}
-        for record in records:
-            trusted = self._trusted_missing_record(record)
-            if trusted is None:
-                continue
-            commands, common_dir = trusted
-            group = groups.setdefault(common_dir, (commands, set()))
-            group[1].add(record.root)
-        pruned: list[Path] = []
-        for commands, trusted_roots in groups.values():
-            stale = {entry.root for entry in commands.entries() if entry.prunable}
-            if not stale or not stale.issubset(trusted_roots):
-                continue
-            commands.prune()
-            pruned.extend(sorted(stale, key=str))
-        return tuple(pruned)
+        return prune_managed(self, records)
 
     def _prepare_target(self, repository_id: str, lineage_id: str) -> Path:
         target = self.storage_root / repository_id / lineage_id
@@ -165,6 +153,32 @@ class WorktreeManager:
         if commands.head_commit() != head or git.status_porcelain() != status:
             raise WorkspaceError("source worktree changed during managed worktree creation")
 
+    def _verify_created(
+        self,
+        source_git: GitWorkspace,
+        source_commands: FixedGitWorktreeCommands,
+        identity: RepositoryIdentity,
+        target: Path,
+        branch: str,
+        head: str,
+        status: str,
+    ) -> None:
+        self._verify_source_unchanged(source_git, source_commands, head, status)
+        self._require_contained_unlinked(target)
+        if not target.exists() or not target.is_dir() or target.is_symlink():
+            raise WorkspaceError("managed worktree target failed postcheck")
+        target_git = self._git(target)
+        target_commands = FixedGitWorktreeCommands(target_git)
+        target_identity = self.identify(target)
+        if target_identity != identity:
+            raise WorkspaceError("managed worktree repository failed postcheck")
+        if target_commands.head_commit() != head or target_commands.current_branch() != branch:
+            raise WorkspaceError("managed worktree HEAD or branch failed postcheck")
+        entry = source_commands.entry(target)
+        expected_ref = f"refs/heads/{branch}"
+        if entry is None or entry.prunable or entry.head != head or entry.branch != expected_ref:
+            raise WorkspaceError("managed worktree registration failed postcheck")
+
     def _compensate_create(
         self,
         git: GitWorkspace,
@@ -173,24 +187,64 @@ class WorktreeManager:
         branch: str,
         head: str,
         primary: Exception,
+        *,
+        added: bool,
     ) -> None:
+        if not added:
+            attach_cleanup_errors(
+                primary, ["worktree add ownership was not proven; cleanup skipped"]
+            )
+            return
         cleanup_errors: list[str] = []
-        if self._is_owned_worktree(target, identity, branch):
-            try:
-                FixedGitWorktreeCommands(git).force_remove(target)
-            except WorkspaceError as error:
-                cleanup_errors.append(str(error))
+        commands = FixedGitWorktreeCommands(git)
+        removed = self._remove_created_registration(
+            commands, identity, target, cleanup_errors
+        )
+        if removed:
+            self._delete_created_branch(commands, branch, head, cleanup_errors)
+        attach_cleanup_errors(primary, cleanup_errors)
+
+    def _remove_created_registration(
+        self,
+        commands: FixedGitWorktreeCommands,
+        identity: RepositoryIdentity,
+        target: Path,
+        errors: list[str],
+    ) -> bool:
         try:
-            commands = FixedGitWorktreeCommands(git)
-            if commands.branch_tip(branch) == head and not target.exists():
+            if commands.entry(target) is None:
+                errors.append("created worktree registration is not uniquely identifiable")
+                return False
+            if target.exists() or target.is_symlink():
+                if not self._is_owned_worktree(target, identity, None):
+                    errors.append("created worktree path ownership cannot be proven")
+                    return False
+                commands.force_remove(target)
+            else:
+                commands.remove_missing(target)
+            if commands.entry(target) is not None:
+                errors.append("created worktree registration still exists")
+                return False
+            return True
+        except (OSError, ValueError, WorkspaceError) as error:
+            errors.append(str(error))
+            return False
+
+    @staticmethod
+    def _delete_created_branch(
+        commands: FixedGitWorktreeCommands,
+        branch: str,
+        head: str,
+        errors: list[str],
+    ) -> None:
+        try:
+            if commands.branch_tip(branch) == head:
                 commands.delete_branch(branch)
         except WorkspaceError as error:
-            cleanup_errors.append(str(error))
-        if cleanup_errors and hasattr(primary, "add_note"):
-            primary.add_note("creation cleanup failed: " + "; ".join(cleanup_errors))
+            errors.append(str(error))
 
     def _is_owned_worktree(
-        self, target: Path, identity: RepositoryIdentity, branch: str
+        self, target: Path, identity: RepositoryIdentity, branch: str | None
     ) -> bool:
         try:
             marker = target / ".git"
@@ -199,44 +253,10 @@ class WorktreeManager:
             return (
                 marker.is_file()
                 and commands.common_dir() == identity.common_dir
-                and commands.current_branch() == branch
+                and (branch is None or commands.current_branch() == branch)
             )
         except (OSError, ValueError, WorkspaceError):
             return False
-
-    def _require_trusted_record(
-        self, record: ManagedWorktree
-    ) -> tuple[GitWorkspace, RepositoryIdentity]:
-        trusted = self._trusted_record(record)
-        if trusted is None:
-            raise WorkspaceError("managed worktree record is outside storage or has unknown repository")
-        return trusted
-
-    def _trusted_record(
-        self, record: ManagedWorktree
-    ) -> tuple[GitWorkspace, RepositoryIdentity] | None:
-        try:
-            self._validate_names(record.lineage_id, record.branch_name)
-            expected = self.storage_root / record.repository_id / record.lineage_id
-            if Path(os.path.abspath(record.root)) != expected or record.root == record.source_root:
-                return None
-            self._require_contained_unlinked(expected)
-            source_git = self._git(record.source_root)
-            identity = self.identify(record.source_root)
-            if identity.repository_id != record.repository_id:
-                return None
-            return source_git, identity
-        except (OSError, TypeError, ValueError, WorkspaceError):
-            return None
-
-    def _trusted_missing_record(
-        self, record: ManagedWorktree
-    ) -> tuple[FixedGitWorktreeCommands, Path] | None:
-        trusted = self._trusted_record(record)
-        if trusted is None or record.root.exists() or record.root.is_symlink():
-            return None
-        source_git, identity = trusted
-        return FixedGitWorktreeCommands(source_git), identity.common_dir
 
     def _git(self, root: PathInput) -> GitWorkspace:
         return GitWorkspace(
@@ -253,7 +273,6 @@ class WorktreeManager:
             raise WorkspaceError("branch must match codex/task-[a-z0-9-]+")
         if branch_name != f"codex/task-{lineage_id}":
             raise WorkspaceError("branch must be bound to the lineage id")
-
 
 def _is_link_like(path: Path) -> bool:
     try:

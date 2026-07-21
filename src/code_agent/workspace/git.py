@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Iterable
 
 from .errors import WorkspaceError
+from ._git_environment import isolated_git_environment
 from ._git_process import collect_bounded_output
 from .paths import PathInput, WorkspacePathGuard
 
@@ -236,6 +237,7 @@ class GitWorkspace:
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
+                env=isolated_git_environment(),
                 shell=False,
                 bufsize=0,
             )

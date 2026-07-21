@@ -136,10 +136,19 @@ class WorktreePruneTests(WorktreeTestCase):
         shutil.rmtree(trusted.root)
         shutil.rmtree(unknown.root)
 
-        self.assertEqual(self.manager.prune((trusted,)), ())
+        self.assertEqual(self.manager.prune((trusted,)), (trusted.root,))
         listing = run_git(self.source, "worktree", "list", "--porcelain")
-        self.assertIn(trusted.root.as_posix(), listing)
+        self.assertNotIn(trusted.root.as_posix(), listing)
         self.assertIn(unknown.root.as_posix(), listing)
+
+    def test_prune_accepts_trusted_branch_that_advanced_after_creation(self) -> None:
+        created = self._create("lineage-1")
+        (created.root / "tracked.txt").write_text("advanced\n", encoding="utf-8")
+        run_git(created.root, "add", "tracked.txt")
+        run_git(created.root, "commit", "-q", "-m", "advance")
+        shutil.rmtree(created.root)
+
+        self.assertEqual(self.manager.prune((created,)), (created.root,))
 
     def test_prune_accepts_record_already_removed_by_git(self) -> None:
         created = self._create("lineage-1")
