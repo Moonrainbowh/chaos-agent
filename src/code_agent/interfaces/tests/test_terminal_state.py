@@ -33,30 +33,21 @@ from code_agent.sessions.models import (  # noqa: E402
 )
 
 
+def _text_delta(text: str) -> AgentEvent:
+    return AgentEvent(EventKind.MODEL_EVENT, {"event": ModelEvent(ModelEventKind.TEXT_DELTA, text=text).to_dict()})
+
+
 class TerminalStateTests(unittest.TestCase):
     def test_context_and_model_lifecycle_have_distinct_running_phases(self) -> None:
         state = TerminalState()
         state.apply(AgentEvent(EventKind.RUN_STARTED, {}))
-
         state.apply(AgentEvent(EventKind.TURN_STARTED, {}))
         self.assertEqual(state.status, "building_context")
-
         state.apply(AgentEvent(EventKind.CONTEXT_BUILT, {}))
         self.assertEqual(state.status, "waiting_model")
-
         state.apply(AgentEvent(EventKind.MODEL_STARTED, {}))
         self.assertEqual(state.status, "waiting_model")
-
-        state.apply(
-            AgentEvent(
-                EventKind.MODEL_EVENT,
-                {
-                    "event": ModelEvent(
-                        ModelEventKind.TEXT_DELTA, text="first token"
-                    ).to_dict()
-                },
-            )
-        )
+        state.apply(_text_delta("first token"))
         self.assertEqual(state.status, "running")
 
     def test_action_request_takes_precedence_over_waiting_for_model(self) -> None:
@@ -82,20 +73,13 @@ class TerminalStateTests(unittest.TestCase):
     def test_user_pause_cancellation_is_not_presented_as_an_error(self) -> None:
         state = TerminalState()
         state.begin_run()
-
         state.apply(AgentEvent(EventKind.CANCELLED, {"reason": "user requested pause"}))
-
         self.assertEqual(state.status, "paused")
 
     def test_state_tracks_transcript_timeline_status_and_diff(self) -> None:
         state = TerminalState()
         state.apply(AgentEvent(EventKind.RUN_STARTED, {"thread_id": "thread-1"}))
-        state.apply(
-            AgentEvent(
-                EventKind.MODEL_EVENT,
-                {"event": ModelEvent(ModelEventKind.TEXT_DELTA, text="hello").to_dict()},
-            )
-        )
+        state.apply(_text_delta("hello"))
         state.apply(
             AgentEvent(
                 EventKind.ACTION_REQUESTED,
@@ -103,9 +87,8 @@ class TerminalStateTests(unittest.TestCase):
             )
         )
         state.apply(AgentEvent(EventKind.ACTION_COMPLETED, {"result": ActionResult("call-1", "write_file", {}).to_dict()}))
-        state.apply(AgentEvent(EventKind.MODEL_EVENT, {"event": ModelEvent(ModelEventKind.TEXT_DELTA, text="done").to_dict()}))
+        state.apply(_text_delta("done"))
         state.apply(AgentEvent(EventKind.COMPLETED, {"thread_id": "thread-1"}))
-
         self.assertEqual(state.thread_id, "thread-1")
         self.assertEqual(state.transcript, ["assistant: done"])
         self.assertTrue(any("write_file" in line for line in state.timeline))
@@ -189,27 +172,49 @@ class TerminalStateTests(unittest.TestCase):
 
     def test_adjacent_text_deltas_become_one_final_answer(self) -> None:
         state = TerminalState()
-
-        state.apply(
-            AgentEvent(
-                EventKind.MODEL_EVENT,
-                {"event": ModelEvent(ModelEventKind.TEXT_DELTA, text="hello ").to_dict()},
-            )
-        )
-        state.apply(
-            AgentEvent(
-                EventKind.MODEL_EVENT,
-                {"event": ModelEvent(ModelEventKind.TEXT_DELTA, text="world").to_dict()},
-            )
-        )
-
+        state.apply(_text_delta("hello "))
+        state.apply(_text_delta("world"))
         state.apply(AgentEvent(EventKind.COMPLETED, {}))
         self.assertEqual(state.transcript, ["assistant: hello world"])
+
+    def test_text_delta_is_visible_as_draft_before_final_message(self) -> None:
+        state = TerminalState()
+        state.apply(_text_delta("hello "))
+        state.apply(_text_delta("world"))
+        self.assertEqual(state.draft_answer, "hello world")
+        self.assertTrue(state.has_draft)
+        self.assertEqual(state.entries, [])
+
+    def test_completed_message_clears_draft_and_adds_one_final_entry(self) -> None:
+        state = TerminalState()
+        state.apply(_text_delta("answer"))
+        message = Message(role="assistant", content="answer")
+        state.apply(AgentEvent(EventKind.MESSAGE_ADDED, {"message": message.to_dict()}))
+        state.apply(AgentEvent(EventKind.COMPLETED, {}))
+        self.assertEqual(state.draft_answer, "")
+        self.assertEqual([entry.text for entry in state.entries], ["answer"])
+
+    def test_cancelled_draft_becomes_non_conversation_partial_entry(self) -> None:
+        state = TerminalState()
+        state.apply(_text_delta("unfinished"))
+        state.apply(AgentEvent(EventKind.CANCELLED, {"reason": "user requested pause"}))
+        self.assertEqual(state.entries[-1].kind, DisplayKind.PARTIAL_AGENT)
+        self.assertEqual(state.entries[-1].text, "unfinished")
+        self.assertEqual(state.transcript, [])
+        self.assertFalse(state.has_draft)
+
+    def test_error_draft_becomes_non_conversation_partial_entry(self) -> None:
+        state = TerminalState()
+        state.apply(_text_delta("interrupted"))
+        state.apply(AgentEvent(EventKind.ERROR, {}))
+        self.assertEqual(state.entries[-1].kind, DisplayKind.PARTIAL_AGENT)
+        self.assertEqual(state.entries[-1].text, "interrupted")
+        self.assertEqual(state.transcript, [])
+        self.assertFalse(state.has_draft)
 
     def test_persisted_final_message_is_visible_before_task_completion(self) -> None:
         state = TerminalState()
         state.apply(AgentEvent(EventKind.MODEL_EVENT, {"event": ModelEvent(ModelEventKind.TEXT_DELTA, text="answer").to_dict()}))
-
         state.apply(AgentEvent(EventKind.MESSAGE_ADDED, {"message": Message(role="assistant", content="answer").to_dict()}))
         state.apply(AgentEvent(EventKind.TASK_STATUS_CHANGED, {"task_id": "task-1", "status": "verifying"}))
 

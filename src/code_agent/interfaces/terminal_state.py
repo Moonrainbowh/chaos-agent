@@ -35,6 +35,14 @@ class TerminalState:
         self.pending_decision: Optional[str] = None
         self.token_rate = TokenRateTracker()
 
+    @property
+    def draft_answer(self) -> str:
+        return "".join(self._answer_parts)
+
+    @property
+    def has_draft(self) -> bool:
+        return bool(self._answer_parts)
+
     def restore(self, history: RestoredThread) -> None:
         """Project persisted thread records into a terminal-safe view model."""
         self.thread_id = history.thread_id
@@ -67,6 +75,8 @@ class TerminalState:
 
     def apply(self, event: AgentEvent) -> None:
         self.timeline.append(_timeline_line(event))
+        if event.kind in {EventKind.CANCELLED, EventKind.ERROR}:
+            self._freeze_partial_answer()
         if event.kind is EventKind.RUN_STARTED:
             thread_id = event.payload.get("thread_id")
             if isinstance(thread_id, str):
@@ -170,6 +180,12 @@ class TerminalState:
             self.entries.append(text_entry(DisplayKind.AGENT, answer))
         if self._actions:
             self.execution_summary = _action_summary(self._actions, self._failed_actions)
+
+    def _freeze_partial_answer(self) -> None:
+        answer = _compact_response(self.draft_answer)
+        self._answer_parts = []
+        if answer:
+            self.entries.append(text_entry(DisplayKind.PARTIAL_AGENT, answer))
 
     def _capture_diff(self, event: AgentEvent) -> None:
         request = event.payload.get("request")

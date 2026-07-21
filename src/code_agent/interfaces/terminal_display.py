@@ -10,6 +10,7 @@ from typing import Iterable
 class DisplayKind(str, Enum):
     USER = "user"
     AGENT = "agent"
+    PARTIAL_AGENT = "partial_agent"
     TOOL = "tool"
     SUCCESS = "success"
     WARNING = "warning"
