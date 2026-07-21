@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import os
+import stat
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 
 SRC_ROOT = Path(__file__).resolve().parents[3]
@@ -18,6 +22,32 @@ from code_agent.workspace.edits import (  # noqa: E402
 )
 from code_agent.workspace.errors import WorkspaceError  # noqa: E402
 from code_agent.workspace.paths import WorkspacePathGuard  # noqa: E402
+
+
+class StreamingScandir:
+    def __init__(self, entries: list[object]) -> None:
+        self._entries = iter(entries)
+        self.consumed = 0
+        self.closed = False
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        self.closed = True
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        entry = next(self._entries)
+        self.consumed += 1
+        return entry
+
+
+class VirtualEntry:
+    def __init__(self, path: Path) -> None:
+        self.path = str(path)
 
 
 class RestoreTopologyTestCase(unittest.TestCase):
@@ -114,6 +144,106 @@ class TopologyConflictTests(RestoreTopologyTestCase):
 
         self.assertEqual(planned.read_bytes(), b"current")
         self.assertEqual(extra.read_bytes(), b"extra")
+
+
+class TopologyScanLimitTests(RestoreTopologyTestCase):
+    def test_large_directory_streams_until_entry_limit_before_mutation(self) -> None:
+        files = [self.write(f"a/{index}.py", b"current") for index in range(5)]
+        target = WorkspaceSnapshot((SnapshotEntry("a", b"checkpoint", True),))
+        restore = build_restore_snapshot(
+            (path.relative_to(self.root).as_posix() for path in files), target
+        )
+        with os.scandir(self.root / "a") as stream:
+            fake_scan = StreamingScandir(list(stream))
+        from code_agent.workspace import _restore_topology as topology
+
+        with patch.object(topology, "MAX_ENTRIES", 3, create=True):
+            with patch.object(topology.os, "scandir", return_value=fake_scan):
+                with self.assertRaisesRegex(WorkspaceError, "entry limit"):
+                    self.editor.restore(restore)
+
+        self.assertEqual(fake_scan.consumed, 4)
+        self.assertTrue(fake_scan.closed)
+        self.assertTrue(all(path.read_bytes() == b"current" for path in files))
+
+    def test_deep_directory_tree_does_not_use_python_recursion(self) -> None:
+        from code_agent.workspace import _restore_topology as topology
+        from code_agent.workspace import _secure_io as safety
+
+        directory = self.root / "a"
+        directory.mkdir()
+        guard = WorkspacePathGuard(self.root)
+        depth = 1_100
+        scan_calls = 0
+        identity = safety.PathIdentity(1, 1, stat.S_IFDIR | 0o755, 0, 0, 0)
+
+        def resolve(path: object, *, for_write: bool = False) -> Path:
+            del for_write
+            candidate = Path(path)
+            return candidate if candidate.is_absolute() else self.root / candidate
+
+        def scan(path: object) -> StreamingScandir:
+            nonlocal scan_calls
+            scan_calls += 1
+            entries = (
+                []
+                if scan_calls > depth
+                else [VirtualEntry(directory / "virtual")]
+            )
+            return StreamingScandir(entries)
+
+        entry = SnapshotEntry("a", b"checkpoint", True)
+        with patch.object(guard, "resolve", side_effect=resolve):
+            with patch.object(safety, "_inspect_path", return_value=identity):
+                with patch.object(topology.time, "monotonic", return_value=0.0):
+                    with patch.object(topology.os, "scandir", side_effect=scan):
+                        try:
+                            plan = topology.analyze_topology((entry,), guard)
+                        except RecursionError as error:
+                            self.fail(f"topology scan must be iterative: {error}")
+
+        self.assertEqual(scan_calls, depth + 1)
+        self.assertGreaterEqual(len(plan.directories), 2)
+
+    def test_topology_deadline_expires_before_the_first_mutation(self) -> None:
+        planned = self.write("a/current.py", b"current")
+        target = WorkspaceSnapshot((SnapshotEntry("a", b"checkpoint", True),))
+        restore = build_restore_snapshot(("a/current.py",), target)
+        from code_agent.workspace import _restore_topology as topology
+
+        calls = 0
+
+        def clock() -> float:
+            nonlocal calls
+            calls += 1
+            return 0.0 if calls <= 3 else 2.0
+
+        with patch.object(topology, "TOPOLOGY_SCAN_DEADLINE_S", 1.0, create=True):
+            with patch.object(
+                topology, "time", SimpleNamespace(monotonic=clock), create=True
+            ):
+                with self.assertRaisesRegex(WorkspaceError, "deadline"):
+                    self.editor.restore(restore)
+
+        self.assertEqual(planned.read_bytes(), b"current")
+
+    def test_scandir_iteration_error_fails_closed(self) -> None:
+        planned = self.write("a/current.py", b"current")
+        target = WorkspaceSnapshot((SnapshotEntry("a", b"checkpoint", True),))
+        restore = build_restore_snapshot(("a/current.py",), target)
+        from code_agent.workspace import _restore_topology as topology
+
+        class BrokenScandir(StreamingScandir):
+            def __next__(self):
+                raise OSError("denied")
+
+        broken = BrokenScandir([])
+        with patch.object(topology.os, "scandir", return_value=broken):
+            with self.assertRaisesRegex(WorkspaceError, "inspect restore directory"):
+                self.editor.restore(restore)
+
+        self.assertTrue(broken.closed)
+        self.assertEqual(planned.read_bytes(), b"current")
 
 
 if __name__ == "__main__":

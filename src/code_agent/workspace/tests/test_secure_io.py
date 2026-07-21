@@ -121,6 +121,35 @@ class SecureRestoreTests(unittest.TestCase):
 
         self.assertEqual({path.name for path in self.root.iterdir()}, before_names)
 
+    def test_temp_is_cleaned_when_handle_identity_capture_fails(self) -> None:
+        target = self.root / "module.py"
+        target.write_bytes(b"before")
+        snapshot = WorkspaceSnapshot((SnapshotEntry("module.py", b"after", True),))
+        before_names = {path.name for path in self.root.iterdir()}
+
+        with patch(
+            "code_agent.workspace._secure_replace.identity_from_fd",
+            side_effect=WorkspaceError("handle identity failed"),
+        ):
+            with self.assertRaisesRegex(WorkspaceError, "handle identity failed"):
+                self.editor.restore(snapshot)
+
+        self.assertEqual({path.name for path in self.root.iterdir()}, before_names)
+
+    def test_readonly_temp_is_cleaned_when_replace_is_locked(self) -> None:
+        target = self.root / "readonly.py"
+        target.write_bytes(b"before")
+        os.chmod(target, stat.S_IREAD)
+        snapshot = WorkspaceSnapshot((SnapshotEntry("readonly.py", b"after", True),))
+        before_names = {path.name for path in self.root.iterdir()}
+
+        with patch("os.replace", side_effect=OSError("locked")):
+            with self.assertRaisesRegex(WorkspaceError, "atomically restore"):
+                self.editor.restore(snapshot)
+
+        self.assertEqual(target.read_bytes(), b"before")
+        self.assertEqual({path.name for path in self.root.iterdir()}, before_names)
+
     @unittest.skipUnless(os.name == "nt", "Windows readonly replacement semantics")
     def test_windows_readonly_target_restores_successfully(self) -> None:
         target = self.root / "readonly.py"

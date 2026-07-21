@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import stat
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -10,6 +11,10 @@ from . import _secure_io as safety
 from .errors import WorkspaceError, WorkspaceScanLimitError
 from .ignore import IgnoreRules
 from .paths import WorkspacePathGuard
+
+
+MAX_ENTRIES = 10_000
+TOPOLOGY_SCAN_DEADLINE_S = 30.0
 
 
 class RestoreEntry(Protocol):
@@ -31,6 +36,12 @@ class TopologyPlan:
     writes: tuple[TopologyItem, ...]
 
 
+@dataclass
+class _ScanBudget:
+    deadline: float
+    entries: int = 0
+
+
 def analyze_topology(
     entries: tuple[RestoreEntry, ...], guard: WorkspacePathGuard
 ) -> TopologyPlan:
@@ -40,6 +51,7 @@ def analyze_topology(
         for entry in entries
         if not entry.existed
     }
+    budget = _ScanBudget(time.monotonic() + TOPOLOGY_SCAN_DEADLINE_S)
     _validate_target_tree(entries)
     deletes = _capture_deletes(entries, guard, rules)
     delete_by_key = {
@@ -51,7 +63,13 @@ def analyze_topology(
         TopologyItem(
             entry,
             _capture_write_state(
-                entry, guard, rules, tombstone_keys, delete_by_key, directories
+                entry,
+                guard,
+                rules,
+                tombstone_keys,
+                delete_by_key,
+                directories,
+                budget,
             ),
         )
         for entry in entries
@@ -105,6 +123,7 @@ def _capture_write_state(
     tombstones: set[str],
     delete_by_key: dict[str, TopologyItem],
     directories: dict[str, safety.TargetState],
+    budget: _ScanBudget,
 ) -> safety.TargetState:
     target = guard.resolve(entry.relative_path, for_write=True)
     relative = target.relative_to(guard.root).as_posix()
@@ -121,9 +140,7 @@ def _capture_write_state(
         return current
     if not stat.S_ISDIR(current.identity.mode):
         raise WorkspaceError(f"snapshot path is not a file: {target}")
-    _scan_replaced_directory(
-        target, guard, rules, tombstones, directories, [0]
-    )
+    _scan_replaced_directory(target, guard, rules, tombstones, directories, budget)
     return safety.TargetState(target, current.parent, None)
 
 
@@ -165,45 +182,81 @@ def _scan_replaced_directory(
     rules: IgnoreRules,
     tombstones: set[str],
     directories: dict[str, safety.TargetState],
-    visited: list[int],
+    budget: _ScanBudget,
 ) -> None:
-    visited[0] += 1
-    if visited[0] > max(1_024, len(tombstones) * 2 + 16):
-        raise WorkspaceScanLimitError("restore topology scan exceeded its limit")
+    pending = [directory]
+    while pending:
+        _check_scan_budget(budget)
+        current = pending.pop()
+        _scan_directory_entries(
+            current, guard, rules, tombstones, pending, budget
+        )
+        state = safety.capture_target_state(current, guard, context="restore")
+        directories[safety.canonical_path_key(current)] = state
+
+
+def _scan_directory_entries(
+    directory: Path,
+    guard: WorkspacePathGuard,
+    rules: IgnoreRules,
+    tombstones: set[str],
+    pending: list[Path],
+    budget: _ScanBudget,
+) -> None:
     try:
-        children = tuple(os.scandir(directory))
+        with os.scandir(directory) as children:
+            for child in children:
+                _check_scan_budget(budget, consume=True)
+                nested = _inspect_directory_entry(
+                    Path(child.path), guard, rules, tombstones
+                )
+                if nested is not None:
+                    pending.append(nested)
+            _check_scan_budget(budget)
     except OSError as error:
         raise WorkspaceError(f"cannot inspect restore directory: {directory}") from error
-    for child in children:
-        path = Path(child.path)
-        relative = path.relative_to(guard.root).as_posix()
-        try:
-            checked = guard.resolve(path, for_write=True)
-        except WorkspaceError as error:
-            raise WorkspaceError(
-                f"unplanned directory content blocks restore: {relative}"
-            ) from error
-        if rules.is_ignored(relative):
-            raise WorkspaceError(
-                f"unplanned directory content blocks restore: {relative}"
-            )
-        identity = safety._inspect_path(
-            checked, missing_ok=False, context="restore"
+
+
+def _inspect_directory_entry(
+    path: Path,
+    guard: WorkspacePathGuard,
+    rules: IgnoreRules,
+    tombstones: set[str],
+) -> Path | None:
+    relative = path.relative_to(guard.root).as_posix()
+    try:
+        checked = guard.resolve(path, for_write=True)
+    except WorkspaceError as error:
+        raise WorkspaceError(
+            f"unplanned directory content blocks restore: {relative}"
+        ) from error
+    if rules.is_ignored(relative):
+        raise WorkspaceError(
+            f"unplanned directory content blocks restore: {relative}"
         )
-        assert identity is not None
-        if stat.S_ISDIR(identity.mode):
-            _scan_replaced_directory(
-                checked, guard, rules, tombstones, directories, visited
+    identity = safety._inspect_path(checked, missing_ok=False, context="restore")
+    assert identity is not None
+    if stat.S_ISDIR(identity.mode):
+        return checked
+    if (
+        not safety.is_regular(identity)
+        or safety.canonical_path_key(relative) not in tombstones
+    ):
+        raise WorkspaceError(
+            f"unplanned directory content blocks restore: {relative}"
+        )
+    return None
+
+
+def _check_scan_budget(budget: _ScanBudget, *, consume: bool = False) -> None:
+    if time.monotonic() > budget.deadline:
+        raise WorkspaceScanLimitError("restore topology scan deadline exceeded")
+    if consume:
+        budget.entries += 1
+        if budget.entries > MAX_ENTRIES:
+            raise WorkspaceScanLimitError(
+                f"restore topology entry limit exceeded: {MAX_ENTRIES}"
             )
-        elif (
-            not safety.is_regular(identity)
-            or safety.canonical_path_key(relative) not in tombstones
-        ):
-            raise WorkspaceError(
-                f"unplanned directory content blocks restore: {relative}"
-            )
-    state = safety.capture_target_state(directory, guard, context="restore")
-    directories[safety.canonical_path_key(directory)] = state
 
 
 def _validate_target_tree(entries: tuple[RestoreEntry, ...]) -> None:
