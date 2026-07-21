@@ -864,9 +864,20 @@ Retain the statement that no daemon, automatic push, or OS sandbox exists.
 
 - [ ] **Step 2: Run every Feature suite**
 
-Run: `uv run --with regex python -m unittest discover -s src/code_agent -p 'test_*.py' -v`
+Run each Feature test directory in an isolated Python process:
 
-Expected: all tests pass.
+```powershell
+$dirs = Get-ChildItem -Path src/code_agent -Directory |
+    Where-Object { Test-Path (Join-Path $_.FullName 'tests') } |
+    Sort-Object Name
+foreach ($dir in $dirs) {
+    uv run --with regex python -m unittest discover `
+        -s (Join-Path $dir.FullName 'tests') -p 'test_*.py' -q
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
+```
+
+Expected: every Feature process reports `OK`; no process reports zero tests.
 
 - [ ] **Step 3: Run every root integration test**
 
