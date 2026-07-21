@@ -2,13 +2,23 @@ from __future__ import annotations
 
 import os
 import re
-import stat
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from ._secure_io import PathIdentity, identity_from_stat, is_regular
-from ._snapshot_blob_io import BlobIntegrityFailure
+from . import _posix_io
+from ._secure_io import PathIdentity
+from ._snapshot_store_dirs import (
+    BlobIntegrityFailure,
+    StoreDirectory,
+    close_directory,
+    inspect_regular,
+    open_shard,
+    open_store_root,
+    scan_target,
+    verify_chain,
+    verify_directory,
+)
 from .errors import SearchTimeoutError, WorkspaceError, WorkspaceScanLimitError
 
 
@@ -19,8 +29,32 @@ _SHARD = re.compile(r"[0-9a-f]{2}\Z")
 @dataclass(frozen=True)
 class OrphanCandidate:
     digest: str
-    path: Path
+    shard_name: str
     identity: PathIdentity
+    shard_identity: PathIdentity
+    root_identity: PathIdentity
+
+
+@dataclass
+class GcBudget:
+    max_entries: int
+    deadline: float
+    clock: Callable[[], float]
+    entries: int = 0
+
+    def consume(self, label: str = "blob garbage collection") -> None:
+        self.check()
+        self.entries += 1
+        if self.entries > self.max_entries:
+            raise WorkspaceScanLimitError(
+                f"{label} exceeds {self.max_entries} entries"
+            )
+
+    def check(self) -> None:
+        if self.clock() > self.deadline:
+            raise SearchTimeoutError(
+                "blob garbage collection exceeded its deadline"
+            )
 
 
 def collect_orphans(
@@ -28,141 +62,140 @@ def collect_orphans(
     referenced: set[str],
     cutoff: float,
     *,
-    max_entries: int,
-    deadline: float,
-    clock: Callable[[], float],
+    budget: GcBudget,
 ) -> tuple[OrphanCandidate, ...]:
-    try:
-        blobs_root.lstat()
-    except FileNotFoundError:
+    root = open_store_root(blobs_root, create=False)
+    if root is None:
         return ()
-    except OSError as error:
-        raise WorkspaceError(f"cannot inspect blob store: {blobs_root}") from error
-    _require_real_directory(blobs_root)
     candidates: list[OrphanCandidate] = []
-    count = 0
     try:
-        with os.scandir(blobs_root) as shards:
+        verify_directory(root, "blob root")
+        with os.scandir(scan_target(root)) as shards:
             for item in shards:
-                shard = Path(item.path)
-                count = _count_entry(count, max_entries, deadline, clock)
-                if not _SHARD.fullmatch(shard.name):
+                budget.consume()
+                if not _SHARD.fullmatch(item.name):
                     continue
-                _require_real_directory(shard)
-                found, count = _scan_shard(
-                    shard, referenced, cutoff, count, max_entries, deadline, clock
-                )
-                candidates.extend(found)
+                shard = open_shard(root, item.name, create=False)
+                if shard is None:
+                    raise BlobIntegrityFailure(
+                        f"blob shard disappeared: {root.path / item.name}"
+                    )
+                try:
+                    candidates.extend(
+                        _scan_shard(root, shard, referenced, cutoff, budget)
+                    )
+                finally:
+                    close_directory(shard)
+        verify_directory(root, "blob root")
+        budget.check()
     except (BlobIntegrityFailure, SearchTimeoutError, WorkspaceScanLimitError):
         raise
     except OSError as error:
         raise WorkspaceError(f"cannot scan blob store: {blobs_root}") from error
-    _check_deadline(deadline, clock)
+    finally:
+        close_directory(root)
     return tuple(sorted(candidates, key=lambda candidate: candidate.digest))
 
 
 def _scan_shard(
-    shard: Path,
+    root: StoreDirectory,
+    shard: StoreDirectory,
     referenced: set[str],
     cutoff: float,
-    count: int,
-    max_entries: int,
-    deadline: float,
-    clock: Callable[[], float],
-) -> tuple[list[OrphanCandidate], int]:
+    budget: GcBudget,
+) -> list[OrphanCandidate]:
     candidates: list[OrphanCandidate] = []
+    verify_chain(root, shard)
     try:
-        with os.scandir(shard) as entries:
+        with os.scandir(scan_target(shard)) as entries:
             for item in entries:
-                path = Path(item.path)
-                count = _count_entry(count, max_entries, deadline, clock)
-                if not _DIGEST.fullmatch(path.name) or path.name[:2] != shard.name:
+                budget.consume()
+                if not _DIGEST.fullmatch(item.name):
                     continue
-                identity = _require_regular_blob(path)
-                if path.name not in referenced and identity.modified_ns / 1e9 < cutoff:
-                    candidates.append(OrphanCandidate(path.name, path, identity))
+                if item.name[:2] != shard.path.name:
+                    raise BlobIntegrityFailure(
+                        f"blob digest is stored in the wrong shard: {shard.path / item.name}"
+                    )
+                identity = inspect_regular(shard, item.name, "garbage collection blob")
+                assert identity is not None
+                if item.name not in referenced and identity.modified_ns / 1e9 < cutoff:
+                    candidates.append(
+                        OrphanCandidate(
+                            item.name,
+                            shard.path.name,
+                            identity,
+                            shard.identity,
+                            root.identity,
+                        )
+                    )
     except BlobIntegrityFailure:
         raise
     except OSError as error:
-        raise WorkspaceError(f"cannot scan blob shard: {shard}") from error
-    return candidates, count
+        raise WorkspaceError(f"cannot scan blob shard: {shard.path}") from error
+    verify_chain(root, shard)
+    return candidates
 
 
 def delete_candidates(
+    blobs_root: Path,
     candidates: tuple[OrphanCandidate, ...],
     cutoff: float,
-    deadline: float,
-    clock: Callable[[], float],
+    budget: GcBudget,
 ) -> tuple[str, ...]:
     deleted: list[str] = []
     for candidate in candidates:
-        _check_deadline(deadline, clock)
-        try:
-            current = _require_regular_blob(candidate.path)
-        except BlobIntegrityFailure as error:
-            try:
-                candidate.path.lstat()
-            except FileNotFoundError:
-                continue
-            except OSError:
-                raise error
-            raise error
-        if current != candidate.identity:
-            raise WorkspaceError(f"blob changed during garbage collection: {candidate.path}")
-        if current.modified_ns / 1e9 >= cutoff:
-            continue
-        try:
-            candidate.path.unlink()
-        except OSError as error:
-            raise WorkspaceError(f"cannot delete orphan blob: {candidate.path}") from error
-        deleted.append(candidate.digest)
-    _check_deadline(deadline, clock)
+        budget.check()
+        if _delete_candidate(blobs_root, candidate, cutoff):
+            deleted.append(candidate.digest)
+    budget.check()
     return tuple(deleted)
 
 
-def _count_entry(
-    count: int,
-    max_entries: int,
-    deadline: float,
-    clock: Callable[[], float],
-) -> int:
-    _check_deadline(deadline, clock)
-    count += 1
-    if count > max_entries:
-        raise WorkspaceScanLimitError(
-            f"blob garbage collection exceeds {max_entries} entries"
+def _delete_candidate(
+    blobs_root: Path, candidate: OrphanCandidate, cutoff: float
+) -> bool:
+    root = open_store_root(blobs_root, create=False)
+    if root is None or root.identity != candidate.root_identity:
+        close_directory(root)
+        raise BlobIntegrityFailure("blob root changed during garbage collection")
+    shard: StoreDirectory | None = None
+    try:
+        shard = open_shard(root, candidate.shard_name, create=False)
+        if shard is None or shard.identity != candidate.shard_identity:
+            raise BlobIntegrityFailure("blob shard changed during garbage collection")
+        current = inspect_regular(
+            shard, candidate.digest, "garbage collection blob", missing_ok=True
         )
-    return count
+        if current is None:
+            return False
+        if current != candidate.identity:
+            raise WorkspaceError(
+                f"blob changed during garbage collection: {shard.path / candidate.digest}"
+            )
+        if current.modified_ns / 1e9 >= cutoff:
+            return False
+        _unlink_candidate(root, shard, candidate.digest)
+        return True
+    finally:
+        close_directory(shard)
+        close_directory(root)
 
 
-def _check_deadline(deadline: float, clock: Callable[[], float]) -> None:
-    if clock() > deadline:
-        raise SearchTimeoutError("blob garbage collection exceeded its deadline")
-
-
-def _require_real_directory(path: Path) -> None:
+def _unlink_candidate(
+    root: StoreDirectory, shard: StoreDirectory, digest: str
+) -> None:
+    verify_chain(root, shard)
     try:
-        metadata = path.lstat()
+        if shard.descriptor is not None:
+            _posix_io.unlink(shard.descriptor, digest)
+        else:
+            (shard.path / digest).unlink()
     except OSError as error:
-        raise BlobIntegrityFailure(f"cannot inspect blob shard: {path}") from error
-    attributes = getattr(metadata, "st_file_attributes", 0)
-    reparse = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
-    if not stat.S_ISDIR(metadata.st_mode) or stat.S_ISLNK(metadata.st_mode):
-        raise BlobIntegrityFailure(f"blob shard is not a real directory: {path}")
-    if attributes & reparse:
-        raise BlobIntegrityFailure(f"blob shard is a reparse point: {path}")
-
-
-def _require_regular_blob(path: Path) -> PathIdentity:
-    try:
-        identity = identity_from_stat(path.lstat())
-    except FileNotFoundError as error:
-        raise BlobIntegrityFailure(f"missing blob during garbage collection: {path}") from error
-    except OSError as error:
-        raise BlobIntegrityFailure(f"cannot inspect blob during garbage collection: {path}") from error
-    reparse = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
-    if not is_regular(identity) or stat.S_ISLNK(identity.mode):
-        raise BlobIntegrityFailure(f"path is not a regular blob: {path}")
-    if identity.attributes & reparse:
-        raise BlobIntegrityFailure(f"path is not a regular blob: {path}")
-    return identity
+        raise WorkspaceError(
+            f"cannot delete orphan blob: {shard.path / digest}"
+        ) from error
+    verify_chain(root, shard)
+    if inspect_regular(
+        shard, digest, "garbage collection blob", missing_ok=True
+    ) is not None:
+        raise WorkspaceError(f"cannot delete orphan blob: {shard.path / digest}")

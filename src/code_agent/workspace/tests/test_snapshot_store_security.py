@@ -24,6 +24,13 @@ from code_agent.workspace.snapshot_store import (  # noqa: E402
     SnapshotIntegrityError,
 )
 from code_agent.workspace import snapshot_store as store_module  # noqa: E402
+from code_agent.workspace import _posix_io  # noqa: E402
+
+
+def replace_target():
+    if os.name == "posix":
+        return patch.object(_posix_io, "replace")
+    return patch("code_agent.workspace.snapshot_store.os.replace")
 
 
 class SnapshotStoreSecurityTests(unittest.TestCase):
@@ -46,12 +53,24 @@ class SnapshotStoreSecurityTests(unittest.TestCase):
         replaced: list[tuple[Path, Path]] = []
         fsync_calls: list[int] = []
 
-        def record_replace(source: object, target: object) -> None:
-            replaced.append((Path(source), Path(target)))
-            real_replace(source, target)
+        def record_replace(*arguments: object) -> None:
+            if os.name == "posix":
+                parent_fd, source, target = arguments
+                replaced.append((Path(str(source)), Path(str(target))))
+                real_replace(
+                    source,
+                    target,
+                    src_dir_fd=int(parent_fd),
+                    dst_dir_fd=int(parent_fd),
+                )
+            else:
+                source, target = arguments
+                replaced.append((Path(source), Path(target)))
+                real_replace(source, target)
 
         with patch("code_agent.workspace.snapshot_store.os.fsync", side_effect=lambda fd: fsync_calls.append(fd)):
-            with patch("code_agent.workspace.snapshot_store.os.replace", side_effect=record_replace):
+            with replace_target() as mocked_replace:
+                mocked_replace.side_effect = record_replace
                 manifest = self.put(store)
 
         self.assertTrue(fsync_calls)
@@ -59,12 +78,16 @@ class SnapshotStoreSecurityTests(unittest.TestCase):
         source, target = replaced[0]
         self.assertEqual(source.parent, target.parent)
         self.assertTrue(source.name.startswith(".tmp-"))
-        self.assertEqual(target, store.blob_path(manifest.entries[0].blob_sha256))
+        if os.name == "posix":
+            self.assertEqual(target.name, manifest.entries[0].blob_sha256)
+        else:
+            self.assertEqual(target, store.blob_path(manifest.entries[0].blob_sha256))
 
     def test_publish_failure_cleans_owned_temp(self) -> None:
         store = self.store()
 
-        with patch("code_agent.workspace.snapshot_store.os.replace", side_effect=PermissionError("locked")):
+        with replace_target() as mocked_replace:
+            mocked_replace.side_effect = PermissionError("locked")
             with self.assertRaisesRegex(OSError, "locked"):
                 self.put(store)
 
@@ -75,11 +98,22 @@ class SnapshotStoreSecurityTests(unittest.TestCase):
         content = b"race"
         digest = hashlib.sha256(content).hexdigest()
 
-        def publish_other(_source: object, target: object) -> None:
-            Path(target).write_bytes(content)
+        def publish_other(*arguments: object) -> None:
+            if os.name == "posix":
+                parent_fd, _source, target = arguments
+                descriptor = os.open(
+                    str(target), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600,
+                    dir_fd=int(parent_fd),
+                )
+                with os.fdopen(descriptor, "wb") as stream:
+                    stream.write(content)
+            else:
+                _source, target = arguments
+                Path(target).write_bytes(content)
             raise PermissionError("destination appeared")
 
-        with patch("code_agent.workspace.snapshot_store.os.replace", side_effect=publish_other):
+        with replace_target() as mocked_replace:
+            mocked_replace.side_effect = publish_other
             manifest = self.put(store, data=content)
 
         self.assertEqual(manifest.entries[0].blob_sha256, digest)

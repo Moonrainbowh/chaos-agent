@@ -148,7 +148,7 @@ def _ordered_snapshot_entries(
             raise ValueError(f"duplicate snapshot path: {entry.relative_path}")
         seen.add(key)
         checked.append(entry)
-    return tuple(sorted(checked, key=lambda entry: canonical_path_key(entry.relative_path)))
+    return tuple(sorted(checked, key=lambda entry: entry.relative_path))
 
 
 def _validate_modes(
@@ -180,10 +180,10 @@ def _validate_manifest_entries(
         key = canonical_path_key(entry.relative_path)
         if key in seen:
             raise SnapshotIntegrityError(f"duplicate manifest path: {entry.relative_path}")
-        if previous is not None and key < previous:
+        if previous is not None and entry.relative_path < previous:
             raise SnapshotIntegrityError("manifest entries are not sorted")
         seen.add(key)
-        previous = key
+        previous = entry.relative_path
         _validate_manifest_entry(entry, max_file_bytes)
     return entries
 

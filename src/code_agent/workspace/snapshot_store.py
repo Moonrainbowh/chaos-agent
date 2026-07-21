@@ -13,7 +13,7 @@ from ._snapshot_blob_io import (
     publish_blob,
     read_blob,
 )
-from ._snapshot_gc import collect_orphans, delete_candidates
+from ._snapshot_gc import GcBudget, collect_orphans, delete_candidates
 from ._snapshot_manifest import (
     BlobRef,
     MaterializedSnapshot,
@@ -111,21 +111,18 @@ class ContentAddressedSnapshotStore:
         older_than: float | datetime,
     ) -> tuple[str, ...]:
         """Delete old unreferenced blobs after a bounded, non-mutating scan."""
-        references = _reference_digests(referenced)
         cutoff = _timestamp(older_than)
         deadline = time.monotonic() + self.gc_deadline_s
+        budget = GcBudget(self.gc_max_entries, deadline, time.monotonic)
+        references = _reference_digests(referenced, budget)
         try:
             candidates = collect_orphans(
                 self.blobs_root,
                 references,
                 cutoff,
-                max_entries=self.gc_max_entries,
-                deadline=deadline,
-                clock=time.monotonic,
+                budget=budget,
             )
-            return delete_candidates(
-                candidates, cutoff, deadline, time.monotonic
-            )
+            return delete_candidates(self.blobs_root, candidates, cutoff, budget)
         except BlobIntegrityFailure as error:
             raise SnapshotIntegrityError(str(error)) from error
 
@@ -142,11 +139,14 @@ class ContentAddressedSnapshotStore:
             raise SnapshotIntegrityError(str(error)) from error
 
 
-def _reference_digests(values: Iterable[str | BlobRef]) -> set[str]:
+def _reference_digests(
+    values: Iterable[str | BlobRef], budget: GcBudget
+) -> set[str]:
     if isinstance(values, (str, bytes)):
         raise TypeError("referenced blobs must be an iterable of digests")
     result: set[str] = set()
     for value in values:
+        budget.consume("referenced blobs")
         digest = value.sha256 if isinstance(value, BlobRef) else value
         result.add(require_digest(digest))
     return result
