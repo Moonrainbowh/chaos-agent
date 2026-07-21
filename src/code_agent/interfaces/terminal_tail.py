@@ -25,6 +25,8 @@ def render_live_tail(
     width: int,
     *,
     cursor_index: int | None = None,
+    assistant_draft: str = "",
+    terminal_height: int = 30,
     color: ColorMode = ColorMode.AUTO,
     palette: Iterable[str] = (),
     status_icon: str = ".",
@@ -37,6 +39,8 @@ def render_live_tail(
         status,
         width,
         cursor_index=cursor_index,
+        assistant_draft=assistant_draft,
+        terminal_height=terminal_height,
         color=color,
         palette=palette,
         status_icon=status_icon,
@@ -51,6 +55,8 @@ def render_live_tail_frame(
     width: int,
     *,
     cursor_index: int | None = None,
+    assistant_draft: str = "",
+    terminal_height: int = 30,
     color: ColorMode = ColorMode.AUTO,
     palette: Iterable[str] = (),
     status_icon: str = ".",
@@ -72,7 +78,9 @@ def render_live_tail_frame(
     top_border = "╭" + "─" * (frame_width - 2) + "╮"
     bottom_border = "╰" + "─" * (frame_width - 2) + "╯"
     palette_items = tuple(safe_text(item).replace("\n", " ") for item in palette)[:5]
-    lines = _render_palette(palette_items, width, color)
+    draft_budget = max(1, terminal_height - len(palette_items) - len(rows) - 5)
+    draft_lines = _render_draft(assistant_draft, width, draft_budget, color)
+    lines = draft_lines + _render_palette(palette_items, width, color)
     lines.append(_style_box_border(top_border, color))
     for row_index, row in enumerate(rows):
         prompt = "› " if row_index == 0 else "  "
@@ -82,7 +90,7 @@ def render_live_tail_frame(
 
     lines.append(_render_status(status_icon, status, status_context, width, color, status_color))
 
-    geometry = LiveTailGeometry(height=len(lines), cursor_row=cursor_row + 1 + len(palette_items))
+    geometry = LiveTailGeometry(height=len(lines), cursor_row=cursor_row + 1 + len(palette_items) + len(draft_lines))
     output = _rewrite_tail(lines, geometry.cursor_row, cursor_column + 4, previous)
     return LiveTailFrame(output, geometry)
 
@@ -145,6 +153,31 @@ def _style_box_row(prompt: str, value: str, padding: str, color: ColorMode, *, p
 def _render_palette(items: tuple[str, ...], width: int, color: ColorMode) -> list[str]:
     selected = next((index for index, item in enumerate(items) if item.lstrip().startswith("› ")), 0)
     return [colorize(clip_display("  " + item, width), BRAND_CYAN if index == selected else DIM_GRAY, color) for index, item in enumerate(items)]
+
+
+def _render_draft(value: str, width: int, max_rows: int, color: ColorMode) -> list[str]:
+    if not value:
+        return []
+    rows = _wrap_plain(safe_text(value), max(1, width - 4))
+    clipped = rows[-max_rows:]
+    if len(rows) > len(clipped):
+        clipped[0] = "… " + clipped[0]
+    return [colorize("◆ 正在回答", BRAND_CYAN, color)] + [
+        colorize("  " + row, BODY_WHITE, color) for row in clipped
+    ]
+
+
+def _wrap_plain(value: str, width: int) -> list[str]:
+    rows: list[str] = []
+    for logical in value.split("\n"):
+        remaining = logical
+        if not remaining:
+            rows.append("")
+        while remaining:
+            part = clip_display(remaining, width) or remaining[0]
+            rows.append(part)
+            remaining = remaining[len(part):]
+    return rows
 
 
 def _render_status(
