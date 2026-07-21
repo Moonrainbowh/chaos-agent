@@ -24,7 +24,7 @@
 ## Units
 - `ThreadStatus`、`GoalStatus`、`ThreadSummary`、`ThreadRelation`、`MessageRecord`、`GoalRecord`、`CheckpointRecord`: 表达不可变的会话、父子关系和 checkpoint 状态 | 无副作用 | 时间归一化为 UTC，元数据深度冻结
 - `WorkspaceLineageRecord`、`WorkspaceSnapshotRecord`、`CheckpointCursor`、`RewindOperationRecord`: 表达 lineage、manifest、会话游标与 Rewind 状态 | 无副作用 | UUID、枚举、绝对路径、摘要、时间、JSON 与容量均严格校验
-- `SQLiteSessionRepository`: 组合短事务仓储，持久化 thread、消息/事件、task、任务状态、预算、控制和运行 owner | SQLite I/O | 原始流按稳定序号读取，累计 lineage 用量不能通过恢复重置
+- `SQLiteSessionRepository`: 组合短事务仓储，持久化 thread、消息/事件、task、任务状态、预算、控制和运行 owner | SQLite I/O | token/tool 等累计 lineage 用量不能通过恢复重置；failure pair 以 current bound owner budget 为准，无可信来源的 legacy pair 归零
 - `RecordRepositoryMixin`、`SemanticRepositoryMixin`: 原子保存目标、普通/语义 checkpoint 与来源索引 | SQLite I/O | 稳定 ID 内容漂移、缺失 owner 与损坏 JSON 均失败闭合
 - `WorkflowRepositoryMixin`、`SkillActivationRepositoryMixin`: 保存已校验 DAG 与 thread-scoped Skill 身份 | SQLite I/O | Workflow thread 限于两级树；Skill 不保存正文且 upsert 不重复
 - `WorkspaceSnapshotRepositoryMixin`: 创建/读取 lineage，并在一个写事务中发布 snapshot entries、checkpoint 与 cursor | SQLite I/O | blob 仅作摘要元数据；任一写入失败完全回滚，available/unavailable 关联必须一致

@@ -54,6 +54,7 @@ def _identifiers() -> dict[str, str]:
         "available_thread", "inferred_thread", "legacy_thread", "available_task",
         "inferred_task", "available_lineage", "inferred_lineage", "snapshot",
         "available_checkpoint", "inferred_checkpoint", "legacy_checkpoint",
+        "no_owner_lineage", "unbound_thread", "unbound_task", "unbound_lineage",
     )
     return {name: format(index + 1, "032x") for index, name in enumerate(names)}
 
@@ -162,6 +163,19 @@ class V14CompatibilityTests(unittest.IsolatedAsyncioTestCase):
             _migration_facts(self.database, ids), (15, 3, "failure-a", None)
         )
 
+    def test_failure_pair_backfill_uses_owner_pair_or_conservative_zero(self) -> None:
+        ids = create_legacy_v14(self.database)
+        SQLiteSessionRepository(self.database)
+        _prepare_failure_pair_cases(self.database, ids)
+        with sqlite3.connect(self.database) as connection:
+            connection.execute(_MIGRATIONS[15][-1])
+            connection.execute(_MIGRATIONS[15][-1])
+
+        self.assertEqual(
+            _failure_pairs(self.database, ids),
+            ((0, None, 11), (0, None, 12), (0, None, 13), (0, None, 14)),
+        )
+
 
 def _migration_facts(
     path: Path, ids: dict[str, str]
@@ -179,6 +193,71 @@ def _migration_facts(
             (ids["inferred_lineage"],),
         ).fetchone()[0]
     return version, usage[0], usage[1], missing_signature
+
+
+def _prepare_failure_pair_cases(path: Path, ids: dict[str, str]) -> None:
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            "UPDATE task_budgets SET repeated_failures = 0, last_failure_signature = NULL "
+            "WHERE thread_id = ?",
+            (ids["available_thread"],),
+        )
+        _set_old_pair(connection, ids["available_lineage"], 11)
+        _set_old_pair(connection, ids["inferred_lineage"], 14)
+        _insert_untrusted_lineage(connection, ids, "no_owner", 12)
+        _insert_untrusted_lineage(connection, ids, "unbound", 13)
+
+
+def _set_old_pair(connection: sqlite3.Connection, lineage_id: str, turns: int) -> None:
+    connection.execute(
+        "UPDATE workspace_lineage_usage SET repeated_failures = 99, "
+        "last_failure_signature = 'old', model_turns = ? WHERE lineage_id = ?",
+        (turns, lineage_id),
+    )
+
+
+def _insert_untrusted_lineage(
+    connection: sqlite3.Connection, ids: dict[str, str], kind: str, turns: int
+) -> None:
+    owner = None
+    if kind == "unbound":
+        connection.execute(
+            "INSERT INTO threads(id, created_at, updated_at, status) VALUES (?, ?, ?, 'active')",
+            (ids["unbound_thread"], STAMP, STAMP),
+        )
+        connection.execute(
+            "INSERT INTO tasks(id, thread_id, contract, status, created_at, updated_at) "
+            "VALUES (?, ?, '{}', 'created', ?, ?)",
+            (ids["unbound_task"], ids["unbound_thread"], STAMP, STAMP),
+        )
+        owner = ids["unbound_task"]
+    lineage = ids[f"{kind}_lineage"]
+    connection.execute(
+        "INSERT INTO workspace_lineages VALUES (?, 'repo', 'C:/source', ?, ?, ?, ?, 'active', ?, ?)",
+        (lineage, f"C:/work/{kind}", f"codex/{kind}", "a" * 40, owner, STAMP, STAMP),
+    )
+    connection.execute(
+        "INSERT INTO workspace_lineage_usage(lineage_id, repeated_failures, "
+        "last_failure_signature, model_turns) VALUES (?, 99, 'old', ?)",
+        (lineage, turns),
+    )
+
+
+def _failure_pairs(
+    path: Path, ids: dict[str, str]
+) -> tuple[tuple[int, str | None, int], ...]:
+    order = (
+        "available_lineage", "no_owner_lineage", "unbound_lineage", "inferred_lineage"
+    )
+    with sqlite3.connect(path) as connection:
+        return tuple(
+            connection.execute(
+                "SELECT repeated_failures, last_failure_signature, model_turns "
+                "FROM workspace_lineage_usage WHERE lineage_id = ?",
+                (ids[name],),
+            ).fetchone()
+            for name in order
+        )
 
 
 if __name__ == "__main__":
