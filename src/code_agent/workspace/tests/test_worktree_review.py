@@ -95,7 +95,7 @@ class WorktreePostcheckTests(WorktreeTestCase):
                 child, "lineage-1", "codex/task-lineage-1"
             )
 
-    def test_disappearing_target_is_compensated_after_successful_add(self) -> None:
+    def test_disappearing_target_skips_destructive_compensation(self) -> None:
         real_add = FixedGitWorktreeCommands.add
 
         def add_then_remove(commands, branch, target, head):
@@ -103,16 +103,17 @@ class WorktreePostcheckTests(WorktreeTestCase):
             shutil.rmtree(target)
 
         with patch.object(FixedGitWorktreeCommands, "add", add_then_remove):
-            with self.assertRaises(WorkspaceError):
+            with self.assertRaises(WorkspaceError) as raised:
                 WorktreeManager(self.storage).create(
                     self.source, "lineage-1", "codex/task-lineage-1"
                 )
 
         listing = run_git(self.source, "worktree", "list", "--porcelain")
-        self.assertNotIn("lineage-1", listing)
-        self.assertNotIn("codex/task-lineage-1", run_git(self.source, "branch", "--list"))
+        self.assertIn("lineage-1", listing)
+        self.assertIn("codex/task-lineage-1", run_git(self.source, "branch", "--list"))
+        self.assertTrue(any("skipped" in item for item in raised.exception.cleanup_errors))
 
-    def test_wrong_target_branch_is_rejected_and_compensated(self) -> None:
+    def test_wrong_target_branch_skips_destructive_compensation(self) -> None:
         real_add = FixedGitWorktreeCommands.add
 
         def add_then_detach(commands, branch, target, head):
@@ -120,12 +121,13 @@ class WorktreePostcheckTests(WorktreeTestCase):
             run_git(target, "checkout", "-q", "--detach", head)
 
         with patch.object(FixedGitWorktreeCommands, "add", add_then_detach):
-            with self.assertRaisesRegex(WorkspaceError, "postcheck"):
+            with self.assertRaisesRegex(WorkspaceError, "postcheck") as raised:
                 WorktreeManager(self.storage).create(
                     self.source, "lineage-1", "codex/task-lineage-1"
                 )
 
-        self.assertNotIn("lineage-1", run_git(self.source, "worktree", "list", "--porcelain"))
+        self.assertIn("lineage-1", run_git(self.source, "worktree", "list", "--porcelain"))
+        self.assertTrue(any("skipped" in item for item in raised.exception.cleanup_errors))
 
     def test_wrong_target_repository_is_preserved_and_reports_cleanup(self) -> None:
         real_add = FixedGitWorktreeCommands.add

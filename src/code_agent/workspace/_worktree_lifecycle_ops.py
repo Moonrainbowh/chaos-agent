@@ -6,17 +6,13 @@ from typing import Any, Iterable
 
 from ._git_worktrees import FixedGitWorktreeCommands, GitWorktreeEntry
 from .errors import WorkspaceError
+from ._worktree_lock import valid_repository_id
 
 
 def remove_managed(
     manager: Any, worktree: Any, *, confirmed: bool, active: bool
 ) -> None:
-    if confirmed is not True:
-        raise WorkspaceError("managed worktree removal requires literal confirmation")
-    if type(active) is not bool:
-        raise WorkspaceError("managed worktree active state must be boolean")
-    if active:
-        raise WorkspaceError("active managed worktree cannot be removed")
+    del confirmed, active
     source_git, identity = _require_trusted_record(manager, worktree)
     if not manager._is_owned_worktree(worktree.root, identity, worktree.branch_name):
         raise WorkspaceError("managed path does not belong to the recorded repository")
@@ -27,25 +23,41 @@ def remove_managed(
         raise WorkspaceError("managed worktree path still exists after Git removal")
 
 
+def validate_remove_request(*, confirmed: bool, active: bool) -> None:
+    if confirmed is not True:
+        raise WorkspaceError("managed worktree removal requires literal confirmation")
+    if type(active) is not bool:
+        raise WorkspaceError("managed worktree active state must be boolean")
+    if active:
+        raise WorkspaceError("active managed worktree cannot be removed")
+
+
 def prune_managed(manager: Any, records: Iterable[Any]) -> tuple[Path, ...]:
     pruned: list[Path] = []
     for record in records:
-        trusted = _trusted_missing_record(manager, record)
-        if trusted is None:
+        repository_id = getattr(record, "repository_id", None)
+        if not valid_repository_id(repository_id):
             continue
-        commands = trusted
-        entry = commands.entry(record.root)
-        if not _matches_record(entry, record):
-            continue
-        if record.root.exists() or record.root.is_symlink():
-            continue
-        try:
-            commands.remove_missing(record.root)
-        except WorkspaceError:
-            continue
-        if commands.entry(record.root) is None:
-            pruned.append(record.root)
+        with manager._repository_lock(repository_id):
+            if _prune_record(manager, record):
+                pruned.append(record.root)
     return tuple(pruned)
+
+
+def _prune_record(manager: Any, record: Any) -> bool:
+    commands = _trusted_missing_record(manager, record)
+    if commands is None:
+        return False
+    entry = commands.entry(record.root)
+    if not _matches_record(entry, record):
+        return False
+    if record.root.exists() or record.root.is_symlink():
+        return False
+    try:
+        commands.remove_missing(record.root)
+    except WorkspaceError:
+        return False
+    return commands.entry(record.root) is None
 
 
 def _matches_record(entry: GitWorktreeEntry | None, record: Any) -> bool:

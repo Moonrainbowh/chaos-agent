@@ -4,8 +4,6 @@ import hashlib
 import math
 import os
 import re
-import stat
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
@@ -15,7 +13,11 @@ from ._worktree_lifecycle_ops import (
     attach_cleanup_errors,
     prune_managed,
     remove_managed,
+    validate_remove_request,
 )
+from ._worktree_lock import RepositoryLifecycleLock, validate_lock_timeout
+from ._worktree_models import ManagedWorktree, RepositoryIdentity
+from ._worktree_paths import is_link_like, require_contained_unlinked
 from .git import DEFAULT_MAX_OUTPUT_BYTES, GitWorkspace
 from .paths import PathInput
 
@@ -23,22 +25,6 @@ from .paths import PathInput
 _LINEAGE_PATTERN = re.compile(r"[a-z0-9-]+\Z")
 _BRANCH_PATTERN = re.compile(r"codex/task-[a-z0-9-]+\Z")
 _DEFAULT_MAX_PATH_CHARS = 240 if os.name == "nt" else 4096
-
-
-@dataclass(frozen=True)
-class RepositoryIdentity:
-    repository_id: str
-    common_dir: Path
-
-
-@dataclass(frozen=True)
-class ManagedWorktree:
-    repository_id: str
-    lineage_id: str
-    source_root: Path
-    root: Path
-    branch_name: str
-    head_commit: str
 
 
 class WorktreeManager:
@@ -51,9 +37,10 @@ class WorktreeManager:
         max_output_bytes: int = DEFAULT_MAX_OUTPUT_BYTES,
         timeout_s: float = 30.0,
         max_path_chars: int = _DEFAULT_MAX_PATH_CHARS,
+        lock_timeout_s: float = 5.0,
     ) -> None:
         root = Path(storage_root).expanduser()
-        if _is_link_like(root):
+        if is_link_like(root):
             raise WorkspaceError("worktree storage root cannot be a link or reparse point")
         if not root.exists() or not root.is_dir():
             raise ValueError("worktree storage root must be an existing directory")
@@ -61,6 +48,8 @@ class WorktreeManager:
         _validate_git_limits(max_output_bytes, timeout_s)
         self.max_output_bytes = max_output_bytes
         self.timeout_s = float(timeout_s)
+        validate_lock_timeout(lock_timeout_s)
+        self.lock_timeout_s = float(lock_timeout_s)
         if not isinstance(max_path_chars, int) or isinstance(max_path_chars, bool):
             raise TypeError("max_path_chars must be an integer")
         if max_path_chars <= 0:
@@ -87,6 +76,23 @@ class WorktreeManager:
         git = self._git(source)
         commands = FixedGitWorktreeCommands(git)
         identity = self.identify(source)
+        proposed_target = self.storage_root / identity.repository_id / lineage_id
+        if len(str(proposed_target)) > self.max_path_chars:
+            raise WorkspaceError("managed worktree target exceeds path length limit")
+        with self._repository_lock(identity.repository_id):
+            return self._create_locked(
+                source, git, commands, identity, lineage_id, branch_name
+            )
+
+    def _create_locked(
+        self,
+        source: Path,
+        git: GitWorkspace,
+        commands: FixedGitWorktreeCommands,
+        identity: RepositoryIdentity,
+        lineage_id: str,
+        branch_name: str,
+    ) -> ManagedWorktree:
         head_commit = commands.head_commit()
         status = git.status_porcelain()
         if commands.branch_exists(branch_name):
@@ -116,15 +122,15 @@ class WorktreeManager:
     def remove(
         self, worktree: ManagedWorktree, *, confirmed: bool, active: bool
     ) -> None:
-        remove_managed(self, worktree, confirmed=confirmed, active=active)
+        validate_remove_request(confirmed=confirmed, active=active)
+        with self._repository_lock(worktree.repository_id):
+            remove_managed(self, worktree, confirmed=confirmed, active=active)
 
     def prune(self, records: Iterable[ManagedWorktree]) -> tuple[Path, ...]:
         return prune_managed(self, records)
 
     def _prepare_target(self, repository_id: str, lineage_id: str) -> Path:
         target = self.storage_root / repository_id / lineage_id
-        if len(str(target)) > self.max_path_chars:
-            raise WorkspaceError("managed worktree target exceeds path length limit")
         self._require_contained_unlinked(target)
         if target.exists() or target.is_symlink():
             raise WorkspaceError(f"managed worktree target already exists: {target}")
@@ -133,15 +139,7 @@ class WorktreeManager:
         return target
 
     def _require_contained_unlinked(self, target: Path) -> None:
-        try:
-            target.resolve(strict=False).relative_to(self.storage_root)
-        except (OSError, RuntimeError, ValueError) as error:
-            raise WorkspaceError("managed worktree target escapes storage root") from error
-        current = self.storage_root
-        for part in target.relative_to(self.storage_root).parts:
-            current /= part
-            if _is_link_like(current):
-                raise WorkspaceError(f"linked managed worktree path is not allowed: {current}")
+        require_contained_unlinked(self.storage_root, target)
 
     @staticmethod
     def _verify_source_unchanged(
@@ -198,7 +196,7 @@ class WorktreeManager:
         cleanup_errors: list[str] = []
         commands = FixedGitWorktreeCommands(git)
         removed = self._remove_created_registration(
-            commands, identity, target, cleanup_errors
+            commands, identity, target, branch, cleanup_errors
         )
         if removed:
             self._delete_created_branch(commands, branch, head, cleanup_errors)
@@ -209,25 +207,32 @@ class WorktreeManager:
         commands: FixedGitWorktreeCommands,
         identity: RepositoryIdentity,
         target: Path,
+        branch: str,
         errors: list[str],
     ) -> bool:
         try:
-            if commands.entry(target) is None:
-                errors.append("created worktree registration is not uniquely identifiable")
+            self._require_contained_unlinked(target)
+            entry = commands.entry(target)
+            expected_ref = f"refs/heads/{branch}"
+            if commands.common_dir() != identity.common_dir:
+                errors.append("cleanup skipped: repository identity changed")
                 return False
-            if target.exists() or target.is_symlink():
-                if not self._is_owned_worktree(target, identity, None):
-                    errors.append("created worktree path ownership cannot be proven")
-                    return False
-                commands.force_remove(target)
-            else:
-                commands.remove_missing(target)
+            if entry is None or entry.branch != expected_ref:
+                errors.append("cleanup skipped: exact created registration is unavailable")
+                return False
+            if not target.exists() or not target.is_dir() or target.is_symlink():
+                errors.append("cleanup skipped: literal target is missing or not a directory")
+                return False
+            if not self._is_owned_worktree(target, identity, branch):
+                errors.append("cleanup skipped: target worktree identity cannot be proven")
+                return False
+            commands.force_remove(target)
             if commands.entry(target) is not None:
                 errors.append("created worktree registration still exists")
                 return False
             return True
         except (OSError, ValueError, WorkspaceError) as error:
-            errors.append(str(error))
+            errors.append(f"cleanup skipped: {error}")
             return False
 
     @staticmethod
@@ -265,6 +270,11 @@ class WorktreeManager:
             timeout_s=self.timeout_s,
         )
 
+    def _repository_lock(self, repository_id: str) -> RepositoryLifecycleLock:
+        return RepositoryLifecycleLock(
+            self.storage_root, repository_id, self.lock_timeout_s
+        )
+
     @staticmethod
     def _validate_names(lineage_id: str, branch_name: str) -> None:
         if not isinstance(lineage_id, str) or not _LINEAGE_PATTERN.fullmatch(lineage_id):
@@ -273,19 +283,6 @@ class WorktreeManager:
             raise WorkspaceError("branch must match codex/task-[a-z0-9-]+")
         if branch_name != f"codex/task-{lineage_id}":
             raise WorkspaceError("branch must be bound to the lineage id")
-
-def _is_link_like(path: Path) -> bool:
-    try:
-        if path.is_symlink():
-            return True
-        attributes = getattr(path.lstat(), "st_file_attributes", 0)
-    except (FileNotFoundError, NotADirectoryError):
-        return False
-    except OSError as error:
-        raise WorkspaceError(f"cannot inspect managed path metadata: {path}") from error
-    reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
-    return bool(attributes & reparse_flag)
-
 
 def _validate_git_limits(max_output_bytes: int, timeout_s: float) -> None:
     if not isinstance(max_output_bytes, int) or isinstance(max_output_bytes, bool):
