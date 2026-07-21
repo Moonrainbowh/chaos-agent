@@ -66,10 +66,10 @@
 - `DisplayEntry`、`DisplaySpan`、`TerminalState`: 将事件投影为最终回答、工具完成行和每轮独立的执行摘要 | 无副作用 | 完整 assistant 消息可在任务验证状态前落屏，不保留或渲染原始 reasoning
 - `TerminalState.draft_answer`、`has_draft`、`draft_revision`：安全投影当前模型回合的临时正文及可见 revision | 进程内状态 | 新 `MODEL_STARTED` 建立草稿边界，不进入会话消息、Evidence 或完成判定
 - `DisplayKind.PARTIAL_AGENT`：标识取消、错误或关闭后固化的有界未完成回答，并以本地生成的警示与截断标签渲染 | 无副作用 | 正文保持 Agent 可读样式，不得按最终 assistant 消息或动态尾部处理，成功 final 不截断
-- `render_entry`、`render_entries`、`render_live_tail_frame`、`status_presentation`、`read_key`: 生成可信 ANSI 转录、Unicode/ASCII 回退、grapheme 安全列宽、候选命令、可接收有界临时 assistant 正文的双区状态尾部和 Windows 原始按键投影 | 无副作用（除读取按键） | 极小高度可把草稿预算降为零，临时正文只位于 composer 上方，且只擦除动态尾部
+- `render_entry`、`render_entries`、`render_live_tail_frame`、`status_presentation`、`read_key`: 生成可信 ANSI 转录、Unicode/ASCII 回退、emoji presentation/grapheme 安全列宽、候选命令和有界临时 assistant 尾部 | 无副作用（除读取按键） | resize 时旧尾清理受当前终端高度约束，极小高度可把草稿预算降为零
 - `TokenRateTracker`: 从首个文本增量开始统计当前模型回合的平均输出速度，并在 usage 到达后以真实 `output_tokens` 校准 | 读取可注入单调时钟 | 不把首字等待时间或输入 token 计入速度
 - `WindowsTerminalApp`: 追加完成条目、继续当前未终结前台任务并维护输入/状态尾部 | 终端 I/O | 模型增量以 dirty/revision 合并重绘，其他事件立即刷新；可恢复的任务启动竞争显示为带内错误
-- `tui_lifecycle`：管理最高 30fps 的脏帧动画、审批/交互监听与关闭清理 | 异步任务/终端重绘 | 关闭时默认拒绝交互、给协作取消有界机会，并把残留草稿本地固化为一次 partial 后清尾
+- `tui_lifecycle`：以确定性帧判定管理最高 30fps 动画、审批/交互监听与关闭清理 | 异步任务/终端重绘 | 关闭先请求 token 取消并完整等待持久 interrupt/checkpoint，再有界等待 runner，把残留草稿本地固化一次
 - `ApprovalBroker`、`load_thread_history`: 提供可取消审批和已保存会话读取 | 异步/SQLite 读取 | 不伪造会话摘要
 - `PickerState`、`PickerItem`：统一命令、会话、模式、Skill、MCP 和插件候选的过滤、键盘选择、补全和禁用原因 | 进程内状态 | `Esc` 取消，不执行候选动作。
 - `skill_picker_items`、`mcp_picker_items`：把 Controller snapshot 转换为共享 Picker 候选和完整命令补全 | 无副作用 | 不把 Skill 正文放入候选，未批准 MCP server 显示禁用原因

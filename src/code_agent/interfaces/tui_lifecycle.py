@@ -31,15 +31,33 @@ async def animate(app: object) -> None:
     while app._run_task and not app._run_task.done():
         now = time.monotonic()
         size = shutil.get_terminal_size((100, 30))
-        geometry_changed = app._drawn_size != (size.columns, size.lines)
-        draft_changed = app._drawn_draft_revision != app.state.draft_revision
-        spinner_due = app.state.status == "running" and now >= app._next_spinner_at
+        redraw, spinner_due = needs_animation_frame(
+            dirty=app._redraw_dirty,
+            drawn_size=app._drawn_size,
+            current_size=(size.columns, size.lines),
+            drawn_revision=app._drawn_draft_revision,
+            current_revision=app.state.draft_revision,
+            status=app.state.status,
+            now=now,
+            spinner_deadline=app._next_spinner_at,
+        )
         if spinner_due:
             app._spinner_index += 1
             app._next_spinner_at = now + _SPINNER_INTERVAL
-        if app._redraw_dirty or geometry_changed or draft_changed or spinner_due:
+        if redraw:
             app.redraw()
         await asyncio.sleep(_FRAME_INTERVAL)
+
+
+def needs_animation_frame(
+    *, dirty: bool, drawn_size: tuple[int, int] | None,
+    current_size: tuple[int, int], drawn_revision: int, current_revision: int,
+    status: str, now: float, spinner_deadline: float,
+) -> tuple[bool, bool]:
+    """Decide one animation tick without sleeping or reading global state."""
+    spinner_due = status == "running" and now >= spinner_deadline
+    changed = drawn_size != current_size or drawn_revision != current_revision
+    return dirty or changed or spinner_due, spinner_due
 
 
 async def listen_approvals(app: object) -> None:
@@ -73,14 +91,15 @@ async def close_tasks(app: object) -> None:
         )
         app._pending_interaction = None
         app._interaction_done.set()
-    await _request_cooperative_stop(app)
     if app._token:
         app._token.cancel("TUI closed")
+    await _await_durable_interrupt(app)
     await _allow_run_to_finish(app)
     if app.state.has_draft:
         app.state._freeze_partial_answer()
         app._flush_pending_entries()
-    app._write(clear_live_tail(app._tail_geometry))
+    height = shutil.get_terminal_size((100, 30)).lines
+    app._write(clear_live_tail(app._tail_geometry, terminal_height=height))
     app._tail_geometry = None
     tasks = (
         app._run_task,
@@ -96,16 +115,10 @@ async def close_tasks(app: object) -> None:
     )
 
 
-async def _request_cooperative_stop(app: object) -> None:
+async def _await_durable_interrupt(app: object) -> None:
     if not app.tasks or not app.active_task_id:
         return
-    try:
-        await asyncio.wait_for(
-            app.tasks.interrupt(app.active_task_id, "TUI closed"),
-            timeout=_CLOSE_GRACE_SECONDS,
-        )
-    except (asyncio.TimeoutError, Exception):
-        return
+    await app.tasks.interrupt(app.active_task_id, "TUI closed")
 
 
 async def _allow_run_to_finish(app: object) -> None:
@@ -115,7 +128,7 @@ async def _allow_run_to_finish(app: object) -> None:
         await asyncio.wait_for(
             asyncio.shield(app._run_task), timeout=_CLOSE_GRACE_SECONDS
         )
-    except (asyncio.TimeoutError, Exception):
+    except (asyncio.CancelledError, Exception):
         return
 
 

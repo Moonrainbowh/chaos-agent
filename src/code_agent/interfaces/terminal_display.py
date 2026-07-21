@@ -86,6 +86,10 @@ def grapheme_width(cluster: str) -> int:
         return 0
     if regex.fullmatch(r"\p{Regional_Indicator}{2}", cluster):
         return 2
+    if "\ufe0f" in cluster or "\u20e3" in cluster:
+        return 2
+    if regex.search(r"\p{Emoji_Presentation}", cluster):
+        return 2
     widths = [_codepoint_width(char) for char in cluster]
     if "\u200d" in cluster or regex.search(r"\p{Extended_Pictographic}", cluster):
         return max(widths, default=0)

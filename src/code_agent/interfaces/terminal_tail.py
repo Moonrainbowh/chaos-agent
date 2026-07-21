@@ -119,7 +119,9 @@ def _normal_frame(
     lines.append(_render_status(status_icon, status, status_context, width, color, status_color))
 
     geometry = LiveTailGeometry(height=len(lines), cursor_row=cursor_row + 1 + len(palette_items) + len(draft_lines))
-    output = _rewrite_tail(lines, geometry.cursor_row, cursor_column + 4, previous)
+    output = _rewrite_tail(
+        lines, geometry.cursor_row, cursor_column + 4, previous, height
+    )
     return LiveTailFrame(output, geometry)
 
 
@@ -137,7 +139,7 @@ def _compact_frame(
         lines.append(clip_display(safe_text(status).replace("\n", " "), width))
     geometry = LiveTailGeometry(len(lines), 0)
     column = min(max(0, width - 1), cursor_column + (2 if width > 1 else 0))
-    return LiveTailFrame(_rewrite_tail(lines, 0, column, previous), geometry)
+    return LiveTailFrame(_rewrite_tail(lines, 0, column, previous, height), geometry)
 
 
 def _visible_input_rows(
@@ -147,20 +149,26 @@ def _visible_input_rows(
     return rows[start:start + budget], cursor_row - start
 
 
-def clear_live_tail(geometry: LiveTailGeometry | None) -> str:
+def clear_live_tail(
+    geometry: LiveTailGeometry | None, *, terminal_height: int | None = None
+) -> str:
     """Erase a rendered dynamic tail and return the cursor to its top row."""
     if geometry is None:
         return "\r\x1b[2K"
+    height = geometry.height
+    if terminal_height is not None:
+        height = min(height, max(1, terminal_height))
+    cursor_row = min(geometry.cursor_row, height - 1)
     parts = ["\r"]
-    if geometry.cursor_row:
-        parts.append(f"\x1b[{geometry.cursor_row}A")
-    for row in range(geometry.height):
+    if cursor_row:
+        parts.append(f"\x1b[{cursor_row}A")
+    for row in range(height):
         parts.append("\x1b[2K")
-        if row < geometry.height - 1:
+        if row < height - 1:
             parts.append("\n\r")
     parts.append("\r")
-    if geometry.height > 1:
-        parts.append(f"\x1b[{geometry.height - 1}A")
+    if height > 1:
+        parts.append(f"\x1b[{height - 1}A")
     return "".join(parts)
 
 
@@ -263,11 +271,18 @@ def _render_status(
     return colorize(left, status_color or DIM_GRAY, color)
 
 
-def _rewrite_tail(lines: list[str], cursor_row: int, cursor_column: int, previous: LiveTailGeometry | None) -> str:
+def _rewrite_tail(
+    lines: list[str], cursor_row: int, cursor_column: int,
+    previous: LiveTailGeometry | None, terminal_height: int,
+) -> str:
     parts = ["\r"]
-    if previous and previous.cursor_row:
-        parts.append(f"\x1b[{previous.cursor_row}A")
-    total_rows = max(len(lines), previous.height if previous else 0)
+    previous_cursor = min(
+        previous.cursor_row if previous else 0, terminal_height - 1
+    )
+    if previous_cursor:
+        parts.append(f"\x1b[{previous_cursor}A")
+    previous_height = min(previous.height if previous else 0, terminal_height)
+    total_rows = min(terminal_height, max(len(lines), previous_height))
     for row in range(total_rows):
         parts.append("\x1b[2K")
         if row < len(lines):

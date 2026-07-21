@@ -164,7 +164,8 @@ class WindowsTerminalApp:
         try: history = await load_thread_history(self.history, thread_id)
         except Exception: self._append(DisplayKind.ERROR, "session restore failed"); return False
         restored = TerminalState(); restored.restore(history); self.state = restored; self.current_thread_id = thread_id
-        self._write(clear_live_tail(self._tail_geometry) + render_entries(restored.entries, 100, theme=self.theme, color=self.color) + "\n\r")
+        height = shutil.get_terminal_size((100, 30)).lines
+        self._write(clear_live_tail(self._tail_geometry, terminal_height=height) + render_entries(restored.entries, 100, theme=self.theme, color=self.color) + "\n\r")
         self._tail_geometry = None; self._flushed_entries = len(restored.entries); return True
     async def _consume(self, text: str, token: CancellationToken) -> None:
         try:
@@ -211,7 +212,8 @@ class WindowsTerminalApp:
         if new:
             previous = self.state.entries[self._flushed_entries - 1] if self._flushed_entries else None
             rendered = render_entries(new, self._columns(), theme=self.theme, color=self.color, previous=previous)
-            self._write(clear_live_tail(self._tail_geometry) + rendered + "\n\r")
+            height = shutil.get_terminal_size((100, 30)).lines
+            self._write(clear_live_tail(self._tail_geometry, terminal_height=height) + rendered + "\n\r")
             self._tail_geometry = None
             self._flushed_entries = len(self.state.entries)
 

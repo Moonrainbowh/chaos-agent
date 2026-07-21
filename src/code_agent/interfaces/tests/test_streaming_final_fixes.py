@@ -5,14 +5,15 @@ import re
 import unittest
 
 from code_agent.core.events import AgentEvent, EventKind
+from code_agent.core.cancellation import CancellationToken
 from code_agent.core.models import Message, ModelEvent, ModelEventKind
 from code_agent.interfaces.approval import ApprovalBroker
 from code_agent.interfaces.controller import AgentController
-from code_agent.interfaces.terminal_display import DisplayKind, display_width
+from code_agent.interfaces.terminal_display import DisplayKind, clip_display, display_width
 from code_agent.interfaces.terminal_state import TerminalState
 from code_agent.interfaces.terminal_tail import render_live_tail_frame
 from code_agent.interfaces.tests._support import FakeEngine
-from code_agent.interfaces.tui_lifecycle import close_tasks
+from code_agent.interfaces.tui_lifecycle import close_tasks, needs_animation_frame
 from code_agent.interfaces.windows_tui import WindowsTerminalApp
 
 
@@ -62,6 +63,20 @@ class StreamingStateBoundaryTests(unittest.TestCase):
 
 
 class StreamingGeometryTests(unittest.TestCase):
+    def test_emoji_presentation_graphemes_have_terminal_width_two(self) -> None:
+        expected = {
+            "©\ufe0f": 2,
+            "1\ufe0f\u20e3": 2,
+            "👩\u200d💻": 2,
+            "🇨🇳": 2,
+            "e\u0301": 1,
+        }
+        for value, width in expected.items():
+            with self.subTest(value=value):
+                self.assertEqual(display_width(value), width)
+        self.assertEqual(clip_display("©\ufe0fx", 1), "")
+        self.assertEqual(clip_display("©\ufe0fx", 2), "©\ufe0f")
+
     def test_combining_graphemes_are_never_split(self) -> None:
         frame = render_live_tail_frame(
             "e\u0301e\u0301", "running", 8,
@@ -110,6 +125,25 @@ class StreamingGeometryTests(unittest.TestCase):
         self.assertNotIn("◆ 正在回答", lines)
         self.assertTrue(all(display_width(line) <= 7 for line in lines))
 
+    def test_resize_to_short_terminal_bounds_previous_tail_cleanup(self) -> None:
+        previous = render_live_tail_frame(
+            "line one\nline two", "running", 40,
+            assistant_draft="\n".join(f"draft {index}" for index in range(20)),
+            terminal_height=12,
+        ).geometry
+
+        for height in (1, 2, 3):
+            with self.subTest(height=height):
+                frame = render_live_tail_frame(
+                    "x", "running", 4,
+                    terminal_height=height,
+                    previous=previous,
+                )
+                upward = [int(value) for value in re.findall(r"\x1b\[(\d+)A", frame.text)]
+                self.assertTrue(all(value <= height - 1 for value in upward))
+                self.assertLessEqual(frame.text.count("\x1b[2K"), height)
+                self.assertLessEqual(frame.text.count("\n\r"), height - 1)
+
 
 class _StubbornTasks:
     def __init__(self) -> None:
@@ -128,7 +162,66 @@ class _CancellingTasks:
         self.run_task.cancel()
 
 
+class _DurableTasks:
+    def __init__(self, token: CancellationToken) -> None:
+        self.token = token
+        self.cancelled = False
+        self.completed = False
+        self.checkpoints: list[str] = []
+        self.token_cancelled_at_start = False
+
+    async def interrupt(self, task_id: str, reason: str) -> None:
+        self.token_cancelled_at_start = self.token.is_cancelled
+        try:
+            await asyncio.sleep(0.15)
+        except asyncio.CancelledError:
+            self.cancelled = True
+            raise
+        self.checkpoints.append(f"{task_id}:INTERRUPTED:{reason}")
+        self.completed = True
+
+
+class _EventingTasks:
+    def __init__(self, state: TerminalState) -> None:
+        self.state = state
+
+    async def interrupt(self, task_id: str, reason: str) -> None:
+        self.state.apply(AgentEvent(EventKind.CANCELLED, {"reason": reason}))
+
+
 class StreamingLifecycleTests(unittest.IsolatedAsyncioTestCase):
+    async def test_close_does_not_duplicate_interrupt_frozen_partial(self) -> None:
+        output: list[str] = []
+        app = WindowsTerminalApp(
+            AgentController(FakeEngine(())), ApprovalBroker(), write=output.append
+        )
+        app.tasks = _EventingTasks(app.state)
+        app.active_task_id = "task-1"
+        app.state.apply(_delta("freeze exactly once"))
+
+        await close_tasks(app)
+
+        partials = [entry for entry in app.state.entries if entry.kind is DisplayKind.PARTIAL_AGENT]
+        self.assertEqual(len(partials), 1)
+        self.assertEqual(app.state.transcript, [])
+
+    async def test_close_awaits_durable_interrupt_beyond_run_grace(self) -> None:
+        token = CancellationToken()
+        tasks = _DurableTasks(token)
+        app = WindowsTerminalApp(
+            AgentController(FakeEngine(())), ApprovalBroker(),
+            tasks=tasks, write=lambda _: None,
+        )
+        app._token = token
+        app.active_task_id = "task-1"
+
+        await close_tasks(app)
+
+        self.assertTrue(tasks.token_cancelled_at_start)
+        self.assertFalse(tasks.cancelled)
+        self.assertTrue(tasks.completed)
+        self.assertEqual(tasks.checkpoints, ["task-1:INTERRUPTED:TUI closed"])
+
     async def test_close_tasks_accepts_cooperative_run_task_cancellation(self) -> None:
         tasks = _CancellingTasks()
         app = WindowsTerminalApp(
@@ -166,27 +259,37 @@ class StreamingLifecycleTests(unittest.IsolatedAsyncioTestCase):
         plain = _ANSI.sub("", "".join(output))
         self.assertEqual(plain.count("未完成回答"), 1)
 
-    async def test_animation_does_not_rewrite_unchanged_draft_at_30_fps(self) -> None:
-        release = asyncio.Event()
-
-        class GatedEngine:
-            async def run(self, *_: object, **__: object):
-                yield _delta("stable draft")
-                await release.wait()
-                yield AgentEvent(EventKind.COMPLETED, {})
-
-        output: list[str] = []
-        app = WindowsTerminalApp(
-            AgentController(GatedEngine()), ApprovalBroker(), write=output.append
+    def test_animation_decision_is_false_for_an_unchanged_frame(self) -> None:
+        unchanged = needs_animation_frame(
+            dirty=False,
+            drawn_size=(80, 24),
+            current_size=(80, 24),
+            drawn_revision=4,
+            current_revision=4,
+            status="running",
+            now=10.0,
+            spinner_deadline=11.0,
         )
-        await app.submit("inspect")
-        app._next_spinner_at = float("inf")
-        await asyncio.sleep(0.06)
-        settled_count = len(output)
-        await asyncio.sleep(0.02)
-        self.assertEqual(len(output), settled_count)
-        release.set()
-        await app.wait_idle()
+        self.assertEqual(unchanged, (False, False))
+
+        for changed in (
+            {"dirty": True},
+            {"current_size": (79, 24)},
+            {"current_revision": 5},
+            {"now": 11.0},
+        ):
+            arguments = {
+                "dirty": False,
+                "drawn_size": (80, 24),
+                "current_size": (80, 24),
+                "drawn_revision": 4,
+                "current_revision": 4,
+                "status": "running",
+                "now": 10.0,
+                "spinner_deadline": 11.0,
+            }
+            arguments.update(changed)
+            self.assertTrue(needs_animation_frame(**arguments)[0])
 
 
 if __name__ == "__main__":
