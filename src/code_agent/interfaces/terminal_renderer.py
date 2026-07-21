@@ -28,13 +28,13 @@ class Theme(str, Enum):
 
 
 _MARKERS = {
-    DisplayKind.USER: ">", DisplayKind.AGENT: "*", DisplayKind.TOOL: ":",
+    DisplayKind.USER: ">", DisplayKind.AGENT: "*", DisplayKind.PARTIAL_AGENT: "!", DisplayKind.TOOL: ":",
     DisplayKind.SUCCESS: "+", DisplayKind.WARNING: "!", DisplayKind.ERROR: "x",
     DisplayKind.METADATA: ".", DisplayKind.DIFF_ADD: "+", DisplayKind.DIFF_REMOVE: "-",
 }
 _SYMBOLS = {**_MARKERS, DisplayKind.USER: "›", DisplayKind.AGENT: "◆", DisplayKind.TOOL: "↳", DisplayKind.SUCCESS: "✓", DisplayKind.ERROR: "×"}
 _COLORS = {
-    DisplayKind.USER: BRAND_CYAN, DisplayKind.AGENT: BRAND_CYAN,
+    DisplayKind.USER: BRAND_CYAN, DisplayKind.AGENT: BRAND_CYAN, DisplayKind.PARTIAL_AGENT: WARNING_YELLOW,
     DisplayKind.TOOL: TOOL_GRAY, DisplayKind.SUCCESS: SUCCESS_GREEN,
     DisplayKind.WARNING: WARNING_YELLOW, DisplayKind.ERROR: ERROR_RED,
     DisplayKind.METADATA: DIM_GRAY, DisplayKind.DIFF_ADD: BRAND_CYAN,
@@ -199,7 +199,7 @@ def _style_line(leader: str, value: str, code: str | None, color: ColorMode, *, 
         body_code = BRAND_CYAN
     elif kind is DisplayKind.SUCCESS:
         body_code = SUCCESS_GREEN
-    elif kind in {DisplayKind.USER, DisplayKind.AGENT}:
+    elif kind in {DisplayKind.USER, DisplayKind.AGENT, DisplayKind.PARTIAL_AGENT}:
         body_code = BODY_WHITE
     elif kind is DisplayKind.TOOL:
         body_code = TOOL_GRAY

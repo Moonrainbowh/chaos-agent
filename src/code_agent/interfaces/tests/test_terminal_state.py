@@ -37,6 +37,52 @@ def _text_delta(text: str) -> AgentEvent:
     return AgentEvent(EventKind.MODEL_EVENT, {"event": ModelEvent(ModelEventKind.TEXT_DELTA, text=text).to_dict()})
 
 
+def _restored_thread() -> RestoredThread:
+    return RestoredThread(
+        thread_id="thread-1",
+        messages=(Message(role="user", content="inspect"), Message(role="assistant", content="done"), Message(role="tool", name="read_file", content="raw output")),
+        events=(
+            AgentEvent(
+                EventKind.ACTION_REQUESTED,
+                {
+                    "request": {
+                        "id": "call-1",
+                        "name": "read_file",
+                        "arguments": {"diff": "--- a/x\n+++ b/x"},
+                    }
+                },
+            ),
+            AgentEvent(
+                EventKind.ACTION_COMPLETED,
+                {
+                    "result": ActionResult(
+                        request_id="call-1",
+                        name="read_file",
+                        output={"content": "x"},
+                    ).to_dict()
+                },
+            ),
+            AgentEvent(EventKind.COMPLETED, {"thread_id": "thread-1"}),
+        ),
+        goals=(
+            GoalRecord(
+                id="goal-1",
+                thread_id="thread-1",
+                objective="inspect repository",
+                status=GoalStatus.ACTIVE,
+            ),
+        ),
+        checkpoints=(
+            CheckpointRecord(
+                id="checkpoint-1",
+                thread_id="thread-1",
+                label="before edits",
+                created_at=datetime(2026, 7, 11, tzinfo=timezone.utc),
+            ),
+        ),
+    )
+
+
 class TerminalStateTests(unittest.TestCase):
     def test_context_and_model_lifecycle_have_distinct_running_phases(self) -> None:
         state = TerminalState()
@@ -53,6 +99,7 @@ class TerminalStateTests(unittest.TestCase):
     def test_action_request_takes_precedence_over_waiting_for_model(self) -> None:
         state = TerminalState()
         state.apply(AgentEvent(EventKind.MODEL_STARTED, {}))
+        state.apply(_text_delta("discard me"))
 
         state.apply(
             AgentEvent(
@@ -69,6 +116,8 @@ class TerminalStateTests(unittest.TestCase):
 
         self.assertEqual(state.status, "running")
         self.assertEqual(state.active_action, "read_file")
+        self.assertFalse(state.has_draft)
+        self.assertFalse(any(entry.kind is DisplayKind.PARTIAL_AGENT for entry in state.entries))
 
     def test_user_pause_cancellation_is_not_presented_as_an_error(self) -> None:
         state = TerminalState()
@@ -98,63 +147,13 @@ class TerminalStateTests(unittest.TestCase):
 
     def test_restore_projects_persisted_thread_state(self) -> None:
         state = TerminalState()
-        history = RestoredThread(
-            thread_id="thread-1",
-            messages=(
-                Message(role="user", content="inspect"),
-                Message(role="assistant", content="done"),
-                Message(role="tool", name="read_file", content="raw output"),
-            ),
-            events=(
-                AgentEvent(
-                    EventKind.ACTION_REQUESTED,
-                    {
-                        "request": {
-                            "id": "call-1",
-                            "name": "read_file",
-                            "arguments": {"diff": "--- a/x\n+++ b/x"},
-                        }
-                    },
-                ),
-                AgentEvent(
-                    EventKind.ACTION_COMPLETED,
-                    {
-                        "result": ActionResult(
-                            request_id="call-1",
-                            name="read_file",
-                            output={"content": "x"},
-                        ).to_dict()
-                    },
-                ),
-                AgentEvent(EventKind.COMPLETED, {"thread_id": "thread-1"}),
-            ),
-            goals=(
-                GoalRecord(
-                    id="goal-1",
-                    thread_id="thread-1",
-                    objective="inspect repository",
-                    status=GoalStatus.ACTIVE,
-                ),
-            ),
-            checkpoints=(
-                CheckpointRecord(
-                    id="checkpoint-1",
-                    thread_id="thread-1",
-                    label="before edits",
-                    created_at=datetime(2026, 7, 11, tzinfo=timezone.utc),
-                ),
-            ),
-        )
-
-        state.restore(history)
+        state.restore(_restored_thread())
 
         self.assertEqual(state.thread_id, "thread-1")
         self.assertEqual(state.status, "completed")
         self.assertEqual(state.summary[0], "goal: inspect repository")
         self.assertEqual(state.transcript, ["user: inspect", "assistant: done"])
-        self.assertEqual(
-            state.timeline[-2:], ["requested read_file", "completed read_file"]
-        )
+        self.assertEqual(state.timeline[-2:], ["requested read_file", "completed read_file"])
 
     def test_restore_uses_first_user_message_when_no_goal_exists(self) -> None:
         state = TerminalState()

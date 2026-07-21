@@ -64,7 +64,7 @@
 - `InputBuffer`: 编辑原始 Windows 键盘输入、多行光标、历史与清空快捷键 | 进程内状态 | `Enter` 提交、`Ctrl+J` 换行，不接管终端选择和回滚
 - `DisplayEntry`、`DisplaySpan`、`TerminalState`: 将事件投影为最终回答、工具完成行和每轮独立的执行摘要 | 无副作用 | 完整 assistant 消息可在任务验证状态前落屏，不保留或渲染原始 reasoning
 - `TerminalState.draft_answer`、`has_draft`：投影当前模型回合的临时正文 | 进程内状态 | 不进入会话消息、Evidence 或完成判定
-- `DisplayKind.PARTIAL_AGENT`：标识取消或错误后固化的未完成回答 | 无副作用 | 不得按最终 assistant 消息处理
+- `DisplayKind.PARTIAL_AGENT`：标识取消或错误后固化的未完成回答，并以静态警示标记渲染 | 无副作用 | 不得按最终 assistant 消息或动态尾部处理
 - `render_entry`、`render_entries`、`render_live_tail_frame`、`status_presentation`、`read_key`: 生成可信 ANSI 转录、Unicode/ASCII 回退、列宽自适应 Markdown、候选命令、双区状态尾部和 Windows 原始按键投影 | 无副作用（除读取按键） | 只擦除动态尾部，无全屏清除或鼠标跟踪序列
 - `TokenRateTracker`: 从首个文本增量开始统计当前模型回合的平均输出速度，并在 usage 到达后以真实 `output_tokens` 校准 | 读取可注入单调时钟 | 不把首字等待时间或输入 token 计入速度
 - `WindowsTerminalApp`: 追加完成条目、继续当前未终结前台任务并维护输入/状态尾部 | 终端 I/O | 可恢复的任务启动竞争显示为带内错误，不退出 TUI；不接管终端的选择或回滚

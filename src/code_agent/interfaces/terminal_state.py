@@ -107,13 +107,7 @@ class TerminalState:
         elif event.kind is EventKind.MESSAGE_ADDED:
             self._apply_completed_message(event)
         elif event.kind is EventKind.ACTION_REQUESTED:
-            self._capture_diff(event)
-            self._answer_parts = []
-            self.status = "running"
-            self.active_action = _action_name(event)
-            request = event.payload.get("request")
-            if isinstance(request, Mapping) and isinstance(request.get("id"), str):
-                self._action_requests[request["id"]] = request
+            self._apply_action_request(event)
         elif event.kind is EventKind.ACTION_COMPLETED:
             line = _timeline_line(event)
             name = _action_name(event)
@@ -129,6 +123,15 @@ class TerminalState:
             self._update_status(event)
         if event.kind is EventKind.COMPLETED:
             self._finish_display()
+
+    def _apply_action_request(self, event: AgentEvent) -> None:
+        self._capture_diff(event)
+        self._answer_parts = []
+        self.status = "running"
+        self.active_action = _action_name(event)
+        request = event.payload.get("request")
+        if isinstance(request, Mapping) and isinstance(request.get("id"), str):
+            self._action_requests[request["id"]] = request
 
     def _update_status(self, event: AgentEvent) -> None:
         if event.kind is EventKind.CANCELLED:
