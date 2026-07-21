@@ -139,6 +139,15 @@ class GitWorkspace:
         self._require_success("status", result)
         return _decode(result.stdout)
 
+    def snapshot_paths(self) -> tuple[str, ...]:
+        """Return tracked and non-ignored untracked paths for a snapshot."""
+        result = self._invoke(
+            "snapshot_paths",
+            ("ls-files", "-z", "--cached", "--others", "--exclude-standard"),
+        )
+        self._require_success("snapshot_paths", result)
+        return tuple(sorted(_decode_path_list(result.stdout)))
+
     def diff(self, paths: Iterable[PathInput] = ()) -> str:
         """Return a safe built-in Git diff, optionally restricted to paths."""
         if isinstance(paths, (str, os.PathLike)):
@@ -167,24 +176,7 @@ class GitWorkspace:
             "--literal-pathspecs",
             *arguments,
         )
-        try:
-            process = subprocess.Popen(
-                list(argv),
-                cwd=self.root,
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                shell=False,
-                bufsize=0,
-            )
-        except OSError as error:
-            raise GitCommandError(
-                operation,
-                argv,
-                None,
-                str(error),
-                f"git {operation} could not start: {error}",
-            ) from error
+        process = self._start_process(operation, argv)
         capture = collect_bounded_output(
             process, self.max_output_bytes, self.timeout_s
         )
@@ -221,6 +213,28 @@ class GitWorkspace:
             argv, capture.returncode, capture.stdout, capture.stderr
         )
 
+    def _start_process(
+        self, operation: str, argv: tuple[str, ...]
+    ) -> subprocess.Popen[bytes]:
+        try:
+            return subprocess.Popen(
+                list(argv),
+                cwd=self.root,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                shell=False,
+                bufsize=0,
+            )
+        except OSError as error:
+            raise GitCommandError(
+                operation,
+                argv,
+                None,
+                str(error),
+                f"git {operation} could not start: {error}",
+            ) from error
+
     @staticmethod
     def _require_success(operation: str, result: _GitResult) -> None:
         if result.returncode == 0:
@@ -240,3 +254,18 @@ class GitWorkspace:
 
 def _decode(value: bytes) -> str:
     return value.decode("utf-8", errors="replace")
+
+
+def _decode_path_list(value: bytes) -> tuple[str, ...]:
+    if not value:
+        return ()
+    try:
+        return tuple(part.decode("utf-8") for part in value.split(b"\0") if part)
+    except UnicodeDecodeError as error:
+        raise GitCommandError(
+            "snapshot_paths",
+            (),
+            None,
+            "invalid UTF-8 path",
+            "git snapshot_paths returned an undecodable path",
+        ) from error

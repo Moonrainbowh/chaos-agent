@@ -13,7 +13,12 @@ SRC_ROOT = Path(__file__).resolve().parents[3]
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from code_agent.workspace.edits import WorkspaceEditor  # noqa: E402
+from code_agent.workspace.edits import (  # noqa: E402
+    SnapshotEntry,
+    WorkspaceEditor,
+    WorkspaceSnapshot,
+    build_restore_snapshot,
+)
 from code_agent.workspace.errors import (  # noqa: E402
     EditConflictError,
     FileTooLargeError,
@@ -146,6 +151,64 @@ class AtomicApplyTests(WorkspaceEditorTestCase):
 
 
 class SnapshotTests(WorkspaceEditorTestCase):
+    def test_restore_plan_adds_sorted_tombstones_for_new_files(self) -> None:
+        target = WorkspaceSnapshot((SnapshotEntry("kept.py", b"old", True),))
+
+        restore = build_restore_snapshot(("kept.py", "created.py"), target)
+
+        self.assertEqual(
+            [(entry.relative_path, entry.existed) for entry in restore.entries],
+            [("created.py", False), ("kept.py", True)],
+        )
+
+    def test_restore_plan_rejects_duplicate_current_or_target_paths(self) -> None:
+        target = WorkspaceSnapshot(
+            (
+                SnapshotEntry("same.py", b"one", True),
+                SnapshotEntry("same.py", b"two", True),
+            )
+        )
+
+        with self.assertRaisesRegex(ValueError, "duplicate target path"):
+            build_restore_snapshot(("same.py",), target)
+        with self.assertRaisesRegex(ValueError, "duplicate current path"):
+            build_restore_snapshot(("same.py", "same.py"), WorkspaceSnapshot(()))
+
+    def test_snapshot_entry_rejects_non_byte_blob(self) -> None:
+        with self.assertRaisesRegex(TypeError, "content must be bytes"):
+            SnapshotEntry("bad.py", "text", True)  # type: ignore[arg-type]
+
+    def test_restore_preflights_every_parent_before_writing(self) -> None:
+        first = self.root / "first.py"
+        first.write_bytes(b"before")
+        snapshot = WorkspaceSnapshot(
+            (
+                SnapshotEntry("first.py", b"after", True),
+                SnapshotEntry("missing/last.py", b"last", True),
+            )
+        )
+
+        with self.assertRaisesRegex(WorkspaceError, "parent directory"):
+            self.editor.restore(snapshot)
+
+        self.assertEqual(first.read_bytes(), b"before")
+
+    def test_restore_preflights_every_delete_target_before_writing(self) -> None:
+        first = self.root / "first.py"
+        first.write_bytes(b"before")
+        (self.root / "directory").mkdir()
+        snapshot = WorkspaceSnapshot(
+            (
+                SnapshotEntry("first.py", b"after", True),
+                SnapshotEntry("directory", None, False),
+            )
+        )
+
+        with self.assertRaisesRegex(WorkspaceError, "not a file"):
+            self.editor.restore(snapshot)
+
+        self.assertEqual(first.read_bytes(), b"before")
+
     def test_snapshot_stat_precheck_rejects_before_read_bytes(self) -> None:
         (self.root / "large.bin").write_bytes(b"123456")
 

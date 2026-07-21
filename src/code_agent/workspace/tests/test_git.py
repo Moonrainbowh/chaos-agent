@@ -17,6 +17,7 @@ from code_agent.workspace.errors import PathOutsideWorkspace, WorkspaceError  # 
 from code_agent.workspace.git import (  # noqa: E402
     GitCommandError,
     GitWorkspace,
+    _decode_path_list,
 )
 
 
@@ -145,6 +146,24 @@ class GitRepositoryTests(GitWorkspaceTestCase):
 
         with self.assertRaises(PathOutsideWorkspace):
             GitWorkspace(self.root).diff((outside,))
+
+    def test_snapshot_paths_include_deleted_tracked_and_nonignored_untracked(self) -> None:
+        self.initialize_repository()
+        (self.root / "tracked.txt").unlink()
+        (self.root / "visible.py").write_bytes(b"new")
+        (self.root / "ignored.tmp").write_bytes(b"cache")
+        (self.root / ".gitignore").write_text("*.tmp\n", encoding="utf-8")
+
+        paths = GitWorkspace(self.root).snapshot_paths()
+
+        self.assertEqual(paths, (".gitignore", "tracked.txt", "visible.py"))
+
+    def test_snapshot_path_decoder_rejects_non_utf8_git_output(self) -> None:
+        with self.assertRaisesRegex(GitCommandError, "undecodable path") as raised:
+            _decode_path_list(b"valid.py\0\xff.py\0")
+
+        self.assertEqual(raised.exception.operation, "snapshot_paths")
+        self.assertEqual(raised.exception.stderr, "invalid UTF-8 path")
 
 
 if __name__ == "__main__":

@@ -23,8 +23,10 @@
 - `WorkspaceFiles.read_text(...): TextDocument`：按包含式行范围读取 UTF-8/UTF-8 BOM 文本 | 读取单个文件 | 拒绝二进制与超限文件
 - `WorkspaceFiles.search(...): tuple[SearchMatch, ...]`：在有限扫描预算和全局 deadline 内执行 literal/regex 文本搜索 | deadline 覆盖目录枚举与文件匹配 | 超时不返回部分结果
 - `WorkspaceEditor`: 有界读取现有文件，生成写入/单次替换 Diff 并校验哈希后原子应用 | 单文件同目录临时写入与替换
-- `WorkspaceSnapshot`: 复制受保护路径的原始字节并恢复创建、更新与删除 | 多文件逐项原子恢复 | 不承诺多文件事务原子性
-- `GitWorkspace`: 提供有界的仓库检测、porcelain 状态和 literal-pathspec Diff | 固定解析 Git 并并行流式读取输出 | 超限或超时终止进程，不提供任意 Git 命令入口
+- `WorkspaceSnapshot`: 复制受保护路径的原始字节并恢复创建、更新与删除 | 完成全量路径、blob 与父目录预检后多文件逐项原子恢复 | 不承诺多文件事务原子性
+- `GitWorkspace`: 提供有界的仓库检测、porcelain 状态、snapshot path 与 literal-pathspec Diff | 固定解析 Git 并并行流式读取输出 | 超限、超时或非法 UTF-8 路径显式失败，不提供任意 Git 命令入口
+- `WorkspaceInventory.capture(...)`、`workspace_fingerprint(...)`：枚举并摘要合规 tracked/untracked 代码状态 | 有界 Git 与文件读取 | 排除 ignored、敏感、链接/reparse 与越界路径
+- `build_restore_snapshot(current_paths, target)`：为完整目标 manifest 补充新增文件 tombstone | 无副作用 | 所有路径在恢复前预检
 
 ## 环境依赖
 - 运行：Python 3.10+ 与 PyPI `regex`（为用户正则提供单次匹配 timeout）。
