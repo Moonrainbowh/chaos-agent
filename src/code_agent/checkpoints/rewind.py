@@ -3,7 +3,6 @@ from __future__ import annotations
 import uuid
 from collections import OrderedDict
 
-from code_agent.core.task import TaskStatus
 from code_agent.sessions.workspace_models import (
     RewindMode,
     RewindOperationStatus,
@@ -13,8 +12,7 @@ from code_agent.workspace._snapshot_manifest import MaterializedSnapshot
 from code_agent.workspace.inventory import WorkspaceInventory
 
 from .models import (
-    MAX_PREVIEW_PATHS,
-    MAX_PREVIEW_PATH_BYTES,
+    bounded_paths,
     RewindConfirmationRequired,
     RewindConflict,
     RewindError,
@@ -124,12 +122,20 @@ class RewindCoordinator:
         rollback = await self.checkpoints._capture_locked(
             preview.task_id, "pre-rewind", preview.lineage_id
         )
+        await self._require_rollback_checkpoint(rollback.id)
         operation = await self.sessions.begin_rewind(preview, rollback.id)
         effects = RewindEffects()
         try:
             target = await self._require_untampered(preview)
             replacement = await self._apply(preview, target, effects)
-            await self.sessions.complete_rewind(operation.id, replacement)
+            await self.recovery.invalidate(preview.task_id, replacement)
+            if preview.mode in _SESSION_MODES:
+                assert replacement is not None
+                await self.sessions.complete_session_rewind(
+                    operation.id, preview.task_id, replacement
+                )
+            else:
+                await self.sessions.complete_rewind(operation.id)
         except Exception as error:
             self.recovery.block_lineage = self.block_lineage
             await self.recovery.compensate(
@@ -138,7 +144,6 @@ class RewindCoordinator:
             if isinstance(error, RewindError):
                 raise
             raise RewindError("rewind execution failed") from error
-        await self.recovery.invalidate(preview.task_id, effects.replacement_task_id)
         return RewindResult(
             operation.id, preview.task_id, effects.replacement_task_id,
             RewindOperationStatus.COMPLETED,
@@ -182,19 +187,14 @@ class RewindCoordinator:
             await self.workspace.restore(preview.checkpoint_id, materialized, current.paths)
             await self._require_digest(target.inventory_digest)
         if preview.mode in _SESSION_MODES:
-            replacement = await self.sessions.fork_task_from_checkpoint(
-                preview.checkpoint_id
-            )
-            effects.replacement_task_id = replacement.id
-            await self.sessions.transition_task(replacement.id, TaskStatus.PAUSED)
-            await self.sessions.transfer_lineage_owner(
-                preview.lineage_id, preview.task_id, replacement.id
-            )
-            effects.owner_transferred = True
-            await self.sessions.transition_task(
-                preview.task_id, TaskStatus.SUPERSEDED, "replaced by rewind"
-            )
+            effects.replacement_task_id = uuid.uuid4().hex
         return effects.replacement_task_id
+
+    async def _require_rollback_checkpoint(self, checkpoint_id: str) -> None:
+        rollback = await self.sessions.load_workspace_snapshot(checkpoint_id)
+        if rollback is None:
+            raise RewindUnavailable("pre-rewind checkpoint code is unavailable")
+        await self._materialize(rollback)
 
     async def recover_pending(self) -> tuple[RewindResult, ...]:
         return await self.recovery.recover_pending()
@@ -253,17 +253,5 @@ def _preview_counts(
     )
     delete = tuple(path for path in current_by_path if path not in target_by_path)
     total = sum(target_by_path[path].size for path in restore)
-    paths = _bounded_paths(tuple(sorted((*restore, *delete))))
+    paths = bounded_paths(tuple(sorted((*restore, *delete))))
     return len(restore), len(delete), total, paths
-
-
-def _bounded_paths(paths: tuple[str, ...]) -> tuple[str, ...]:
-    shown: list[str] = []
-    used = 0
-    for path in paths[:MAX_PREVIEW_PATHS]:
-        size = len(path.encode("utf-8"))
-        if used + size > MAX_PREVIEW_PATH_BYTES:
-            break
-        shown.append(path)
-        used += size
-    return tuple(shown)

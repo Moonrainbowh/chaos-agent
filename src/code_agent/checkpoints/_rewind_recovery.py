@@ -10,11 +10,11 @@ from code_agent.sessions.workspace_models import (
 )
 
 from .models import (
-    MAX_PREVIEW_PATHS,
     RewindError,
     RewindPreview,
     RewindRecoveryRequired,
     RewindResult,
+    bounded_paths,
 )
 from .ports import (
     BlockLineage,
@@ -31,7 +31,6 @@ from .ports import (
 class RewindEffects:
     code_attempted: bool = False
     replacement_task_id: str | None = None
-    owner_transferred: bool = False
 
 
 class RewindRecovery:
@@ -65,12 +64,11 @@ class RewindRecovery:
     ) -> None:
         paths: tuple[str, ...] = ()
         try:
-            await self._restore_owner(preview, effects)
             if effects.code_attempted:
                 paths = await self.restore_checkpoint(rollback.id)
-            await self.sessions.fail_rewind(operation.id, error_code(error))
             if effects.code_attempted:
                 await self.invalidate(preview.task_id, None)
+            await self.sessions.fail_rewind(operation.id, error_code(error))
         except Exception as rollback_error:
             paths = (
                 paths
@@ -81,14 +79,6 @@ class RewindRecovery:
                 operation.id, preview.lineage_id, paths, rollback_error
             )
             raise RewindRecoveryRequired(paths) from error
-
-    async def _restore_owner(
-        self, preview: RewindPreview, effects: RewindEffects
-    ) -> None:
-        if effects.owner_transferred and effects.replacement_task_id is not None:
-            await self.sessions.transfer_lineage_owner(
-                preview.lineage_id, effects.replacement_task_id, preview.task_id
-            )
 
     async def recover_pending(self) -> tuple[RewindResult, ...]:
         results: list[RewindResult] = []
@@ -110,8 +100,8 @@ class RewindRecovery:
             if operation.rollback_checkpoint_id is None:
                 raise RewindError("pending rewind has no rollback checkpoint")
             paths = await self.restore_checkpoint(operation.rollback_checkpoint_id)
-            await self.sessions.fail_rewind(operation.id, "crash_recovery")
             await self.invalidate(task_id, None)
+            await self.sessions.fail_rewind(operation.id, "crash_recovery")
             return RewindResult(
                 operation.id, task_id, None, RewindOperationStatus.ROLLED_BACK
             )
@@ -126,9 +116,7 @@ class RewindRecovery:
         snapshot = await self.sessions.load_workspace_snapshot(checkpoint_id)
         if snapshot is None:
             raise RewindError("rollback checkpoint code is unavailable")
-        paths = tuple(entry.relative_path for entry in snapshot.entries)[
-            :MAX_PREVIEW_PATHS
-        ]
+        paths = bounded_paths(tuple(entry.relative_path for entry in snapshot.entries))
         try:
             materialized = await self.workspace.materialize(snapshot)
             current = await self.workspace.inventory()

@@ -12,6 +12,21 @@ _IDENTIFIER = re.compile(r"[0-9a-f]{32}\Z")
 _DIGEST = re.compile(r"[0-9a-f]{64}\Z")
 
 
+def bounded_paths(paths: tuple[str, ...]) -> tuple[str, ...]:
+    """Bound diagnostic paths by both count and encoded display bytes."""
+    shown: list[str] = []
+    used = 0
+    for path in paths[:MAX_PREVIEW_PATHS]:
+        if not isinstance(path, str) or not path:
+            raise TypeError("diagnostic paths must be non-blank text")
+        size = len(path.encode("utf-8"))
+        if used + size > MAX_PREVIEW_PATH_BYTES:
+            break
+        shown.append(path)
+        used += size
+    return tuple(shown)
+
+
 class CheckpointError(Exception):
     """Base error for checkpoint orchestration."""
 
@@ -36,8 +51,8 @@ class RewindRecoveryRequired(RewindError):
     """Raised when compensation cannot prove that the lineage is safe."""
 
     def __init__(self, paths: tuple[str, ...] = ()) -> None:
-        self.paths = paths
-        suffix = "" if not paths else f": {', '.join(paths)}"
+        self.paths = bounded_paths(paths)
+        suffix = "" if not self.paths else f": {', '.join(self.paths)}"
         super().__init__(f"rewind recovery required{suffix}")
 
 

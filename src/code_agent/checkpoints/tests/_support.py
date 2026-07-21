@@ -116,6 +116,8 @@ class FakeSessions:
         self.fail_fork = False
         self.fail_complete = False
         self.replacements: dict[str, TaskRecord] = {}
+        self.atomic_session_calls: list[tuple[str, str, str]] = []
+        self.completion_order: list[str] = []
 
     async def load_task(self, task_id: str) -> TaskRecord:
         if task_id == self.task.id:
@@ -193,12 +195,29 @@ class FakeSessions:
     async def complete_rewind(self, operation_id: str, replacement_task_id=None):
         if self.fail_complete:
             raise RuntimeError("complete failed")
+        self.completion_order.append("complete")
         record = replace(
             self.operations[operation_id], status=RewindOperationStatus.COMPLETED,
             replacement_task_id=replacement_task_id,
         )
         self.operations[operation_id] = record
         return record
+
+    async def complete_session_rewind(
+        self, operation_id: str, source_task_id: str, replacement_task_id: str
+    ):
+        self.atomic_session_calls.append(
+            (operation_id, source_task_id, replacement_task_id)
+        )
+        if self.fail_fork or self.fail_complete:
+            raise RuntimeError("atomic session rewind failed")
+        replacement = TaskRecord(
+            replacement_task_id, identifier(), self.task.contract
+        ).transition(TaskStatus.PAUSED)
+        self.replacements[replacement.id] = replacement
+        self.lineage = replace(self.lineage, owner_task_id=replacement.id)
+        self.task = self.task.transition(TaskStatus.SUPERSEDED, "replaced by rewind")
+        return await self.complete_rewind(operation_id, replacement.id)
 
     async def fail_rewind(self, operation_id: str, error_code: str, *, recovery_required=False):
         status = (RewindOperationStatus.RECOVERY_REQUIRED if recovery_required

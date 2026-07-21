@@ -77,6 +77,50 @@ class RewindCoordinatorTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.invalidations, [()])
         self.assertEqual(self.verification, [(self.sessions.task.id, None)])
 
+    async def test_invalidation_precedes_completed_terminal_state(self) -> None:
+        order = self.sessions.completion_order
+        coordinator = RewindCoordinator(
+            self.sessions,
+            self.workspace,
+            self.service,
+            self.service.quiesce,
+            self.locks,
+            lambda _: order.append("cache"),
+            lambda *_: order.append("verification"),
+        )
+        preview = await coordinator.preview(
+            self.sessions.task.id, self.target.id, RewindMode.CODE
+        )
+
+        await coordinator.execute(preview, confirmed=True)
+
+        self.assertEqual(order, ["cache", "verification", "complete"])
+
+    async def test_invalidation_failure_never_leaves_completed_operation(self) -> None:
+        def fail_invalidation(_: tuple[str, ...]) -> None:
+            raise RuntimeError("cache invalidation failed")
+
+        coordinator = RewindCoordinator(
+            self.sessions,
+            self.workspace,
+            self.service,
+            self.service.quiesce,
+            self.locks,
+            fail_invalidation,
+            lambda *_: None,
+        )
+        preview = await coordinator.preview(
+            self.sessions.task.id, self.target.id, RewindMode.CODE
+        )
+
+        with self.assertRaises(RewindRecoveryRequired):
+            await coordinator.execute(preview, confirmed=True)
+
+        self.assertEqual(
+            self.sessions.operations[preview.operation_id].status,
+            RewindOperationStatus.RECOVERY_REQUIRED,
+        )
+
     async def test_combined_fork_failure_rolls_back_changed_code(self) -> None:
         preview = await self.coordinator.preview(
             self.sessions.task.id, self.target.id, RewindMode.CODE_AND_SESSION
@@ -90,6 +134,18 @@ class RewindCoordinatorTests(unittest.IsolatedAsyncioTestCase):
             RewindOperationStatus.ROLLED_BACK,
         )
 
+    async def test_unavailable_pre_rewind_never_begins_or_mutates(self) -> None:
+        preview = await self.coordinator.preview(
+            self.sessions.task.id, self.target.id, RewindMode.CODE
+        )
+        self.workspace.inventory_failure = FileTooLargeError("rollback limit")
+
+        with self.assertRaises(RewindUnavailable):
+            await self.coordinator.execute(preview, confirmed=True)
+
+        self.assertEqual(self.sessions.operations, {})
+        self.assertEqual(self.workspace.restore_calls, [])
+
     async def test_session_rewind_transfers_owner_and_supersedes_old_task(self) -> None:
         preview = await self.coordinator.preview(
             self.sessions.task.id, self.target.id, RewindMode.SESSION
@@ -98,6 +154,7 @@ class RewindCoordinatorTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(result.replacement_task_id)
         self.assertEqual(self.sessions.task.status, TaskStatus.SUPERSEDED)
         self.assertEqual(self.sessions.lineage.owner_task_id, result.replacement_task_id)
+        self.assertEqual(len(self.sessions.atomic_session_calls), 1)
 
     async def test_session_preview_remains_legal_when_code_is_unavailable(self) -> None:
         self.workspace.inventory_failure = FileTooLargeError("limit")
@@ -166,7 +223,25 @@ class RewindCoordinatorTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(self.sessions.lineage.status.value, "recovery_required")
         self.assertTrue(blocked)
-        self.assertEqual(self.invalidations, [])
+        self.assertEqual(self.invalidations, [()])
+
+    async def test_recovery_paths_obey_count_and_utf8_byte_limits(self) -> None:
+        self.workspace.files = {
+            f"{index:03}-{'x' * 190}": b"x" for index in range(100)
+        }
+        preview = await self.coordinator.preview(
+            self.sessions.task.id, self.target.id, RewindMode.CODE_AND_SESSION
+        )
+        self.sessions.fail_fork = True
+        self.workspace.fail_restore_at = 2
+
+        with self.assertRaises(RewindRecoveryRequired) as raised:
+            await self.coordinator.execute(preview, confirmed=True)
+
+        paths = raised.exception.paths
+        self.assertLessEqual(len(paths), 100)
+        self.assertLessEqual(sum(len(path.encode("utf-8")) for path in paths), 16_384)
+        self.assertLessEqual(len(str(raised.exception).encode("utf-8")), 17_000)
 
     async def test_pending_recovery_always_restores_rollback_and_marks_rolled_back(self) -> None:
         preview = await self.coordinator.preview(

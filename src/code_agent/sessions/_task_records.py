@@ -3,14 +3,12 @@ from __future__ import annotations
 import json
 import sqlite3
 import uuid
-from typing import cast
 
 from code_agent.core.models import ActionRequest, ActionResult
 from code_agent.core.task import TaskContract, TaskRecord, TaskStatus
 from code_agent.core.task_state import TaskState, reduce_task_state
 
 from ._codec import (
-    decode_datetime,
     decode_task_state,
     encode_datetime,
     encode_task,
@@ -100,7 +98,8 @@ class TaskRecordRepositoryMixin:
             where = (
                 ""
                 if include_terminal
-                else "WHERE status NOT IN ('completed', 'accepted_partial', 'failed')"
+                else "WHERE status NOT IN "
+                "('completed', 'accepted_partial', 'failed', 'superseded')"
             )
             rows = connection.execute(
                 f"SELECT contract, id, thread_id, status, stop_reason, created_at, "

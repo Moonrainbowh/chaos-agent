@@ -4,7 +4,7 @@ from typing import Awaitable, Callable, Mapping, Protocol
 
 from code_agent.core._json import JSONValue
 from code_agent.core.limits import TaskBudget
-from code_agent.core.task import TaskRecord, TaskStatus
+from code_agent.core.task import TaskRecord
 from code_agent.core.task_state import TaskState
 from code_agent.sessions.models import CheckpointRecord, GoalRecord, MessageRecord
 from code_agent.sessions.workspace_models import (
@@ -63,15 +63,11 @@ class CheckpointSessionsPort(Protocol):
         self, checkpoint_id: str
     ) -> WorkspaceSnapshotRecord | None: ...
     async def begin_rewind(self, operation: object, rollback_checkpoint_id: str): ...
-    async def fork_task_from_checkpoint(self, checkpoint_id: str) -> TaskRecord: ...
-    async def transfer_lineage_owner(
-        self, lineage_id: str, expected_owner_task_id: str, new_owner_task_id: str
-    ) -> WorkspaceLineageRecord: ...
-    async def transition_task(
-        self, task_id: str, status: TaskStatus, reason: str | None = None
-    ) -> TaskRecord: ...
     async def complete_rewind(
         self, operation_id: str, replacement_task_id: str | None = None
+    ) -> RewindOperationRecord: ...
+    async def complete_session_rewind(
+        self, operation_id: str, source_task_id: str, replacement_task_id: str
     ) -> RewindOperationRecord: ...
     async def fail_rewind(
         self, operation_id: str, error_code: str, *, recovery_required: bool = False

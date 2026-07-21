@@ -5,6 +5,7 @@ from ._database import SessionDatabase
 from ._records import RecordRepositoryMixin
 from ._rewinds import RewindRepositoryMixin
 from ._semantic import SemanticRepositoryMixin
+from ._session_rewind import AtomicSessionRewindRepositoryMixin
 from ._skills import SkillActivationRepositoryMixin
 from ._task_records import TaskRecordRepositoryMixin
 from ._task_runtime_records import TaskRuntimeRepositoryMixin
@@ -14,6 +15,7 @@ from ._workspace_snapshots import WorkspaceSnapshotRepositoryMixin
 
 
 class SQLiteSessionRepository(
+    AtomicSessionRewindRepositoryMixin,
     CheckpointForkRepositoryMixin,
     RewindRepositoryMixin,
     WorkspaceSnapshotRepositoryMixin,
