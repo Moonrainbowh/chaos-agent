@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import os
 import secrets
-import stat
 import tempfile
 from pathlib import Path
 from typing import BinaryIO, Mapping
@@ -16,11 +15,15 @@ from ._secure_modes import (
     restore_mode,
 )
 from ._secure_posix import identity_from_fd, inspect_at, open_verified_directory
+from ._secure_temp import (
+    TEMP_PREFIX as _TEMP_PREFIX,
+    attach_or_raise_cleanup as _attach_or_raise_cleanup,
+    raw_identity_from_fd as _raw_identity_from_fd,
+    remove_posix_temp as _remove_posix_temp,
+    remove_windows_temp as _remove_path_temp,
+)
 from .errors import PathOutsideWorkspace, WorkspaceError
 from .paths import WorkspacePathGuard
-
-
-_TEMP_PREFIX = ".code-agent-edit-"
 
 
 def secure_atomic_write(
@@ -38,6 +41,8 @@ def secure_atomic_write(
     except (PathOutsideWorkspace, WorkspaceError):
         raise
     except OSError as error:
+        if getattr(error, "cleanup_error", None) is not None:
+            raise
         raise WorkspaceError(f"cannot atomically restore file: {state.target}") from error
 
 
@@ -54,11 +59,18 @@ def _atomic_write_posix(
     temporary_identity: safety.PathIdentity | None = None
     descriptor: int | None = None
     temporary_created = False
+    cleanup_identity: safety.PathIdentity | None = None
+    primary: BaseException | None = None
     moved = False
     try:
         temporary_name, descriptor = _create_posix_temp(parent_fd)
         temporary_created = True
-        temporary_identity = identity_from_fd(descriptor, state.target)
+        try:
+            temporary_identity = identity_from_fd(descriptor, state.target)
+        except BaseException:
+            cleanup_identity = _raw_identity_from_fd(descriptor, state.target)
+            raise
+        cleanup_identity = temporary_identity
         _verify_visible_temp(state.target.parent / temporary_name, temporary_identity)
         owned_descriptor, descriptor = descriptor, None
         _write_descriptor(owned_descriptor, content, restore_mode(state))
@@ -67,18 +79,21 @@ def _atomic_write_posix(
         _posix_io.replace(parent_fd, temporary_name, state.target.name)
         moved = True
         _verify_posix_result(parent_fd, state.target.name, temporary_identity, content)
+    except BaseException as error:
+        primary = error
+        raise
     finally:
         cleanup_error: WorkspaceError | None = None
         if not moved and temporary_created and temporary_name is not None:
             try:
-                _remove_posix_temp(parent_fd, temporary_name, temporary_identity)
+                _remove_posix_temp(parent_fd, temporary_name, cleanup_identity)
             except WorkspaceError as error:
                 cleanup_error = error
         if descriptor is not None:
             os.close(descriptor)
         os.close(parent_fd)
         if cleanup_error is not None:
-            raise cleanup_error
+            _attach_or_raise_cleanup(primary, cleanup_error)
 
 
 def _atomic_write_windows(
@@ -87,11 +102,12 @@ def _atomic_write_windows(
     guard: WorkspacePathGuard,
     created: Mapping[str, tuple[Path, safety.PathIdentity]],
 ) -> None:
-    """Replace after static reparse rejection; native NT handles are out of scope."""
     temporary_path: Path | None = None
     temporary_identity: safety.PathIdentity | None = None
     destination_changed = False
     temporary_created = False
+    cleanup_identity: safety.PathIdentity | None = None
+    primary: BaseException | None = None
     moved = False
     try:
         with tempfile.NamedTemporaryFile(
@@ -99,7 +115,14 @@ def _atomic_write_windows(
         ) as stream:
             temporary_path = Path(stream.name)
             temporary_created = True
-            temporary_identity = identity_from_fd(stream.fileno(), temporary_path)
+            try:
+                temporary_identity = identity_from_fd(stream.fileno(), temporary_path)
+            except BaseException:
+                cleanup_identity = _raw_identity_from_fd(
+                    stream.fileno(), temporary_path
+                )
+                raise
+            cleanup_identity = temporary_identity
             _verify_visible_temp(temporary_path, temporary_identity)
             _write_stream(stream, content)
         os.chmod(temporary_path, restore_mode(state))
@@ -109,17 +132,37 @@ def _atomic_write_windows(
         os.replace(temporary_path, state.target)
         moved = True
         _verify_path_result(state.target, temporary_identity, content, guard)
+    except BaseException as error:
+        primary = error
+        raise
     finally:
         if destination_changed and not moved:
             restore_destination_mode(state)
-        if temporary_path is not None and temporary_created and not moved:
-            _remove_path_temp(
-                temporary_path,
-                temporary_identity,
-                state,
-                guard,
-                created,
-            )
+        _cleanup_windows_failure(
+            temporary_path, temporary_created and not moved,
+            cleanup_identity,
+            state,
+            guard,
+            created,
+            primary,
+        )
+
+
+def _cleanup_windows_failure(
+    temporary_path: Path | None,
+    should_clean: bool,
+    expected: safety.PathIdentity | None,
+    state: safety.TargetState,
+    guard: WorkspacePathGuard,
+    created: Mapping[str, tuple[Path, safety.PathIdentity]],
+    primary: BaseException | None,
+) -> None:
+    if temporary_path is None or not should_clean:
+        return
+    try:
+        _remove_path_temp(temporary_path, expected, state, guard, created)
+    except WorkspaceError as cleanup_error:
+        _attach_or_raise_cleanup(primary, cleanup_error)
 
 
 def _create_posix_temp(parent_fd: int) -> tuple[str, int]:
@@ -215,67 +258,3 @@ def _verify_result_content(
     content_matches = hashlib.sha256(restored).digest() == hashlib.sha256(expected).digest()
     if identity.size != len(expected) or len(restored) != len(expected) or not content_matches:
         raise WorkspaceError(f"restored file changed after replace: {label}")
-
-
-def _remove_posix_temp(
-    parent_fd: int, name: str, expected: safety.PathIdentity | None
-) -> None:
-    try:
-        current = inspect_at(parent_fd, name, missing_ok=True, context="restore")
-        if current is None:
-            return
-        if expected is not None and current != expected:
-            raise WorkspaceError(f"temporary ownership changed during cleanup: {name}")
-        descriptor = _posix_io.open_read(parent_fd, name)
-        try:
-            os.fchmod(descriptor, 0o600)
-        finally:
-            os.close(descriptor)
-        _posix_io.unlink(parent_fd, name)
-        if inspect_at(parent_fd, name, missing_ok=True, context="restore") is not None:
-            raise WorkspaceError(f"cannot clean restore temporary file: {name}")
-    except WorkspaceError:
-        raise
-    except OSError as error:
-        raise WorkspaceError(f"cannot clean restore temporary file: {name}") from error
-
-
-def _remove_path_temp(
-    path: Path,
-    expected: safety.PathIdentity | None,
-    state: safety.TargetState,
-    guard: WorkspacePathGuard,
-    created: Mapping[str, tuple[Path, safety.PathIdentity]],
-) -> None:
-    if path.parent != state.target.parent or not path.name.startswith(_TEMP_PREFIX):
-        raise WorkspaceError(f"invalid restore temporary path: {path}")
-    safety.verify_parent_state(state.parent, guard, created, context="restore")
-    try:
-        current = _inspect_windows_temp(path)
-        if current is None:
-            return
-        if expected is not None and current != expected:
-            raise WorkspaceError(f"temporary ownership changed during cleanup: {path}")
-        os.chmod(path, stat.S_IWRITE | stat.S_IREAD)
-        path.unlink()
-        if _inspect_windows_temp(path) is not None:
-            raise WorkspaceError(f"cannot clean restore temporary file: {path}")
-    except WorkspaceError:
-        raise
-    except OSError as error:
-        raise WorkspaceError(f"cannot clean restore temporary file: {path}") from error
-
-
-def _inspect_windows_temp(path: Path) -> safety.PathIdentity | None:
-    try:
-        metadata = path.lstat()
-    except FileNotFoundError:
-        return None
-    attributes = getattr(metadata, "st_file_attributes", 0)
-    reparse = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
-    if stat.S_ISLNK(metadata.st_mode) or attributes & reparse:
-        raise WorkspaceError(f"linked restore temporary path is protected: {path}")
-    identity = safety.identity_from_stat(metadata)
-    if not safety.is_regular(identity):
-        raise WorkspaceError(f"restore temporary path is not a file: {path}")
-    return identity
