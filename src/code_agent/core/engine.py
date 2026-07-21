@@ -124,10 +124,12 @@ class AgentEngine(AgentEngineCompletionMixin, AgentEngineActionMixin):
                 try:
                     task_state = await self._journal.load_task_state(active_thread)
                     bundle = await self._context.build(
+                        active_thread,
                         source_messages,
                         source_input,
                         tools,
                         task_state,
+                        token,
                     )
                     if not isinstance(bundle, ContextBundle):
                         raise TypeError("context builder returned an invalid bundle")

@@ -51,6 +51,23 @@ class McpServer:
             raise ValueError("invalid MCP tool risk mapping")
 
 
+@dataclass(frozen=True)
+class McpSnapshot:
+    generation: int
+    servers: tuple[McpServer, ...]
+    tools: tuple[ToolDefinition, ...]
+
+    def __post_init__(self) -> None:
+        if (
+            isinstance(self.generation, bool)
+            or not isinstance(self.generation, int)
+            or self.generation < 0
+        ):
+            raise ValueError("generation must be a non-negative integer")
+        object.__setattr__(self, "servers", tuple(self.servers))
+        object.__setattr__(self, "tools", tuple(self.tools))
+
+
 class McpRegistry:
     """Approved stdio inventory and schema-derived, policy-bound namespaces."""
     def __init__(self, servers: Iterable[McpServer] = ()) -> None:
@@ -83,6 +100,8 @@ class McpController:
     """Enable approved SDK servers and expose only discovered, locally mapped tools."""
     def __init__(self, registry: McpRegistry, manager: object, risks: dict[str, str] | None = None) -> None:
         self._registry, self._manager, self._risks = registry, manager, risks
+        self._risk_keys: set[str] = set()
+        self._generation = 0
         self._sync_risks()
 
     @property
@@ -91,6 +110,11 @@ class McpController:
 
     def definitions(self) -> tuple[ToolDefinition, ...]:
         return self._registry.definitions()
+
+    def snapshot(self) -> McpSnapshot:
+        return McpSnapshot(
+            self._generation, self._registry.list(), self._registry.definitions()
+        )
 
     def status(self, name: str | None = None) -> tuple[McpServer, ...]:
         return self._registry.status(name)
@@ -103,15 +127,20 @@ class McpController:
         tools = await self._manager.start(server)
         updated = replace(server, tools=tools)
         self._registry = McpRegistry(tuple(updated if item.name == name else item for item in self._registry.list()))
+        self._generation += 1
         self._sync_risks()
         return tools
 
     async def disable(self, name: str) -> None:
-        await self._manager.close(name)
         server = self._registry.status(name)[0]
         updated = replace(server, tools=())
         self._registry = McpRegistry(tuple(updated if item.name == name else item for item in self._registry.list()))
+        self._generation += 1
         self._sync_risks()
+        cancel = getattr(self._manager, "cancel", None)
+        if callable(cancel):
+            await cancel(name)
+        await self._manager.close(name)
 
     async def call(self, namespace: str, arguments: Mapping[str, object]) -> object:
         prefix, server, tool = namespace.split(".", 2)
@@ -126,6 +155,20 @@ class McpController:
         await self.disable(name)
         return await self.enable(name)
 
+    def diagnose(self, name: str) -> object:
+        self._registry.status(name)
+        health = getattr(self._manager, "health", None)
+        if callable(health):
+            return health(name)
+        return {
+            "server": name,
+            "healthy": bool(self._registry.exposed_tools(name)),
+        }
+
     def _sync_risks(self) -> None:
         if self._risks is not None:
-            self._risks.clear(); self._risks.update(self.risks())
+            for key in self._risk_keys:
+                self._risks.pop(key, None)
+            current = self.risks()
+            self._risks.update(current)
+            self._risk_keys = set(current)

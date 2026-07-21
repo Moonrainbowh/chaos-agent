@@ -173,7 +173,10 @@ def command_picker_items(
                         (*spec.aliases, *action.aliases),
                         enabled=not missing,
                         disabled_reason=("requires " + ", ".join(missing)) if missing else None,
-                        completion=f"/{spec.name} {action.name}",
+                        completion=(
+                            f"/{spec.name} {action.name}"
+                            + (" " if action.usage else "")
+                        ),
                     )
                 )
             continue
@@ -194,6 +197,44 @@ def command_picker_items(
                 enabled=not missing,
                 disabled_reason=("requires " + ", ".join(missing)) if missing else None,
                 completion=prefix + spec.name + (" " if has_next else ""),
+            )
+        )
+    return tuple(result)
+
+
+def skill_picker_items(
+    controller: object, action: str
+) -> tuple[PickerItem, ...]:
+    values = controller.list()
+    return tuple(
+        PickerItem(
+            skill.identifier,
+            skill.identifier,
+            PickerSource.SKILL,
+            skill.description,
+            (skill.digest, *getattr(skill, "sources", ())),
+            completion=f"/技能 {action} {skill.identifier}",
+        )
+        for skill in values
+    )
+
+
+def mcp_picker_items(
+    controller: object, action: str
+) -> tuple[PickerItem, ...]:
+    result = []
+    for server in controller.status():
+        enabled = server.approved
+        reason = None if enabled else "server is not approved"
+        result.append(
+            PickerItem(
+                server.name,
+                server.name,
+                PickerSource.MCP,
+                "enabled" if server.enabled else "disabled",
+                enabled=enabled,
+                disabled_reason=reason,
+                completion=f"/mcp {action} {server.name}",
             )
         )
     return tuple(result)

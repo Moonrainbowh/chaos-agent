@@ -27,6 +27,8 @@ from code_agent_win.plugin_runtime import PluginToolBridge
 from code_agent_win.subagents import SubagentTool
 from code_agent_win.tool_support import command_action_result, git_error_result
 from code_agent_win.tools import powershell_compatibility_error, tool_definitions, validate_tool_arguments
+from code_agent.thread_intelligence.tools import ThreadIntelligenceTools
+from code_agent_win.thread_actions import execute_thread_action
 
 
 class RootActionDispatcher:
@@ -45,11 +47,14 @@ class RootActionDispatcher:
         mcp: McpController | None = None,
         plugins: PluginToolBridge | None = None,
         subagents: SubagentTool | None = None,
+        threads: ThreadIntelligenceTools | None = None,
+        caller_thread: Callable[[], str] | None = None,
         invalidate_cache: Callable[[Sequence[str]], None] | None = None,
     ) -> None:
         self.files, self.editor, self.policy, self.approvals = files, editor, policy, approvals
         self.git, self.runtime, self.verification = git, runtime, verification
         self.mcp, self.plugins, self.subagents = mcp, plugins, subagents
+        self.threads, self.caller_thread = threads, caller_thread
         self.invalidate_cache = invalidate_cache
         self.interactive = False
 
@@ -57,7 +62,8 @@ class RootActionDispatcher:
         builtins = tool_definitions(include_git=self.git is not None)
         mcp = self.mcp.definitions() if self.mcp is not None else ()
         plugins = self.plugins.definitions() if self.plugins is not None else ()
-        return builtins + mcp + plugins
+        threads = self.threads.definitions() if self.threads is not None else ()
+        return builtins + threads + mcp + plugins
 
     async def dispatch(
         self,
@@ -121,6 +127,12 @@ class RootActionDispatcher:
             if self.subagents is None:
                 return _error(request, "subagent runtime unavailable")
             return await self.subagents.dispatch(request, cancellation)
+        if request.name in {"search_threads", "read_thread"}:
+            if self.threads is None or self.caller_thread is None:
+                return _error(request, "thread intelligence unavailable")
+            return await execute_thread_action(
+                request, self.threads, self.caller_thread
+            )
         if request.name.startswith("mcp."):
             if self.mcp is None:
                 raise RuntimeError("MCP integration is unavailable")

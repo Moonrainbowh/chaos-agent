@@ -8,7 +8,15 @@ from code_agent.orchestration.models import AgentMode, AgentRole, ModeSnapshot
 from code_agent.providers.config import ModelProfile
 
 
-READ_TOOLS = ("read_file", "list_files", "search_text", "git_status", "git_diff")
+READ_TOOLS = (
+    "read_file",
+    "list_files",
+    "search_text",
+    "git_status",
+    "git_diff",
+    "search_threads",
+    "read_thread",
+)
 TYPED_WRITE_TOOLS = READ_TOOLS + ("write_file", "replace_text", "run_verification")
 ALL_TOOLS = TYPED_WRITE_TOOLS + ("run_command", "delegate_agent")
 

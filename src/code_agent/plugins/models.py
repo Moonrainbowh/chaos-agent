@@ -149,6 +149,7 @@ class UiRequest:
 class ActionProposal:
     target: str
     arguments: Mapping[str, JSONValue] = field(default_factory=dict)
+    risk: PluginRisk = PluginRisk.CRITICAL
 
     def __post_init__(self) -> None:
         target = _text(self.target, "target", 192)
@@ -157,6 +158,8 @@ class ActionProposal:
         object.__setattr__(self, "target", target)
         validate_json_mapping(self.arguments, "arguments")
         object.__setattr__(self, "arguments", freeze_mapping(self.arguments, "arguments"))
+        if not isinstance(self.risk, PluginRisk):
+            raise TypeError("risk must be PluginRisk")
 
 
 @dataclass(frozen=True)

@@ -24,6 +24,13 @@ def _identifier(value: object, label: str) -> str:
     return text
 
 
+def _agent_identifier(value: object) -> str:
+    text = _text(value, "agent_id", 128)
+    if not _TOOL_NAME.fullmatch(text):
+        raise ValueError("agent_id must be a stable identifier or namespace")
+    return text
+
+
 def _nonnegative(value: object, label: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError(f"{label} must be a non-negative integer")
@@ -135,7 +142,7 @@ class AgentDefinition:
     max_children: int = 0
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "agent_id", _identifier(self.agent_id, "agent_id"))
+        object.__setattr__(self, "agent_id", _agent_identifier(self.agent_id))
         if not isinstance(self.role, AgentRole):
             raise TypeError("role must be an AgentRole")
         if not isinstance(self.mode, ModeSnapshot):

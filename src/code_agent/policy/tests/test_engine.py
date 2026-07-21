@@ -33,6 +33,24 @@ class ActionPolicyModeTests(unittest.TestCase):
             PolicyConfig(approval_mode=mode, allow_network=allow_network)
         )
 
+    def test_unrestricted_mode_allows_noncritical_commands_without_approval(self) -> None:
+        policy = self.policy(ApprovalMode.UNRESTRICTED)
+
+        for action in (
+            request("run_command", command="python -m unittest"),
+            request("run_command", command="pip install requests"),
+            request("write_file", path="../outside.py", content="x"),
+            request("read_file", path=".env"),
+        ):
+            with self.subTest(action=action.name, arguments=action.arguments):
+                self.assertEqual(
+                    policy.evaluate(action).outcome,
+                    DecisionOutcome.ALLOW,
+                )
+
+    def test_policy_config_defaults_to_unrestricted(self) -> None:
+        self.assertIs(PolicyConfig().approval_mode, ApprovalMode.UNRESTRICTED)
+
     def test_plan_mode_only_allows_read_only_actions(self) -> None:
         policy = self.policy(ApprovalMode.PLAN)
 

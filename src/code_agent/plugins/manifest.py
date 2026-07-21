@@ -171,8 +171,16 @@ def _ui(raw: Mapping[str, object]) -> UiRequest:
 
 
 def _action(raw: Mapping[str, object]) -> ActionProposal:
-    _exact(raw, {"target", "arguments"})
-    return ActionProposal(cast(str, raw["target"]), cast(Mapping[str, JSONValue], _mapping(raw["arguments"], "arguments")))
+    if set(raw) not in (
+        {"target", "arguments"},
+        {"target", "arguments", "risk"},
+    ):
+        raise ManifestError("contribution keys do not match the schema")
+    return ActionProposal(
+        cast(str, raw["target"]),
+        cast(Mapping[str, JSONValue], _mapping(raw["arguments"], "arguments")),
+        PluginRisk(cast(str, raw.get("risk", PluginRisk.CRITICAL.value))),
+    )
 
 
 def _mapping(value: object, label: str) -> Mapping[str, object]:

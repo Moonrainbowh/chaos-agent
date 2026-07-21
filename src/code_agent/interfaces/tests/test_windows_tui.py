@@ -18,7 +18,7 @@ from code_agent.interfaces.input_events import ExitGuard, MAX_PASTE_BYTES, paste
 from code_agent.interfaces.terminal_display import DisplayKind, clip_display, display_width, text_entry
 from code_agent.interfaces.terminal_renderer import ColorMode, Theme, render_entries, render_entry, render_live_tail
 from code_agent.interfaces.terminal_tail import render_live_tail_frame
-from code_agent.interfaces.terminal_status import status_presentation
+from code_agent.interfaces.terminal_status import status_context, status_presentation
 from code_agent.interfaces.terminal_io import BRACKETED_PASTE_DISABLE, BRACKETED_PASTE_ENABLE
 from code_agent.interfaces.terminal_state import ApprovalBroker, ApprovalRequest
 from code_agent.interfaces.tests._support import FakeEngine
@@ -135,6 +135,11 @@ class TerminalFirstRendererTests(unittest.TestCase):
 
         self.assertIn("gpt-5 · 00:18", wide)
         self.assertNotIn("gpt-5 · 00:18", narrow)
+
+    def test_status_context_shows_token_rate_between_model_and_elapsed_time(self) -> None:
+        context = status_context("gpt-5", 10.0, 28.0, 12.345)
+
+        self.assertEqual(context, "gpt-5 · 12.3 token/s · 00:18")
 
     def test_compatibility_renderer_is_append_only(self) -> None:
         app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker())
@@ -291,6 +296,36 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(modes.seen, ("high", True))
         self.assertIn("mode selected: high · new-model", app.state.entries[-1].text)
         self.assertEqual(app.input.text, "")
+
+    async def test_enter_switches_permission_without_approval(self) -> None:
+        class Permissions:
+            current = type("Permission", (), {"name": "ask"})()
+
+            async def use(self, name: str, *, idle: bool):
+                self.seen = (name, idle)
+                self.current = type(
+                    "Permission",
+                    (),
+                    {"name": name, "description": "完全访问"},
+                )()
+                return self.current
+
+        permissions = Permissions()
+        app = WindowsTerminalApp(
+            AgentController(FakeEngine(())),
+            ApprovalBroker(),
+            permissions=permissions,
+            write=lambda _: None,
+        )
+        app.input.replace("/权限 unrestricted")
+
+        await app.handle_key("\r")
+
+        self.assertEqual(permissions.seen, ("unrestricted", True))
+        self.assertIn(
+            "permission selected: unrestricted",
+            app.state.entries[-1].text,
+        )
 
     async def test_user_cancellation_is_a_pause_not_an_error_entry(self) -> None:
         class CancelledTasks:

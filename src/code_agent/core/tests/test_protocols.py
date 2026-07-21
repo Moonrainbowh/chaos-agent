@@ -45,10 +45,12 @@ class FakeModelClient:
 class FakeContextBuilder:
     async def build(
         self,
+        thread_id: str,
         messages: Sequence[Message],
         user_input: str,
         tools: Sequence[ToolDefinition],
         task_state: TaskState,
+        cancellation: CancellationToken,
     ) -> ContextBundle:
         return ContextBundle(system_prompt=user_input, messages=messages)
 
@@ -131,7 +133,14 @@ class ProtocolImplementationTests(unittest.IsolatedAsyncioTestCase):
         builder: ContextBuilder = FakeContextBuilder()
         message = Message(role="user", content="hello")
 
-        bundle = await builder.build((message,), "system", (), TaskState.empty())
+        bundle = await builder.build(
+            "thread-1",
+            (message,),
+            "system",
+            (),
+            TaskState.empty(),
+            CancellationToken(),
+        )
 
         self.assertEqual(
             bundle,

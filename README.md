@@ -8,10 +8,10 @@ It is a clean-room implementation. It takes architectural lessons from projects 
 
 - Uses OpenAI Responses, OpenAI Chat Completions, or Anthropic Messages through one streaming model protocol.
 - Keeps sessions, messages, events, goals, and checkpoints in a versioned SQLite database.
-- Discovers hierarchical `AGENTS.md` rules, builds a bounded repository map, and compacts history deterministically.
+- Discovers hierarchical `AGENTS.md` rules, builds a bounded repository map, and creates source-anchored semantic checkpoints near context pressure with deterministic fallback.
 - Freezes `low`, `medium`, `high`, or `ultra` task modes to an actual provider profile, model, prompt policy, tool set, reasoning effort, and execution limits. Modes never grant permission.
 - Runs bounded advisory Subagent, Oracle, Review, Search, and Librarian children through the same typed tools, policy checks, cancellation tree, and cumulative parent budget.
-- Loads trusted declarative plugins without executing plugin Python, shell, URLs, or terminal control sequences. Typed tool contributions are live; event, command, mode, custom Agent, and Host-interaction declarations are validated snapshots pending their remaining Host wiring.
+- Loads trusted declarative plugins without executing plugin Python, shell, URLs, or terminal control sequences. Tools, namespaced commands and modes, custom Agents, typed events, and Host-owned interactions are wired through bounded controllers and policy checks.
 - Routes file reads, edits, Git inspection, structured local verification, and PowerShell commands through typed tools, central policy checks, audit events, and explicit approval.
 - Provides a Windows Terminal TUI (`chaos-agent`), a text CLI (`chaos-agent ask`), session resume (`chaos-agent resume`), and machine-readable events (`chaos-agent run --json`). The legacy `agent` command remains available during migration.
 
@@ -45,9 +45,9 @@ context_window = 128000
 max_output_tokens = 16384
 
 [agent]
-approval_mode = "ask"
-# Optional for a single-user trusted local setup:
-# approval_mode = "full-local"
+approval_mode = "unrestricted"
+# Optional restrictive alternatives:
+# approval_mode = "ask"
 # allow_sensitive_paths = true
 ```
 
@@ -116,6 +116,8 @@ Skills are discovered only from `%USERPROFILE%\.agents\skills\<id>` and
 frontmatter. Matching IDs and digests merge their sources; different digests
 are isolated as conflicts. Workspace Skills require explicit activation and
 cannot register tools, execute scripts, call the network, or change policy.
+Use `/技能 列表|信息|来源|启用|禁用|重载` to manage the current thread's
+persisted activation snapshot.
 
 MCP configuration uses approved, structured stdio entries under
 `[mcp.servers.<name>]`: `command`, `args`, optional `cwd`, an environment-name
@@ -123,6 +125,9 @@ allowlist, `tool_risks`, plus `enabled` and `approved`. Approved servers are
 started through the installed SDK, expose only tools with a local
 `read`/`write`/`network`/`critical` risk mapping, and route through the same
 policy and approval boundary as built-in tools.
+Use `/mcp list|status|tools|enable|disable|restart|diagnose` for the configured
+server inventory; lifecycle changes publish a new tool generation only after
+the SDK handshake succeeds.
 
 Declarative plugins are discovered from
 `%LOCALAPPDATA%\chaos-agent\plugins\<id>\plugin.json` and
@@ -132,15 +137,20 @@ Plugin tools map only to known Host typed actions; both the plugin declaration
 risk and the mapped Host action risk must pass policy. Invalid namespaces,
 conflicts, unknown mappings, digest changes, and untrusted manifests are
 isolated without disabling built-in tools.
+Commands and modes are always namespaced. Plugin events can only emit bounded
+typed action proposals or `notify`/`confirm`/`input`/`select` requests owned by
+the Host UI; action proposals pass both the declared plugin risk and mapped
+Host action policy.
 
 ## Safety Defaults
 
-- `CHAOS_APPROVAL_MODE=ask` is the default. Workspace reads run automatically; a single external file read requires TUI approval and external writes are denied.
-- `plan` allows workspace reads only. `auto` remains compatible and requires approval for outside-workspace access. `elevated` requires approval for each external read, write, or recursive enumeration. `full-local` permits typed external file operations, while commands still require approval.
+- `CHAOS_APPROVAL_MODE=unrestricted` is the default. Recognized non-critical local actions, including `run_command`, run without TUI approval.
+- Use `/权限` (or `/permission`) while idle to select `unrestricted`, `plan`, `ask`, `auto`, `elevated`, or `full-local` for subsequent tasks. The same values are accepted by `[agent].approval_mode` and `CHAOS_APPROVAL_MODE`.
+- `plan` allows workspace reads only. `ask` approves writes and commands interactively. `auto` keeps command approval and asks for outside-workspace access. `elevated` requires approval for external access. `full-local` permits typed external file operations while commands still require approval.
 - `allow_sensitive_paths = true` (or `CHAOS_ALLOW_SENSITIVE_PATHS=true`) is a separate explicit opt-in for `.env` files and private-key names. `.git`, `.code-agent`, and symlink/reparse paths remain protected at every level.
 - Unknown and critical actions are denied. Destructive commands and unbounded output are rejected.
 - `delegate_agent` is a normal typed action. It is policy checked before a child starts; child output is explicitly advisory and never counts as verification evidence or parent completion.
-- `run_command` always represents model-provided raw PowerShell and requires explicit approval, including inside a foreground task. `run_verification` only accepts a registered kind plus constrained relative paths; the local adapter generates its fixed argv for Python unittest, pytest, compileall, or build.
+- `run_command` represents model-provided raw PowerShell. It runs without approval only in explicit `unrestricted` mode; critical commands remain denied. Other permission modes retain their approval or denial rules. `run_verification` only accepts a registered kind plus constrained relative paths; the local adapter generates its fixed argv for Python unittest, pytest, compileall, or build.
 - The local runtime is controlled process execution, not an OS-level sandbox. Typed verification executes user-authorized project code under the current Windows user and therefore does not isolate that code's indirect filesystem or network effects. Docker is optional and uses no network and no image pulls.
 
 Sessions are stored at `%LOCALAPPDATA%\chaos-agent\sessions.sqlite3` by default. When that target is absent and the legacy `%LOCALAPPDATA%\code-agent\sessions.sqlite3` exists, Chaos Agent uses SQLite backup into a temporary target, checks integrity and key counts, then atomically publishes the copy while retaining the legacy database.
@@ -208,13 +218,17 @@ retained from the existing model profile and persistent budget work; this
 feature measures their context environment for later evidence-based tuning and
 does not tune those limits.
 
-The semantic checkpoint, bounded thread index, authorized thread-tree search,
-and revision-aware `read_thread` Feature are implemented and tested, but the
-current `ContextBuilder.build(...)` integration protocol does not carry a
-`thread_id`. Chaos Agent therefore keeps deterministic compaction active in the
-runtime rather than generating checkpoint anchors with a fabricated thread
-identity. The required interface revision is recorded in
-`docs/amp-inspired-runtime.md`.
+The Context Builder receives the active `thread_id`, reads stable message
+sequences from SQLite, and persists semantic checkpoints plus searchable source
+anchors. `search_threads` and revision-aware `read_thread` derive their caller
+from Host execution context and enforce the persisted two-level parent/child
+thread tree. Semantic service or persistence failure falls back to the existing
+deterministic compactor.
+
+Every foreground task also owns a durable Workflow DAG. `/流程`, `/流程
+<node-id>`, `/流程 失败`, and `/流程 证据 <node-id>` render read-only snapshots
+derived from trusted task, child-run, verification, invalidation, and delivery
+observations; Workflow edges never grant thread access.
 
 ## Development Status
 

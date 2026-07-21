@@ -51,6 +51,8 @@ def host_risks() -> dict[str, PluginRisk]:
         "search_text": PluginRisk.READ,
         "git_status": PluginRisk.READ,
         "git_diff": PluginRisk.READ,
+        "search_threads": PluginRisk.READ,
+        "read_thread": PluginRisk.READ,
         "write_file": PluginRisk.WRITE,
         "replace_text": PluginRisk.WRITE,
         "run_verification": PluginRisk.WRITE,

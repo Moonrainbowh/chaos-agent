@@ -14,6 +14,17 @@ class TuiCommandTests(unittest.TestCase):
         self.assertEqual(parse_tui_command("/接受 T-042").command.task_id, "T-042")
         self.assertEqual(parse_tui_command("/pause T-042").error, "unknown or unavailable slash command")
         self.assertEqual(parse_tui_command("/模式 ultra").command.instruction, "ultra")
+        self.assertEqual(parse_tui_command("/权限 unrestricted").command.kind, TuiCommandKind.PERMISSION)
+        self.assertEqual(parse_tui_command("/流程 失败").command.kind, TuiCommandKind.WORKFLOW)
+        self.assertEqual(parse_tui_command("/flow review").command.instruction, "review")
+        self.assertEqual(
+            parse_tui_command("/技能 启用 review").command.kind,
+            TuiCommandKind.SKILL,
+        )
+        self.assertEqual(
+            parse_tui_command("/mcp restart docs").command.kind,
+            TuiCommandKind.MCP,
+        )
         self.assertFalse(parse_tui_command("/does-not-exist").is_command)
         self.assertEqual(parse_tui_command("/does-not-exist").error, "unknown or unavailable slash command")
 
@@ -28,7 +39,10 @@ class TuiCommandTests(unittest.TestCase):
         self.assertEqual(REGISTRY.parse("/模型", {"modes"})[2], "unknown or unavailable slash command")
 
     def test_every_registered_name_and_alias_resolves_to_its_own_command(self) -> None:
-        services = {"sessions", "history", "tasks", "evidence", "modes"}
+        services = {
+            "sessions", "history", "tasks", "evidence", "modes", "permissions", "workflows",
+            "skills", "mcp",
+        }
 
         for expected in REGISTRY.available(services):
             for name in (expected.name, *expected.aliases):
@@ -59,7 +73,7 @@ class TuiCommandTests(unittest.TestCase):
                 "帮助", "状态", "清屏", "退出",
                 "新建", "会话", "恢复",
                 "任务", "接受",
-                "差异", "证据", "模式",
+                "差异", "证据", "模式", "权限", "流程", "技能", "mcp",
             ),
         )
 
@@ -72,3 +86,29 @@ class TuiCommandTests(unittest.TestCase):
         )
         self.assertEqual(parse_tui_command("/mode high").command.kind, TuiCommandKind.MODE)
         self.assertEqual(parse_tui_command("/模式 high").command.instruction, "high")
+
+    def test_permission_declares_direct_secondary_choices(self) -> None:
+        permission = REGISTRY.resolve("权限")
+
+        self.assertEqual(
+            tuple(action.name for action in permission.actions),
+            ("unrestricted", "plan", "ask", "auto", "elevated", "full-local"),
+        )
+        self.assertEqual(
+            parse_tui_command("/permission unrestricted").command.kind,
+            TuiCommandKind.PERMISSION,
+        )
+
+    def test_skill_and_mcp_actions_validate_required_arguments(self) -> None:
+        self.assertEqual(
+            parse_tui_command("/技能 启用").error,
+            "command action argument is required",
+        )
+        self.assertEqual(
+            parse_tui_command("/mcp restart").error,
+            "command action argument is required",
+        )
+        self.assertEqual(
+            parse_tui_command("/技能 unknown").error,
+            "unknown slash command action",
+        )

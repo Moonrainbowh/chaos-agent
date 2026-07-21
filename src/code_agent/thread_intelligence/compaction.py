@@ -71,6 +71,7 @@ class SemanticCompactor:
         thread_id: str,
         messages: Sequence[Message],
         *,
+        message_sequences: Sequence[int] | None = None,
         context_tokens: int,
         context_limit: int,
         target_tokens: int,
@@ -83,6 +84,16 @@ class SemanticCompactor:
             raise ValueError("context_limit and target_tokens must be positive")
         if isinstance(context_tokens, bool) or context_tokens < 0:
             raise ValueError("context_tokens must be non-negative")
+        sequences = (
+            tuple(range(len(checked)))
+            if message_sequences is None
+            else tuple(message_sequences)
+        )
+        if len(sequences) != len(checked) or any(
+            isinstance(value, bool) or not isinstance(value, int) or value < 0
+            for value in sequences
+        ):
+            raise ValueError("message_sequences must match messages")
         if context_tokens / context_limit < self._threshold:
             return SemanticCompactionResult(checked, None, False, False)
 
@@ -102,10 +113,8 @@ class SemanticCompactor:
             return self._fallback_result(checked, target_tokens)
         source_end = protected_count + prefix_count
         sources = tuple(
-            anchor_message(thread_id, index, message)
-            for index, message in enumerate(
-                checked[protected_count:source_end], start=protected_count
-            )
+            anchor_message(thread_id, sequences[index], checked[index])
+            for index in range(protected_count, source_end)
         )
         request = SummaryRequest(
             sources, self._summary_tokens, self._model_token_budget

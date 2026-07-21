@@ -3,8 +3,10 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from enum import Enum
+from typing import Callable
 
 from code_agent.core.cancellation import CancellationError, CancellationToken
+from code_agent.plugins.events import PluginProposal
 from code_agent.plugins.models import UiRequest
 
 
@@ -98,6 +100,49 @@ class InteractionBroker:
             return False
         waiter.set_result(result)
         return True
+
+
+class PluginInteractionAdapter:
+    """Route plugin UI through Host display or the shared InteractionBroker."""
+
+    def __init__(
+        self,
+        broker: InteractionBroker,
+        display: Callable[[HostInteraction], object],
+    ) -> None:
+        if not isinstance(broker, InteractionBroker):
+            raise TypeError("broker must be InteractionBroker")
+        if not callable(display):
+            raise TypeError("display must be callable")
+        self._broker = broker
+        self._display = display
+
+    async def notify(self, proposal: PluginProposal) -> HostInteraction:
+        interaction = self._convert(proposal)
+        if interaction.primitive is not InteractionPrimitive.NOTIFY:
+            raise ValueError("notify requires a notify proposal")
+        self._display(interaction)
+        return interaction
+
+    async def interact(
+        self, proposal: PluginProposal, cancellation: CancellationToken
+    ) -> InteractionResult:
+        interaction = self._convert(proposal)
+        if interaction.primitive is InteractionPrimitive.NOTIFY:
+            raise ValueError("notify does not request a user answer")
+        return await self._broker.request(interaction, cancellation)
+
+    @staticmethod
+    def _convert(proposal: PluginProposal) -> HostInteraction:
+        if not isinstance(proposal, PluginProposal) or proposal.ui is None:
+            raise TypeError("proposal must contain plugin UI")
+        identifier = (
+            f"plugin:{proposal.plugin_id}:{proposal.subscription_id}:"
+            f"{proposal.generation}"
+        )
+        return plugin_interaction(
+            proposal.ui, proposal.plugin_id, identifier
+        )
 
 
 def plugin_interaction(

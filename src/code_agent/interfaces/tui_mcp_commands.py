@@ -11,9 +11,22 @@ async def handle_mcp_command(app: Any, instruction: str | None) -> bool:
         return False
     action, _, name = (instruction or "列表").partition(" ")
     try:
-        if action in {"列表", "list", "状态", "status", "诊断", "diagnose"}:
+        if action in {"列表", "list", "状态", "status"}:
             servers = app.mcp.status(name or None)
             app._append(DisplayKind.METADATA, " | ".join(f"{server.name}:{'enabled' if server.enabled else 'disabled'}" for server in servers))
+        elif action in {"工具", "tools"}:
+            definitions = app.mcp.definitions()
+            if name:
+                definitions = tuple(
+                    item for item in definitions
+                    if item.name.startswith(f"mcp.{name}.")
+                )
+            app._append(
+                DisplayKind.METADATA,
+                " | ".join(item.name for item in definitions) or "No MCP tools",
+            )
+        elif action in {"诊断", "diagnose"} and name:
+            app._append(DisplayKind.METADATA, str(app.mcp.diagnose(name)))
         elif action in {"启用", "enable"} and name:
             tools = await app.mcp.enable(name); app._append(DisplayKind.METADATA, f"MCP enabled: {name} ({len(tools)} tools)")
         elif action in {"禁用", "disable"} and name:

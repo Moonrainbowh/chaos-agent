@@ -16,9 +16,11 @@
 - 负责：采用中等留白：对话轮次之间空一行，连续工具记录不空行，工具组与最终结论之间空一行，短正文内部不额外扩张间距。
 - 负责：从不可信模型或工具文本中剥离终端控制序列；ANSI 样式只能由本地可信显示事件生成，并支持 `auto`、`always`、`never` 颜色模式及 ASCII 回退。
 - 负责：从单一命令注册表生成解析、帮助、调色板、补全、显示标签与动态可用性；命令只委托注入的控制器或只读服务，不直接执行工具、修改配置或调用 provider。
+- 负责：把动态插件命令以始终命名空间化的 ID 合并进不可变命令快照；禁用、撤销或 digest 变化后不执行旧选择。
 - 负责：输入 `/` 时完整展示当前可用的一级命令目录；选中无参数命令后一次 `Enter` 立即执行，选中复合命令后一次 `Enter` 进入由同一注册表生成的二级动作菜单，不要求重复确认同一选择。
-- 负责：一级命令仅保留帮助、状态、会话恢复、任务查看/接受、差异、证据和 Agent mode；Picker 把 `/模式 low|medium|high|ultra` 直接铺为一级候选，一次 `Enter` 切换，不进入二级菜单。
+- 负责：一级命令保留帮助、状态、会话恢复、任务查看/接受、差异、证据、Agent mode 与访问权限；Picker 把 `/模式 low|medium|high|ultra` 和 `/权限 unrestricted|plan|ask|auto|elevated|full-local` 直接铺为一级候选，一次 `Enter` 切换，不进入二级菜单。
 - 负责：底部状态栏左侧显示动态任务状态，右侧显示模型、耗时等稳定上下文；窗口变窄时按优先级隐藏右侧信息，动态文本不得左右跳动。
+- 负责：底部状态栏实时显示当前模型回合的输出 token/s；首个文本增量开始计时，生成中使用确定性 token 估算，收到 provider 输出用量后校准。
 - 不负责：复制 Agent 状态机、直接执行工具、直接访问 provider、切换活动任务的模型，或绕过 `ActionPolicy` 权限决定。
 - 不负责：接管 Windows Terminal 字体、调色板、复制设置或鼠标选择；不提供默认全屏仪表板、固定顶部栏或应用自有滚动历史。
 - 不负责：首版 Linux/macOS 端到端适配、IDE 插件、Web UI、远程多用户服务或桌面应用。
@@ -26,11 +28,13 @@
 - `Esc` 暂停并创建 checkpoint，关闭 TUI 中断并创建 checkpoint，显式停止转为失败；运行中的普通输入作为 steering，不额外暴露重复命令。
 - 负责在单栏转录中呈现 evidence-backed completion、partial/unverified 差异、当前未满足条件及 `/证据`、`/evidence` 查询；不自行判定验证成功。
 - 负责：在输入区上方提供键盘可操作的上下文 Picker；命令、会话、模式/模型、Skills、MCP 和插件贡献共用选择、过滤、补全、禁用原因与错误恢复语义。
+- 负责：提供 `/流程`、`/技能` 与 `/mcp` 控制面；所有动作只委托注入 Controller，运行中变更遵守下一任务或安全边界。
 - 负责：明确分开展示 Agent 模式与访问权限，并显示模式对应的实际模型、Oracle、成本/延迟定位和下一任务生效边界。
 - 负责：运行中普通提交仍作为同一前台任务的 steering，在转录和状态尾部显示 queued、steered、dequeued、applied 及队列数量；强制中断与安全边界注入保持独立语义，状态只依据内核持久事件更新。
 - 负责：以类型化状态快照呈现 running、verifying、paused、waiting decision、approval、partial 和 completed，不得把非空闲状态统一显示为“就绪”。
 - 负责：审批和结构化用户选择使用可取消的键盘交互，明确显示动作、风险、目标、选项和 `Enter`/`Esc` 结果，不在不可见状态下等待输入。
 - 负责：统一渲染 Host 与插件声明的 `notify`、`confirm`、`input`、`select` 交互原语；插件不得直接生成终端控制序列或替用户回答。
+- 负责：`search_threads`、`read_thread` 的显示与工具调用不接收 caller thread ID；调用方身份只能由 Host 当前任务注入。
 - 负责：以紧凑追加行呈现工具和子 Agent 生命周期、目标、耗时、结果及有界事实；详细内容通过稳定 ID 按需查询，不重写历史滚动区。
 - 负责：父任务运行期间持续投影每个子 Agent 的 queued、running、completed、failed 和 cancelled 状态、角色、目标摘要、耗时及有界用量；父任务中断是正常控制结果，不显示异常类名或通用错误。
 - 负责：从类型化写入结果和注入的只读 Git 服务生成 diff 统计与有界 unified diff；支持文件/区块导航、评论反馈、路径过滤、窄屏布局和 `NO_COLOR` 回退。
@@ -40,6 +44,7 @@
 - 负责：原始 reasoning 不进入转录、状态或会话；只呈现本地生命周期推导的活动标签，或 provider 明确标注、脱敏且有界的 reasoning summary。
 - 负责：维持一个前台父任务、追加式单栏转录和最小动态尾部；子 Agent 是该任务内的层级执行，不引入默认全屏、多栏、固定侧栏或卡片化仪表盘。
 - 不负责：调度子 Agent、生成语义摘要、执行插件提案，或把 mode、Oracle、插件和 UI 选择解释为权限授权或 verification evidence。
+- 不负责：从 Workflow edge 推导授权、直接启动 MCP 进程、保存 Skill 激活或执行插件 ActionProposal。
 
 ## Units
 - `format_evidence_summary(records)`: 渲染有界 evidence 摘要 | 无副作用 | 不将 UI 文本升级为完成裁决
@@ -49,18 +54,28 @@
 - `parse_command`、`execute_command`: 解析并委托稳定 CLI 语义，文本命令复用可信 Markdown 终端渲染 | 写入调用方输出 | 不直接输出模型 Markdown 控制标记，不直接退出或组合依赖
 - `parse_tui_command(text)`、`filter_palette(input)`: 解析斜杠命令并筛选已接入的候选 | 无副作用 | 精确命令名和别名优先于描述匹配，完整参数原样提交，以结构化错误恢复且不显示未接通、占位或危险命令
 - `CommandRegistry`: 声明命令、别名、参数、依赖、可用性与执行委托 | 无副作用 | 是解析、帮助、调色板和补全的唯一目录
+- `CommandRegistry.with_plugin_commands(descriptors)`：把绑定 digest/generation 的 namespaced plugin command 合并为不可变目录 | 无副作用 | 未命名空间化贡献拒绝，旧目录不被原地修改
+- `CommandRegistry.with_plugin_modes(identifiers)`：把 namespaced plugin mode 合并为模式命令的受限 action | 无副作用 | 不替换四个内置 mode
 - `CommandAction`、`CommandRegistry.resolve(...)`：声明并解析复合命令的二级动作 | 无副作用 | 只列举真实接通动作，需要自由文本参数时保留输入边界
 - `InputEvent`、`ExitGuard`: 归一键盘/粘贴/控制信号并实施双击退出状态机 | 进程内状态 | 粘贴不提交，状态机可注入时钟
 - `InputBuffer`: 编辑原始 Windows 键盘输入、多行光标、历史与清空快捷键 | 进程内状态 | `Enter` 提交、`Ctrl+J` 换行，不接管终端选择和回滚
 - `DisplayEntry`、`DisplaySpan`、`TerminalState`: 将事件投影为最终回答、工具完成行和每轮独立的执行摘要 | 无副作用 | 完整 assistant 消息可在任务验证状态前落屏，不保留或渲染原始 reasoning
 - `render_entry`、`render_entries`、`render_live_tail_frame`、`status_presentation`、`read_key`: 生成可信 ANSI 转录、Unicode/ASCII 回退、列宽自适应 Markdown、候选命令、双区状态尾部和 Windows 原始按键投影 | 无副作用（除读取按键） | 只擦除动态尾部，无全屏清除或鼠标跟踪序列
+- `TokenRateTracker`: 从首个文本增量开始统计当前模型回合的平均输出速度，并在 usage 到达后以真实 `output_tokens` 校准 | 读取可注入单调时钟 | 不把首字等待时间或输入 token 计入速度
 - `WindowsTerminalApp`: 追加完成条目、继续当前未终结前台任务并维护输入/状态尾部 | 终端 I/O | 可恢复的任务启动竞争显示为带内错误，不退出 TUI；不接管终端的选择或回滚
+- `tui_lifecycle`：管理动画、审批/交互监听与关闭清理 | 异步任务/终端重绘 | 关闭时默认拒绝或取消所有未决 Host 交互
 - `ApprovalBroker`、`load_thread_history`: 提供可取消审批和已保存会话读取 | 异步/SQLite 读取 | 不伪造会话摘要
 - `PickerState`、`PickerItem`：统一命令、会话、模式、Skill、MCP 和插件候选的过滤、键盘选择、补全和禁用原因 | 进程内状态 | `Esc` 取消，不执行候选动作。
+- `skill_picker_items`、`mcp_picker_items`：把 Controller snapshot 转换为共享 Picker 候选和完整命令补全 | 无副作用 | 不把 Skill 正文放入候选，未批准 MCP server 显示禁用原因
 - `SteeringQueueView`：投影 queued、steered、dequeued、applied 及队列数量 | 进程内状态 | 只依据持久 `TURN_STARTED`、`CONTEXT_BUILT` 边界推进消费和应用状态。
 - `HostInteraction`、`InteractionBroker`、`plugin_interaction`：统一 Host 与插件的 `notify`、`confirm`、`input`、`select` 请求及可取消结果 | 异步状态 | 插件请求转换为 Host 所有的交互，不接受预填用户答案。
+- `PluginInteractionAdapter.notify`、`interact`：把 generation-bound PluginProposal 分流为直接 Host 显示或共享 InteractionBroker 请求 | 显示/异步等待 | notify 不等待答案，其余交互可取消且默认不自答
 - `DiffController.load(...)`、`DiffView`：优先从注入的只读 Git 服务读取真实 unified diff，并提供文件导航、路径过滤和评论 | 只读服务调用/进程内状态 | 不直接 stage、unstage 或执行 Git。
 - `ModePermissionView`：分开展示模式实际模型、Oracle、推理强度、生效边界与访问权限 | 无副作用 | 模式信息绝不解释为授权。
 - `ModeControl.list()`、`use(name, idle)`：列出冻结的四档 mode 并在空闲边界委托运行时切换 | 调用注入的异步重建回调 | 回调成功后才更新当前 mode，活动任务和未知 mode 失败闭合。
+- `PermissionControl.list()`、`use(name, idle)`：列出访问权限并在空闲边界委托中央策略切换 | 调用注入的异步回调 | 默认 `unrestricted`，活动任务和未知权限失败闭合，模式切换不修改权限
 - `TuiInteractions`：把 Picker、可见审批、steering 生命周期和结构化 diff 委托给单栏 TUI | 终端显示/进程内状态 | 审批默认拒绝，`Enter` 明确选择，`Esc` 取消。
 - `AgentRunStatusProjection.observe(view)`：将子 Agent 状态变化投影为去重、有界的生命周期行 | 进程内状态 | 只消费 Orchestration 快照，不从工具名称猜测状态。
+- `WorkflowView.render`、`detail`、`evidence`：把持久 WorkflowSnapshot 渲染为追加式 DAG、节点详情和 Evidence 引用 | 无副作用 | 过滤和窄屏有界，所有不可信文本先经 `safe_text`
+- `handle_workflow_command(app, instruction)`：从注入的只读 Workflow store 渲染流程、节点详情或证据 | 只读服务调用/追加显示 | 不从 edge 推导授权或执行状态转换
+- `handle_skill_command`、`handle_mcp_command`：把 `/技能` 与 `/mcp` 的注册 action 委托给注入 Controller | Controller I/O 与追加显示 | 不读取完整 Skill 文本、不直接启动进程或绕过 MCP policy

@@ -26,38 +26,84 @@ from ._codec import (
 from ._database import SessionDatabase
 from ._records import RecordRepositoryMixin, _require_thread, _text, _touch_thread
 from .errors import SessionCorruptionError, SessionNotFound
-from .models import ThreadStatus, ThreadSummary
+from .models import MessageRecord, ThreadRelation, ThreadStatus, ThreadSummary
 from . import _task_budget
 from . import _task_execution
 from . import _evidence_ledger
+from ._semantic import SemanticRepositoryMixin
+from ._workflows import WorkflowRepositoryMixin
+from ._skills import SkillActivationRepositoryMixin
 
 
-class SQLiteSessionRepository(RecordRepositoryMixin):
+class SQLiteSessionRepository(
+    SkillActivationRepositoryMixin,
+    WorkflowRepositoryMixin,
+    SemanticRepositoryMixin,
+    RecordRepositoryMixin,
+):
     """Persist core sessions with one SQLite transaction per async operation."""
 
     def __init__(self, database_path: str | object) -> None:
         self._database = SessionDatabase(database_path)  # type: ignore[arg-type]
 
-    async def create_thread(self, title: Optional[str] = None) -> str:
+    async def create_thread(
+        self,
+        title: Optional[str] = None,
+        *,
+        parent_thread_id: Optional[str] = None,
+    ) -> str:
         if title is not None:
             title = _text(title, "title")
+        if parent_thread_id is not None:
+            parent_thread_id = _text(parent_thread_id, "parent_thread_id")
         identifier = uuid.uuid4().hex
         timestamp = encode_datetime(utc_now())
 
         def write(connection: sqlite3.Connection) -> None:
+            if parent_thread_id is not None:
+                parent = connection.execute(
+                    "SELECT parent_thread_id FROM threads WHERE id = ?",
+                    (parent_thread_id,),
+                ).fetchone()
+                if parent is None:
+                    raise SessionNotFound("parent thread not found")
+                if parent["parent_thread_id"] is not None:
+                    raise ValueError("thread trees support only two levels")
             connection.execute(
-                "INSERT INTO threads(id, created_at, updated_at, title, status) VALUES (?, ?, ?, ?, ?)",
+                "INSERT INTO threads(id, created_at, updated_at, title, status, parent_thread_id) VALUES (?, ?, ?, ?, ?, ?)",
                 (
                     identifier,
                     timestamp,
                     timestamp,
                     title,
                     ThreadStatus.ACTIVE.value,
+                    parent_thread_id,
                 ),
             )
 
         await self._database.write(write)
         return identifier
+
+    async def load_thread_relation(self, thread_id: str) -> ThreadRelation:
+        thread_id = _text(thread_id, "thread_id")
+
+        def read(connection: sqlite3.Connection) -> ThreadRelation:
+            row = connection.execute(
+                "SELECT parent_thread_id FROM threads WHERE id = ?", (thread_id,)
+            ).fetchone()
+            if row is None:
+                raise SessionNotFound("thread not found")
+            children = connection.execute(
+                "SELECT id FROM threads WHERE parent_thread_id = ? ORDER BY created_at, id",
+                (thread_id,),
+            ).fetchall()
+            return ThreadRelation(
+                thread_id,
+                row["parent_thread_id"],
+                tuple(child["id"] for child in children),
+            )
+
+        return await self._database.read(read)
 
     async def create_task(self, thread_id: str, contract: TaskContract) -> TaskRecord:
         if not isinstance(contract, TaskContract):
@@ -107,6 +153,28 @@ class SQLiteSessionRepository(RecordRepositoryMixin):
                 (thread_id,),
             ).fetchall()
             return tuple(decode_message(row[0]) for row in rows)
+
+        return await self._database.read(read)
+
+    async def load_message_records(self, thread_id: str) -> tuple[MessageRecord, ...]:
+        thread_id = _text(thread_id, "thread_id")
+
+        def read(connection: sqlite3.Connection) -> tuple[MessageRecord, ...]:
+            _require_thread(connection, thread_id)
+            rows = connection.execute(
+                "SELECT sequence, payload, created_at FROM messages "
+                "WHERE thread_id = ? ORDER BY sequence",
+                (thread_id,),
+            ).fetchall()
+            return tuple(
+                MessageRecord(
+                    row["sequence"],
+                    thread_id,
+                    decode_message(row["payload"]),
+                    decode_datetime(row["created_at"], "message"),
+                )
+                for row in rows
+            )
 
         return await self._database.read(read)
 

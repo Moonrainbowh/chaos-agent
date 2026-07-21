@@ -11,6 +11,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from code_agent.core.engine import AgentEngine  # noqa: E402
+from code_agent.core.cancellation import CancellationToken  # noqa: E402
 from code_agent.core.errors import ContextBuildError, SessionPersistenceError  # noqa: E402
 from code_agent.core.events import EventKind  # noqa: E402
 from code_agent.core.models import (  # noqa: E402
@@ -35,6 +36,49 @@ def model_event(kind: ModelEventKind, **values: object) -> ModelEvent:
 
 
 class AgentEngineRunTests(unittest.IsolatedAsyncioTestCase):
+    async def test_context_receives_active_thread_and_cancellation(self) -> None:
+        class RecordingIdentityContext:
+            def __init__(self) -> None:
+                self.call: tuple[object, ...] | None = None
+
+            async def build(
+                self,
+                thread_id: str,
+                messages: object,
+                user_input: str,
+                tools: object,
+                task_state: TaskState,
+                cancellation: CancellationToken,
+            ) -> object:
+                self.call = (
+                    thread_id,
+                    messages,
+                    user_input,
+                    tools,
+                    task_state,
+                    cancellation,
+                )
+                return __import__(
+                    "code_agent.core.models", fromlist=["ContextBundle"]
+                ).ContextBundle(system_prompt="system", messages=messages)
+
+        context = RecordingIdentityContext()
+        cancellation = CancellationToken()
+        engine = AgentEngine(
+            FakeModelClient(((model_event(ModelEventKind.COMPLETED),),)),
+            context,  # type: ignore[arg-type]
+            FakeActionDispatcher(),
+            MemorySessionRepository(),
+        )
+
+        events = [
+            event
+            async for event in engine.run("inspect", cancellation=cancellation)
+        ]
+
+        self.assertEqual(context.call[0], events[0].payload["thread_id"])
+        self.assertIs(context.call[-1], cancellation)
+
     async def test_context_event_records_numeric_measurements_without_prompt_text(self) -> None:
         measurements = {
             "prompt_tokens": 20_000,

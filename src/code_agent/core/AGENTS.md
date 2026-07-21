@@ -5,11 +5,13 @@
 - 负责：回合状态机、工具调用编排、停止条件、错误回送、事件发布和验证结果闭环。
 - 负责：对同一持久任务累计模型回合和工具调用，并执行每回合工具限制。
 - 负责：通过抽象协议调用模型、上下文、动作分发与会话能力，不依赖具体实现。
+- 负责：把当前 `thread_id` 和同一取消令牌传入 `ContextBuilder`；上下文实现不得从消息文本猜测调用方身份。
 - 不负责：直接访问模型 API、文件系统、子进程、数据库或终端界面。
 - 不负责：绕过权限策略执行任何外部动作。
 - 任何模型调用或外部动作前必须读取恢复后的持久预算与控制状态；已耗尽任务必须零 provider、零工具调用地进入稳定暂停状态。
 - `COMPLETED` 只能由最新 contract、subject generation 和 required evidence 的系统评估产生；模型文本或 completion candidate 不能直接完成任务。
 - 负责协调抽象 `VerificationService` 的完成评估与 `VERIFYING` 状态；不导入具体 verification 或 projects adapter。
+- 语义上下文构建消耗当前持久任务冻结的模型、profile、token、时间和取消预算，不存在隐藏的免费调用。
 
 ## Units
 - `TaskIntent`、`AcceptanceCriterion`、`TaskContractRevision`: 表达不可降级的完成条件与 revision | 无副作用 | 不写入旧 `core/models.py`
@@ -25,7 +27,7 @@
 - `AgentEvent`: 发布可持久化的内核生命周期事件 | 生成 UTC 时间戳 | `CONTEXT_BUILT` 仅记录本地数值预算、压缩和缓存计数，不含提示或工具输出
 - `CancellationToken`、`CancellationError`: 在线程与异步调用间传播首次取消原因 | 唤醒等待者
 - `ModelClient`: 约束统一的模型流式调用接口 | 具体副作用由实现负责
-- `ContextBuilder`: 异步构建当前回合上下文 | 具体副作用由实现负责
+- `ContextBuilder.build(thread_id, messages, user_input, tools, task_state, cancellation)`: 以 Host 注入的 thread 身份和同一取消令牌构建当前回合上下文 | 具体副作用由实现负责 | 不从消息文本猜测身份
 - `CommandFact`、`TaskState`、`TaskStateUpdate`、`reduce_task_state`: 以有界 JSON 兼容事实表达持久任务进度 | 无副作用 | 工作笔记始终显式标注为未验证
 - `ActionDispatcher`: 暴露工具并分发可取消动作 | 具体副作用由实现负责
 - `SessionRepository`: 异步创建线程并持久化消息与事件 | 具体副作用由实现负责

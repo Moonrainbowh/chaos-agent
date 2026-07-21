@@ -1,17 +1,12 @@
 from __future__ import annotations
 
-import time
 from collections.abc import Callable, Mapping, Sequence
 from contextvars import ContextVar, Token
 
 from code_agent.core.cancellation import CancellationToken
-from code_agent.core.events import EventKind
 from code_agent.core.models import (
     ActionRequest,
     ActionResult,
-    Message,
-    ModelEvent,
-    ModelEventKind,
     ToolDefinition,
 )
 from code_agent.orchestration.models import (
@@ -20,15 +15,18 @@ from code_agent.orchestration.models import (
     AgentUsage,
     ChildRunRequest,
     ChildRunResult,
+    ModeSnapshot,
     RunStatus,
     RunView,
 )
 from code_agent.orchestration.budget import BudgetLedger, ParentBudget
 from code_agent.orchestration.modes import ModeRegistry
+from code_agent.orchestration.plugin_extensions import PluginAgentCatalog
 from code_agent.orchestration.supervisor import ChildRunSupervisor
-from code_agent.orchestration.supervisor import ChildRunSupervisor
+from code_agent.plugins.registry import PluginHost
 from code_agent.providers.config import ModelProfile
 from code_agent_win.agent_modes import child_mode_for_role
+from code_agent_win.child_runner import EngineChildRunner
 
 
 _READ_ONLY_ROLES = {
@@ -63,91 +61,83 @@ class RestrictedDispatcher:
         return await self._inner.dispatch(request, cancellation, task_authorization)
 
 
-class EngineChildRunner:
-    def __init__(self, engine_factory: Callable[[AgentDefinition], tuple[object, object | None]]) -> None:
-        self._factory = engine_factory
-
-    async def run(
-        self, request: ChildRunRequest, cancellation: CancellationToken
-    ) -> ChildRunResult:
-        engine, closer = self._factory(request.agent)
-        started = time.monotonic()
-        answers: list[str] = []
-        tokens = 0
-        tool_calls = 0
-        references = []
-        try:
-            async for event in engine.run(request.objective, cancellation=cancellation):
-                if event.kind is EventKind.RUN_STARTED:
-                    thread_id = event.payload.get("thread_id")
-                    if isinstance(thread_id, str):
-                        from code_agent.orchestration.models import AgentReference
-
-                        references.append(AgentReference("thread", thread_id))
-                elif event.kind is EventKind.ACTION_REQUESTED:
-                    tool_calls += 1
-                elif event.kind is EventKind.MESSAGE_ADDED:
-                    raw = event.payload.get("message")
-                    if isinstance(raw, Mapping):
-                        message = Message.from_dict(raw)
-                        if message.role == "assistant" and message.content:
-                            answers.append(message.content)
-                elif event.kind is EventKind.MODEL_EVENT:
-                    raw = event.payload.get("event")
-                    if isinstance(raw, Mapping):
-                        model_event = ModelEvent.from_dict(raw)
-                        if model_event.kind is ModelEventKind.USAGE and model_event.usage:
-                            tokens += model_event.usage.total_tokens
-            summary = "\n\n".join(answers).strip()[:16_384]
-            if not summary:
-                summary = "Child run completed without a final advisory message."
-            return ChildRunResult(
-                request.run_id,
-                RunStatus.COMPLETED,
-                summary,
-                AgentUsage(tokens, tool_calls, int(time.monotonic() - started)),
-                tuple(references),
-            )
-        finally:
-            close = getattr(closer, "aclose", None)
-            if close is not None:
-                await close()
-
-
 class SubagentTool:
     def __init__(
         self,
         supervisor: ChildRunSupervisor,
         mode_registry: ModeRegistry,
         profiles: dict[str, ModelProfile],
+        agents: PluginAgentCatalog | None = None,
+        parent_run_id: str | None = None,
     ) -> None:
         self._supervisor = supervisor
         self._modes = mode_registry
         self._profiles = profiles
+        self._agents = agents
+        self._parent_run_id = parent_run_id
 
     async def dispatch(
         self, request: ActionRequest, cancellation: CancellationToken
     ) -> ActionResult:
         arguments = request.arguments
-        role = AgentRole(str(arguments["role"]))
-        snapshot = self._modes.freeze(child_mode_for_role(role), self._profiles)
-        allowed = snapshot.definition.tool_names
-        may_write = role is AgentRole.SUBAGENT and any(
-            name in {"write_file", "replace_text", "run_verification", "run_command"}
-            for name in allowed
+        role_value = arguments.get("role")
+        agent_id = arguments.get("agent_id")
+        if (role_value is None) == (agent_id is None):
+            raise ValueError("exactly one of role or agent_id is required")
+        if agent_id is not None:
+            if self._agents is None:
+                raise ValueError("plugin agents are unavailable")
+            agent = self._agents.resolve(str(agent_id))
+            role = agent.role
+            snapshot = agent.mode
+            allowed = agent.effective_tools
+        else:
+            role = AgentRole(str(role_value))
+            snapshot = self._modes.freeze(
+                child_mode_for_role(role), self._profiles
+            )
+            allowed = snapshot.definition.tool_names
+        may_write = (
+            agent.may_write
+            if agent_id is not None
+            else role is AgentRole.SUBAGENT
+            and any(
+                name
+                in {
+                    "write_file",
+                    "replace_text",
+                    "run_verification",
+                    "run_command",
+                }
+                for name in allowed
+            )
         )
         if role in _READ_ONLY_ROLES:
-            allowed = tuple(name for name in allowed if name in {"read_file", "list_files", "search_text", "git_status", "git_diff"})
-        agent = AgentDefinition(
-            f"{role.value}-{request.id[:16]}",
-            role,
-            snapshot,
-            _instructions(role),
-            tuple(allowed),
-            may_write=may_write,
-        )
+            allowed = tuple(
+                name
+                for name in allowed
+                if name
+                in {
+                    "read_file",
+                    "list_files",
+                    "search_text",
+                    "git_status",
+                    "git_diff",
+                    "search_threads",
+                    "read_thread",
+                }
+            )
+        if agent_id is None:
+            agent = AgentDefinition(
+                f"{role.value}-{request.id[:16]}",
+                role,
+                snapshot,
+                _instructions(role),
+                tuple(allowed),
+                may_write=may_write,
+            )
         child = ChildRunRequest(
-            request.id,
+            self._parent_run_id or request.id,
             str(arguments["objective"]),
             agent,
             1,
@@ -196,6 +186,9 @@ class SubagentRuntime:
         mode_registry: ModeRegistry,
         profiles: dict[str, ModelProfile],
         budget: ParentBudget = ParentBudget(),
+        *,
+        plugin_host: PluginHost | None = None,
+        mode_snapshots: Mapping[AgentMode, ModeSnapshot] | None = None,
     ) -> None:
         self._runner = runner
         self._modes = mode_registry
@@ -204,6 +197,17 @@ class SubagentRuntime:
         self._parent: ContextVar[str] = ContextVar("subagent_parent", default="adhoc")
         self._supervisors: dict[str, ChildRunSupervisor] = {}
         self._listeners: set[Callable[[RunView], None]] = set()
+        self._agents = (
+            PluginAgentCatalog(plugin_host, mode_snapshots)
+            if plugin_host is not None and mode_snapshots is not None
+            else None
+        )
+        self._child_threads: dict[str, str] = {}
+        runner.subscribe_thread(
+            lambda run_id, thread_id: self._child_threads.__setitem__(
+                run_id, thread_id
+            )
+        )
 
     def subscribe(self, listener: Callable[[RunView], None]) -> Callable[[], None]:
         if not callable(listener):
@@ -217,6 +221,9 @@ class SubagentRuntime:
                 listener(view)
             except Exception:
                 continue
+
+    def child_thread(self, run_id: str) -> str | None:
+        return self._child_threads.get(run_id)
 
     def activate(self, parent_id: str) -> Token[str]:
         if not isinstance(parent_id, str) or not parent_id.strip():
@@ -241,6 +248,8 @@ class SubagentRuntime:
             supervisor,
             self._modes,
             self._profiles,
+            self._agents,
+            parent_id,
         ).dispatch(request, cancellation)
 
     async def release(self, parent_id: str) -> None:
@@ -255,3 +264,4 @@ class SubagentRuntime:
         for supervisor in supervisors:
             await supervisor.wait_all()
         self._supervisors.clear()
+        self._child_threads.clear()

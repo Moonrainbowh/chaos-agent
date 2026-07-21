@@ -10,7 +10,7 @@ from typing import Optional, Protocol
 from code_agent.core.cancellation import CancellationError, CancellationToken
 from code_agent.core.events import EventKind
 from .controller import AgentController
-from .command_registry import REGISTRY
+from .command_registry import CommandRegistry, REGISTRY
 from .history import ThreadHistoryReader, load_thread_history
 from .input_buffer import InputBuffer
 from .input_events import ExitGuard
@@ -22,6 +22,7 @@ from .terminal_tail import LiveTailGeometry, clear_live_tail, render_live_tail_f
 from .terminal_state import ApprovalBroker, ApprovalRequest, TerminalState
 from .profile_control import ProfileControl
 from .mode_control import ModeControl
+from .permission_control import PermissionControl
 from code_agent.skills.registry import SkillActivation
 from code_agent.mcp.registry import McpRegistry
 from .task_controller import ForegroundTaskController
@@ -33,6 +34,16 @@ from .command_availability import available_services
 from .tui_builtin_commands import handle_builtin_command
 from .tui_interactions import TuiInteractions
 from .diff_view import GitDiffSource
+from .tui_workflow_commands import handle_workflow_command
+from .interaction import InteractionBroker
+from .tui_lifecycle import (
+    close_tasks,
+    format_command_help,
+    listen_approvals,
+    listen_interactions,
+    start_animation,
+    stop_animation,
+)
 class SessionBrowser(Protocol):
     async def list_threads(self, *, limit: int = 100) -> Sequence[object]: ...
 
@@ -41,11 +52,15 @@ class EvidenceReader(Protocol):
 class WindowsTerminalApp:
     """Append-only Windows Terminal interaction without alternate-screen control."""
 
-    def __init__(self, controller: AgentController, approvals: ApprovalBroker, *, sessions: Optional[SessionBrowser] = None, evidence: Optional[EvidenceReader] = None, tasks: ForegroundTaskController | None = None, history: Optional[ThreadHistoryReader] = None, profiles: ProfileControl | None = None, modes: ModeControl | None = None, skills: SkillActivation | None = None, mcp: McpRegistry | None = None, diff_source: GitDiffSource | None = None, write: Optional[Callable[[str], object]] = None) -> None:
+    def __init__(self, controller: AgentController, approvals: ApprovalBroker, *, sessions: Optional[SessionBrowser] = None, evidence: Optional[EvidenceReader] = None, tasks: ForegroundTaskController | None = None, history: Optional[ThreadHistoryReader] = None, profiles: ProfileControl | None = None, modes: ModeControl | None = None, permissions: PermissionControl | None = None, skills: SkillActivation | None = None, mcp: McpRegistry | None = None, workflows: object | None = None, plugins: object | None = None, interaction_broker: InteractionBroker | None = None, command_registry: CommandRegistry = REGISTRY, diff_source: GitDiffSource | None = None, write: Optional[Callable[[str], object]] = None) -> None:
         self.controller, self.approvals = controller, approvals
-        self.sessions, self.evidence, self.tasks, self.history, self.profiles, self.modes, self.skills, self.mcp, self._write = sessions, evidence, tasks, history, profiles, modes, skills, mcp, write or stdout_write
+        self.sessions, self.evidence, self.tasks, self.history, self.profiles, self.modes, self.permissions, self.skills, self.mcp, self.workflows, self.plugins, self.command_registry, self._write = sessions, evidence, tasks, history, profiles, modes, permissions, skills, mcp, workflows, plugins, command_registry, write or stdout_write
         self.state = TerminalState(); self.input = InputBuffer(); self.current_thread_id: str | None = None
         self.exit_guard = ExitGuard()
+        self.interaction_broker = interaction_broker
+        self._pending_interaction = None
+        self._interaction_done = asyncio.Event()
+        self._interaction_task: asyncio.Task[None] | None = None
         self.interactions = TuiInteractions(diff_source)
         self.active_task_id: str | None = None; self.running = False; self._run_task: asyncio.Task[None] | None = None
         self._animation_task: asyncio.Task[None] | None = None; self._spinner_index = 0
@@ -61,17 +76,20 @@ class WindowsTerminalApp:
         if self.tasks:
             await self.tasks.reconcile_stale_tasks()
         if thread_id: await self.restore_thread(thread_id)
-        self._write(BRACKETED_PASTE_ENABLE); self.running = True; self._approval_task = asyncio.create_task(self._listen_approvals()); self.redraw()
+        self._write(BRACKETED_PASTE_ENABLE); self.running = True; self._approval_task = asyncio.create_task(listen_approvals(self))
+        if self.interaction_broker is not None:
+            self._interaction_task = asyncio.create_task(listen_interactions(self))
+        self.redraw()
         try:
             while self.running: await self.handle_key(await asyncio.to_thread(read_key))
-        finally: self._write(BRACKETED_PASTE_DISABLE); await self._close_tasks()
+        finally: self._write(BRACKETED_PASTE_DISABLE); await close_tasks(self)
     async def submit(self, text: str) -> bool:
         if not isinstance(text, str): raise TypeError("text must be a string")
         if not text.strip(): return False
         if self._pending_approval is not None:
             self._append(DisplayKind.ERROR, "approval decision is pending")
             return False
-        parsed = parse_tui_command(text, available_services(self))
+        parsed = parse_tui_command(text, available_services(self), self.command_registry)
         if parsed.is_command: return await self._handle_command(parsed)
         if parsed.error: self._append(DisplayKind.ERROR, parsed.error); return False
         self._append(DisplayKind.USER, text)
@@ -95,7 +113,7 @@ class WindowsTerminalApp:
 
     async def wait_idle(self) -> None:
         if self._run_task: await self._run_task
-        await self._stop_animation()
+        await stop_animation(self)
 
     async def handle_key(self, key: str) -> None:
         if key == "\x03":
@@ -121,6 +139,7 @@ class WindowsTerminalApp:
         self.redraw()
 
     def redraw(self) -> None:
+        now = time.monotonic()
         palette = self.interactions.rows(self)
         status, icon, status_color = status_presentation(self.state.status, self.state.execution_summary, self.state.active_action, self.catalog.language, self.theme, self._spinner_index)
         if self.interactions.steering.pending_count: status += " · " + self.interactions.steering.status_line()
@@ -133,7 +152,12 @@ class WindowsTerminalApp:
             palette=palette,
             status_icon=icon,
             status_color=status_color,
-            status_context=status_context(self._current_model(), self._run_started_at, time.monotonic()),
+            status_context=status_context(
+                self._current_model(),
+                self._run_started_at,
+                now,
+                self.state.token_rate.rate(now),
+            ),
             previous=self._tail_geometry,
         )
         self._write(frame.text)
@@ -164,6 +188,8 @@ class WindowsTerminalApp:
         try:
             async for event in self.tasks.events(task_id, text):
                 self.state.apply(event)
+                if self.state.thread_id:
+                    self.current_thread_id = self.state.thread_id
                 self.interactions.observe_event(self, event.kind)
                 terminal = terminal or event.kind is EventKind.COMPLETED or (
                     event.kind is EventKind.TASK_STATUS_CHANGED
@@ -189,15 +215,28 @@ class WindowsTerminalApp:
             self._append(DisplayKind.METADATA, status_snapshot(self.state.status, self.active_task_id or self.state.task_id, self.current_thread_id, self._current_model()))
         elif command.kind is TuiCommandKind.HELP:
             if command.instruction:
-                spec = REGISTRY.resolve(command.instruction)
-                if spec is None or spec not in REGISTRY.available(available_services(self)):
+                spec = self.command_registry.resolve(command.instruction)
+                if spec is None or spec not in self.command_registry.available(available_services(self)):
                     self._append(DisplayKind.ERROR, "unknown or unavailable slash command"); return False
                 self._append(DisplayKind.METADATA, f"{spec.display} · {spec.description}")
             else:
                 self._append(
                     DisplayKind.METADATA,
-                    _format_command_help(REGISTRY.available(available_services(self))),
+                    format_command_help(self.command_registry.available(available_services(self))),
                 )
+        elif command.kind is TuiCommandKind.WORKFLOW:
+            return await handle_workflow_command(self, command.instruction)
+        elif command.kind is TuiCommandKind.PLUGIN:
+            if self.plugins is None or command.command_name is None:
+                self._append(DisplayKind.ERROR, "plugin command is unavailable"); return False
+            try:
+                await self.plugins.execute_command(
+                    command.command_name,
+                    tuple((command.instruction or "").split()),
+                )
+            except (KeyError, PermissionError, RuntimeError, ValueError):
+                self._append(DisplayKind.ERROR, "plugin command failed")
+                return False
         elif command.kind is TuiCommandKind.MODE:
             if self.modes is None: self._append(DisplayKind.ERROR, "agent modes are unavailable"); return False
             if command.instruction is None:
@@ -213,6 +252,21 @@ class WindowsTerminalApp:
                 except (ValueError, RuntimeError) as error:
                     self._append(DisplayKind.ERROR, str(error)); return False
                 self._append(DisplayKind.METADATA, f"mode selected: {selected.name} · {selected.model}")
+        elif command.kind is TuiCommandKind.PERMISSION:
+            if self.permissions is None: self._append(DisplayKind.ERROR, "permission controls are unavailable"); return False
+            if command.instruction is None:
+                current = self.permissions.current
+                choices = " | ".join(item.name for item in self.permissions.list())
+                self._append(DisplayKind.METADATA, f"current {current.name} | {choices}")
+            else:
+                try:
+                    selected = await self.permissions.use(
+                        command.instruction,
+                        idle=self._run_task is None or self._run_task.done(),
+                    )
+                except (ValueError, RuntimeError) as error:
+                    self._append(DisplayKind.ERROR, str(error)); return False
+                self._append(DisplayKind.METADATA, f"permission selected: {selected.name} · {selected.description}")
         elif command.kind is TuiCommandKind.EVIDENCE:
             task_id = command.instruction or self.active_task_id or self.state.task_id
             if self.evidence is None or not task_id:
@@ -232,9 +286,6 @@ class WindowsTerminalApp:
             return self.modes.current.model
         return self.profiles.current.model if self.profiles else None
 
-    async def _listen_approvals(self) -> None:
-        while True: self._pending_approval = await self.approvals.next_request(); self._approval_done.clear(); self.redraw(); await self._approval_done.wait()
-
     def _append(self, kind: DisplayKind, value: object) -> None:
         self.state.entries.append(text_entry(kind, value)); self.state.transcript.append(self.state.entries[-1].text); self._flush_pending_entries()
 
@@ -251,41 +302,4 @@ class WindowsTerminalApp:
         return shutil.get_terminal_size((100, 30)).columns
 
     def _start_animation(self) -> None:
-        if self._animation_task is None or self._animation_task.done():
-            self._animation_task = asyncio.create_task(self._animate())
-
-    async def _stop_animation(self) -> None:
-        if self._animation_task and not self._animation_task.done():
-            self._animation_task.cancel()
-        if self._animation_task:
-            await asyncio.gather(self._animation_task, return_exceptions=True)
-        self._animation_task = None
-
-    async def _animate(self) -> None:
-        while self._run_task and not self._run_task.done():
-            self._spinner_index += 1
-            if self.state.status == "running": self.redraw()
-            await asyncio.sleep(0.12)
-
-    async def _close_tasks(self) -> None:
-        if self._pending_approval is not None:
-            self.approvals.resolve(self._pending_approval.request_id, False)
-            self._pending_approval = None
-            self._approval_done.set()
-        if self.tasks and self.active_task_id:
-            await self.tasks.interrupt(self.active_task_id, "TUI closed")
-        if self._token: self._token.cancel("TUI closed")
-        for task in (self._run_task, self._approval_task, self._animation_task):
-            if task: task.cancel()
-        await asyncio.gather(*(task for task in (self._run_task, self._approval_task, self._animation_task) if task), return_exceptions=True)
-
-
-def _format_command_help(specs: Sequence[object]) -> str:
-    groups: dict[str, list[str]] = {}
-    for spec in specs:
-        groups.setdefault(spec.group, []).append(f"  {spec.display} · {spec.description}")
-    return "\n".join(
-        line
-        for group, commands in groups.items()
-        for line in (group, *commands)
-    )
+        start_animation(self)

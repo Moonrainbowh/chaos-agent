@@ -10,26 +10,21 @@ not a claim of source compatibility or copied behavior.
 | --- | --- | --- |
 | Modes | `low`, `medium`, `high`, `ultra` freeze profile, actual model, prompt policy, tools, reasoning effort, and limits. Mode never changes permission. | `--mode`, `CHAOS_MODE`, per-mode profile environment bindings, TUI mode/permission lines. |
 | Child agents | Subagent, Oracle, Review, Search, and Librarian run in child threads with cancellation, concurrency, single-writer serialization, and cumulative parent reservations. | `delegate_agent` typed schema, central policy decision, advisory result marker, token/tool/time usage. |
-| Plugins | Versioned JSON manifests validate digest, host API, trust, namespace, contribution conflicts, risk floors, and explicit enablement. | Trusted plugin tools are integrated as qualified definitions and checked against plugin risk and mapped Host risk. Other contribution snapshots are validated but still await Host routing. |
+| Plugins | Versioned JSON manifests validate digest, host API, trust, namespace, contribution conflicts, risk floors, and explicit enablement. | Tools, namespaced commands/modes, custom Agents, typed event proposals, and Host-owned interactions are runtime-integrated; proposed actions pass plugin and Host policy. |
 | TUI Picker | One bottom-oriented keyboard Picker model supports command, session, mode, Skill, MCP, and plugin item sources. | Command candidates are integrated; selection, completion, disabled reasons, error recovery, and `Esc` cancellation are tested. |
 | Task truth | Running, verifying, paused, waiting decision, approval, partial, completed, failed, interrupted, and cancelled have distinct presentations. | Status rendering tests and persisted task events. |
 | Steering | `queued`, `steered`, `dequeued`, and `applied` remain distinct with queue count. | `TURN_STARTED` proves dequeue; `CONTEXT_BUILT` proves application to rebuilt context. |
 | Approval | Action, mapped target, risk, reason, No/Yes selection, `Enter`, and `Esc` are visible in the dynamic tail. | Host-owned approval broker; default selection is No. |
 | Diff | Recorded typed write diff is parsed; an injected Git reader can replace it with current workspace diff. | File statistics, bounded unified lines, path filter, file navigation, and comment model tests. |
 
-## Implemented But Not Yet Runtime-integrated
+## Runtime-integrated Thread Intelligence
 
-Semantic checkpoints, source anchors, bounded thread index/search, and
-revision-aware `read_thread` are complete Feature Units. They are deliberately
-not connected to `WorkspaceContextBuilder` yet. Its public `build(messages,
-user_input, tools, task_state)` contract has no thread identity, so an
-integration adapter cannot create truthful `SourceAnchor.thread_id` values.
-
-The current runtime therefore retains deterministic compaction. The next safe
-revision is to add an explicit context request carrying `thread_id`, context
-pressure, cancellation, timeout, and task budget lease. After that change, the
-semantic compactor can run near 90% pressure and persist its checkpoint through
-the session repository without guessing identity or hiding model usage.
+`ContextBuilder.build(...)` now receives `thread_id` and cancellation. The
+runtime loads stable SQLite message sequences, invokes the frozen task model
+near context pressure, charges usage to the same task, publishes semantic
+checkpoints and index entries atomically, and retains deterministic compaction
+as the failure path. `search_threads` and `read_thread` receive caller identity
+only from Host context and enforce the persisted two-level thread tree.
 
 ## Deliberate Differences
 

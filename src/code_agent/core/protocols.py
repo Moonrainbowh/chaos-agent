@@ -30,10 +30,12 @@ class ModelClient(Protocol):
 class ContextBuilder(Protocol):
     async def build(
         self,
+        thread_id: str,
         messages: Sequence[Message],
         user_input: str,
         tools: Sequence[ToolDefinition],
         task_state: TaskState,
+        cancellation: CancellationToken,
     ) -> ContextBundle: ...
 
 
@@ -47,7 +49,9 @@ class ActionDispatcher(Protocol):
 
 
 class SessionRepository(Protocol):
-    async def create_thread(self) -> str: ...
+    async def create_thread(
+        self, *, parent_thread_id: str | None = None
+    ) -> str: ...
 
     async def load_messages(self, thread_id: str) -> Sequence[Message]: ...
 

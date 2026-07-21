@@ -145,6 +145,45 @@ class RootActionDispatcherTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(result.is_error)
         self.assertEqual(invalidated, [()])
 
+    async def test_unrestricted_command_runs_without_requesting_approval(self) -> None:
+        class Runtime:
+            async def run(self, spec, cancellation, sink):
+                return CommandResult(
+                    argv=("powershell",),
+                    display_command="Get-Date",
+                    returncode=0,
+                    reason=TerminationReason.EXITED,
+                    stdout=b"ok",
+                    stderr=b"",
+                    duration_s=0,
+                    truncated=False,
+                    cwd=".",
+                )
+
+        approvals = ApprovalBroker()
+        guard = WorkspacePathGuard(self.root, allow_outside=True, allow_sensitive=True)
+        dispatcher = RootActionDispatcher(
+            WorkspaceFiles(guard, IgnoreRules.from_workspace(self.root)),
+            WorkspaceEditor(guard),
+            ActionPolicy(
+                PolicyConfig(
+                    ApprovalMode.UNRESTRICTED,
+                    workspace_root=self.root,
+                )
+            ),
+            approvals,
+            runtime=Runtime(),
+        )
+        dispatcher.interactive = True
+
+        result = await dispatcher.dispatch(
+            ActionRequest("call-free", "run_command", {"command": "Get-Date"}),
+            CancellationToken(),
+        )
+
+        self.assertFalse(result.is_error)
+        self.assertFalse(approvals.resolve("call-free", True))
+
     async def test_completed_verification_invalidates_workspace_derived_caches(self) -> None:
         class Runtime:
             async def run(self, spec, cancellation, sink):

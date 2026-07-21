@@ -30,6 +30,8 @@ class EventProjection:
 @dataclass(frozen=True)
 class PluginProposal:
     plugin_id: str
+    plugin_digest: str
+    generation: int
     subscription_id: str
     event_kind: str
     ui: UiRequest | None = None
@@ -59,6 +61,8 @@ class DeclarativeEventRouter:
             proposals.append(
                 PluginProposal(
                     registered.plugin_id,
+                    self._host.manifest_digest(registered.plugin_id),
+                    self._host.generation,
                     subscription.identifier,
                     event.kind,
                     subscription.ui,

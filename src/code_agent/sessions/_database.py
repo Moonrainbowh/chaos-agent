@@ -15,7 +15,7 @@ from .errors import (
 )
 
 
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 13
 _BUSY_TIMEOUT_MS = 5_000
 _SQLITE_CORRUPT = 11
 _SQLITE_NOTADB = 26
@@ -74,10 +74,33 @@ _MIGRATIONS: dict[int, tuple[str, ...]] = {
         "CREATE INDEX verification_runs_task_created ON verification_runs(task_id, created_at)",
         "CREATE INDEX verification_evidence_task_created ON verification_evidence(task_id, created_at)",
     ),
+    10: (
+        "ALTER TABLE threads ADD COLUMN parent_thread_id TEXT REFERENCES threads(id)",
+        "CREATE INDEX threads_parent_id ON threads(parent_thread_id)",
+    ),
+    11: (
+        "CREATE TABLE semantic_checkpoints (id TEXT PRIMARY KEY, thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE, payload TEXT NOT NULL, created_at TEXT NOT NULL)",
+        "CREATE TABLE thread_index_entries (stable_id TEXT PRIMARY KEY, checkpoint_id TEXT NOT NULL REFERENCES semantic_checkpoints(id) ON DELETE CASCADE, thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE, sequence INTEGER NOT NULL, text TEXT NOT NULL, payload TEXT NOT NULL, created_at TEXT NOT NULL)",
+        "CREATE INDEX semantic_checkpoints_thread_created ON semantic_checkpoints(thread_id, created_at, id)",
+        "CREATE INDEX thread_index_thread_sequence ON thread_index_entries(thread_id, sequence, stable_id)",
+    ),
+    12: (
+        "CREATE TABLE workflows (id TEXT PRIMARY KEY, root_thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE, task_id TEXT NOT NULL UNIQUE, payload TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)",
+        "CREATE TABLE workflow_nodes (id TEXT PRIMARY KEY, workflow_id TEXT NOT NULL REFERENCES workflows(id) ON DELETE CASCADE, position INTEGER NOT NULL, status TEXT NOT NULL, payload TEXT NOT NULL)",
+        "CREATE TABLE workflow_edges (workflow_id TEXT NOT NULL REFERENCES workflows(id) ON DELETE CASCADE, source_node_id TEXT NOT NULL REFERENCES workflow_nodes(id) ON DELETE CASCADE, target_node_id TEXT NOT NULL REFERENCES workflow_nodes(id) ON DELETE CASCADE, kind TEXT NOT NULL, position INTEGER NOT NULL, PRIMARY KEY(workflow_id, source_node_id, target_node_id, kind))",
+        "CREATE INDEX workflow_nodes_workflow_position ON workflow_nodes(workflow_id, position)",
+        "CREATE INDEX workflow_edges_workflow_position ON workflow_edges(workflow_id, position)",
+    ),
+    13: (
+        "CREATE TABLE skill_activations (thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE, skill_id TEXT NOT NULL, source TEXT NOT NULL, digest TEXT NOT NULL, activated_at TEXT NOT NULL, PRIMARY KEY(thread_id, skill_id))",
+        "CREATE INDEX skill_activations_thread_time ON skill_activations(thread_id, activated_at, skill_id)",
+    ),
 }
 
 _REQUIRED_COLUMNS = {
-    "threads": {"id", "created_at", "updated_at", "title", "status"},
+    "threads": {
+        "id", "created_at", "updated_at", "title", "status", "parent_thread_id",
+    },
     "messages": {"sequence", "thread_id", "payload", "created_at"},
     "events": {"sequence", "thread_id", "payload", "created_at"},
     "goals": {
@@ -94,6 +117,21 @@ _REQUIRED_COLUMNS = {
     "verification_runs": {"id", "task_id", "generation", "subject_hash", "status", "created_at", "completed_at"},
     "verification_evidence": {"id", "run_id", "task_id", "payload", "created_at"},
     "task_completions": {"task_id", "revision", "generation", "subject_hash", "assessment", "created_at"},
+    "semantic_checkpoints": {"id", "thread_id", "payload", "created_at"},
+    "thread_index_entries": {
+        "stable_id", "checkpoint_id", "thread_id", "sequence", "text", "payload",
+        "created_at",
+    },
+    "workflows": {
+        "id", "root_thread_id", "task_id", "payload", "created_at", "updated_at",
+    },
+    "workflow_nodes": {"id", "workflow_id", "position", "status", "payload"},
+    "workflow_edges": {
+        "workflow_id", "source_node_id", "target_node_id", "kind", "position",
+    },
+    "skill_activations": {
+        "thread_id", "skill_id", "source", "digest", "activated_at",
+    },
 }
 
 

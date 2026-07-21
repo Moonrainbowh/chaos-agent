@@ -6,6 +6,7 @@ import re
 from typing import Sequence
 
 from code_agent.core.models import ContextBundle, Message, ToolDefinition
+from code_agent.core.cancellation import CancellationToken
 from code_agent.core.task_state import TaskState
 
 from .compaction import DeterministicCompactor
@@ -65,12 +66,19 @@ class WorkspaceContextBuilder:
 
     async def build(
         self,
+        thread_id: str,
         messages: Sequence[Message],
         user_input: str,
         tools: Sequence[ToolDefinition],
         task_state: TaskState,
+        cancellation: CancellationToken,
     ) -> ContextBundle:
         """Build a stable prompt and compacted messages for one model turn."""
+        if not isinstance(thread_id, str) or not thread_id.strip():
+            raise ValueError("thread_id must be non-blank text")
+        if not isinstance(cancellation, CancellationToken):
+            raise TypeError("cancellation must be a CancellationToken")
+        cancellation.raise_if_cancelled()
         checked = tuple(messages)
         if not all(isinstance(message, Message) for message in checked):
             raise TypeError("messages must contain only Message values")
@@ -81,9 +89,11 @@ class WorkspaceContextBuilder:
             raise TypeError("tools must contain only ToolDefinition values")
         if not isinstance(task_state, TaskState):
             raise TypeError("task_state must be a TaskState")
-        return await asyncio.to_thread(
+        bundle = await asyncio.to_thread(
             self._build_sync, checked, user_input, checked_tools, task_state
         )
+        cancellation.raise_if_cancelled()
+        return bundle
 
     def _build_sync(
         self,

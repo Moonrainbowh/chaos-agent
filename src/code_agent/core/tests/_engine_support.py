@@ -42,18 +42,31 @@ class FakeModelClient:
 
 class FakeContextBuilder:
     def __init__(self, measurements: Mapping[str, int] | None = None) -> None:
-        self.calls: list[tuple[tuple[Message, ...], str, tuple[ToolDefinition, ...], TaskState]] = []
+        self.calls: list[
+            tuple[
+                tuple[Message, ...],
+                str,
+                tuple[ToolDefinition, ...],
+                TaskState,
+                str,
+                CancellationToken,
+            ]
+        ] = []
         self.measurements = dict(measurements or {})
 
     async def build(
         self,
+        thread_id: str,
         messages: Sequence[Message],
         user_input: str,
         tools: Sequence[ToolDefinition],
         task_state: TaskState,
+        cancellation: CancellationToken,
     ) -> ContextBundle:
         history = tuple(messages)
-        self.calls.append((history, user_input, tuple(tools), task_state))
+        self.calls.append(
+            (history, user_input, tuple(tools), task_state, thread_id, cancellation)
+        )
         if user_input:
             history += (Message(role="user", content=user_input),)
         return ContextBundle(

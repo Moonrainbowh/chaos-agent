@@ -9,6 +9,7 @@ from code_agent.sessions.models import GoalStatus
 from code_agent.interfaces.terminal_display import DisplayKind, DisplayEntry, text_entry
 from code_agent.interfaces.action_summary import action_summary
 from code_agent.interfaces.approval import ApprovalBroker, ApprovalRequest
+from code_agent.interfaces.token_rate import TokenRateTracker
 
 
 class TerminalState:
@@ -32,6 +33,7 @@ class TerminalState:
         self.task_status: Optional[str] = None
         self.task_budget_line: Optional[str] = None
         self.pending_decision: Optional[str] = None
+        self.token_rate = TokenRateTracker()
 
     def restore(self, history: RestoredThread) -> None:
         """Project persisted thread records into a terminal-safe view model."""
@@ -61,6 +63,7 @@ class TerminalState:
         self._action_requests = {}
         self.active_action = None
         self.execution_summary = ""
+        self.token_rate.reset()
 
     def apply(self, event: AgentEvent) -> None:
         self.timeline.append(_timeline_line(event))
@@ -72,8 +75,10 @@ class TerminalState:
         elif event.kind in {
             EventKind.TURN_STARTED,
             EventKind.CONTEXT_BUILT,
-            EventKind.MODEL_STARTED,
         }:
+            self._update_status(event)
+        elif event.kind is EventKind.MODEL_STARTED:
+            self.token_rate.reset()
             self._update_status(event)
         elif event.kind in {EventKind.TASK_CREATED, EventKind.TASK_STATUS_CHANGED, EventKind.TASK_PAUSED}:
             task_id = event.payload.get("task_id")
@@ -142,6 +147,9 @@ class TerminalState:
         if model_event.kind is ModelEventKind.TEXT_DELTA and model_event.text:
             self.status = "running"
             self._answer_parts.append(model_event.text)
+            self.token_rate.observe_text(model_event.text)
+        elif model_event.kind is ModelEventKind.USAGE and model_event.usage is not None:
+            self.token_rate.calibrate(model_event.usage.output_tokens)
 
     def _apply_completed_message(self, event: AgentEvent) -> None:
         raw = event.payload.get("message")
