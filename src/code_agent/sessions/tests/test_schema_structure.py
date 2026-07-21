@@ -65,8 +65,8 @@ class SchemaStructureValidationTests(unittest.TestCase):
     def test_missing_fk_and_wrong_on_delete_are_rejected(self) -> None:
         self.rewrite_table_sql(
             "checkpoint_workspace_state",
-            "lineage_id TEXT NOT NULL REFERENCES workspace_lineages(id)",
-            "lineage_id TEXT NOT NULL",
+            "lineage_id TEXT REFERENCES workspace_lineages(id)",
+            "lineage_id TEXT",
         )
         self.assert_reopen_corrupt()
 

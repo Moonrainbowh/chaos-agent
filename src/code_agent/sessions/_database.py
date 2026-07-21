@@ -17,7 +17,7 @@ from ._schema_structure import validate_schema_structure
 from ._schema_validation import REQUIRED_COLUMNS
 
 
-SCHEMA_VERSION = 14
+SCHEMA_VERSION = 15
 _BUSY_TIMEOUT_MS = 5_000
 _SQLITE_CORRUPT = 11
 _SQLITE_NOTADB = 26
@@ -102,14 +102,21 @@ _MIGRATIONS: dict[int, tuple[str, ...]] = {
         "ALTER TABLE tasks ADD COLUMN workspace_lineage_id TEXT REFERENCES workspace_lineages(id)",
         "CREATE TABLE workspace_snapshots (id TEXT PRIMARY KEY, lineage_id TEXT NOT NULL REFERENCES workspace_lineages(id), inventory_digest TEXT NOT NULL, total_bytes INTEGER NOT NULL, created_at TEXT NOT NULL)",
         "CREATE TABLE workspace_snapshot_entries (snapshot_id TEXT NOT NULL REFERENCES workspace_snapshots(id) ON DELETE CASCADE, relative_path TEXT NOT NULL, existed INTEGER NOT NULL, blob_sha256 TEXT, size INTEGER NOT NULL, mode INTEGER, PRIMARY KEY(snapshot_id, relative_path))",
-        "CREATE TABLE checkpoint_workspace_state (checkpoint_id TEXT PRIMARY KEY REFERENCES checkpoints(id) ON DELETE CASCADE, snapshot_id TEXT REFERENCES workspace_snapshots(id), lineage_id TEXT NOT NULL REFERENCES workspace_lineages(id), message_sequence INTEGER NOT NULL, event_sequence INTEGER NOT NULL, goals_payload TEXT NOT NULL, task_state_payload TEXT NOT NULL, budget_payload TEXT NOT NULL, snapshot_status TEXT NOT NULL)",
+        "CREATE TABLE checkpoint_workspace_state (checkpoint_id TEXT PRIMARY KEY REFERENCES checkpoints(id) ON DELETE CASCADE, snapshot_id TEXT REFERENCES workspace_snapshots(id), message_sequence INTEGER NOT NULL, event_sequence INTEGER NOT NULL, goals_payload TEXT NOT NULL, task_state_payload TEXT NOT NULL, budget_payload TEXT NOT NULL, snapshot_status TEXT NOT NULL)",
         "CREATE TABLE rewind_operations (id TEXT PRIMARY KEY, lineage_id TEXT NOT NULL REFERENCES workspace_lineages(id), source_checkpoint_id TEXT NOT NULL REFERENCES checkpoints(id), rollback_checkpoint_id TEXT REFERENCES checkpoints(id), mode TEXT NOT NULL, preview_fingerprint TEXT NOT NULL, status TEXT NOT NULL, error_code TEXT, replacement_task_id TEXT REFERENCES tasks(id), created_at TEXT NOT NULL, updated_at TEXT NOT NULL)",
-        "CREATE TABLE workspace_lineage_usage (lineage_id TEXT PRIMARY KEY REFERENCES workspace_lineages(id) ON DELETE CASCADE, model_turns INTEGER NOT NULL DEFAULT 0, tool_calls INTEGER NOT NULL DEFAULT 0, input_tokens INTEGER NOT NULL DEFAULT 0, output_tokens INTEGER NOT NULL DEFAULT 0, repair_cycles INTEGER NOT NULL DEFAULT 0, repeated_failures INTEGER NOT NULL DEFAULT 0, last_failure_signature TEXT, active_seconds INTEGER NOT NULL DEFAULT 0, warned_at_80 INTEGER NOT NULL DEFAULT 0, warned_at_90 INTEGER NOT NULL DEFAULT 0)",
+        "CREATE TABLE workspace_lineage_usage (lineage_id TEXT PRIMARY KEY REFERENCES workspace_lineages(id) ON DELETE CASCADE, model_turns INTEGER NOT NULL DEFAULT 0, tool_calls INTEGER NOT NULL DEFAULT 0, input_tokens INTEGER NOT NULL DEFAULT 0, output_tokens INTEGER NOT NULL DEFAULT 0, repair_cycles INTEGER NOT NULL DEFAULT 0, repeated_failures INTEGER NOT NULL DEFAULT 0, active_seconds INTEGER NOT NULL DEFAULT 0, warned_at_80 INTEGER NOT NULL DEFAULT 0, warned_at_90 INTEGER NOT NULL DEFAULT 0)",
         "CREATE INDEX workspace_lineages_status_updated ON workspace_lineages(status, updated_at, id)",
         "CREATE INDEX workspace_snapshots_lineage_created ON workspace_snapshots(lineage_id, created_at, id)",
         "CREATE INDEX rewind_operations_status_created ON rewind_operations(status, created_at, id)",
         "CREATE INDEX rewind_operations_lineage_status_created ON rewind_operations(lineage_id, status, created_at, id)",
         "CREATE UNIQUE INDEX rewind_operations_one_pending ON rewind_operations(lineage_id) WHERE status = 'pending'",
+    ),
+    15: (
+        "ALTER TABLE checkpoint_workspace_state ADD COLUMN lineage_id TEXT REFERENCES workspace_lineages(id)",
+        "ALTER TABLE workspace_lineage_usage ADD COLUMN last_failure_signature TEXT",
+        "UPDATE checkpoint_workspace_state SET lineage_id = (SELECT lineage_id FROM workspace_snapshots WHERE id = checkpoint_workspace_state.snapshot_id) WHERE snapshot_id IS NOT NULL",
+        "UPDATE checkpoint_workspace_state SET lineage_id = (SELECT t.workspace_lineage_id FROM checkpoints c JOIN tasks t ON t.thread_id = c.thread_id WHERE c.id = checkpoint_workspace_state.checkpoint_id AND t.workspace_lineage_id IS NOT NULL) WHERE lineage_id IS NULL AND snapshot_id IS NULL",
+        "UPDATE workspace_lineage_usage SET repeated_failures = (SELECT b.repeated_failures FROM workspace_lineages l JOIN tasks t ON t.id = l.owner_task_id AND t.workspace_lineage_id = l.id JOIN task_budgets b ON b.thread_id = t.thread_id WHERE l.id = workspace_lineage_usage.lineage_id AND b.last_failure_signature IS NOT NULL), last_failure_signature = (SELECT b.last_failure_signature FROM workspace_lineages l JOIN tasks t ON t.id = l.owner_task_id AND t.workspace_lineage_id = l.id JOIN task_budgets b ON b.thread_id = t.thread_id WHERE l.id = workspace_lineage_usage.lineage_id AND b.last_failure_signature IS NOT NULL) WHERE EXISTS (SELECT 1 FROM workspace_lineages l JOIN tasks t ON t.id = l.owner_task_id AND t.workspace_lineage_id = l.id JOIN task_budgets b ON b.thread_id = t.thread_id WHERE l.id = workspace_lineage_usage.lineage_id AND b.last_failure_signature IS NOT NULL)",
     ),
 }
 

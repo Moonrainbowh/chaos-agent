@@ -214,13 +214,11 @@ def _checkpoint_lineage(connection: sqlite3.Connection, checkpoint_id: str) -> s
     ).fetchone()
     if row is None:
         raise SessionNotFound("checkpoint not found")
+    if row["cursor_lineage"] is None:
+        raise SessionCorruptionError("legacy checkpoint is not rewindable")
     values = {
         item
-        for item in (
-            row["snapshot_lineage"],
-            row["cursor_lineage"],
-            row["task_lineage"],
-        )
+        for item in (row["snapshot_lineage"], row["cursor_lineage"], row["task_lineage"])
         if item
     }
     if len(values) != 1:

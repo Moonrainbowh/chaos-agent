@@ -138,6 +138,8 @@ def _fork_source(
     ).fetchone()
     if cursor is None:
         raise SessionNotFound("checkpoint has no rewind cursor")
+    if cursor["lineage_id"] is None:
+        raise SessionCorruptionError("legacy checkpoint is not rewindable")
     task = connection.execute(
         "SELECT * FROM tasks WHERE thread_id = ?", (checkpoint["thread_id"],)
     ).fetchone()

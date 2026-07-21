@@ -31,4 +31,4 @@
 - `RewindRepositoryMixin`: 以 CAS 开始、完成或失败 Rewind，并按 lineage/时间查询待恢复操作 | SQLite I/O | 状态机幂等；跨 lineage checkpoint、非法 completion 与 recovery-required 后续写入失败闭合
 - `CheckpointForkRepositoryMixin`: 从 checkpoint 非破坏性分叉消息、事件、目标、任务状态与累计预算，并原子转交 owner | SQLite I/O | 只复制游标前事实，不修改旧 task；`SUPERSEDED` 转换由 Core/Task 6 负责
 - `save_task_contract_revision`、`begin_verification_run`、`append_verification_evidence`、`finalize_task`: 保存 append-only 验证账本并原子完成 | SQLite I/O | 必须复核最新 generation、revision 与全部 required evidence
-- `SessionDatabase`、`migrate_legacy_session_database`、稳定 JSON codecs: 执行 v1-v14 migration、schema/index/FK 校验、旧库复制与记录编解码 | SQLite/JSON I/O | 未来版本、缺表/索引、损坏数据失败闭合；旧库始终保留
+- `SessionDatabase`、`migrate_legacy_session_database`、稳定 JSON codecs: 执行 v1-v15 migration、schema/index/FK 校验、旧库复制与记录编解码 | SQLite/JSON I/O | 未来版本、缺表/索引、损坏数据失败闭合；旧库始终保留

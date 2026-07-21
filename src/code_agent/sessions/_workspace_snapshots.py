@@ -260,4 +260,6 @@ def _checkpoint_state(
     ).fetchone()
     if state is None:
         raise SessionNotFound("checkpoint has no workspace state")
+    if state["lineage_id"] is None:
+        raise SessionCorruptionError("legacy checkpoint is not rewindable")
     return state

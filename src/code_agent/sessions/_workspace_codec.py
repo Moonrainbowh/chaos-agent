@@ -92,6 +92,9 @@ def snapshot_from_rows(
 
 def cursor_from_row(row: sqlite3.Row) -> CheckpointCursor:
     try:
+        lineage_id = row["lineage_id"]
+        if lineage_id is None:
+            raise SessionCorruptionError("legacy checkpoint is not rewindable")
         goals = decode_json(row["goals_payload"], "checkpoint goals")
         state = decode_json(row["task_state_payload"], "checkpoint task state")
         budget = decode_json(row["budget_payload"], "checkpoint budget")
@@ -104,7 +107,7 @@ def cursor_from_row(row: sqlite3.Row) -> CheckpointCursor:
             state,
             budget,
             WorkspaceSnapshotStatus(row["snapshot_status"]),
-            row["lineage_id"],
+            lineage_id,
         )
     except SessionCorruptionError:
         raise
@@ -189,17 +192,20 @@ def insert_cursor(
     cursor: CheckpointCursor,
 ) -> None:
     connection.execute(
-        "INSERT INTO checkpoint_workspace_state VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO checkpoint_workspace_state("
+        "checkpoint_id, snapshot_id, message_sequence, event_sequence, goals_payload, "
+        "task_state_payload, budget_payload, snapshot_status, lineage_id) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             checkpoint_id,
             snapshot_id,
-            cursor.lineage_id,
             cursor.message_sequence,
             cursor.event_sequence,
             encode_json(cast(JSONValue, cursor.goals_payload)),
             encode_json(cast(JSONValue, cursor.task_state_payload)),
             encode_json(cast(JSONValue, cursor.budget_payload)),
             cursor.snapshot_status.value,
+            cursor.lineage_id,
         ),
     )
 

@@ -126,7 +126,7 @@ class SessionMigrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(version, SCHEMA_VERSION)
         self.assertIn("task_states", tables)
 
-    def test_every_historical_schema_version_migrates_to_v14_idempotently(self) -> None:
+    def test_every_historical_schema_version_migrates_to_current_idempotently(self) -> None:
         for version in range(SCHEMA_VERSION):
             database = Path(self.temporary.name) / f"sessions-v{version}.sqlite3"
             with sqlite3.connect(database) as connection:
@@ -146,13 +146,13 @@ class SessionMigrationTests(unittest.IsolatedAsyncioTestCase):
                         "PRAGMA foreign_key_list(rewind_operations)"
                     )
                 }
-            self.assertEqual(migrated, 14, version)
+            self.assertEqual(migrated, SCHEMA_VERSION, version)
             self.assertTrue(
                 {"workspace_lineages", "checkpoints", "tasks"}.issubset(foreign_keys),
                 version,
             )
 
-    def test_v14_required_indexes_and_columns_are_validated_on_reopen(self) -> None:
+    def test_current_required_indexes_and_columns_are_validated_on_reopen(self) -> None:
         SQLiteSessionRepository(self.database)
         with sqlite3.connect(self.database) as connection:
             columns = {
@@ -163,8 +163,22 @@ class SessionMigrationTests(unittest.IsolatedAsyncioTestCase):
                 row[1]
                 for row in connection.execute("PRAGMA index_list(rewind_operations)")
             }
+            cursor_columns = {
+                row[1]
+                for row in connection.execute(
+                    "PRAGMA table_info(checkpoint_workspace_state)"
+                )
+            }
+            usage_columns = {
+                row[1]
+                for row in connection.execute(
+                    "PRAGMA table_info(workspace_lineage_usage)"
+                )
+            }
         self.assertIn("replacement_task_id", columns)
         self.assertIn("rewind_operations_one_pending", indexes)
+        self.assertIn("lineage_id", cursor_columns)
+        self.assertIn("last_failure_signature", usage_columns)
 
         with sqlite3.connect(self.database) as connection:
             connection.execute("DROP INDEX rewind_operations_status_created")
