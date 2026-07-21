@@ -13,6 +13,7 @@ SRC_ROOT = Path(__file__).resolve().parents[3]
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
+from code_agent.core.task import TaskAuthorization, TaskContract  # noqa: E402
 from code_agent.sessions.errors import (  # noqa: E402
     SessionCorruptionError,
     SessionNotFound,
@@ -40,7 +41,10 @@ def manifest() -> SnapshotManifest:
     return SnapshotManifest(entries, manifest_digest(entries), 4)
 
 
-def cursor(status: WorkspaceSnapshotStatus = WorkspaceSnapshotStatus.AVAILABLE) -> CheckpointCursor:
+def cursor(
+    lineage_id: str,
+    status: WorkspaceSnapshotStatus = WorkspaceSnapshotStatus.AVAILABLE,
+) -> CheckpointCursor:
     return CheckpointCursor(
         0,
         0,
@@ -48,52 +52,61 @@ def cursor(status: WorkspaceSnapshotStatus = WorkspaceSnapshotStatus.AVAILABLE) 
         {"objective": "repair", "verified_facts": ["one"]},
         {"model_name": "model", "tool_calls": 0},
         status,
+        lineage_id,
     )
 
 
 class WorkspaceSnapshotRepositoryTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:
-        self.temporary = tempfile.TemporaryDirectory()
+        self.temporary = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
         self.database = Path(self.temporary.name) / "sessions.sqlite3"
         self.repository = SQLiteSessionRepository(self.database)
 
     def tearDown(self) -> None:
         self.temporary.cleanup()
 
-    async def create_lineage(self) -> WorkspaceLineageRecord:
+    async def create_lineage(self, thread_id: str | None = None) -> WorkspaceLineageRecord:
+        owner_task_id = None
+        if thread_id is not None:
+            task = await self.repository.create_task(
+                thread_id,
+                TaskContract("repair", TaskAuthorization.local_workspace("C:/managed")),
+            )
+            owner_task_id = task.id
         lineage = WorkspaceLineageRecord.create(
             repository_id="repo",
             source_root="C:/source",
             worktree_root=f"C:/managed/{uuid.uuid4().hex}",
             branch_name="codex/task-one",
             head_commit="a" * 40,
+            owner_task_id=owner_task_id,
         )
         await self.repository.create_lineage(lineage)
         return lineage
 
     async def test_snapshot_checkpoint_and_cursor_publish_atomically_and_round_trip(self) -> None:
         thread_id = await self.repository.create_thread()
-        lineage = await self.create_lineage()
+        lineage = await self.create_lineage(thread_id)
         snapshot = WorkspaceSnapshotRecord.create(lineage.id, manifest())
 
         checkpoint_id = await self.repository.publish_workspace_checkpoint(
-            thread_id, "paused", {"task_id": uuid.uuid4().hex}, snapshot, cursor()
+            thread_id, "paused", {"task_id": uuid.uuid4().hex}, snapshot, cursor(lineage.id)
         )
         reopened = SQLiteSessionRepository(self.database)
 
         self.assertEqual(await reopened.load_workspace_snapshot(checkpoint_id), snapshot)
         restored_cursor = await reopened.load_checkpoint_cursor(checkpoint_id)
-        self.assertEqual(restored_cursor, cursor())
+        self.assertEqual(restored_cursor, cursor(lineage.id))
         checkpoints = await reopened.list_checkpoints(thread_id)
         self.assertEqual(checkpoints[0].metadata["snapshot_id"], snapshot.id)
 
     async def test_blob_is_metadata_only_and_need_not_exist(self) -> None:
         thread_id = await self.repository.create_thread()
-        lineage = await self.create_lineage()
+        lineage = await self.create_lineage(thread_id)
         snapshot = WorkspaceSnapshotRecord.create(lineage.id, manifest())
 
         checkpoint_id = await self.repository.publish_workspace_checkpoint(
-            thread_id, "captured", {}, snapshot, cursor()
+            thread_id, "captured", {}, snapshot, cursor(lineage.id)
         )
 
         self.assertEqual(
@@ -103,19 +116,20 @@ class WorkspaceSnapshotRepositoryTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_unavailable_checkpoint_has_no_snapshot(self) -> None:
         thread_id = await self.repository.create_thread()
+        lineage = await self.create_lineage(thread_id)
         checkpoint_id = await self.repository.publish_workspace_checkpoint(
             thread_id,
             "limited",
             {"reason": "limit"},
             None,
-            cursor(WorkspaceSnapshotStatus.UNAVAILABLE),
+            cursor(lineage.id, WorkspaceSnapshotStatus.UNAVAILABLE),
         )
 
         self.assertIsNone(await self.repository.load_workspace_snapshot(checkpoint_id))
 
     async def test_any_insert_failure_rolls_back_snapshot_checkpoint_and_cursor(self) -> None:
         thread_id = await self.repository.create_thread()
-        lineage = await self.create_lineage()
+        lineage = await self.create_lineage(thread_id)
         snapshot = WorkspaceSnapshotRecord.create(lineage.id, manifest())
         with sqlite3.connect(self.database) as connection:
             connection.executescript(
@@ -130,7 +144,7 @@ class WorkspaceSnapshotRepositoryTests(unittest.IsolatedAsyncioTestCase):
 
         with self.assertRaises(SessionStorageError):
             await self.repository.publish_workspace_checkpoint(
-                thread_id, "paused", {}, snapshot, cursor()
+                thread_id, "paused", {}, snapshot, cursor(lineage.id)
             )
 
         with sqlite3.connect(self.database) as connection:
@@ -150,13 +164,13 @@ class WorkspaceSnapshotRepositoryTests(unittest.IsolatedAsyncioTestCase):
             await self.repository.load_workspace_snapshot(uuid.uuid4().hex)
 
         thread_id = await self.repository.create_thread()
-        lineage = await self.create_lineage()
+        lineage = await self.create_lineage(thread_id)
         checkpoint_id = await self.repository.publish_workspace_checkpoint(
             thread_id,
             "paused",
             {},
             WorkspaceSnapshotRecord.create(lineage.id, manifest()),
-            cursor(),
+            cursor(lineage.id),
         )
         with sqlite3.connect(self.database) as connection:
             connection.execute(
@@ -202,17 +216,16 @@ class WorkspaceSnapshotRepositoryTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_concurrent_publish_writes_are_serialized_without_partial_rows(self) -> None:
         thread_id = await self.repository.create_thread()
-        first = await self.create_lineage()
-        second = await self.create_lineage()
+        lineage = await self.create_lineage(thread_id)
         snapshots = (
-            WorkspaceSnapshotRecord.create(first.id, manifest()),
-            WorkspaceSnapshotRecord.create(second.id, manifest()),
+            WorkspaceSnapshotRecord.create(lineage.id, manifest()),
+            WorkspaceSnapshotRecord.create(lineage.id, manifest()),
         )
 
         checkpoint_ids = await asyncio.gather(
             *(
                 self.repository.publish_workspace_checkpoint(
-                    thread_id, f"checkpoint-{index}", {}, snapshot, cursor()
+                    thread_id, f"checkpoint-{index}", {}, snapshot, cursor(lineage.id)
                 )
                 for index, snapshot in enumerate(snapshots)
             )
@@ -227,12 +240,13 @@ class WorkspaceSnapshotRepositoryTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_corrupt_cursor_payload_fails_closed(self) -> None:
         thread_id = await self.repository.create_thread()
+        lineage = await self.create_lineage(thread_id)
         checkpoint_id = await self.repository.publish_workspace_checkpoint(
             thread_id,
             "cursor",
             {},
             None,
-            cursor(WorkspaceSnapshotStatus.UNAVAILABLE),
+            cursor(lineage.id, WorkspaceSnapshotStatus.UNAVAILABLE),
         )
         with sqlite3.connect(self.database) as connection:
             connection.execute(

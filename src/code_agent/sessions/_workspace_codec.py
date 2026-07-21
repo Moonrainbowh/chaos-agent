@@ -20,7 +20,7 @@ from .workspace_models import (
     WorkspaceSnapshotRecord,
     WorkspaceSnapshotStatus,
 )
-from ._workspace_model_values import require_uuid
+from ._workspace_model_values import MAX_JSON_BYTES, require_uuid, validate_json_value
 
 
 def encode_json(value: JSONValue) -> str:
@@ -33,8 +33,12 @@ def decode_json(payload: object, label: str) -> JSONValue:
     if not isinstance(payload, str):
         raise SessionCorruptionError(f"persisted {label} is not text")
     try:
-        return cast(JSONValue, json.loads(payload))
-    except (TypeError, ValueError) as error:
+        if len(payload.encode("utf-8")) > MAX_JSON_BYTES:
+            raise ValueError("JSON payload exceeds storage limit")
+        value = json.loads(payload)
+        validate_json_value(value, label)
+        return cast(JSONValue, value)
+    except (MemoryError, RecursionError, TypeError, UnicodeError, ValueError) as error:
         raise SessionCorruptionError(f"invalid persisted {label} JSON") from error
 
 
@@ -100,6 +104,7 @@ def cursor_from_row(row: sqlite3.Row) -> CheckpointCursor:
             state,
             budget,
             WorkspaceSnapshotStatus(row["snapshot_status"]),
+            row["lineage_id"],
         )
     except SessionCorruptionError:
         raise
@@ -184,10 +189,11 @@ def insert_cursor(
     cursor: CheckpointCursor,
 ) -> None:
     connection.execute(
-        "INSERT INTO checkpoint_workspace_state VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO checkpoint_workspace_state VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             checkpoint_id,
             snapshot_id,
+            cursor.lineage_id,
             cursor.message_sequence,
             cursor.event_sequence,
             encode_json(cast(JSONValue, cursor.goals_payload)),

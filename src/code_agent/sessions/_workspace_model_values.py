@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import PurePosixPath, PureWindowsPath
 from typing import Mapping
 
-from code_agent.core._json import JSONValue, freeze_mapping, plain
+from code_agent.core._json import JSONValue, freeze_mapping, plain, validate_json
 from code_agent.core.limits import TaskBudget
 from code_agent.workspace._snapshot_manifest import SnapshotManifest, validate_manifest
 
@@ -20,6 +20,7 @@ MAX_GOALS = 10_000
 MAX_FILES = 100_000
 MAX_FILE_BYTES = 2 * 1024 * 1024 * 1024
 MAX_TOTAL_BYTES = 10 * 1024 * 1024 * 1024
+MAX_JSON_BYTES = 2 * 1024 * 1024
 
 
 def require_uuid(value: object, name: str) -> str:
@@ -61,14 +62,20 @@ def require_utc(value: object, name: str) -> datetime:
 def require_json_mapping(value: object, name: str) -> Mapping[str, JSONValue]:
     if not isinstance(value, Mapping):
         raise TypeError(f"{name} must contain mappings")
-    _validate_json_limits(value, name, 0, frozenset())
+    validate_json_value(value, name)
     return freeze_mapping(value, name)  # type: ignore[arg-type]
 
 
 def require_json_size(value: JSONValue) -> None:
     encoded = json.dumps(plain(value), ensure_ascii=False, separators=(",", ":"))
-    if len(encoded.encode("utf-8")) > 2 * 1024 * 1024:
+    if len(encoded.encode("utf-8")) > MAX_JSON_BYTES:
         raise ValueError("checkpoint cursor payload exceeds storage limit")
+
+
+def validate_json_value(value: object, name: str) -> None:
+    """Reject resource-heavy or non-portable values before freezing or decoding."""
+    _validate_json_limits(value, name, 0, frozenset())
+    validate_json(value, name)
 
 
 def require_digest(value: object, name: str) -> str:
@@ -85,8 +92,10 @@ def _validate_json_limits(
 ) -> None:
     if depth > 16:
         raise ValueError(f"{path} exceeds maximum JSON depth")
-    if isinstance(value, str) and len(value) > 32_767:
-        raise ValueError(f"{path} contains oversized text")
+    if isinstance(value, str):
+        if len(value) > 32_767:
+            raise ValueError(f"{path} contains oversized text")
+        value.encode("utf-8")
     if isinstance(value, Mapping):
         if len(value) > 10_000 or id(value) in ancestors:
             raise ValueError(f"{path} has too many values or contains a cycle")

@@ -42,6 +42,8 @@ class CheckpointForkRepositoryMixin:
             lineage_id = source_row["workspace_lineage_id"]
             if lineage_id is None:
                 raise SessionCorruptionError("checkpoint task has no workspace lineage")
+            if cursor.lineage_id != lineage_id:
+                raise SessionCorruptionError("checkpoint cursor lineage does not match task")
             _require_active_lineage(connection, lineage_id)
             thread_id = uuid.uuid4().hex
             task_id = uuid.uuid4().hex

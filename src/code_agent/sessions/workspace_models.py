@@ -139,6 +139,7 @@ class CheckpointCursor:
     task_state_payload: Mapping[str, JSONValue] = field(default_factory=dict)
     budget_payload: Mapping[str, JSONValue] = field(default_factory=dict)
     snapshot_status: WorkspaceSnapshotStatus = WorkspaceSnapshotStatus.UNAVAILABLE
+    lineage_id: str | None = None
 
     def __post_init__(self) -> None:
         for name in ("message_sequence", "event_sequence"):
@@ -157,6 +158,10 @@ class CheckpointCursor:
         object.__setattr__(self, "budget_payload", budget)
         if not isinstance(self.snapshot_status, WorkspaceSnapshotStatus):
             raise TypeError("snapshot_status must be a WorkspaceSnapshotStatus")
+        if self.lineage_id is not None:
+            object.__setattr__(
+                self, "lineage_id", require_uuid(self.lineage_id, "lineage_id")
+            )
 
     @classmethod
     def from_records(
@@ -167,6 +172,7 @@ class CheckpointCursor:
         task_state: TaskState,
         budget: TaskBudget,
         snapshot_status: WorkspaceSnapshotStatus,
+        lineage_id: str | None = None,
     ) -> CheckpointCursor:
         if not isinstance(task_state, TaskState) or not isinstance(budget, TaskBudget):
             raise TypeError("task_state and budget must be typed records")
@@ -178,6 +184,7 @@ class CheckpointCursor:
             task_state.to_dict(),
             budget_payload(budget),
             snapshot_status,
+            lineage_id,
         )
 
 

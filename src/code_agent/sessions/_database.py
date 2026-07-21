@@ -13,7 +13,8 @@ from .errors import (
     SessionMigrationError,
     SessionStorageError,
 )
-from ._schema_validation import REQUIRED_COLUMNS, REQUIRED_INDEXES
+from ._schema_structure import validate_schema_structure
+from ._schema_validation import REQUIRED_COLUMNS
 
 
 SCHEMA_VERSION = 14
@@ -101,9 +102,9 @@ _MIGRATIONS: dict[int, tuple[str, ...]] = {
         "ALTER TABLE tasks ADD COLUMN workspace_lineage_id TEXT REFERENCES workspace_lineages(id)",
         "CREATE TABLE workspace_snapshots (id TEXT PRIMARY KEY, lineage_id TEXT NOT NULL REFERENCES workspace_lineages(id), inventory_digest TEXT NOT NULL, total_bytes INTEGER NOT NULL, created_at TEXT NOT NULL)",
         "CREATE TABLE workspace_snapshot_entries (snapshot_id TEXT NOT NULL REFERENCES workspace_snapshots(id) ON DELETE CASCADE, relative_path TEXT NOT NULL, existed INTEGER NOT NULL, blob_sha256 TEXT, size INTEGER NOT NULL, mode INTEGER, PRIMARY KEY(snapshot_id, relative_path))",
-        "CREATE TABLE checkpoint_workspace_state (checkpoint_id TEXT PRIMARY KEY REFERENCES checkpoints(id) ON DELETE CASCADE, snapshot_id TEXT REFERENCES workspace_snapshots(id), message_sequence INTEGER NOT NULL, event_sequence INTEGER NOT NULL, goals_payload TEXT NOT NULL, task_state_payload TEXT NOT NULL, budget_payload TEXT NOT NULL, snapshot_status TEXT NOT NULL)",
+        "CREATE TABLE checkpoint_workspace_state (checkpoint_id TEXT PRIMARY KEY REFERENCES checkpoints(id) ON DELETE CASCADE, snapshot_id TEXT REFERENCES workspace_snapshots(id), lineage_id TEXT NOT NULL REFERENCES workspace_lineages(id), message_sequence INTEGER NOT NULL, event_sequence INTEGER NOT NULL, goals_payload TEXT NOT NULL, task_state_payload TEXT NOT NULL, budget_payload TEXT NOT NULL, snapshot_status TEXT NOT NULL)",
         "CREATE TABLE rewind_operations (id TEXT PRIMARY KEY, lineage_id TEXT NOT NULL REFERENCES workspace_lineages(id), source_checkpoint_id TEXT NOT NULL REFERENCES checkpoints(id), rollback_checkpoint_id TEXT REFERENCES checkpoints(id), mode TEXT NOT NULL, preview_fingerprint TEXT NOT NULL, status TEXT NOT NULL, error_code TEXT, replacement_task_id TEXT REFERENCES tasks(id), created_at TEXT NOT NULL, updated_at TEXT NOT NULL)",
-        "CREATE TABLE workspace_lineage_usage (lineage_id TEXT PRIMARY KEY REFERENCES workspace_lineages(id) ON DELETE CASCADE, model_turns INTEGER NOT NULL DEFAULT 0, tool_calls INTEGER NOT NULL DEFAULT 0, input_tokens INTEGER NOT NULL DEFAULT 0, output_tokens INTEGER NOT NULL DEFAULT 0, repair_cycles INTEGER NOT NULL DEFAULT 0, repeated_failures INTEGER NOT NULL DEFAULT 0, active_seconds INTEGER NOT NULL DEFAULT 0, warned_at_80 INTEGER NOT NULL DEFAULT 0, warned_at_90 INTEGER NOT NULL DEFAULT 0)",
+        "CREATE TABLE workspace_lineage_usage (lineage_id TEXT PRIMARY KEY REFERENCES workspace_lineages(id) ON DELETE CASCADE, model_turns INTEGER NOT NULL DEFAULT 0, tool_calls INTEGER NOT NULL DEFAULT 0, input_tokens INTEGER NOT NULL DEFAULT 0, output_tokens INTEGER NOT NULL DEFAULT 0, repair_cycles INTEGER NOT NULL DEFAULT 0, repeated_failures INTEGER NOT NULL DEFAULT 0, last_failure_signature TEXT, active_seconds INTEGER NOT NULL DEFAULT 0, warned_at_80 INTEGER NOT NULL DEFAULT 0, warned_at_90 INTEGER NOT NULL DEFAULT 0)",
         "CREATE INDEX workspace_lineages_status_updated ON workspace_lineages(status, updated_at, id)",
         "CREATE INDEX workspace_snapshots_lineage_created ON workspace_snapshots(lineage_id, created_at, id)",
         "CREATE INDEX rewind_operations_status_created ON rewind_operations(status, created_at, id)",
@@ -203,14 +204,7 @@ class SessionDatabase:
             columns = {row[1] for row in rows}
             if not expected.issubset(columns):
                 raise SessionCorruptionError(f"session schema is missing {table}")
-        indexes = {
-            row[0]
-            for row in connection.execute(
-                "SELECT name FROM sqlite_master WHERE type = 'index'"
-            ).fetchall()
-        }
-        if not REQUIRED_INDEXES.issubset(indexes):
-            raise SessionCorruptionError("session schema is missing required indexes")
+        validate_schema_structure(connection)
 
     def _execute(
         self,

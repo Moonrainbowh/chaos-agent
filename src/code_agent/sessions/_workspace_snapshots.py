@@ -16,6 +16,11 @@ from ._workspace_codec import (
     require_uuid,
     snapshot_from_rows,
 )
+from ._workspace_ownership import (
+    bind_task_lineage,
+    require_checkpoint_owner,
+    require_owner_task,
+)
 from .errors import SessionCorruptionError, SessionNotFound
 from ._task_budget import sync_lineage_usage, task_budget
 from .workspace_models import (
@@ -44,14 +49,14 @@ class WorkspaceSnapshotRepositoryMixin:
                 if restored != record:
                     raise ValueError("lineage id already identifies different facts")
                 return restored
-            _require_owner_task(connection, record.owner_task_id)
+            require_owner_task(connection, record.owner_task_id)
             insert_lineage(connection, record)
             connection.execute(
                 "INSERT INTO workspace_lineage_usage(lineage_id) VALUES (?)",
                 (record.id,),
             )
             if record.owner_task_id is not None:
-                _bind_task_lineage(connection, record.owner_task_id, record.id)
+                bind_task_lineage(connection, record.owner_task_id, record.id)
                 budget = connection.execute(
                     "SELECT b.* FROM task_budgets b JOIN tasks t ON t.thread_id = b.thread_id "
                     "WHERE t.id = ?",
@@ -187,13 +192,6 @@ class WorkspaceSnapshotRepositoryMixin:
         return await self._database.read(read)  # type: ignore[attr-defined]
 
 
-def _require_owner_task(connection: sqlite3.Connection, task_id: str | None) -> None:
-    if task_id is None:
-        return
-    if connection.execute("SELECT 1 FROM tasks WHERE id = ?", (task_id,)).fetchone() is None:
-        raise SessionNotFound("lineage owner task not found")
-
-
 def _publish_checkpoint(
     connection: sqlite3.Connection,
     identifier: str,
@@ -206,8 +204,8 @@ def _publish_checkpoint(
 ) -> str:
     _require_thread(connection, thread_id)
     _require_cursor_boundary(connection, thread_id, cursor)
+    require_checkpoint_owner(connection, thread_id, cursor, snapshot)
     if snapshot is not None:
-        _require_snapshot_lineage(connection, thread_id, snapshot)
         insert_snapshot(connection, snapshot)
     connection.execute(
         "INSERT INTO checkpoints(id, thread_id, label, metadata, created_at) "
@@ -219,41 +217,6 @@ def _publish_checkpoint(
     )
     _touch_thread(connection, thread_id, timestamp)
     return identifier
-
-
-def _require_snapshot_lineage(
-    connection: sqlite3.Connection,
-    thread_id: str,
-    snapshot: WorkspaceSnapshotRecord,
-) -> None:
-    lineage = connection.execute(
-        "SELECT 1 FROM workspace_lineages WHERE id = ?", (snapshot.lineage_id,)
-    ).fetchone()
-    if lineage is None:
-        raise SessionNotFound("snapshot lineage not found")
-    task = connection.execute(
-        "SELECT workspace_lineage_id FROM tasks WHERE thread_id = ?", (thread_id,)
-    ).fetchone()
-    if task is not None and task["workspace_lineage_id"] not in (
-        None,
-        snapshot.lineage_id,
-    ):
-        raise ValueError("snapshot belongs to another task lineage")
-
-
-def _bind_task_lineage(
-    connection: sqlite3.Connection, task_id: str, lineage_id: str
-) -> None:
-    row = connection.execute(
-        "SELECT workspace_lineage_id FROM tasks WHERE id = ?", (task_id,)
-    ).fetchone()
-    if row is None:
-        raise SessionNotFound("task not found")
-    if row["workspace_lineage_id"] not in (None, lineage_id):
-        raise ValueError("task already belongs to another workspace lineage")
-    connection.execute(
-        "UPDATE tasks SET workspace_lineage_id = ? WHERE id = ?", (lineage_id, task_id)
-    )
 
 
 def _require_snapshot_status(

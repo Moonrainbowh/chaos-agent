@@ -205,7 +205,8 @@ def _require_active_lineage(connection: sqlite3.Connection, lineage_id: str) -> 
 
 def _checkpoint_lineage(connection: sqlite3.Connection, checkpoint_id: str) -> str:
     row = connection.execute(
-        "SELECT s.lineage_id AS snapshot_lineage, t.workspace_lineage_id AS task_lineage "
+        "SELECT s.lineage_id AS snapshot_lineage, ws.lineage_id AS cursor_lineage, "
+        "t.workspace_lineage_id AS task_lineage "
         "FROM checkpoints c LEFT JOIN checkpoint_workspace_state ws "
         "ON ws.checkpoint_id = c.id LEFT JOIN workspace_snapshots s ON s.id = ws.snapshot_id "
         "LEFT JOIN tasks t ON t.thread_id = c.thread_id WHERE c.id = ?",
@@ -213,7 +214,15 @@ def _checkpoint_lineage(connection: sqlite3.Connection, checkpoint_id: str) -> s
     ).fetchone()
     if row is None:
         raise SessionNotFound("checkpoint not found")
-    values = {item for item in (row["snapshot_lineage"], row["task_lineage"]) if item}
+    values = {
+        item
+        for item in (
+            row["snapshot_lineage"],
+            row["cursor_lineage"],
+            row["task_lineage"],
+        )
+        if item
+    }
     if len(values) != 1:
         raise SessionCorruptionError("checkpoint lineage is missing or inconsistent")
     return values.pop()
@@ -234,15 +243,38 @@ def _require_completion_task(
     needs_task = operation.mode in {RewindMode.SESSION, RewindMode.CODE_AND_SESSION}
     if needs_task != (replacement_task_id is not None):
         raise ValueError("rewind mode and replacement task are inconsistent")
+    _require_active_lineage(connection, operation.lineage_id)
     if replacement_task_id is None:
         return
+    source = connection.execute(
+        "SELECT t.id FROM checkpoints c JOIN tasks t ON t.thread_id = c.thread_id "
+        "WHERE c.id = ?",
+        (operation.source_checkpoint_id,),
+    ).fetchone()
+    if source is None:
+        raise SessionCorruptionError("source checkpoint task is missing")
+    if source["id"] == replacement_task_id:
+        raise ValueError("replacement task must differ from the source task")
     row = connection.execute(
-        "SELECT workspace_lineage_id FROM tasks WHERE id = ?", (replacement_task_id,)
+        "SELECT workspace_lineage_id, status FROM tasks WHERE id = ?",
+        (replacement_task_id,),
     ).fetchone()
     if row is None:
         raise SessionNotFound("replacement task not found")
     if row["workspace_lineage_id"] != operation.lineage_id:
         raise ValueError("replacement task belongs to another lineage")
+    lineage = connection.execute(
+        "SELECT owner_task_id, status FROM workspace_lineages WHERE id = ?",
+        (operation.lineage_id,),
+    ).fetchone()
+    if lineage is None:
+        raise SessionCorruptionError("rewind lineage is missing")
+    if lineage["status"] != WorkspaceLineageStatus.ACTIVE.value:
+        raise ValueError("rewind lineage is not active")
+    if lineage["owner_task_id"] != replacement_task_id:
+        raise ValueError("replacement task does not own the rewind lineage")
+    if row["status"] not in {"created", "paused", "interrupted"}:
+        raise ValueError("replacement task is not quiescent")
 
 
 def _find_operation(

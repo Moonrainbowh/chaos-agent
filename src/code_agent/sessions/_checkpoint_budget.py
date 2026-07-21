@@ -21,6 +21,9 @@ USAGE_NAMES = (
     "warned_at_80",
     "warned_at_90",
 )
+CUMULATIVE_NAMES = tuple(
+    name for name in USAGE_NAMES if name != "repeated_failures"
+)
 
 
 def copy_budget(
@@ -42,9 +45,9 @@ def copy_budget(
     ).fetchone()
     if usage is None:
         raise SessionCorruptionError("lineage budget usage is missing")
-    values = _cumulative_budget(current, checkpoint, usage)
-    _insert_budget(connection, target_thread, current, values)
-    _update_lineage_usage(connection, lineage_id, values)
+    values, signature = _cumulative_budget(current, checkpoint, usage)
+    _insert_budget(connection, target_thread, current, values, signature)
+    _update_lineage_usage(connection, lineage_id, values, signature)
 
 
 def _budget_from_payload(
@@ -94,15 +97,21 @@ def _boolean(
 
 def _cumulative_budget(
     current: TaskBudget, checkpoint: TaskBudget, usage: sqlite3.Row
-) -> dict[str, int]:
+) -> tuple[dict[str, int], str | None]:
     values: dict[str, int] = {}
-    for name in USAGE_NAMES:
+    for name in CUMULATIVE_NAMES:
         values[name] = max(
             int(getattr(current, name)),
             int(getattr(checkpoint, name)),
             int(usage[name]),
         )
-    return values
+    values["repeated_failures"] = int(usage["repeated_failures"])
+    signature = usage["last_failure_signature"]
+    if signature is not None and (
+        not isinstance(signature, str) or len(signature) > 1_024
+    ):
+        raise SessionCorruptionError("lineage failure signature is invalid")
+    return values, signature
 
 
 def _insert_budget(
@@ -110,6 +119,7 @@ def _insert_budget(
     thread_id: str,
     source: TaskBudget,
     values: Mapping[str, int],
+    failure_signature: str | None,
 ) -> None:
     columns = (
         "thread_id, model_name, max_agent_rounds, max_tool_calls, "
@@ -126,7 +136,7 @@ def _insert_budget(
         source.limits.max_tool_calls_per_round,
         source.limits.max_total_tokens,
         *(values[name] for name in USAGE_NAMES[:6]),
-        source.last_failure_signature,
+        failure_signature,
         *(values[name] for name in USAGE_NAMES[6:]),
     )
     placeholders = ", ".join("?" for _ in arguments)
@@ -136,10 +146,18 @@ def _insert_budget(
 
 
 def _update_lineage_usage(
-    connection: sqlite3.Connection, lineage_id: str, values: Mapping[str, int]
+    connection: sqlite3.Connection,
+    lineage_id: str,
+    values: Mapping[str, int],
+    failure_signature: str | None,
 ) -> None:
     assignments = ", ".join(f"{name} = ?" for name in USAGE_NAMES)
     connection.execute(
-        f"UPDATE workspace_lineage_usage SET {assignments} WHERE lineage_id = ?",
-        (*(values[name] for name in USAGE_NAMES), lineage_id),
+        f"UPDATE workspace_lineage_usage SET {assignments}, "
+        "last_failure_signature = ? WHERE lineage_id = ?",
+        (
+            *(values[name] for name in USAGE_NAMES),
+            failure_signature,
+            lineage_id,
+        ),
     )

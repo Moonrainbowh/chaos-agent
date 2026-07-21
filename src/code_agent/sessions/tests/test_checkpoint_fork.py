@@ -58,14 +58,6 @@ class CheckpointForkTests(unittest.IsolatedAsyncioTestCase):
         message_sequence = (await self.repository.load_message_records(thread_id))[-1].sequence
         event_sequence = await self.repository.latest_event_sequence(thread_id)
         budget = await self.repository.load_task_budget(task.id)
-        cursor = CheckpointCursor.from_records(
-            message_sequence,
-            event_sequence,
-            await self.repository.list_goals(thread_id),
-            state,
-            budget,
-            WorkspaceSnapshotStatus.UNAVAILABLE,
-        )
         lineage = WorkspaceLineageRecord.create(
             repository_id="repo",
             source_root="C:/source",
@@ -75,6 +67,15 @@ class CheckpointForkTests(unittest.IsolatedAsyncioTestCase):
             owner_task_id=task.id,
         )
         await self.repository.create_lineage(lineage)
+        cursor = CheckpointCursor.from_records(
+            message_sequence,
+            event_sequence,
+            await self.repository.list_goals(thread_id),
+            state,
+            budget,
+            WorkspaceSnapshotStatus.UNAVAILABLE,
+            lineage.id,
+        )
         checkpoint = await self.repository.publish_workspace_checkpoint(
             thread_id, "paused", {"task_id": task.id}, None, cursor
         )

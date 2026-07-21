@@ -159,10 +159,19 @@ def sync_lineage_usage(
     connection: sqlite3.Connection, thread_id: str, budget: TaskBudget
 ) -> None:
     row = connection.execute(
-        "SELECT workspace_lineage_id FROM tasks WHERE thread_id = ?", (thread_id,)
+        "SELECT t.id AS task_id, t.workspace_lineage_id, l.owner_task_id, l.status "
+        "FROM tasks t LEFT JOIN workspace_lineages l "
+        "ON l.id = t.workspace_lineage_id WHERE t.thread_id = ?",
+        (thread_id,),
     ).fetchone()
     if row is None or row["workspace_lineage_id"] is None:
         return
+    if row["status"] is None or row["owner_task_id"] is None:
+        raise SessionCorruptionError("task workspace lineage is missing")
+    if row["status"] != "active":
+        raise ValueError("task workspace lineage is not active")
+    if row["owner_task_id"] != row["task_id"]:
+        raise ValueError("task does not own its workspace lineage")
     values = (
         budget.model_turns,
         budget.tool_calls,
@@ -170,6 +179,7 @@ def sync_lineage_usage(
         budget.output_tokens,
         budget.repair_cycles,
         budget.repeated_failures,
+        budget.last_failure_signature,
         budget.active_seconds,
         int(budget.warned_at_80),
         int(budget.warned_at_90),
@@ -180,7 +190,7 @@ def sync_lineage_usage(
         "model_turns = max(model_turns, ?), tool_calls = max(tool_calls, ?), "
         "input_tokens = max(input_tokens, ?), output_tokens = max(output_tokens, ?), "
         "repair_cycles = max(repair_cycles, ?), "
-        "repeated_failures = max(repeated_failures, ?), "
+        "repeated_failures = ?, last_failure_signature = ?, "
         "active_seconds = max(active_seconds, ?), "
         "warned_at_80 = max(warned_at_80, ?), warned_at_90 = max(warned_at_90, ?) "
         "WHERE lineage_id = ?",

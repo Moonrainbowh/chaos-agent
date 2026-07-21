@@ -51,7 +51,10 @@ class RewindRepositoryTests(unittest.IsolatedAsyncioTestCase):
             owner_task_id=task.id,
         )
         await self.repository.create_lineage(lineage)
-        empty = CheckpointCursor(snapshot_status=WorkspaceSnapshotStatus.UNAVAILABLE)
+        empty = CheckpointCursor(
+            snapshot_status=WorkspaceSnapshotStatus.UNAVAILABLE,
+            lineage_id=lineage.id,
+        )
         source = await self.repository.publish_workspace_checkpoint(
             thread_id, "source", {}, None, empty
         )

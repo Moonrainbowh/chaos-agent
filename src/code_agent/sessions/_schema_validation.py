@@ -37,7 +37,7 @@ REQUIRED_COLUMNS = {
     "workspace_snapshots": {"id", "lineage_id", "inventory_digest", "total_bytes", "created_at"},
     "workspace_snapshot_entries": {"snapshot_id", "relative_path", "existed", "blob_sha256", "size", "mode"},
     "checkpoint_workspace_state": {
-        "checkpoint_id", "snapshot_id", "message_sequence", "event_sequence",
+        "checkpoint_id", "snapshot_id", "lineage_id", "message_sequence", "event_sequence",
         "goals_payload", "task_state_payload", "budget_payload", "snapshot_status",
     },
     "rewind_operations": {
@@ -47,15 +47,7 @@ REQUIRED_COLUMNS = {
     },
     "workspace_lineage_usage": {
         "lineage_id", "model_turns", "tool_calls", "input_tokens", "output_tokens",
-        "repair_cycles", "repeated_failures", "active_seconds", "warned_at_80", "warned_at_90",
+        "repair_cycles", "repeated_failures", "last_failure_signature",
+        "active_seconds", "warned_at_80", "warned_at_90",
     },
-}
-
-
-REQUIRED_INDEXES = {
-    "workspace_lineages_status_updated",
-    "workspace_snapshots_lineage_created",
-    "rewind_operations_status_created",
-    "rewind_operations_lineage_status_created",
-    "rewind_operations_one_pending",
 }
