@@ -2,10 +2,12 @@
 把聊天、目标、动作、用量和 checkpoint 保存为可恢复、可迁移的结构化状态。
 
 ## 边界
+- 负责：原子持久化 lineage、snapshot manifest、checkpoint 游标与 rewind operation，并提供非破坏性任务分叉。
 - 负责：线程生命周期、消息与事件存储、持久目标、checkpoint 元数据、恢复和 schema migration。
 - 负责：持久化任务预算快照与累计使用量，使恢复同一 thread 不重置限制。
 - 负责：提供事务边界和稳定 ID，支持 TUI 与非交互 CLI 共享同一会话。
 - 不负责：执行回合、调用模型、运行命令、决定权限或保存明文密钥。
+- 不负责：读取文件、执行 Git、恢复工作树或决定用户授权。
 - 不负责：把模型摘要作为唯一的任务状态来源。
 - 预算预留与读取必须保留 token、repair、failure、active-time 及 warning 等全部累计字段；恢复不得重置扩展计数。
 - 负责原子记录运行实例和中断 checkpoint，并只对已失效 owner 的运行任务执行幂等恢复对账。
