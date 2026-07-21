@@ -108,23 +108,38 @@ def _write_temp(
     fsync: Callable[[int], None],
 ) -> tuple[str, PathIdentity]:
     verify_chain(root, shard)
-    if shard.descriptor is not None:
-        name, descriptor = _create_posix_temp(shard.descriptor)
-        identity = identity_from_stat(os.fstat(descriptor))
-        with os.fdopen(descriptor, "wb") as stream:
-            _write_stream(stream, content, fsync)
-    else:
-        with tempfile.NamedTemporaryFile(
-            mode="wb", prefix=_TEMP_PREFIX, dir=shard.path, delete=False
-        ) as stream:
-            name = Path(stream.name).name
-            identity = identity_from_stat(os.fstat(stream.fileno()))
-            _write_stream(stream, content, fsync)
-    verify_chain(root, shard)
-    visible = inspect_regular(shard, name, "temporary blob")
-    if visible != identity:
-        raise BlobIntegrityFailure(f"temporary blob changed: {shard.path / name}")
-    return name, identity
+    name: str | None = None
+    identity: PathIdentity | None = None
+    created = False
+    primary: BaseException | None = None
+    try:
+        if shard.descriptor is not None:
+            name, descriptor = _create_posix_temp(shard.descriptor)
+            created = True
+            identity = identity_from_stat(os.fstat(descriptor))
+            with os.fdopen(descriptor, "wb") as stream:
+                _write_stream(stream, content, fsync)
+        else:
+            with tempfile.NamedTemporaryFile(
+                mode="wb", prefix=_TEMP_PREFIX, dir=shard.path, delete=False
+            ) as stream:
+                name = Path(stream.name).name
+                created = True
+                identity = identity_from_stat(os.fstat(stream.fileno()))
+                _write_stream(stream, content, fsync)
+        verify_chain(root, shard)
+        visible = inspect_regular(shard, name, "temporary blob")
+        if visible != identity:
+            raise BlobIntegrityFailure(
+                f"temporary blob changed: {shard.path / name}"
+            )
+        return name, identity
+    except BaseException as error:
+        primary = error
+        raise
+    finally:
+        if created and primary is not None and name is not None:
+            _cleanup_temp(root, shard, name, identity, primary)
 
 
 def _read_entry(

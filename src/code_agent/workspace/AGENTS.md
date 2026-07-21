@@ -23,7 +23,7 @@
 - `WorkspaceEditor`: 有界读取现有文件，生成写入/单次替换 Diff 并校验哈希后原子应用 | 单文件同目录临时写入与替换
 - `WorkspaceSnapshot`、`build_restore_snapshot(...)`: 复制字节、补充 tombstone 并按依赖恢复文件/目录拓扑 | 首次写前以共享 entry/deadline 预算迭代扫描路径、blob、容量、权限和冲突内容，深度优先删除并安全重建父目录，替换后复验稳定身份、大小与内容 hash；失败清理仅删除可由 fd/entry 身份共同证明的 owned temp，且不遮蔽 primary error | 不删除 ignored、敏感或未纳入 tombstone 的目录内容；不承诺多文件事务原子性
 - `BlobRef`、`SnapshotManifestEntry`、`SnapshotManifest`、`MaterializedSnapshot`: 表达排序且可确定摘要的持久快照清单、tombstone、blob 引用与 mode 映射 | 无副作用 | store 只落 blob，不写会被用户工作区 snapshot 捕获的旁路 manifest
-- `ContentAddressedSnapshotStore.put/materialize/delete_orphans(...)`: 原子发布并去重内容寻址 blob，完整校验后物化快照，并有界回收旧 orphan | POSIX 以 verified directory fd 执行同 shard 临时写、flush/fsync、digest 复验、replace、scan 与 unlink；Windows 在路径副作用前后复验 root/shard 身份；GC 的 referenced 与 store scan 共享 deadline/entry 预算 | 损坏、链接/reparse、misplaced digest、异常 blob 拓扑及超限均失败闭合；不删除 referenced、新 blob、temp 或非 blob 文件
+- `ContentAddressedSnapshotStore.put/materialize/delete_orphans(...)`: 原子发布并去重内容寻址 blob，完整校验后物化快照，并有界回收旧 orphan | temp 创建成功即在函数内持有并以稳定 identity 清理，cleanup failure 仅附加而不遮蔽 primary；POSIX 以 verified directory fd 执行同 shard 临时写、flush/fsync、digest 复验、replace、scan 与 unlink；Windows 在路径副作用前后复验 root/shard 身份；GC 的 referenced 与 store scan 共享 deadline/entry 预算 | 损坏、链接/reparse、misplaced digest、异常 blob 拓扑及超限均失败闭合；不删除 referenced、新 blob、temp 或非 blob 文件
 - `GitWorkspace`: 提供有界的仓库检测、porcelain 状态、snapshot path 与 literal-pathspec Diff | 固定解析 Git 并并行流式读取输出 | 超限、超时或非法 UTF-8 路径显式失败，不提供任意 Git 命令入口
 - `WorkspaceInventory.capture(...)`、`workspace_fingerprint(...)`：枚举并摘要合规 tracked/untracked 代码状态 | Git 使用剩余 deadline，文件分块读取并复验最终身份 | 排除 ignored、敏感、链接/reparse、重复与越界路径
 
