@@ -22,9 +22,9 @@ async def stop_animation(app: object) -> None:
 async def animate(app: object) -> None:
     while app._run_task and not app._run_task.done():
         app._spinner_index += 1
-        if app.state.status == "running":
+        if app.state.status == "running" or app.state.has_draft:
             app.redraw()
-        await asyncio.sleep(0.12)
+        await asyncio.sleep(1 / 30)
 
 
 async def listen_approvals(app: object) -> None:

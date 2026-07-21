@@ -110,11 +110,9 @@ class WindowsTerminalApp:
         else: self._run_task = asyncio.create_task(self._consume(text, self._token))
         self._start_animation()
         self.redraw(); return True
-
     async def wait_idle(self) -> None:
         if self._run_task: await self._run_task
         await stop_animation(self)
-
     async def handle_key(self, key: str) -> None:
         if key == "\x03":
             await handle_interrupt(self)
@@ -137,17 +135,18 @@ class WindowsTerminalApp:
         elif key == "delete": self.input.delete()
         elif key.isprintable(): self.exit_guard.input_received(); self.input.insert(key)
         self.redraw()
-
     def redraw(self) -> None:
-        now = time.monotonic()
+        now = time.monotonic(); size = shutil.get_terminal_size((100, 30))
         palette = self.interactions.rows(self)
         status, icon, status_color = status_presentation(self.state.status, self.state.execution_summary, self.state.active_action, self.catalog.language, self.theme, self._spinner_index)
         if self.interactions.steering.pending_count: status += " · " + self.interactions.steering.status_line()
         frame = render_live_tail_frame(
             self.input.text,
             status,
-            self._columns(),
+            size.columns,
             cursor_index=self.input.cursor,
+            assistant_draft=self.state.draft_answer,
+            terminal_height=size.lines,
             color=self.color,
             palette=palette,
             status_icon=icon,
@@ -162,7 +161,6 @@ class WindowsTerminalApp:
         )
         self._write(frame.text)
         self._tail_geometry = frame.geometry
-
     async def restore_thread(self, thread_id: str) -> bool:
         if self.history is None: self._append(DisplayKind.ERROR, "session history unavailable"); return False
         try: history = await load_thread_history(self.history, thread_id)
@@ -170,7 +168,6 @@ class WindowsTerminalApp:
         restored = TerminalState(); restored.restore(history); self.state = restored; self.current_thread_id = thread_id
         self._write(clear_live_tail(self._tail_geometry) + render_entries(restored.entries, 100, theme=self.theme, color=self.color) + "\n\r")
         self._tail_geometry = None; self._flushed_entries = len(restored.entries); return True
-
     async def _consume(self, text: str, token: CancellationToken) -> None:
         try:
             async for event in self.controller.ask(text, thread_id=self.current_thread_id, cancellation=token):
@@ -178,10 +175,9 @@ class WindowsTerminalApp:
                 if event.kind is not EventKind.MODEL_EVENT:
                     self._flush_pending_entries()
                 if self.state.thread_id: self.current_thread_id = self.state.thread_id
-                self.redraw()
+                self._request_redraw(immediate=event.kind is not EventKind.MODEL_EVENT)
         except CancellationError:
             self.state.status = "paused"
-
     async def _consume_task(self, task_id: str, text: str) -> None:
         if not self.tasks: return
         terminal = False
@@ -197,14 +193,13 @@ class WindowsTerminalApp:
                 )
                 if event.kind is not EventKind.MODEL_EVENT:
                     self._flush_pending_entries()
-                self.redraw()
+                self._request_redraw(immediate=event.kind is not EventKind.MODEL_EVENT)
         except CancellationError:
             self.state.status = "paused"
             self._append(DisplayKind.METADATA, "task paused")
         except Exception as error: self._append(DisplayKind.ERROR, type(error).__name__)
         finally:
             if terminal and self.active_task_id == task_id: self.active_task_id = None
-
     async def _handle_command(self, outcome: ParseOutcome) -> bool:
         command = outcome.command
         assert command is not None
@@ -280,15 +275,12 @@ class WindowsTerminalApp:
             await self.tasks.accept_partial(task_id, command.instruction or "user accepted partial delivery")
         else: self._append(DisplayKind.ERROR, "command is unavailable")
         return True
-
     def _current_model(self) -> str | None:
         if self.modes is not None:
             return self.modes.current.model
         return self.profiles.current.model if self.profiles else None
-
     def _append(self, kind: DisplayKind, value: object) -> None:
         self.state.entries.append(text_entry(kind, value)); self.state.transcript.append(self.state.entries[-1].text); self._flush_pending_entries()
-
     def _flush_pending_entries(self) -> None:
         new = self.state.entries[self._flushed_entries:]
         if new:
@@ -300,6 +292,9 @@ class WindowsTerminalApp:
 
     def _columns(self) -> int:
         return shutil.get_terminal_size((100, 30)).columns
+
+    def _request_redraw(self, *, immediate: bool = False) -> None:
+        if immediate: self.redraw()
 
     def _start_animation(self) -> None:
         start_animation(self)
