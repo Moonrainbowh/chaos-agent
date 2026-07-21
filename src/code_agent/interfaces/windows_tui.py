@@ -17,7 +17,7 @@ from .input_events import ExitGuard
 from .terminal_display import DisplayKind, text_entry
 from .terminal_renderer import ColorMode, Theme, render_entries
 from .terminal_io import BRACKETED_PASTE_DISABLE, BRACKETED_PASTE_ENABLE, read_key, render_terminal, stdout_write
-from .terminal_status import status_context, status_presentation, status_snapshot
+from .terminal_status import status_context, status_presentation
 from .terminal_tail import LiveTailGeometry, clear_live_tail, render_live_tail_frame
 from .terminal_state import ApprovalBroker, ApprovalRequest, TerminalState
 from .profile_control import ProfileControl
@@ -26,19 +26,16 @@ from .permission_control import PermissionControl
 from code_agent.skills.registry import SkillActivation
 from code_agent.mcp.registry import McpRegistry
 from .task_controller import ForegroundTaskController
-from .tui_commands import ParseOutcome, TuiCommandKind, parse_tui_command
-from .i18n import Language, catalog_for, localize_task_status, select_runtime_language
-from .evidence_view import format_evidence_summary
+from .tui_commands import ParseOutcome, parse_tui_command
+from .i18n import Language, catalog_for, select_runtime_language
 from .tui_input import apply_paste, handle_interrupt
 from .command_availability import available_services
-from .tui_builtin_commands import handle_builtin_command
 from .tui_interactions import TuiInteractions
 from .diff_view import GitDiffSource
-from .tui_workflow_commands import handle_workflow_command
+from .tui_command_dispatch import handle_tui_command
 from .interaction import InteractionBroker
 from .tui_lifecycle import (
     close_tasks,
-    format_command_help,
     listen_approvals,
     listen_interactions,
     start_animation,
@@ -49,6 +46,7 @@ class SessionBrowser(Protocol):
 
 class EvidenceReader(Protocol):
     async def list_verification_evidence(self, task_id: str) -> Sequence[object]: ...
+
 class WindowsTerminalApp:
     """Append-only Windows Terminal interaction without alternate-screen control."""
 
@@ -63,12 +61,12 @@ class WindowsTerminalApp:
         self._interaction_task: asyncio.Task[None] | None = None
         self.interactions = TuiInteractions(diff_source)
         self.active_task_id: str | None = None; self.running = False; self._run_task: asyncio.Task[None] | None = None
-        self._animation_task: asyncio.Task[None] | None = None; self._spinner_index = 0
+        self._animation_task: asyncio.Task[None] | None = None; self._spinner_index = 0; self._redraw_dirty = True
         self._token: CancellationToken | None = None; self._approval_task: asyncio.Task[None] | None = None
         self._pending_approval: ApprovalRequest | None = None; self._approval_done = asyncio.Event()
         self._flushed_entries = 0
         self._tail_geometry: LiveTailGeometry | None = None
-        self._run_started_at: float | None = None
+        self._run_started_at: float | None = None; self._drawn_draft_revision = -1; self._drawn_size: tuple[int, int] | None = None; self._next_spinner_at = time.monotonic() + 0.1
         self.theme, self.color = Theme.SYMBOL, ColorMode.AUTO
         self.catalog = catalog_for(select_runtime_language())
     async def run(self, *, thread_id: str | None = None) -> None:
@@ -160,7 +158,7 @@ class WindowsTerminalApp:
             previous=self._tail_geometry,
         )
         self._write(frame.text)
-        self._tail_geometry = frame.geometry
+        self._tail_geometry = frame.geometry; self._redraw_dirty = False; self._drawn_draft_revision = self.state.draft_revision; self._drawn_size = (size.columns, size.lines)
     async def restore_thread(self, thread_id: str) -> bool:
         if self.history is None: self._append(DisplayKind.ERROR, "session history unavailable"); return False
         try: history = await load_thread_history(self.history, thread_id)
@@ -201,80 +199,7 @@ class WindowsTerminalApp:
         finally:
             if terminal and self.active_task_id == task_id: self.active_task_id = None
     async def _handle_command(self, outcome: ParseOutcome) -> bool:
-        command = outcome.command
-        assert command is not None
-        builtin = await handle_builtin_command(self, command)
-        if builtin is not None: return builtin
-        if command.kind is TuiCommandKind.DIFF: await self.interactions.show_diff(self)
-        elif command.kind is TuiCommandKind.STATUS:
-            self._append(DisplayKind.METADATA, status_snapshot(self.state.status, self.active_task_id or self.state.task_id, self.current_thread_id, self._current_model()))
-        elif command.kind is TuiCommandKind.HELP:
-            if command.instruction:
-                spec = self.command_registry.resolve(command.instruction)
-                if spec is None or spec not in self.command_registry.available(available_services(self)):
-                    self._append(DisplayKind.ERROR, "unknown or unavailable slash command"); return False
-                self._append(DisplayKind.METADATA, f"{spec.display} · {spec.description}")
-            else:
-                self._append(
-                    DisplayKind.METADATA,
-                    format_command_help(self.command_registry.available(available_services(self))),
-                )
-        elif command.kind is TuiCommandKind.WORKFLOW:
-            return await handle_workflow_command(self, command.instruction)
-        elif command.kind is TuiCommandKind.PLUGIN:
-            if self.plugins is None or command.command_name is None:
-                self._append(DisplayKind.ERROR, "plugin command is unavailable"); return False
-            try:
-                await self.plugins.execute_command(
-                    command.command_name,
-                    tuple((command.instruction or "").split()),
-                )
-            except (KeyError, PermissionError, RuntimeError, ValueError):
-                self._append(DisplayKind.ERROR, "plugin command failed")
-                return False
-        elif command.kind is TuiCommandKind.MODE:
-            if self.modes is None: self._append(DisplayKind.ERROR, "agent modes are unavailable"); return False
-            if command.instruction is None:
-                current = self.modes.current
-                choices = " | ".join(f"{item.name}:{item.model}" for item in self.modes.list())
-                self._append(DisplayKind.METADATA, f"current {current.name}:{current.model} | {choices}")
-            else:
-                try:
-                    selected = await self.modes.use(
-                        command.instruction,
-                        idle=self._run_task is None or self._run_task.done(),
-                    )
-                except (ValueError, RuntimeError) as error:
-                    self._append(DisplayKind.ERROR, str(error)); return False
-                self._append(DisplayKind.METADATA, f"mode selected: {selected.name} · {selected.model}")
-        elif command.kind is TuiCommandKind.PERMISSION:
-            if self.permissions is None: self._append(DisplayKind.ERROR, "permission controls are unavailable"); return False
-            if command.instruction is None:
-                current = self.permissions.current
-                choices = " | ".join(item.name for item in self.permissions.list())
-                self._append(DisplayKind.METADATA, f"current {current.name} | {choices}")
-            else:
-                try:
-                    selected = await self.permissions.use(
-                        command.instruction,
-                        idle=self._run_task is None or self._run_task.done(),
-                    )
-                except (ValueError, RuntimeError) as error:
-                    self._append(DisplayKind.ERROR, str(error)); return False
-                self._append(DisplayKind.METADATA, f"permission selected: {selected.name} · {selected.description}")
-        elif command.kind is TuiCommandKind.EVIDENCE:
-            task_id = command.instruction or self.active_task_id or self.state.task_id
-            if self.evidence is None or not task_id:
-                self._append(DisplayKind.ERROR, "evidence is unavailable"); return False
-            self._append(DisplayKind.METADATA, format_evidence_summary(await self.evidence.list_verification_evidence(task_id)))
-        elif self.tasks and command.kind is TuiCommandKind.TASKS:
-            records = await self.tasks.list(include_terminal=True); self._append(DisplayKind.METADATA, " | ".join(f"{item.id}:{localize_task_status(item.status.value, self.catalog)}" for item in records))
-        elif self.tasks and command.kind is TuiCommandKind.ACCEPT:
-            task_id = command.task_id or self.active_task_id
-            if not task_id: self._append(DisplayKind.ERROR, "no active task"); return False
-            await self.tasks.accept_partial(task_id, command.instruction or "user accepted partial delivery")
-        else: self._append(DisplayKind.ERROR, "command is unavailable")
-        return True
+        return await handle_tui_command(self, outcome)
     def _current_model(self) -> str | None:
         if self.modes is not None:
             return self.modes.current.model
@@ -292,9 +217,8 @@ class WindowsTerminalApp:
 
     def _columns(self) -> int:
         return shutil.get_terminal_size((100, 30)).columns
-
     def _request_redraw(self, *, immediate: bool = False) -> None:
+        self._redraw_dirty = True
         if immediate: self.redraw()
-
     def _start_animation(self) -> None:
         start_animation(self)

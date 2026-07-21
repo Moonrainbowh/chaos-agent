@@ -3,7 +3,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable
 
-from .terminal_display import clip_display, display_width, safe_text
+from .terminal_display import (
+    clip_display,
+    display_width,
+    graphemes,
+    grapheme_width,
+    safe_text,
+)
 from .terminal_style import BORDER_GRAY, BRAND_CYAN, DIM_GRAY, BODY_WHITE, ColorMode, colorize
 
 
@@ -65,7 +71,26 @@ def render_live_tail_frame(
     previous: LiveTailGeometry | None = None,
 ) -> LiveTailFrame:
     """Rewrite only the previous dynamic tail and return its new cursor geometry."""
-    frame_width = max(8, width - 1)
+    safe_width = max(1, width)
+    safe_height = max(1, terminal_height)
+    if safe_width < 7 or safe_height < 4:
+        return _compact_frame(
+            input_text, status, safe_width, safe_height, cursor_index, previous
+        )
+    return _normal_frame(
+        input_text, status, safe_width, safe_height, cursor_index,
+        assistant_draft, color, tuple(palette), status_icon, status_color,
+        status_context, previous,
+    )
+
+
+def _normal_frame(
+    input_text: str, status: str, width: int, height: int,
+    cursor_index: int | None, draft: str, color: ColorMode,
+    palette: tuple[str, ...], status_icon: str, status_color: str | None,
+    status_context: str, previous: LiveTailGeometry | None,
+) -> LiveTailFrame:
+    frame_width = max(7, width - 1)
     text_width = max(1, frame_width - 6)
     supplied = safe_text(input_text)
     index = len(supplied) if cursor_index is None else min(max(0, cursor_index), len(supplied))
@@ -77,10 +102,13 @@ def render_live_tail_frame(
 
     top_border = "╭" + "─" * (frame_width - 2) + "╮"
     bottom_border = "╰" + "─" * (frame_width - 2) + "╯"
-    palette_items = tuple(safe_text(item).replace("\n", " ") for item in palette)[:5]
-    draft_budget = max(1, terminal_height - len(palette_items) - len(rows) - 5)
-    draft_lines = _render_draft(assistant_draft, width, draft_budget, color)
-    lines = draft_lines + _render_palette(palette_items, width, color)
+    input_budget = min(len(rows), height - 3)
+    rows, cursor_row = _visible_input_rows(rows, cursor_row, input_budget)
+    remaining = height - len(rows) - 3
+    palette_items = tuple(safe_text(item).replace("\n", " ") for item in palette)[:min(5, remaining)]
+    remaining -= len(palette_items)
+    draft_lines = _render_draft(draft, width, max(0, remaining - 1), color)
+    lines = _render_palette(palette_items, width, color) + draft_lines
     lines.append(_style_box_border(top_border, color))
     for row_index, row in enumerate(rows):
         prompt = "› " if row_index == 0 else "  "
@@ -93,6 +121,30 @@ def render_live_tail_frame(
     geometry = LiveTailGeometry(height=len(lines), cursor_row=cursor_row + 1 + len(palette_items) + len(draft_lines))
     output = _rewrite_tail(lines, geometry.cursor_row, cursor_column + 4, previous)
     return LiveTailFrame(output, geometry)
+
+
+def _compact_frame(
+    input_text: str, status: str, width: int, height: int,
+    cursor_index: int | None, previous: LiveTailGeometry | None,
+) -> LiveTailFrame:
+    supplied = safe_text(input_text)
+    index = len(supplied) if cursor_index is None else min(max(0, cursor_index), len(supplied))
+    rows, cursor_row, cursor_column = _layout_input(supplied, max(1, width - 2), index)
+    active = rows[cursor_row] if supplied else ""
+    composer = clip_display(("› " if width > 1 else "") + active, width)
+    lines = [composer]
+    if height > 1:
+        lines.append(clip_display(safe_text(status).replace("\n", " "), width))
+    geometry = LiveTailGeometry(len(lines), 0)
+    column = min(max(0, width - 1), cursor_column + (2 if width > 1 else 0))
+    return LiveTailFrame(_rewrite_tail(lines, 0, column, previous), geometry)
+
+
+def _visible_input_rows(
+    rows: list[str], cursor_row: int, budget: int
+) -> tuple[list[str], int]:
+    start = min(max(0, cursor_row - budget + 1), max(0, len(rows) - budget))
+    return rows[start:start + budget], cursor_row - start
 
 
 def clear_live_tail(geometry: LiveTailGeometry | None) -> str:
@@ -117,19 +169,23 @@ def _layout_input(value: str, width: int, cursor_index: int) -> tuple[list[str],
     row_widths = [0]
     cursor_row = 0
     cursor_column = 0
-    for index, char in enumerate(value):
-        if index == cursor_index:
+    offset = 0
+    for cluster in graphemes(value):
+        if offset <= cursor_index < offset + len(cluster):
             cursor_row, cursor_column = len(rows) - 1, row_widths[-1]
-        if char == "\n":
+        if cluster == "\n":
             rows.append("")
             row_widths.append(0)
+            offset += len(cluster)
             continue
-        char_width = display_width(char)
-        if rows[-1] and row_widths[-1] + char_width > width:
+        cluster_width = grapheme_width(cluster)
+        if rows[-1] and row_widths[-1] + cluster_width > width:
             rows.append("")
             row_widths.append(0)
-        rows[-1] += char
-        row_widths[-1] += char_width
+        visible = cluster if cluster_width <= width else "?"
+        rows[-1] += visible
+        row_widths[-1] += display_width(visible)
+        offset += len(cluster)
     if cursor_index == len(value):
         cursor_row, cursor_column = len(rows) - 1, row_widths[-1]
     return rows, cursor_row, cursor_column
@@ -156,28 +212,44 @@ def _render_palette(items: tuple[str, ...], width: int, color: ColorMode) -> lis
 
 
 def _render_draft(value: str, width: int, max_rows: int, color: ColorMode) -> list[str]:
-    if not value:
+    if not value or max_rows <= 0:
         return []
-    rows = _wrap_plain(safe_text(value), max(1, width - 4))
+    title = clip_display("◆ 正在回答", width)
+    prefix = "  " if width > 2 else ""
+    rows = _wrap_plain(safe_text(value), max(1, width - display_width(prefix)))
     clipped = rows[-max_rows:]
     if len(rows) > len(clipped):
-        clipped[0] = "… " + clipped[0]
-    return [colorize("◆ 正在回答", BRAND_CYAN, color)] + [
-        colorize("  " + row, BODY_WHITE, color) for row in clipped
+        clipped[0] = clip_display("… " + clipped[0], width - display_width(prefix))
+    return [colorize(title, BRAND_CYAN, color)] + [
+        colorize(prefix + row, BODY_WHITE, color) for row in clipped
     ]
 
 
 def _wrap_plain(value: str, width: int) -> list[str]:
     rows: list[str] = []
     for logical in value.split("\n"):
-        remaining = logical
-        if not remaining:
+        clusters = list(graphemes(logical))
+        if not clusters:
             rows.append("")
-        while remaining:
-            part = clip_display(remaining, width) or remaining[0]
+        while clusters:
+            part, used = _take_row(clusters, width)
             rows.append(part)
-            remaining = remaining[len(part):]
+            del clusters[:used]
     return rows
+
+
+def _take_row(clusters: list[str], width: int) -> tuple[str, int]:
+    result: list[str] = []
+    used_width = 0
+    for index, cluster in enumerate(clusters):
+        cluster_width = grapheme_width(cluster)
+        if cluster_width > width and not result:
+            return "?", 1
+        if used_width + cluster_width > width:
+            return "".join(result), index
+        result.append(cluster)
+        used_width += cluster_width
+    return "".join(result), len(clusters)
 
 
 def _render_status(

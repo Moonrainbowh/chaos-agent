@@ -56,6 +56,7 @@
 - `ForegroundTaskController.interrupt(task_id, reason)`: 取消活动 token 并持久化 `INTERRUPTED` checkpoint | SQLite I/O | 不在 runner 返回时兜底完成任务
 - `parse_command`、`execute_command`: 解析并委托稳定 CLI 语义，文本命令复用可信 Markdown 终端渲染 | 写入调用方输出 | 不直接输出模型 Markdown 控制标记，不直接退出或组合依赖
 - `parse_tui_command(text)`、`filter_palette(input)`: 解析斜杠命令并筛选已接入的候选 | 无副作用 | 精确命令名和别名优先于描述匹配，完整参数原样提交，以结构化错误恢复且不显示未接通、占位或危险命令
+- `handle_tui_command(app, outcome)`：把已解析命令委托给有界的控制面处理器 | 调用注入服务 | 不直接执行工具或绕过策略，分支函数不超过 Unit 粒度上限
 - `CommandRegistry`: 声明命令、别名、参数、依赖、可用性与执行委托 | 无副作用 | 是解析、帮助、调色板和补全的唯一目录
 - `CommandRegistry.with_plugin_commands(descriptors)`：把绑定 digest/generation 的 namespaced plugin command 合并为不可变目录 | 无副作用 | 未命名空间化贡献拒绝，旧目录不被原地修改
 - `CommandRegistry.with_plugin_modes(identifiers)`：把 namespaced plugin mode 合并为模式命令的受限 action | 无副作用 | 不替换四个内置 mode
@@ -63,12 +64,12 @@
 - `InputEvent`、`ExitGuard`: 归一键盘/粘贴/控制信号并实施双击退出状态机 | 进程内状态 | 粘贴不提交，状态机可注入时钟
 - `InputBuffer`: 编辑原始 Windows 键盘输入、多行光标、历史与清空快捷键 | 进程内状态 | `Enter` 提交、`Ctrl+J` 换行，不接管终端选择和回滚
 - `DisplayEntry`、`DisplaySpan`、`TerminalState`: 将事件投影为最终回答、工具完成行和每轮独立的执行摘要 | 无副作用 | 完整 assistant 消息可在任务验证状态前落屏，不保留或渲染原始 reasoning
-- `TerminalState.draft_answer`、`has_draft`：投影当前模型回合的临时正文 | 进程内状态 | 不进入会话消息、Evidence 或完成判定
-- `DisplayKind.PARTIAL_AGENT`：标识取消或错误后固化的未完成回答，并以本地生成的“未完成回答”警示标签渲染 | 无副作用 | 正文保持 Agent 可读样式，不得按最终 assistant 消息或动态尾部处理
-- `render_entry`、`render_entries`、`render_live_tail_frame`、`status_presentation`、`read_key`: 生成可信 ANSI 转录、Unicode/ASCII 回退、列宽自适应 Markdown、候选命令、可接收有界临时 assistant 正文的双区状态尾部和 Windows 原始按键投影 | 无副作用（除读取按键） | 临时正文只位于 composer 上方，且只擦除动态尾部，无全屏清除或鼠标跟踪序列
+- `TerminalState.draft_answer`、`has_draft`、`draft_revision`：安全投影当前模型回合的临时正文及可见 revision | 进程内状态 | 新 `MODEL_STARTED` 建立草稿边界，不进入会话消息、Evidence 或完成判定
+- `DisplayKind.PARTIAL_AGENT`：标识取消、错误或关闭后固化的有界未完成回答，并以本地生成的警示与截断标签渲染 | 无副作用 | 正文保持 Agent 可读样式，不得按最终 assistant 消息或动态尾部处理，成功 final 不截断
+- `render_entry`、`render_entries`、`render_live_tail_frame`、`status_presentation`、`read_key`: 生成可信 ANSI 转录、Unicode/ASCII 回退、grapheme 安全列宽、候选命令、可接收有界临时 assistant 正文的双区状态尾部和 Windows 原始按键投影 | 无副作用（除读取按键） | 极小高度可把草稿预算降为零，临时正文只位于 composer 上方，且只擦除动态尾部
 - `TokenRateTracker`: 从首个文本增量开始统计当前模型回合的平均输出速度，并在 usage 到达后以真实 `output_tokens` 校准 | 读取可注入单调时钟 | 不把首字等待时间或输入 token 计入速度
-- `WindowsTerminalApp`: 追加完成条目、继续当前未终结前台任务并维护输入/状态尾部 | 终端 I/O | 模型增量由动画合并重绘，其他事件立即刷新；可恢复的任务启动竞争显示为带内错误，不退出 TUI
-- `tui_lifecycle`：管理 30fps 动画、审批/交互监听与关闭清理 | 异步任务/终端重绘 | 关闭时默认拒绝或取消所有未决 Host 交互
+- `WindowsTerminalApp`: 追加完成条目、继续当前未终结前台任务并维护输入/状态尾部 | 终端 I/O | 模型增量以 dirty/revision 合并重绘，其他事件立即刷新；可恢复的任务启动竞争显示为带内错误
+- `tui_lifecycle`：管理最高 30fps 的脏帧动画、审批/交互监听与关闭清理 | 异步任务/终端重绘 | 关闭时默认拒绝交互、给协作取消有界机会，并把残留草稿本地固化为一次 partial 后清尾
 - `ApprovalBroker`、`load_thread_history`: 提供可取消审批和已保存会话读取 | 异步/SQLite 读取 | 不伪造会话摘要
 - `PickerState`、`PickerItem`：统一命令、会话、模式、Skill、MCP 和插件候选的过滤、键盘选择、补全和禁用原因 | 进程内状态 | `Esc` 取消，不执行候选动作。
 - `skill_picker_items`、`mcp_picker_items`：把 Controller snapshot 转换为共享 Picker 候选和完整命令补全 | 无副作用 | 不把 Skill 正文放入候选，未批准 MCP server 显示禁用原因

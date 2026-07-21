@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+import regex
 from dataclasses import dataclass
 from enum import Enum
 from typing import Iterable
@@ -57,7 +58,7 @@ def safe_text(value: object) -> str:
 
 
 def display_width(value: str) -> int:
-    return sum(2 if unicodedata.east_asian_width(char) in {"F", "W"} else 1 for char in value)
+    return sum(grapheme_width(cluster) for cluster in graphemes(value))
 
 
 def clip_display(value: str, width: int) -> str:
@@ -65,13 +66,39 @@ def clip_display(value: str, width: int) -> str:
         return ""
     result: list[str] = []
     used = 0
-    for char in value:
-        char_width = 2 if unicodedata.east_asian_width(char) in {"F", "W"} else 1
-        if used + char_width > width:
+    for cluster in graphemes(value):
+        cluster_width = grapheme_width(cluster)
+        if used + cluster_width > width:
             break
-        result.append(char)
-        used += char_width
+        result.append(cluster)
+        used += cluster_width
     return "".join(result)
+
+
+def graphemes(value: str) -> tuple[str, ...]:
+    """Split text into Unicode extended grapheme clusters."""
+    return tuple(regex.findall(r"\X", value))
+
+
+def grapheme_width(cluster: str) -> int:
+    """Return a stable terminal width without splitting joined glyphs."""
+    if not cluster:
+        return 0
+    if regex.fullmatch(r"\p{Regional_Indicator}{2}", cluster):
+        return 2
+    widths = [_codepoint_width(char) for char in cluster]
+    if "\u200d" in cluster or regex.search(r"\p{Extended_Pictographic}", cluster):
+        return max(widths, default=0)
+    if len(cluster) > 1:
+        return max(widths, default=0)
+    return widths[0]
+
+
+def _codepoint_width(char: str) -> int:
+    category = unicodedata.category(char)
+    if category.startswith("C") or category in {"Mn", "Me"}:
+        return 0
+    return 2 if unicodedata.east_asian_width(char) in {"F", "W"} else 1
 
 
 def text_entry(kind: DisplayKind, text: object) -> DisplayEntry:

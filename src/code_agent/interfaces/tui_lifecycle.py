@@ -1,9 +1,17 @@
 from __future__ import annotations
 
 import asyncio
+import shutil
+import time
 from collections.abc import Sequence
 
 from .interaction import InteractionResult
+from .terminal_tail import clear_live_tail
+
+
+_FRAME_INTERVAL = 1 / 30
+_SPINNER_INTERVAL = 0.1
+_CLOSE_GRACE_SECONDS = 0.1
 
 
 def start_animation(app: object) -> None:
@@ -21,10 +29,17 @@ async def stop_animation(app: object) -> None:
 
 async def animate(app: object) -> None:
     while app._run_task and not app._run_task.done():
-        app._spinner_index += 1
-        if app.state.status == "running" or app.state.has_draft:
+        now = time.monotonic()
+        size = shutil.get_terminal_size((100, 30))
+        geometry_changed = app._drawn_size != (size.columns, size.lines)
+        draft_changed = app._drawn_draft_revision != app.state.draft_revision
+        spinner_due = app.state.status == "running" and now >= app._next_spinner_at
+        if spinner_due:
+            app._spinner_index += 1
+            app._next_spinner_at = now + _SPINNER_INTERVAL
+        if app._redraw_dirty or geometry_changed or draft_changed or spinner_due:
             app.redraw()
-        await asyncio.sleep(1 / 30)
+        await asyncio.sleep(_FRAME_INTERVAL)
 
 
 async def listen_approvals(app: object) -> None:
@@ -58,10 +73,15 @@ async def close_tasks(app: object) -> None:
         )
         app._pending_interaction = None
         app._interaction_done.set()
-    if app.tasks and app.active_task_id:
-        await app.tasks.interrupt(app.active_task_id, "TUI closed")
+    await _request_cooperative_stop(app)
     if app._token:
         app._token.cancel("TUI closed")
+    await _allow_run_to_finish(app)
+    if app.state.has_draft:
+        app.state._freeze_partial_answer()
+        app._flush_pending_entries()
+    app._write(clear_live_tail(app._tail_geometry))
+    app._tail_geometry = None
     tasks = (
         app._run_task,
         app._approval_task,
@@ -74,6 +94,29 @@ async def close_tasks(app: object) -> None:
     await asyncio.gather(
         *(task for task in tasks if task), return_exceptions=True
     )
+
+
+async def _request_cooperative_stop(app: object) -> None:
+    if not app.tasks or not app.active_task_id:
+        return
+    try:
+        await asyncio.wait_for(
+            app.tasks.interrupt(app.active_task_id, "TUI closed"),
+            timeout=_CLOSE_GRACE_SECONDS,
+        )
+    except (asyncio.TimeoutError, Exception):
+        return
+
+
+async def _allow_run_to_finish(app: object) -> None:
+    if not app._run_task or app._run_task.done():
+        return
+    try:
+        await asyncio.wait_for(
+            asyncio.shield(app._run_task), timeout=_CLOSE_GRACE_SECONDS
+        )
+    except (asyncio.TimeoutError, Exception):
+        return
 
 
 def format_command_help(specs: Sequence[object]) -> str:

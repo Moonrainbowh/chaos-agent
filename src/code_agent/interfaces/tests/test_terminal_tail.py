@@ -37,7 +37,7 @@ class TerminalTailPaletteTests(unittest.TestCase):
         self.assertLessEqual(frame.geometry.height, 10)
 
     def test_streaming_answer_wraps_double_width_text_in_narrow_terminal(self) -> None:
-        self.assertEqual(_wrap_plain("中", 1), ["中"])
+        self.assertEqual(_wrap_plain("中", 1), ["?"])
 
     def test_picker_highlight_follows_the_selected_marker(self) -> None:
         rendered = render_live_tail(
