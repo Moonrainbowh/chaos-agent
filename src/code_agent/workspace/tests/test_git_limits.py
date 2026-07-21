@@ -187,6 +187,23 @@ class GitOutputLimitTests(unittest.TestCase):
         self.assertTrue(process.stderr.closed)
         self.assertTrue(all(value is not None for value in process.wait_timeouts))
 
+    def test_snapshot_paths_honors_a_shorter_call_deadline(self) -> None:
+        process = HangingProcess()
+        workspace = GitWorkspace(self.root, timeout_s=30.0)
+
+        with patch(
+            "code_agent.workspace.git.subprocess.Popen", return_value=process
+        ):
+            try:
+                with self.assertRaises(GitTimeoutError):
+                    workspace.snapshot_paths(timeout_s=0.01)
+            except TypeError as error:
+                self.fail(f"snapshot_paths must accept a remaining timeout: {error}")
+
+        bounded = [value for value in process.wait_timeouts if value is not None]
+        self.assertTrue(bounded)
+        self.assertLessEqual(bounded[0], 0.01)
+
     def test_thread_constructor_failure_still_cleans_process_and_pipes(
         self,
     ) -> None:

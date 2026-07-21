@@ -178,17 +178,17 @@ class SnapshotTests(WorkspaceEditorTestCase):
         with self.assertRaisesRegex(TypeError, "content must be bytes"):
             SnapshotEntry("bad.py", "text", True)  # type: ignore[arg-type]
 
-    def test_restore_preflights_every_parent_before_writing(self) -> None:
+    def test_restore_preflights_every_sensitive_path_before_writing(self) -> None:
         first = self.root / "first.py"
         first.write_bytes(b"before")
         snapshot = WorkspaceSnapshot(
             (
                 SnapshotEntry("first.py", b"after", True),
-                SnapshotEntry("missing/last.py", b"last", True),
+                SnapshotEntry(".git/last.py", b"last", True),
             )
         )
 
-        with self.assertRaisesRegex(WorkspaceError, "parent directory"):
+        with self.assertRaises(WorkspaceError):
             self.editor.restore(snapshot)
 
         self.assertEqual(first.read_bytes(), b"before")

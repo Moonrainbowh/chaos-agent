@@ -16,17 +16,13 @@
 
 ## Units
 - `SubjectSnapshot`、`snapshot_subject(...)`: 为改动文件和关键 manifest 生成有界、确定性的 subject hash | 读取受 guard 保护的工作区文件 | 不判断业务正确性或扫描工作区外路径
-- `WorkspaceError` 及其专用子类：表达路径、敏感文件、文本类型、大小、扫描上限、超时与编辑冲突 | 无副作用
-- `WorkspacePathGuard(root).resolve(path): Path`：规范化路径并执行 containment 与敏感路径策略 | 检查路径元数据 | `allow_outside` 仅供已批准 dispatcher 使用；链接/reparse 组件及任意层级 `.git`、`.chaos-agent`、`.code-agent` 始终受保护
+- `WorkspaceError`、`WorkspacePathGuard(root)`：表达失败并执行路径规范化、containment 与敏感策略 | fail-closed 检查路径元数据 | `allow_outside` 仅供已批准 dispatcher；链接/reparse 与受保护元数据始终拒绝
 - `IgnoreRules.from_workspace(root): IgnoreRules`：加载内置忽略项和根 `.gitignore` 的常用规则子集 | 读取根 `.gitignore` | 支持顺序反选，不是完整 Git parser
-- `WorkspaceFiles.list_files(root, ...): tuple[str, ...]`、`invalidate_inventory()`：在有限扫描预算内按全局路径顺序枚举可访问的非忽略文件；工作区根目录结果以 TTL、根 mtime 和至多 16 个预算变体的 LRU 短期复用，失效请求不等待正在进行的枚举并在其结束后丢弃旧缓存，显式外部 `root` 每次独立递归枚举 | 扫描超限显式失败，不返回伪完整结果
-- `WorkspaceFiles.read_text(...): TextDocument`：按包含式行范围读取 UTF-8/UTF-8 BOM 文本 | 读取单个文件 | 拒绝二进制与超限文件
-- `WorkspaceFiles.search(...): tuple[SearchMatch, ...]`：在有限扫描预算和全局 deadline 内执行 literal/regex 文本搜索 | deadline 覆盖目录枚举与文件匹配 | 超时不返回部分结果
+- `WorkspaceFiles.list_files/read_text/search(...)`、`invalidate_inventory()`：有界枚举、读取和搜索可访问文件，并短期复用根 inventory | 读取工作区文件 | 扫描、大小、结果与全局 deadline 超限显式失败，不返回伪完整结果
 - `WorkspaceEditor`: 有界读取现有文件，生成写入/单次替换 Diff 并校验哈希后原子应用 | 单文件同目录临时写入与替换
-- `WorkspaceSnapshot`: 复制受保护路径的原始字节并恢复创建、更新与删除 | 完成全量路径、blob 与父目录预检后多文件逐项原子恢复 | 不承诺多文件事务原子性
+- `WorkspaceSnapshot`、`build_restore_snapshot(...)`: 复制字节、补充 tombstone 并恢复创建/更新/删除 | 首次写前汇总路径、blob、容量、权限和父目录，缺失父目录安全重建，每次操作前后复验身份 | 不承诺多文件事务原子性
 - `GitWorkspace`: 提供有界的仓库检测、porcelain 状态、snapshot path 与 literal-pathspec Diff | 固定解析 Git 并并行流式读取输出 | 超限、超时或非法 UTF-8 路径显式失败，不提供任意 Git 命令入口
-- `WorkspaceInventory.capture(...)`、`workspace_fingerprint(...)`：枚举并摘要合规 tracked/untracked 代码状态 | 有界 Git 与文件读取 | 排除 ignored、敏感、链接/reparse 与越界路径
-- `build_restore_snapshot(current_paths, target)`：为完整目标 manifest 补充新增文件 tombstone | 无副作用 | 所有路径在恢复前预检
+- `WorkspaceInventory.capture(...)`、`workspace_fingerprint(...)`：枚举并摘要合规 tracked/untracked 代码状态 | Git 使用剩余 deadline，文件分块读取并复验最终身份 | 排除 ignored、敏感、链接/reparse、重复与越界路径
 
 ## 环境依赖
 - 运行：Python 3.10+ 与 PyPI `regex`（为用户正则提供单次匹配 timeout）。

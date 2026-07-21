@@ -16,8 +16,8 @@ from .errors import (
     WorkspaceError,
 )
 from .paths import PathInput, WorkspacePathGuard
-from ._snapshot_restore import preflight_restore
-
+from ._secure_io import canonical_path_key
+from ._snapshot_restore import execute_restore, preflight_restore
 
 DEFAULT_SNAPSHOT_BYTES = 10_000_000
 DEFAULT_MAX_FILE_BYTES = 10_000_000
@@ -164,24 +164,26 @@ class WorkspaceEditor:
             )
         return WorkspaceSnapshot(tuple(entries))
 
-    def restore(self, snapshot: WorkspaceSnapshot) -> None:
+    def restore(
+        self,
+        snapshot: WorkspaceSnapshot,
+        *,
+        max_total_bytes: int = DEFAULT_SNAPSHOT_BYTES,
+    ) -> None:
         """Restore snapshotted bytes and remove paths absent in the snapshot."""
         if not isinstance(snapshot, WorkspaceSnapshot):
             raise TypeError("snapshot must be a WorkspaceSnapshot")
-        resolved = preflight_restore(
-            snapshot.entries, self.guard, self.max_file_bytes
+        if not isinstance(max_total_bytes, int) or isinstance(max_total_bytes, bool):
+            raise TypeError("max_total_bytes must be an integer")
+        if max_total_bytes < 0:
+            raise ValueError("max_total_bytes cannot be negative")
+        plan = preflight_restore(
+            snapshot.entries,
+            self.guard,
+            self.max_file_bytes,
+            max_total_bytes,
         )
-        for entry, target in resolved:
-            if entry.existed:
-                assert entry.content is not None
-                _atomic_write(target, entry.content)
-            elif target.exists():
-                if not target.is_file():
-                    raise WorkspaceError(f"snapshot path is not a file: {target}")
-                try:
-                    target.unlink()
-                except OSError as error:
-                    raise WorkspaceError(f"cannot remove restored path: {target}") from error
+        execute_restore(plan, self.guard)
 
 
 WorkspaceEdits = WorkspaceEditor
@@ -195,19 +197,21 @@ def build_restore_snapshot(
         raise TypeError("target must be a WorkspaceSnapshot")
     target_by_path: dict[str, SnapshotEntry] = {}
     for entry in target.entries:
-        if entry.relative_path in target_by_path:
+        key = canonical_path_key(entry.relative_path)
+        if key in target_by_path:
             raise ValueError(f"duplicate target path: {entry.relative_path}")
-        target_by_path[entry.relative_path] = entry
-    current: set[str] = set()
+        target_by_path[key] = entry
+    current: dict[str, str] = {}
     for path in current_paths:
         relative = os.fspath(path)
-        if relative in current:
+        key = canonical_path_key(relative)
+        if key in current:
             raise ValueError(f"duplicate current path: {relative}")
-        current.add(relative)
-    for relative in current - target_by_path.keys():
-        target_by_path[relative] = SnapshotEntry(relative, None, False)
+        current[key] = relative
+    for key in current.keys() - target_by_path.keys():
+        target_by_path[key] = SnapshotEntry(current[key], None, False)
     return WorkspaceSnapshot(
-        tuple(target_by_path[path] for path in sorted(target_by_path))
+        tuple(target_by_path[key] for key in sorted(target_by_path))
     )
 
 

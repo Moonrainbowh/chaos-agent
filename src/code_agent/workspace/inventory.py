@@ -3,12 +3,17 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-import stat
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
+from ._secure_io import (
+    canonical_path_key,
+    capture_target_state,
+    is_regular,
+)
+from ._secure_read import secure_read_bytes
 from .errors import (
     FileTooLargeError,
     SearchTimeoutError,
@@ -17,6 +22,7 @@ from .errors import (
     WorkspaceScanLimitError,
 )
 from .paths import PathInput, WorkspacePathGuard
+from .ignore import IgnoreRules
 
 
 DEFAULT_MAX_INVENTORY_FILES = 10_000
@@ -26,7 +32,9 @@ DEFAULT_INVENTORY_DEADLINE_S = 30.0
 
 
 class SnapshotPaths(Protocol):
-    def snapshot_paths(self) -> tuple[str, ...]: ...
+    def snapshot_paths(
+        self, *, timeout_s: float | None = None
+    ) -> tuple[str, ...]: ...
 
 
 @dataclass(frozen=True)
@@ -64,13 +72,14 @@ class WorkspaceInventory:
         )
         _require_matching_roots(root, guard, git)
         deadline = time.monotonic() + limits.deadline_s
-        candidates = git.snapshot_paths()
+        rules = IgnoreRules.from_workspace(root)
+        candidates = git.snapshot_paths(timeout_s=_remaining(deadline))
         _check_deadline(deadline)
         if len(candidates) > limits.max_files:
             raise WorkspaceScanLimitError(
                 f"inventory exceeds {limits.max_files} files"
             )
-        entries = _capture_entries(candidates, guard, limits, deadline)
+        entries = _capture_entries(candidates, guard, rules, limits, deadline)
         ordered = tuple(sorted(entries, key=lambda entry: entry.relative_path))
         return cls(ordered, _manifest_digest(ordered))
 
@@ -130,6 +139,7 @@ def _require_matching_roots(
 def _capture_entries(
     candidates: tuple[str, ...],
     guard: WorkspacePathGuard,
+    rules: IgnoreRules,
     limits: _InventoryLimits,
     deadline: float,
 ) -> list[InventoryEntry]:
@@ -142,11 +152,16 @@ def _capture_entries(
             target = guard.resolve(candidate)
         except SensitivePathError:
             continue
-        relative = guard.relative(target).as_posix()
-        if relative in seen:
+        relative = target.relative_to(guard.root).as_posix()
+        key = canonical_path_key(relative)
+        if key in seen:
             raise ValueError(f"duplicate inventory path: {relative}")
-        seen.add(relative)
-        entry = _read_entry(target, relative, limits.max_file_bytes)
+        seen.add(key)
+        if rules.is_ignored(relative):
+            continue
+        entry = _read_entry(
+            target, relative, guard, limits.max_file_bytes, deadline
+        )
         if entry is None:
             continue
         total += entry.size
@@ -160,31 +175,28 @@ def _capture_entries(
 
 
 def _read_entry(
-    target: Path, relative: str, max_file_bytes: int
+    target: Path,
+    relative: str,
+    guard: WorkspacePathGuard,
+    max_file_bytes: int,
+    deadline: float,
 ) -> InventoryEntry | None:
-    if not target.exists():
+    state = capture_target_state(target, guard, context="inventory")
+    if state.identity is None:
         return None
-    try:
-        metadata = target.stat()
-        if not stat.S_ISREG(metadata.st_mode):
-            raise WorkspaceError(f"not a regular file: {target}")
-        if metadata.st_size > max_file_bytes:
-            raise FileTooLargeError(
-                f"file exceeds {max_file_bytes} bytes: {target}"
-            )
-        with target.open("rb") as stream:
-            content = stream.read(max_file_bytes + 1)
-    except (FileTooLargeError, WorkspaceError):
-        raise
-    except OSError as error:
-        raise WorkspaceError(f"cannot read inventory file: {target}") from error
-    if len(content) > max_file_bytes:
-        raise FileTooLargeError(f"file exceeds {max_file_bytes} bytes: {target}")
+    if not is_regular(state.identity):
+        raise WorkspaceError(f"not a regular file: {target}")
+    content, mode = secure_read_bytes(
+        state,
+        guard,
+        max_file_bytes,
+        lambda: _check_deadline(deadline),
+    )
     return InventoryEntry(
         relative,
         len(content),
         hashlib.sha256(content).hexdigest(),
-        stat.S_IMODE(metadata.st_mode),
+        mode,
     )
 
 
@@ -202,3 +214,10 @@ def _manifest_digest(entries: tuple[InventoryEntry, ...]) -> str:
 def _check_deadline(deadline: float) -> None:
     if time.monotonic() > deadline:
         raise SearchTimeoutError("workspace inventory exceeded its deadline")
+
+
+def _remaining(deadline: float) -> float:
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise SearchTimeoutError("workspace inventory exceeded its deadline")
+    return remaining

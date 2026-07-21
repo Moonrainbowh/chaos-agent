@@ -43,7 +43,8 @@ class FixedPaths:
     def __init__(self, *paths: str) -> None:
         self.paths = paths
 
-    def snapshot_paths(self) -> tuple[str, ...]:
+    def snapshot_paths(self, *, timeout_s: float | None = None) -> tuple[str, ...]:
+        del timeout_s
         return self.paths
 
 

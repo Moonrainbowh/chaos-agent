@@ -139,11 +139,12 @@ class GitWorkspace:
         self._require_success("status", result)
         return _decode(result.stdout)
 
-    def snapshot_paths(self) -> tuple[str, ...]:
+    def snapshot_paths(self, *, timeout_s: float | None = None) -> tuple[str, ...]:
         """Return tracked and non-ignored untracked paths for a snapshot."""
         result = self._invoke(
             "snapshot_paths",
             ("ls-files", "-z", "--cached", "--others", "--exclude-standard"),
+            timeout_s=timeout_s,
         )
         self._require_success("snapshot_paths", result)
         return tuple(sorted(_decode_path_list(result.stdout)))
@@ -155,7 +156,7 @@ class GitWorkspace:
         else:
             supplied_paths = paths
         relative_paths = tuple(
-            self.guard.relative(path).as_posix() for path in supplied_paths
+            self.guard.relative_literal(path).as_posix() for path in supplied_paths
         )
         arguments = (
             "diff",
@@ -168,7 +169,9 @@ class GitWorkspace:
         self._require_success("diff", result)
         return _decode(result.stdout)
 
-    def _invoke(self, operation: str, arguments: tuple[str, ...]) -> _GitResult:
+    def _invoke(
+        self, operation: str, arguments: tuple[str, ...], *, timeout_s: float | None = None
+    ) -> _GitResult:
         argv = (
             self._git_executable,
             "-c",
@@ -176,9 +179,10 @@ class GitWorkspace:
             "--literal-pathspecs",
             *arguments,
         )
+        effective_timeout = self._effective_timeout(timeout_s)
         process = self._start_process(operation, argv)
         capture = collect_bounded_output(
-            process, self.max_output_bytes, self.timeout_s
+            process, self.max_output_bytes, effective_timeout
         )
         if capture.exceeded:
             raise GitOutputLimitError(
@@ -196,7 +200,7 @@ class GitWorkspace:
                 capture.returncode,
                 capture.stdout,
                 capture.stderr,
-                self.timeout_s,
+                effective_timeout,
             )
         if capture.read_error is not None:
             raise GitCommandError(
@@ -212,6 +216,15 @@ class GitWorkspace:
         return _GitResult(
             argv, capture.returncode, capture.stdout, capture.stderr
         )
+
+    def _effective_timeout(self, timeout_s: float | None) -> float:
+        if timeout_s is None:
+            return self.timeout_s
+        if isinstance(timeout_s, bool) or not isinstance(timeout_s, (int, float)):
+            raise TypeError("timeout_s must be a number")
+        if not math.isfinite(timeout_s) or timeout_s <= 0:
+            raise ValueError("timeout_s must be positive and finite")
+        return min(self.timeout_s, float(timeout_s))
 
     def _start_process(
         self, operation: str, argv: tuple[str, ...]

@@ -187,6 +187,18 @@ class WorkspacePathGuardTests(unittest.TestCase):
                 with self.assertRaises(PathOutsideWorkspace):
                     guard.resolve("linked/inside.txt", for_write=True)
 
+    def test_metadata_inspection_error_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            guard = WorkspacePathGuard(root)
+
+            with patch.object(Path, "is_symlink", return_value=False):
+                with patch.object(Path, "lstat", side_effect=OSError("denied")):
+                    with self.assertRaisesRegex(
+                        PathOutsideWorkspace, "cannot inspect path metadata"
+                    ):
+                        guard.resolve("unreadable/file.py", for_write=True)
+
 
 class IgnoreRulesTests(unittest.TestCase):
     def test_builtin_directories_are_always_ignored(self) -> None:
