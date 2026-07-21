@@ -11,6 +11,7 @@
 - 不负责：未获上层策略授权的工作区之外路径、符号链接/reparse 目标或敏感文件。
 - 不负责：访问默认本地 API 配置目录及其内容，即使该目录被选作工作区。
 - 不负责：在普通目录中伪造 Git 状态、自动初始化仓库或决定上层是否注册 Git 工具。
+- 安全边界：POSIX inventory/restore 以 `dir_fd`、`O_NOFOLLOW` 和逐级目录句柄约束读写、建目录、替换与删除；Windows 依赖静态 reparse 拒绝及操作前后身份复验，未使用原生 NT 句柄 API，因此无法消除同用户恶意进程并发切换 junction 的残余竞态，也不构成操作系统沙箱。
 - 依赖：Chaos Agent 和旧 code-agent 的本地配置目录均视为敏感路径。
 - 负责为成功 typed 写入记录 `ActionEffect` 所需的改动路径与内容 hash，并在有界扫描内计算当前 subject snapshot/hash；不判断业务正确性。
 
@@ -20,7 +21,7 @@
 - `IgnoreRules.from_workspace(root): IgnoreRules`：加载内置忽略项和根 `.gitignore` 的常用规则子集 | 读取根 `.gitignore` | 支持顺序反选，不是完整 Git parser
 - `WorkspaceFiles.list_files/read_text/search(...)`、`invalidate_inventory()`：有界枚举、读取和搜索可访问文件，并短期复用根 inventory | 读取工作区文件 | 扫描、大小、结果与全局 deadline 超限显式失败，不返回伪完整结果
 - `WorkspaceEditor`: 有界读取现有文件，生成写入/单次替换 Diff 并校验哈希后原子应用 | 单文件同目录临时写入与替换
-- `WorkspaceSnapshot`、`build_restore_snapshot(...)`: 复制字节、补充 tombstone 并恢复创建/更新/删除 | 首次写前汇总路径、blob、容量、权限和父目录，缺失父目录安全重建，每次操作前后复验身份 | 不承诺多文件事务原子性
+- `WorkspaceSnapshot`、`build_restore_snapshot(...)`: 复制字节、补充 tombstone 并按依赖恢复文件/目录拓扑 | 首次写前汇总路径、blob、容量、权限和冲突内容，深度优先删除并安全重建父目录，替换后复验稳定身份、大小与内容 hash | 不删除 ignored、敏感或未纳入 tombstone 的目录内容；不承诺多文件事务原子性
 - `GitWorkspace`: 提供有界的仓库检测、porcelain 状态、snapshot path 与 literal-pathspec Diff | 固定解析 Git 并并行流式读取输出 | 超限、超时或非法 UTF-8 路径显式失败，不提供任意 Git 命令入口
 - `WorkspaceInventory.capture(...)`、`workspace_fingerprint(...)`：枚举并摘要合规 tracked/untracked 代码状态 | Git 使用剩余 deadline，文件分块读取并复验最终身份 | 排除 ignored、敏感、链接/reparse、重复与越界路径
 

@@ -153,7 +153,7 @@ def _is_link_like(path: Path) -> bool:
         if path.is_symlink():
             return True
         attributes = getattr(path.lstat(), "st_file_attributes", 0)
-    except FileNotFoundError:
+    except (FileNotFoundError, NotADirectoryError):
         return False
     except OSError as error:
         raise PathOutsideWorkspace(

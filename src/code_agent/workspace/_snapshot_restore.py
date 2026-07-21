@@ -6,16 +6,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Protocol
 
-from ._secure_io import (
-    PathIdentity,
-    TargetState,
-    canonical_path_key,
-    capture_target_state,
+from ._restore_topology import TopologyPlan, analyze_topology
+from ._secure_io import PathIdentity, canonical_path_key
+from ._secure_mutation import (
     ensure_parent_directories,
-    is_regular,
-    secure_atomic_write,
+    secure_rmdir,
     secure_unlink,
 )
+from ._secure_replace import secure_atomic_write
 from .errors import FileTooLargeError, WorkspaceError
 from .paths import WorkspacePathGuard
 
@@ -27,15 +25,8 @@ class RestoreEntry(Protocol):
 
 
 @dataclass(frozen=True)
-class RestoreItem:
-    entry: RestoreEntry
-    state: TargetState
-    no_op: bool
-
-
-@dataclass(frozen=True)
 class RestorePlan:
-    items: tuple[RestoreItem, ...]
+    topology: TopologyPlan
     total_bytes: int
 
 
@@ -46,10 +37,10 @@ def preflight_restore(
     max_total_bytes: int,
 ) -> RestorePlan:
     """Validate the complete restore set before its first mutation."""
-    items: list[RestoreItem] = []
+    supplied = tuple(entries)
     seen: set[str] = set()
     total = 0
-    for entry in entries:
+    for entry in supplied:
         target = guard.resolve(entry.relative_path, for_write=True)
         relative = target.relative_to(guard.root).as_posix()
         key = canonical_path_key(relative)
@@ -57,31 +48,28 @@ def preflight_restore(
             raise ValueError(f"duplicate restore path: {relative}")
         seen.add(key)
         total += _check_blob(entry, target, max_file_bytes)
-        state = capture_target_state(target, guard, context="restore")
-        no_op = _check_target(entry, state)
-        items.append(RestoreItem(entry, state, no_op))
     if total > max_total_bytes:
         raise FileTooLargeError(
             f"restore exceeds {max_total_bytes} total bytes"
         )
+    topology = analyze_topology(supplied, guard)
     _check_capacity(guard.root, total)
-    for item in items:
-        _check_write_access(item)
-    return RestorePlan(tuple(items), total)
+    for state in _mutating_states(topology):
+        _check_write_access(state.parent.nearest_existing)
+    return RestorePlan(topology, total)
 
 
 def execute_restore(plan: RestorePlan, guard: WorkspacePathGuard) -> None:
-    """Apply a preflighted plan with per-operation identity revalidation."""
+    """Apply a dependency-ordered plan with per-operation revalidation."""
     created: dict[str, tuple[Path, PathIdentity]] = {}
-    for item in plan.items:
-        if item.no_op:
-            continue
-        if item.entry.existed:
-            assert item.entry.content is not None
-            state = ensure_parent_directories(item.state, guard, created)
-            secure_atomic_write(state, item.entry.content, guard, created)
-        else:
-            secure_unlink(item.state, guard, created)
+    for item in plan.topology.deletes:
+        secure_unlink(item.state, guard, created)
+    for state in plan.topology.directories:
+        secure_rmdir(state, guard, created)
+    for item in plan.topology.writes:
+        assert item.entry.content is not None
+        state = ensure_parent_directories(item.state, guard, created)
+        secure_atomic_write(state, item.entry.content, guard, created)
 
 
 def _check_blob(entry: RestoreEntry, target: Path, max_file_bytes: int) -> int:
@@ -98,10 +86,10 @@ def _check_blob(entry: RestoreEntry, target: Path, max_file_bytes: int) -> int:
     return 0
 
 
-def _check_target(entry: RestoreEntry, state: TargetState) -> bool:
-    if state.identity is not None and not is_regular(state.identity):
-        raise WorkspaceError(f"snapshot path is not a file: {state.target}")
-    return not entry.existed and state.identity is None
+def _mutating_states(topology: TopologyPlan):
+    yield from (item.state for item in topology.deletes)
+    yield from topology.directories
+    yield from (item.state for item in topology.writes)
 
 
 def _check_capacity(root: Path, total_bytes: int) -> None:
@@ -117,9 +105,6 @@ def _check_capacity(root: Path, total_bytes: int) -> None:
         )
 
 
-def _check_write_access(item: RestoreItem) -> None:
-    if item.no_op:
-        return
-    ancestor = item.state.parent.nearest_existing
+def _check_write_access(ancestor: Path) -> None:
     if not os.access(ancestor, os.W_OK):
         raise WorkspaceError(f"restore parent is not writable: {ancestor}")

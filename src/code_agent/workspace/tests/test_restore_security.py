@@ -106,11 +106,15 @@ class RestorePreflightTests(RestoreSecurityTestCase):
 
         self.assertFalse((self.root / "missing").exists())
 
-    def test_casefold_duplicate_current_paths_are_rejected_while_missing(self) -> None:
-        with self.assertRaisesRegex(ValueError, "duplicate current path"):
-            build_restore_snapshot(("Foo.py", "foo.py"), WorkspaceSnapshot(()))
+    def test_current_path_case_semantics_follow_the_platform(self) -> None:
+        if os.name == "nt":
+            with self.assertRaisesRegex(ValueError, "duplicate current path"):
+                build_restore_snapshot(("Foo.py", "foo.py"), WorkspaceSnapshot(()))
+        else:
+            restore = build_restore_snapshot(("Foo.py", "foo.py"), WorkspaceSnapshot(()))
+            self.assertEqual(len(restore.entries), 2)
 
-    def test_casefold_duplicate_target_paths_are_rejected_while_missing(self) -> None:
+    def test_target_path_case_semantics_follow_the_platform(self) -> None:
         target = WorkspaceSnapshot(
             (
                 SnapshotEntry("Foo.py", b"one", True),
@@ -118,8 +122,11 @@ class RestorePreflightTests(RestoreSecurityTestCase):
             )
         )
 
-        with self.assertRaisesRegex(ValueError, "duplicate target path"):
-            build_restore_snapshot((), target)
+        if os.name == "nt":
+            with self.assertRaisesRegex(ValueError, "duplicate target path"):
+                build_restore_snapshot((), target)
+        else:
+            self.assertEqual(len(build_restore_snapshot((), target).entries), 2)
 
 
 class RestoreRaceTests(RestoreSecurityTestCase):
@@ -156,8 +163,28 @@ class RestoreRaceTests(RestoreSecurityTestCase):
                 parent.mkdir()
             return real_named_temporary(*args, **kwargs)
 
-        with patch("tempfile.NamedTemporaryFile", side_effect=replace_parent):
-            with self.assertRaisesRegex(WorkspaceError, "changed during restore"):
+        if os.name == "posix":
+            from code_agent.workspace import _posix_io
+
+            real_create_temp = _posix_io.create_temp
+
+            def replace_before_create(parent_fd: int, name: str) -> int:
+                nonlocal attacked
+                if not attacked:
+                    attacked = True
+                    parent.rename(displaced)
+                    parent.mkdir()
+                return real_create_temp(parent_fd, name)
+
+            creator = patch.object(
+                _posix_io, "create_temp", side_effect=replace_before_create
+            )
+        else:
+            creator = patch("tempfile.NamedTemporaryFile", side_effect=replace_parent)
+        with creator:
+            with self.assertRaisesRegex(
+                WorkspaceError, "(changed|disappeared) during restore"
+            ):
                 self.editor.restore(snapshot)
 
         self.assertEqual((displaced / "module.py").read_bytes(), b"before")

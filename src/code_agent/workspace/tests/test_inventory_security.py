@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import builtins
 import hashlib
+import os
 import sys
 import tempfile
 import unittest
@@ -90,11 +91,19 @@ class InventoryPolicyTests(InventorySecurityTestCase):
 
         self.assertEqual(inventory.paths, ("safe.py",))
 
-    def test_casefold_duplicate_git_paths_are_rejected(self) -> None:
-        with self.assertRaisesRegex(ValueError, "duplicate inventory path"):
-            WorkspaceInventory.capture(
+    def test_inventory_path_case_semantics_follow_the_platform(self) -> None:
+        if os.name == "nt":
+            with self.assertRaisesRegex(ValueError, "duplicate inventory path"):
+                WorkspaceInventory.capture(
+                    self.root, self.guard, RecordingGit("Foo.py", "foo.py")
+                )
+        else:
+            self.write("Foo.py", b"upper")
+            self.write("foo.py", b"lower")
+            inventory = WorkspaceInventory.capture(
                 self.root, self.guard, RecordingGit("Foo.py", "foo.py")
             )
+            self.assertEqual(inventory.paths, ("Foo.py", "foo.py"))
 
 
 class InventoryDeadlineTests(InventorySecurityTestCase):
@@ -119,7 +128,7 @@ class InventoryDeadlineTests(InventorySecurityTestCase):
         slow = SlowStream(real_stream, clock)
 
         with patch("code_agent.workspace.inventory.time.monotonic", clock):
-            with patch.object(Path, "open", return_value=slow):
+            with patch("code_agent.workspace._secure_read._open_stream", return_value=slow):
                 with self.assertRaises(SearchTimeoutError):
                     WorkspaceInventory.capture(
                         self.root,
@@ -149,7 +158,24 @@ class InventoryRaceTests(InventorySecurityTestCase):
                     stream.write(b"attacker")
             return builtins.open(path, mode, *args, **kwargs)
 
-        with patch.object(Path, "open", new=replace_parent):
+        if os.name == "posix":
+            from code_agent.workspace import _posix_io
+
+            real_open_read = _posix_io.open_read
+
+            def replace_before_open(parent_fd: int, name: str) -> int:
+                nonlocal attacked
+                if not attacked:
+                    attacked = True
+                    parent.rename(displaced)
+                    parent.mkdir()
+                    (parent / "safe.py").write_bytes(b"attacker")
+                return real_open_read(parent_fd, name)
+
+            opener = patch.object(_posix_io, "open_read", side_effect=replace_before_open)
+        else:
+            opener = patch.object(Path, "open", new=replace_parent)
+        with opener:
             with self.assertRaisesRegex(WorkspaceError, "changed during inventory"):
                 WorkspaceInventory.capture(
                     self.root, self.guard, RecordingGit("package/safe.py")
