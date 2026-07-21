@@ -13,9 +13,10 @@ from .errors import (
     SessionMigrationError,
     SessionStorageError,
 )
+from ._schema_validation import REQUIRED_COLUMNS, REQUIRED_INDEXES
 
 
-SCHEMA_VERSION = 13
+SCHEMA_VERSION = 14
 _BUSY_TIMEOUT_MS = 5_000
 _SQLITE_CORRUPT = 11
 _SQLITE_NOTADB = 26
@@ -95,43 +96,20 @@ _MIGRATIONS: dict[int, tuple[str, ...]] = {
         "CREATE TABLE skill_activations (thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE, skill_id TEXT NOT NULL, source TEXT NOT NULL, digest TEXT NOT NULL, activated_at TEXT NOT NULL, PRIMARY KEY(thread_id, skill_id))",
         "CREATE INDEX skill_activations_thread_time ON skill_activations(thread_id, activated_at, skill_id)",
     ),
-}
-
-_REQUIRED_COLUMNS = {
-    "threads": {
-        "id", "created_at", "updated_at", "title", "status", "parent_thread_id",
-    },
-    "messages": {"sequence", "thread_id", "payload", "created_at"},
-    "events": {"sequence", "thread_id", "payload", "created_at"},
-    "goals": {
-        "id", "thread_id", "objective", "status", "metadata", "created_at",
-        "updated_at",
-    },
-    "checkpoints": {"id", "thread_id", "label", "metadata", "created_at"},
-    "task_budgets": {"thread_id", "model_name", "max_agent_rounds", "max_tool_calls", "max_tool_calls_per_round", "max_total_tokens", "model_turns", "tool_calls", "input_tokens", "output_tokens", "repair_cycles", "repeated_failures", "last_failure_signature", "active_seconds", "warned_at_80", "warned_at_90"},
-    "task_states": {"thread_id", "payload", "updated_at"},
-    "tasks": {"id", "thread_id", "contract", "status", "stop_reason", "created_at", "updated_at"},
-    "task_controls": {"sequence", "task_id", "instruction", "created_at"},
-    "task_executions": {"task_id", "instance_id", "owner_pid", "owner_create_time", "started_at"},
-    "task_contract_revisions": {"task_id", "revision", "payload", "created_at"},
-    "verification_runs": {"id", "task_id", "generation", "subject_hash", "status", "created_at", "completed_at"},
-    "verification_evidence": {"id", "run_id", "task_id", "payload", "created_at"},
-    "task_completions": {"task_id", "revision", "generation", "subject_hash", "assessment", "created_at"},
-    "semantic_checkpoints": {"id", "thread_id", "payload", "created_at"},
-    "thread_index_entries": {
-        "stable_id", "checkpoint_id", "thread_id", "sequence", "text", "payload",
-        "created_at",
-    },
-    "workflows": {
-        "id", "root_thread_id", "task_id", "payload", "created_at", "updated_at",
-    },
-    "workflow_nodes": {"id", "workflow_id", "position", "status", "payload"},
-    "workflow_edges": {
-        "workflow_id", "source_node_id", "target_node_id", "kind", "position",
-    },
-    "skill_activations": {
-        "thread_id", "skill_id", "source", "digest", "activated_at",
-    },
+    14: (
+        "CREATE TABLE workspace_lineages (id TEXT PRIMARY KEY, repository_id TEXT NOT NULL, source_root TEXT NOT NULL, worktree_root TEXT NOT NULL UNIQUE COLLATE NOCASE, branch_name TEXT NOT NULL, head_commit TEXT NOT NULL, owner_task_id TEXT REFERENCES tasks(id), status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)",
+        "ALTER TABLE tasks ADD COLUMN workspace_lineage_id TEXT REFERENCES workspace_lineages(id)",
+        "CREATE TABLE workspace_snapshots (id TEXT PRIMARY KEY, lineage_id TEXT NOT NULL REFERENCES workspace_lineages(id), inventory_digest TEXT NOT NULL, total_bytes INTEGER NOT NULL, created_at TEXT NOT NULL)",
+        "CREATE TABLE workspace_snapshot_entries (snapshot_id TEXT NOT NULL REFERENCES workspace_snapshots(id) ON DELETE CASCADE, relative_path TEXT NOT NULL, existed INTEGER NOT NULL, blob_sha256 TEXT, size INTEGER NOT NULL, mode INTEGER, PRIMARY KEY(snapshot_id, relative_path))",
+        "CREATE TABLE checkpoint_workspace_state (checkpoint_id TEXT PRIMARY KEY REFERENCES checkpoints(id) ON DELETE CASCADE, snapshot_id TEXT REFERENCES workspace_snapshots(id), message_sequence INTEGER NOT NULL, event_sequence INTEGER NOT NULL, goals_payload TEXT NOT NULL, task_state_payload TEXT NOT NULL, budget_payload TEXT NOT NULL, snapshot_status TEXT NOT NULL)",
+        "CREATE TABLE rewind_operations (id TEXT PRIMARY KEY, lineage_id TEXT NOT NULL REFERENCES workspace_lineages(id), source_checkpoint_id TEXT NOT NULL REFERENCES checkpoints(id), rollback_checkpoint_id TEXT REFERENCES checkpoints(id), mode TEXT NOT NULL, preview_fingerprint TEXT NOT NULL, status TEXT NOT NULL, error_code TEXT, replacement_task_id TEXT REFERENCES tasks(id), created_at TEXT NOT NULL, updated_at TEXT NOT NULL)",
+        "CREATE TABLE workspace_lineage_usage (lineage_id TEXT PRIMARY KEY REFERENCES workspace_lineages(id) ON DELETE CASCADE, model_turns INTEGER NOT NULL DEFAULT 0, tool_calls INTEGER NOT NULL DEFAULT 0, input_tokens INTEGER NOT NULL DEFAULT 0, output_tokens INTEGER NOT NULL DEFAULT 0, repair_cycles INTEGER NOT NULL DEFAULT 0, repeated_failures INTEGER NOT NULL DEFAULT 0, active_seconds INTEGER NOT NULL DEFAULT 0, warned_at_80 INTEGER NOT NULL DEFAULT 0, warned_at_90 INTEGER NOT NULL DEFAULT 0)",
+        "CREATE INDEX workspace_lineages_status_updated ON workspace_lineages(status, updated_at, id)",
+        "CREATE INDEX workspace_snapshots_lineage_created ON workspace_snapshots(lineage_id, created_at, id)",
+        "CREATE INDEX rewind_operations_status_created ON rewind_operations(status, created_at, id)",
+        "CREATE INDEX rewind_operations_lineage_status_created ON rewind_operations(lineage_id, status, created_at, id)",
+        "CREATE UNIQUE INDEX rewind_operations_one_pending ON rewind_operations(lineage_id) WHERE status = 'pending'",
+    ),
 }
 
 
@@ -220,11 +198,19 @@ class SessionDatabase:
 
     @staticmethod
     def _validate_schema(connection: sqlite3.Connection) -> None:
-        for table, expected in _REQUIRED_COLUMNS.items():
+        for table, expected in REQUIRED_COLUMNS.items():
             rows = connection.execute(f"PRAGMA table_info({table})").fetchall()
             columns = {row[1] for row in rows}
             if not expected.issubset(columns):
                 raise SessionCorruptionError(f"session schema is missing {table}")
+        indexes = {
+            row[0]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'index'"
+            ).fetchall()
+        }
+        if not REQUIRED_INDEXES.issubset(indexes):
+            raise SessionCorruptionError("session schema is missing required indexes")
 
     def _execute(
         self,

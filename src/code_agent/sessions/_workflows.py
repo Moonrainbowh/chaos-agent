@@ -33,48 +33,7 @@ class WorkflowRepositoryMixin:
         node_payloads = tuple(_node_payload(node) for node in validated.nodes)
 
         def write(connection: sqlite3.Connection) -> None:
-            _validate_threads(connection, validated)
-            workflow = validated.workflow
-            connection.execute(
-                "INSERT INTO workflows(id, root_thread_id, task_id, payload, created_at, updated_at) "
-                "VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET "
-                "root_thread_id=excluded.root_thread_id, task_id=excluded.task_id, "
-                "payload=excluded.payload, updated_at=excluded.updated_at",
-                (
-                    workflow.id,
-                    workflow.root_thread_id,
-                    workflow.task_id,
-                    workflow_payload,
-                    encode_datetime(workflow.created_at),
-                    encode_datetime(workflow.updated_at),
-                ),
-            )
-            connection.execute(
-                "DELETE FROM workflow_edges WHERE workflow_id = ?", (workflow.id,)
-            )
-            _remove_stale_nodes(connection, workflow.id, validated.nodes)
-            for position, (node, payload) in enumerate(
-                zip(validated.nodes, node_payloads)
-            ):
-                connection.execute(
-                    "INSERT INTO workflow_nodes(id, workflow_id, position, status, payload) "
-                    "VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET "
-                    "workflow_id=excluded.workflow_id, position=excluded.position, "
-                    "status=excluded.status, payload=excluded.payload",
-                    (node.id, workflow.id, position, node.status.value, payload),
-                )
-            for position, edge in enumerate(validated.edges):
-                connection.execute(
-                    "INSERT INTO workflow_edges(workflow_id, source_node_id, target_node_id, kind, position) "
-                    "VALUES (?, ?, ?, ?, ?)",
-                    (
-                        workflow.id,
-                        edge.source_node_id,
-                        edge.target_node_id,
-                        edge.kind.value,
-                        position,
-                    ),
-                )
+            _write_workflow(connection, validated, workflow_payload, node_payloads)
 
         await self._database.write(write)
 
@@ -105,6 +64,67 @@ class WorkflowRepositoryMixin:
             return _load_snapshot(connection, _decode_workflow(row["payload"]))
 
         return await self._database.read(read)
+
+
+def _write_workflow(
+    connection: sqlite3.Connection,
+    snapshot: WorkflowSnapshot,
+    workflow_payload: str,
+    node_payloads: tuple[str, ...],
+) -> None:
+    _validate_threads(connection, snapshot)
+    workflow = snapshot.workflow
+    connection.execute(
+        "INSERT INTO workflows(id, root_thread_id, task_id, payload, created_at, updated_at) "
+        "VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET "
+        "root_thread_id=excluded.root_thread_id, task_id=excluded.task_id, "
+        "payload=excluded.payload, updated_at=excluded.updated_at",
+        (
+            workflow.id,
+            workflow.root_thread_id,
+            workflow.task_id,
+            workflow_payload,
+            encode_datetime(workflow.created_at),
+            encode_datetime(workflow.updated_at),
+        ),
+    )
+    connection.execute(
+        "DELETE FROM workflow_edges WHERE workflow_id = ?", (workflow.id,)
+    )
+    _remove_stale_nodes(connection, workflow.id, snapshot.nodes)
+    _write_nodes(connection, workflow.id, snapshot.nodes, node_payloads)
+    _write_edges(connection, workflow.id, snapshot.edges)
+
+
+def _write_nodes(
+    connection: sqlite3.Connection,
+    workflow_id: str,
+    nodes: tuple[WorkflowNode, ...],
+    payloads: tuple[str, ...],
+) -> None:
+    for position, (node, payload) in enumerate(zip(nodes, payloads)):
+        connection.execute(
+            "INSERT INTO workflow_nodes(id, workflow_id, position, status, payload) "
+            "VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET "
+            "workflow_id=excluded.workflow_id, position=excluded.position, "
+            "status=excluded.status, payload=excluded.payload",
+            (node.id, workflow_id, position, node.status.value, payload),
+        )
+
+
+def _write_edges(
+    connection: sqlite3.Connection,
+    workflow_id: str,
+    edges: tuple[WorkflowEdge, ...],
+) -> None:
+    connection.executemany(
+        "INSERT INTO workflow_edges(workflow_id, source_node_id, target_node_id, kind, position) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (
+            (workflow_id, edge.source_node_id, edge.target_node_id, edge.kind.value, position)
+            for position, edge in enumerate(edges)
+        ),
+    )
 
 
 def _validate_threads(

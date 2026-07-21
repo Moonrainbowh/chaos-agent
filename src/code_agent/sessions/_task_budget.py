@@ -20,8 +20,11 @@ async def get_or_create(database: object, thread_id: str, model_name: str, limit
         row = connection.execute("SELECT * FROM task_budgets WHERE thread_id = ?", (thread_id,)).fetchone()
         if row is None:
             connection.execute("INSERT INTO task_budgets(thread_id, model_name, max_agent_rounds, max_tool_calls, max_tool_calls_per_round, max_total_tokens) VALUES (?, ?, ?, ?, ?, ?)", (thread_id, model_name, limits.max_agent_rounds, limits.max_tool_calls, limits.max_tool_calls_per_round, limits.max_total_tokens))
-            return TaskBudget(model_name, limits)
-        return task_budget(row)
+            result = TaskBudget(model_name, limits)
+        else:
+            result = task_budget(row)
+        sync_lineage_usage(connection, thread_id, result)
+        return result
 
     return await database.write(write)  # type: ignore[attr-defined]
 
@@ -41,6 +44,7 @@ async def reserve(database: object, thread_id: str, *, model_turns: int = 0, too
             return None
         updated = TaskBudget(current.model_name, current.limits, current.model_turns + model_turns, current.tool_calls + tool_calls, current.input_tokens, current.output_tokens, current.repair_cycles, current.repeated_failures, current.last_failure_signature, current.active_seconds, current.warned_at_80, current.warned_at_90)
         connection.execute("UPDATE task_budgets SET model_turns = ?, tool_calls = ? WHERE thread_id = ?", (updated.model_turns, updated.tool_calls, thread_id))
+        sync_lineage_usage(connection, thread_id, updated)
         return updated
 
     return await database.write(write)  # type: ignore[attr-defined]
@@ -70,6 +74,7 @@ async def consume_usage(database: object, task_id: str, usage: Usage, load_task:
         current = task_budget(row)
         updated = TaskBudget(current.model_name, current.limits, current.model_turns, current.tool_calls, current.input_tokens + usage.input_tokens, current.output_tokens + usage.output_tokens, current.repair_cycles, current.repeated_failures, current.last_failure_signature, current.active_seconds, current.warned_at_80, current.warned_at_90)
         connection.execute("UPDATE task_budgets SET input_tokens = ?, output_tokens = ? WHERE thread_id = ?", (updated.input_tokens, updated.output_tokens, task.thread_id))
+        sync_lineage_usage(connection, task.thread_id, updated)
         return updated
 
     return await database.write(write)  # type: ignore[attr-defined]
@@ -91,6 +96,7 @@ async def observe_validation(database: object, task_id: str, fingerprint: str | 
         repairs = current.repair_cycles + (1 if fingerprint and changed_files else 0)
         updated = TaskBudget(current.model_name, current.limits, current.model_turns, current.tool_calls, current.input_tokens, current.output_tokens, repairs, repeated, fingerprint, current.active_seconds, current.warned_at_80, current.warned_at_90)
         connection.execute("UPDATE task_budgets SET repair_cycles = ?, repeated_failures = ?, last_failure_signature = ? WHERE thread_id = ?", (repairs, repeated, fingerprint, task.thread_id))
+        sync_lineage_usage(connection, task.thread_id, updated)
         return updated
 
     return await database.write(write)  # type: ignore[attr-defined]
@@ -109,7 +115,9 @@ async def record_active_seconds(database: object, task_id: str, active_seconds: 
         if active_seconds < current.active_seconds:
             raise ValueError("active_seconds must not decrease")
         connection.execute("UPDATE task_budgets SET active_seconds = ? WHERE thread_id = ?", (active_seconds, task.thread_id))
-        return TaskBudget(current.model_name, current.limits, current.model_turns, current.tool_calls, current.input_tokens, current.output_tokens, current.repair_cycles, current.repeated_failures, current.last_failure_signature, active_seconds, current.warned_at_80, current.warned_at_90)
+        updated = TaskBudget(current.model_name, current.limits, current.model_turns, current.tool_calls, current.input_tokens, current.output_tokens, current.repair_cycles, current.repeated_failures, current.last_failure_signature, active_seconds, current.warned_at_80, current.warned_at_90)
+        sync_lineage_usage(connection, task.thread_id, updated)
+        return updated
 
     return await database.write(write)  # type: ignore[attr-defined]
 
@@ -130,6 +138,11 @@ async def mark_warnings(database: object, task_id: str, load_task: object) -> tu
         if usage * 100 >= budget.limits.max_total_tokens * 90 and not budget.warned_at_90:
             connection.execute("UPDATE task_budgets SET warned_at_90 = 1 WHERE thread_id = ?", (task.thread_id,))
             thresholds.append(90)
+        if thresholds:
+            updated = connection.execute(
+                "SELECT * FROM task_budgets WHERE thread_id = ?", (task.thread_id,)
+            ).fetchone()
+            sync_lineage_usage(connection, task.thread_id, task_budget(updated))
         return tuple(thresholds)
 
     return await database.write(write)  # type: ignore[attr-defined]
@@ -140,3 +153,36 @@ def task_budget(row: sqlite3.Row) -> TaskBudget:
         return TaskBudget(row["model_name"], EngineLimits(max_agent_rounds=row["max_agent_rounds"], max_tool_calls=row["max_tool_calls"], max_tool_calls_per_round=row["max_tool_calls_per_round"], max_total_tokens=row["max_total_tokens"]), row["model_turns"], row["tool_calls"], row["input_tokens"], row["output_tokens"], row["repair_cycles"], row["repeated_failures"], row["last_failure_signature"], row["active_seconds"], bool(row["warned_at_80"]), bool(row["warned_at_90"]))
     except (KeyError, TypeError, ValueError) as error:
         raise SessionCorruptionError("invalid persisted task budget") from error
+
+
+def sync_lineage_usage(
+    connection: sqlite3.Connection, thread_id: str, budget: TaskBudget
+) -> None:
+    row = connection.execute(
+        "SELECT workspace_lineage_id FROM tasks WHERE thread_id = ?", (thread_id,)
+    ).fetchone()
+    if row is None or row["workspace_lineage_id"] is None:
+        return
+    values = (
+        budget.model_turns,
+        budget.tool_calls,
+        budget.input_tokens,
+        budget.output_tokens,
+        budget.repair_cycles,
+        budget.repeated_failures,
+        budget.active_seconds,
+        int(budget.warned_at_80),
+        int(budget.warned_at_90),
+        row["workspace_lineage_id"],
+    )
+    connection.execute(
+        "UPDATE workspace_lineage_usage SET "
+        "model_turns = max(model_turns, ?), tool_calls = max(tool_calls, ?), "
+        "input_tokens = max(input_tokens, ?), output_tokens = max(output_tokens, ?), "
+        "repair_cycles = max(repair_cycles, ?), "
+        "repeated_failures = max(repeated_failures, ?), "
+        "active_seconds = max(active_seconds, ?), "
+        "warned_at_80 = max(warned_at_80, ?), warned_at_90 = max(warned_at_90, ?) "
+        "WHERE lineage_id = ?",
+        values,
+    )

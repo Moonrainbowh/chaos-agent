@@ -40,42 +40,9 @@ class SemanticRepositoryMixin:
         timestamp = encode_datetime(utc_now())
 
         def write(connection: sqlite3.Connection) -> None:
-            _require_thread(connection, checkpoint.thread_id)
-            _insert_immutable(
-                connection,
-                "semantic_checkpoints",
-                "id",
-                checkpoint.id,
-                checkpoint_payload,
-                (
-                    checkpoint.id,
-                    checkpoint.thread_id,
-                    checkpoint_payload,
-                    timestamp,
-                ),
-                "INSERT INTO semantic_checkpoints(id, thread_id, payload, created_at) "
-                "VALUES (?, ?, ?, ?)",
+            _publish_semantic(
+                connection, checkpoint, checkpoint_payload, entry_payloads, timestamp
             )
-            for entry, payload in entry_payloads:
-                _insert_immutable(
-                    connection,
-                    "thread_index_entries",
-                    "stable_id",
-                    entry.anchor.stable_id,
-                    payload,
-                    (
-                        entry.anchor.stable_id,
-                        checkpoint.id,
-                        checkpoint.thread_id,
-                        entry.anchor.sequence,
-                        entry.text,
-                        payload,
-                        timestamp,
-                    ),
-                    "INSERT INTO thread_index_entries("
-                    "stable_id, checkpoint_id, thread_id, sequence, text, payload, created_at"
-                    ") VALUES (?, ?, ?, ?, ?, ?, ?)",
-                )
 
         await self._database.write(write)
 
@@ -157,6 +124,46 @@ class SemanticRepositoryMixin:
             return tuple(_decode_entry(row["payload"]) for row in rows)
 
         return await self._database.read(read)
+
+
+def _publish_semantic(
+    connection: sqlite3.Connection,
+    checkpoint: SemanticCheckpoint,
+    checkpoint_payload: str,
+    entry_payloads: tuple[tuple[ThreadEntry, str], ...],
+    timestamp: str,
+) -> None:
+    _require_thread(connection, checkpoint.thread_id)
+    _insert_immutable(
+        connection,
+        "semantic_checkpoints",
+        "id",
+        checkpoint.id,
+        checkpoint_payload,
+        (checkpoint.id, checkpoint.thread_id, checkpoint_payload, timestamp),
+        "INSERT INTO semantic_checkpoints(id, thread_id, payload, created_at) "
+        "VALUES (?, ?, ?, ?)",
+    )
+    for entry, payload in entry_payloads:
+        _insert_immutable(
+            connection,
+            "thread_index_entries",
+            "stable_id",
+            entry.anchor.stable_id,
+            payload,
+            (
+                entry.anchor.stable_id,
+                checkpoint.id,
+                checkpoint.thread_id,
+                entry.anchor.sequence,
+                entry.text,
+                payload,
+                timestamp,
+            ),
+            "INSERT INTO thread_index_entries("
+            "stable_id, checkpoint_id, thread_id, sequence, text, payload, created_at"
+            ") VALUES (?, ?, ?, ?, ?, ?, ?)",
+        )
 
 
 def _insert_immutable(

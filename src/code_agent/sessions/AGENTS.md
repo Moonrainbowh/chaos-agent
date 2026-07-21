@@ -22,22 +22,13 @@
 - 不负责：计算 thread 读取权限、生成语义摘要、解释 Workflow 状态或执行 Skill/MCP。
 
 ## Units
-- `ThreadStatus`、`GoalStatus`、`ThreadSummary`、`GoalRecord`、`CheckpointRecord`: 表达不可变的会话、目标和 checkpoint 状态 | 无副作用 | 时间统一归一化为 UTC，元数据深度冻结
-- `ThreadRelation`、`MessageRecord`: 表达最多两级的父子关系与带稳定数据库序号的原始消息 | 无副作用 | Workflow edge 不参与授权，原消息不被摘要覆盖
-- `SQLiteSessionRepository.create_thread`、`load_thread_relation`、`load_message_records`: 原子创建两级 thread 并按稳定序号读取关系和消息 | SQLite I/O | 子 thread 不得再创建子 thread，缺失父 thread 失败闭合
-- `SemanticRepositoryMixin.publish_semantic_checkpoint`、`load_semantic_checkpoints`、`search_thread_index`、`read_thread_entry`: 原子发布并读取可重建的 semantic checkpoint 与来源索引 | SQLite I/O | 稳定 ID 内容漂移失败闭合，不使用 pickle
-- `WorkflowRepositoryMixin.save_workflow_snapshot`、`load_workflow_snapshot`、`load_workflow_for_task`: 原子保存并恢复已校验 DAG 快照 | SQLite I/O | assigned thread 必须位于根 thread 两级树内，持久化前重新校验环和端点
-- `SkillActivationRepositoryMixin`: 保存、列出和移除 thread-scoped Skill ID/source/digest | SQLite I/O | 不保存完整 Skill 文本，upsert 不产生重复激活
-- `SQLiteSessionRepository`: 实现内核会话协议并提供线程列表、归档与事件恢复读取 | SQLite I/O | 每个异步操作使用独立的短事务连接
-- `SQLiteSessionRepository.load_task_state`、`save_task_state`、`reduce_task_state`: 读取、保存并在单事务中归约有界任务事实 | SQLite I/O | 可验证事实与模型工作笔记分离，笔记始终作为未验证内容；缺失状态返回空状态，缺失线程失败闭合
-- `SQLiteSessionRepository.get_or_create_task_budget`、`reserve_task_budget`: 创建、读取并原子保留模型回合和工具调用额度 | SQLite I/O | 同一 thread 的预算快照不可被恢复操作重置
-- `SQLiteSessionRepository.create_task`、`load_task`、`transition_task`、`list_tasks`: 持久化任务契约和生命周期 | SQLite I/O | thread 是会话容器，task 是可恢复执行单元
-- `consume_task_usage`、`observe_task_validation`、`record_task_active_seconds`: 原子累计 token、失败指纹和活跃时间 | SQLite I/O | 恢复同一任务不能重置预算或卡滞计数
-- `record_task_control`、`consume_task_controls`: 有序保存并在安全边界原子消费 steering | SQLite I/O | 已消费指令绝不在恢复时重放
-- `register_task_execution`、`reconcile_stale_tasks`: 记录任务 owner 身份并原子中断失效 owner 的活动任务 | SQLite I/O | 调用方提供 PID/create_time 身份判定，活 owner 不得被接管
-- `save_task_contract_revision`、`begin_verification_run`、`append_verification_evidence`: 保存 revision 与 append-only verification ledger | SQLite I/O | 未结束 run 不能被当作成功 evidence
-- `finalize_task`、`interrupt_open_verification_runs`: 在一个事务内复核当前 revision/run/required evidence 后完成，或把恢复前在途 run 标为 interrupted | SQLite I/O | 不存在通用的 evidence-free completed 路径
-- `RecordRepositoryMixin`: 保存、更新和读取目标与 checkpoint | SQLite I/O | 所有记录必须归属于存在的线程
-- `SessionDatabase`: 执行版本化 schema migration、连接配置、事务和完整性校验 | SQLite I/O | 未来版本、缺表和损坏数据均失败闭合
-- `migrate_legacy_session_database`: 使用 SQLite backup API 复制旧库并校验计数与完整性 | SQLite I/O | 临时目标原子替换，旧库始终保留
-- `encode_message`、`decode_message`、`encode_event`、`decode_event`: 在核心模型与稳定 JSON 记录间转换 | JSON 编解码 | 不能信任的持久化内容抛出专用损坏错误
+- `ThreadStatus`、`GoalStatus`、`ThreadSummary`、`ThreadRelation`、`MessageRecord`、`GoalRecord`、`CheckpointRecord`: 表达不可变的会话、父子关系和 checkpoint 状态 | 无副作用 | 时间归一化为 UTC，元数据深度冻结
+- `WorkspaceLineageRecord`、`WorkspaceSnapshotRecord`、`CheckpointCursor`、`RewindOperationRecord`: 表达 lineage、manifest、会话游标与 Rewind 状态 | 无副作用 | UUID、枚举、绝对路径、摘要、时间、JSON 与容量均严格校验
+- `SQLiteSessionRepository`: 组合短事务仓储，持久化 thread、消息/事件、task、任务状态、预算、控制和运行 owner | SQLite I/O | 原始流按稳定序号读取，累计 lineage 用量不能通过恢复重置
+- `RecordRepositoryMixin`、`SemanticRepositoryMixin`: 原子保存目标、普通/语义 checkpoint 与来源索引 | SQLite I/O | 稳定 ID 内容漂移、缺失 owner 与损坏 JSON 均失败闭合
+- `WorkflowRepositoryMixin`、`SkillActivationRepositoryMixin`: 保存已校验 DAG 与 thread-scoped Skill 身份 | SQLite I/O | Workflow thread 限于两级树；Skill 不保存正文且 upsert 不重复
+- `WorkspaceSnapshotRepositoryMixin`: 创建/读取 lineage，并在一个写事务中发布 snapshot entries、checkpoint 与 cursor | SQLite I/O | blob 仅作摘要元数据；任一写入失败完全回滚，available/unavailable 关联必须一致
+- `RewindRepositoryMixin`: 以 CAS 开始、完成或失败 Rewind，并按 lineage/时间查询待恢复操作 | SQLite I/O | 状态机幂等；跨 lineage checkpoint、非法 completion 与 recovery-required 后续写入失败闭合
+- `CheckpointForkRepositoryMixin`: 从 checkpoint 非破坏性分叉消息、事件、目标、任务状态与累计预算，并原子转交 owner | SQLite I/O | 只复制游标前事实，不修改旧 task；`SUPERSEDED` 转换由 Core/Task 6 负责
+- `save_task_contract_revision`、`begin_verification_run`、`append_verification_evidence`、`finalize_task`: 保存 append-only 验证账本并原子完成 | SQLite I/O | 必须复核最新 generation、revision 与全部 required evidence
+- `SessionDatabase`、`migrate_legacy_session_database`、稳定 JSON codecs: 执行 v1-v14 migration、schema/index/FK 校验、旧库复制与记录编解码 | SQLite/JSON I/O | 未来版本、缺表/索引、损坏数据失败闭合；旧库始终保留

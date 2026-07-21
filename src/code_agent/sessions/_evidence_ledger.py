@@ -127,56 +127,103 @@ async def finalize_task(
     timestamp = encode_datetime(utc_now())
 
     def write(connection: sqlite3.Connection) -> None:
-        task = connection.execute("SELECT status FROM tasks WHERE id = ?", (task_id,)).fetchone()
-        run = connection.execute(
-            "SELECT task_id, generation, subject_hash, status FROM verification_runs WHERE id = ?",
-            (run_id,),
-        ).fetchone()
-        latest = connection.execute(
-            "SELECT payload FROM task_contract_revisions WHERE task_id = ? ORDER BY revision DESC LIMIT 1",
-            (task_id,),
-        ).fetchone()
-        if task is None or run is None or latest is None:
-            raise SessionNotFound("task verification state not found")
-        if task["status"] != TaskStatus.VERIFYING.value:
-            raise ValueError("only verifying tasks can be finalized")
-        if run["task_id"] != task_id or run["status"] != "completed":
-            raise ValueError("verification run is not completed")
-        if run["generation"] != generation or run["subject_hash"] != subject_hash:
-            raise ValueError("verification run does not match current subject")
-        if _decode_contract(latest["payload"]) != contract:
-            raise ValueError("task contract revision is stale")
-        records = tuple(
-            EvidenceRecord.from_dict(json.loads(row["payload"]))
-            for row in connection.execute(
-                """SELECT evidence.payload
-                   FROM verification_evidence AS evidence
-                   JOIN verification_runs AS evidence_run ON evidence_run.id = evidence.run_id
-                   WHERE evidence.task_id = ?
-                     AND evidence_run.status = 'completed'
-                     AND evidence_run.generation = ?
-                     AND evidence_run.subject_hash = ?
-                   ORDER BY evidence.created_at, evidence.id""",
-                (task_id, generation, subject_hash),
-            ).fetchall()
-        )
-        latest_by_criterion = {record.criterion_id: record for record in records}
-        if any(
-            criterion.requirement is CriterionRequirement.REQUIRED
-            and not evidence_satisfies_required(latest_by_criterion.get(criterion.identifier, _missing_evidence(criterion.identifier, generation, subject_hash)))
-            for criterion in contract.criteria
-        ):
-            raise ValueError("required verification evidence is incomplete")
-        connection.execute(
-            "UPDATE tasks SET status = ?, stop_reason = NULL, updated_at = ? WHERE id = ?",
-            (TaskStatus.COMPLETED.value, timestamp, task_id),
-        )
-        connection.execute(
-            "INSERT INTO task_completions(task_id, revision, generation, subject_hash, assessment, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-            (task_id, contract.revision, generation, subject_hash, "verified", timestamp),
+        _finalize_write(
+            connection, task_id, run_id, contract, generation, subject_hash, timestamp
         )
 
     await database.write(write)  # type: ignore[attr-defined]
+
+
+def _finalize_write(
+    connection: sqlite3.Connection,
+    task_id: str,
+    run_id: str,
+    contract: TaskContractRevision,
+    generation: int,
+    subject_hash: str,
+    timestamp: str,
+) -> None:
+    _require_completion_state(
+        connection, task_id, run_id, contract, generation, subject_hash
+    )
+    records = _completion_evidence(connection, task_id, generation, subject_hash)
+    latest = {record.criterion_id: record for record in records}
+    if any(
+        criterion.requirement is CriterionRequirement.REQUIRED
+        and not evidence_satisfies_required(
+            latest.get(
+                criterion.identifier,
+                _missing_evidence(criterion.identifier, generation, subject_hash),
+            )
+        )
+        for criterion in contract.criteria
+    ):
+        raise ValueError("required verification evidence is incomplete")
+    connection.execute(
+        "UPDATE tasks SET status = ?, stop_reason = NULL, updated_at = ? WHERE id = ?",
+        (TaskStatus.COMPLETED.value, timestamp, task_id),
+    )
+    connection.execute(
+        "INSERT INTO task_completions(task_id, revision, generation, subject_hash, "
+        "assessment, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+        (task_id, contract.revision, generation, subject_hash, "verified", timestamp),
+    )
+
+
+def _require_completion_state(
+    connection: sqlite3.Connection,
+    task_id: str,
+    run_id: str,
+    contract: TaskContractRevision,
+    generation: int,
+    subject_hash: str,
+) -> None:
+    task = connection.execute(
+        "SELECT status FROM tasks WHERE id = ?", (task_id,)
+    ).fetchone()
+    run = connection.execute(
+        "SELECT task_id, generation, subject_hash, status FROM verification_runs "
+        "WHERE id = ?",
+        (run_id,),
+    ).fetchone()
+    latest = connection.execute(
+        "SELECT payload FROM task_contract_revisions WHERE task_id = ? "
+        "ORDER BY revision DESC LIMIT 1",
+        (task_id,),
+    ).fetchone()
+    if task is None or run is None or latest is None:
+        raise SessionNotFound("task verification state not found")
+    if task["status"] != TaskStatus.VERIFYING.value:
+        raise ValueError("only verifying tasks can be finalized")
+    if run["task_id"] != task_id or run["status"] != "completed":
+        raise ValueError("verification run is not completed")
+    if run["generation"] != generation or run["subject_hash"] != subject_hash:
+        raise ValueError("verification run does not match current subject")
+    if _decode_contract(latest["payload"]) != contract:
+        raise ValueError("task contract revision is stale")
+
+
+def _completion_evidence(
+    connection: sqlite3.Connection,
+    task_id: str,
+    generation: int,
+    subject_hash: str,
+) -> tuple[EvidenceRecord, ...]:
+    rows = connection.execute(
+        """SELECT evidence.payload
+           FROM verification_evidence AS evidence
+           JOIN verification_runs AS evidence_run ON evidence_run.id = evidence.run_id
+           WHERE evidence.task_id = ?
+             AND evidence_run.status = 'completed'
+             AND evidence_run.generation = ?
+             AND evidence_run.subject_hash = ?
+           ORDER BY evidence.created_at, evidence.id""",
+        (task_id, generation, subject_hash),
+    ).fetchall()
+    try:
+        return tuple(EvidenceRecord.from_dict(json.loads(row["payload"])) for row in rows)
+    except (TypeError, ValueError, json.JSONDecodeError) as error:
+        raise SessionCorruptionError("invalid completion evidence") from error
 
 
 def _missing_evidence(criterion_id: str, generation: int, subject_hash: str) -> EvidenceRecord:

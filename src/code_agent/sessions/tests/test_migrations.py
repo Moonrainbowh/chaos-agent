@@ -15,7 +15,7 @@ if str(SRC_ROOT) not in sys.path:
 
 from code_agent.core.events import AgentEvent, EventKind  # noqa: E402
 from code_agent.core.models import Message  # noqa: E402
-from code_agent.sessions._database import SCHEMA_VERSION  # noqa: E402
+from code_agent.sessions._database import SCHEMA_VERSION, _MIGRATIONS  # noqa: E402
 from code_agent.sessions.errors import (  # noqa: E402
     SessionCorruptionError,
     SessionMigrationError,
@@ -125,6 +125,51 @@ class SessionMigrationTests(unittest.IsolatedAsyncioTestCase):
             }
         self.assertEqual(version, SCHEMA_VERSION)
         self.assertIn("task_states", tables)
+
+    def test_every_historical_schema_version_migrates_to_v14_idempotently(self) -> None:
+        for version in range(SCHEMA_VERSION):
+            database = Path(self.temporary.name) / f"sessions-v{version}.sqlite3"
+            with sqlite3.connect(database) as connection:
+                for target in range(1, version + 1):
+                    for statement in _MIGRATIONS[target]:
+                        connection.execute(statement)
+                connection.execute(f"PRAGMA user_version = {version}")
+
+            SQLiteSessionRepository(database)
+            SQLiteSessionRepository(database)
+
+            with sqlite3.connect(database) as connection:
+                migrated = connection.execute("PRAGMA user_version").fetchone()[0]
+                foreign_keys = {
+                    row[2]
+                    for row in connection.execute(
+                        "PRAGMA foreign_key_list(rewind_operations)"
+                    )
+                }
+            self.assertEqual(migrated, 14, version)
+            self.assertTrue(
+                {"workspace_lineages", "checkpoints", "tasks"}.issubset(foreign_keys),
+                version,
+            )
+
+    def test_v14_required_indexes_and_columns_are_validated_on_reopen(self) -> None:
+        SQLiteSessionRepository(self.database)
+        with sqlite3.connect(self.database) as connection:
+            columns = {
+                row[1]
+                for row in connection.execute("PRAGMA table_info(rewind_operations)")
+            }
+            indexes = {
+                row[1]
+                for row in connection.execute("PRAGMA index_list(rewind_operations)")
+            }
+        self.assertIn("replacement_task_id", columns)
+        self.assertIn("rewind_operations_one_pending", indexes)
+
+        with sqlite3.connect(self.database) as connection:
+            connection.execute("DROP INDEX rewind_operations_status_created")
+        with self.assertRaises(SessionCorruptionError):
+            SQLiteSessionRepository(self.database)
 
     def test_future_schema_version_is_rejected_without_mutation(self) -> None:
         with sqlite3.connect(self.database) as connection:
