@@ -9,6 +9,7 @@ def available_services(app: Any) -> set[str]:
         for name in (
             "sessions",
             "evidence",
+            "checkpoints",
             "tasks",
             "history",
             "modes",

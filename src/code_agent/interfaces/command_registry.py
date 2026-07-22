@@ -46,6 +46,26 @@ _SPECS = (
     CommandSpec("接受", ("accept",), "任务", "接受部分交付", "[task-id]", requires=("tasks",)),
     CommandSpec("差异", ("diff",), "工作区", "显示差异"),
     CommandSpec("证据", ("evidence",), "工作区", "显示验证证据", "[task-id]", requires=("evidence",)),
+    CommandSpec(
+        "检查点",
+        ("checkpoint",),
+        "工作区",
+        "列出或创建 Checkpoint",
+        "<action>",
+        requires=("checkpoints",),
+        actions=(
+            CommandAction("列表", ("list",), "列出 Checkpoint"),
+            CommandAction("创建", ("create",), "创建 Checkpoint", "[label]"),
+        ),
+    ),
+    CommandSpec(
+        "回退",
+        ("rewind",),
+        "工作区",
+        "预览并执行 Rewind",
+        "[checkpoint-id]",
+        requires=("checkpoints",),
+    ),
     CommandSpec("模式", ("mode",), "能力", "切换下一任务的 Agent mode", "<mode>", requires=("modes",), actions=(
         CommandAction("low", (), "快速直接"),
         CommandAction("medium", (), "均衡执行"),

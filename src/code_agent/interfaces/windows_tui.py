@@ -16,7 +16,8 @@ from .input_buffer import InputBuffer
 from .input_events import ExitGuard
 from .terminal_display import DisplayKind, text_entry
 from .terminal_renderer import ColorMode, Theme, render_entries
-from .terminal_io import BRACKETED_PASTE_DISABLE, BRACKETED_PASTE_ENABLE, read_key, render_terminal, stdout_write
+from .terminal_io import BRACKETED_PASTE_DISABLE, BRACKETED_PASTE_ENABLE, read_key, stdout_write
+from .terminal_io import render_terminal as render_terminal
 from .terminal_status import status_context, status_presentation
 from .terminal_tail import LiveTailGeometry, clear_live_tail, render_live_tail_frame
 from .terminal_state import ApprovalBroker, ApprovalRequest, TerminalState
@@ -27,13 +28,14 @@ from code_agent.skills.registry import SkillActivation
 from code_agent.mcp.registry import McpRegistry
 from .task_controller import ForegroundTaskController
 from .tui_commands import ParseOutcome, parse_tui_command
-from .i18n import Language, catalog_for, select_runtime_language
+from .i18n import catalog_for, select_runtime_language
 from .tui_input import apply_paste, handle_interrupt
 from .command_availability import available_services
 from .tui_interactions import TuiInteractions
 from .diff_view import GitDiffSource
 from .tui_command_dispatch import handle_tui_command
 from .interaction import InteractionBroker
+from .checkpoint_control import CheckpointControl
 from .tui_lifecycle import (
     close_tasks,
     listen_approvals,
@@ -50,13 +52,14 @@ class EvidenceReader(Protocol):
 class WindowsTerminalApp:
     """Append-only Windows Terminal interaction without alternate-screen control."""
 
-    def __init__(self, controller: AgentController, approvals: ApprovalBroker, *, sessions: Optional[SessionBrowser] = None, evidence: Optional[EvidenceReader] = None, tasks: ForegroundTaskController | None = None, history: Optional[ThreadHistoryReader] = None, profiles: ProfileControl | None = None, modes: ModeControl | None = None, permissions: PermissionControl | None = None, skills: SkillActivation | None = None, mcp: McpRegistry | None = None, workflows: object | None = None, plugins: object | None = None, interaction_broker: InteractionBroker | None = None, command_registry: CommandRegistry = REGISTRY, diff_source: GitDiffSource | None = None, write: Optional[Callable[[str], object]] = None) -> None:
+    def __init__(self, controller: AgentController, approvals: ApprovalBroker, *, sessions: Optional[SessionBrowser] = None, evidence: Optional[EvidenceReader] = None, tasks: ForegroundTaskController | None = None, history: Optional[ThreadHistoryReader] = None, profiles: ProfileControl | None = None, modes: ModeControl | None = None, permissions: PermissionControl | None = None, skills: SkillActivation | None = None, mcp: McpRegistry | None = None, workflows: object | None = None, plugins: object | None = None, checkpoints: CheckpointControl | None = None, interaction_broker: InteractionBroker | None = None, command_registry: CommandRegistry = REGISTRY, diff_source: GitDiffSource | None = None, write: Optional[Callable[[str], object]] = None) -> None:
         self.controller, self.approvals = controller, approvals
-        self.sessions, self.evidence, self.tasks, self.history, self.profiles, self.modes, self.permissions, self.skills, self.mcp, self.workflows, self.plugins, self.command_registry, self._write = sessions, evidence, tasks, history, profiles, modes, permissions, skills, mcp, workflows, plugins, command_registry, write or stdout_write
+        self.sessions, self.evidence, self.tasks, self.history, self.profiles, self.modes, self.permissions, self.skills, self.mcp, self.workflows, self.plugins, self.checkpoints, self.command_registry, self._write = sessions, evidence, tasks, history, profiles, modes, permissions, skills, mcp, workflows, plugins, checkpoints, command_registry, write or stdout_write
         self.state = TerminalState(); self.input = InputBuffer(); self.current_thread_id: str | None = None
         self.exit_guard = ExitGuard()
         self.interaction_broker = interaction_broker
         self._pending_interaction = None
+        self._rewind_flow = None
         self._interaction_done = asyncio.Event()
         self._interaction_task: asyncio.Task[None] | None = None
         self.interactions = TuiInteractions(diff_source)

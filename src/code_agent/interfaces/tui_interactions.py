@@ -18,6 +18,7 @@ from .interaction import (
     InteractionResult,
     render_interaction,
 )
+from .tui_builtin_commands import handle_rewind_key, rewind_rows
 
 
 class TuiInteractions:
@@ -46,6 +47,9 @@ class TuiInteractions:
         interaction = getattr(app, "_pending_interaction", None)
         if interaction is not None:
             return render_interaction(interaction, self.interaction_choice)
+        rewind = rewind_rows(app)
+        if rewind is not None:
+            return rewind
         services = available_services(app)
         dynamic = _dynamic_items(app)
         if dynamic is not None:
@@ -92,52 +96,61 @@ class TuiInteractions:
 
     async def handle_key(self, app: object, key: str) -> bool:
         if app._pending_approval is not None:
-            if key in {"left", "up"}:
-                self.approval_choice = 0
-            elif key in {"right", "down"}:
-                self.approval_choice = 1
-            elif key.casefold() in {"y", "n"}:
-                await self._resolve_approval(app, key.casefold() == "y")
-            elif key in {"\x1b", "\r", "\n"}:
-                await self._resolve_approval(app, self.approval_choice == 1 and key not in {"\x1b"})
-            else:
-                return True
-            return True
+            return await self._handle_approval_key(app, key)
         interaction = getattr(app, "_pending_interaction", None)
         if interaction is not None:
-            if interaction.primitive is InteractionPrimitive.INPUT:
-                if key == "\x1b":
-                    await self._resolve_interaction(app, False, None, True)
-                elif key == "\r":
-                    value = app.input.submit()
-                    await self._resolve_interaction(
-                        app, bool(value.strip()), value or None
-                    )
-                else:
-                    return False
-                return True
-            options = (
-                ("No", "Yes")
-                if interaction.primitive is InteractionPrimitive.CONFIRM
-                else interaction.options
-            )
-            if key in {"left", "up"}:
-                self.interaction_choice = max(0, self.interaction_choice - 1)
-            elif key in {"right", "down"}:
-                self.interaction_choice = min(
-                    len(options) - 1, self.interaction_choice + 1
-                )
-            elif key == "\x1b":
-                await self._resolve_interaction(app, False, None, True)
-            elif key in {"\r", "\n"}:
-                selected = options[self.interaction_choice]
-                accepted = (
-                    self.interaction_choice == 1
-                    if interaction.primitive is InteractionPrimitive.CONFIRM
-                    else True
-                )
-                await self._resolve_interaction(app, accepted, selected)
+            return await self._handle_interaction_key(app, interaction, key)
+        if await handle_rewind_key(app, key):
             return True
+        return await self._handle_picker_key(app, key)
+
+    async def _handle_approval_key(self, app: object, key: str) -> bool:
+        if key in {"left", "up"}:
+            self.approval_choice = 0
+        elif key in {"right", "down"}:
+            self.approval_choice = 1
+        elif key.casefold() in {"y", "n"}:
+            await self._resolve_approval(app, key.casefold() == "y")
+        elif key in {"\x1b", "\r", "\n"}:
+            approved = self.approval_choice == 1 and key != "\x1b"
+            await self._resolve_approval(app, approved)
+        return True
+
+    async def _handle_interaction_key(
+        self, app: object, interaction: object, key: str
+    ) -> bool:
+        if interaction.primitive is InteractionPrimitive.INPUT:
+            if key == "\x1b":
+                await self._resolve_interaction(app, False, None, True)
+            elif key == "\r":
+                value = app.input.submit()
+                await self._resolve_interaction(app, bool(value.strip()), value or None)
+            else:
+                return False
+            return True
+        options = (
+            ("No", "Yes")
+            if interaction.primitive is InteractionPrimitive.CONFIRM
+            else interaction.options
+        )
+        if key in {"left", "up"}:
+            self.interaction_choice = max(0, self.interaction_choice - 1)
+        elif key in {"right", "down"}:
+            self.interaction_choice = min(len(options) - 1, self.interaction_choice + 1)
+        elif key == "\x1b":
+            await self._resolve_interaction(app, False, None, True)
+        elif key in {"\r", "\n"}:
+            accepted = (
+                self.interaction_choice == 1
+                if interaction.primitive is InteractionPrimitive.CONFIRM
+                else True
+            )
+            await self._resolve_interaction(
+                app, accepted, options[self.interaction_choice]
+            )
+        return True
+
+    async def _handle_picker_key(self, app: object, key: str) -> bool:
         if not app.input.text.startswith("/"):
             return False
         self.rows(app)
