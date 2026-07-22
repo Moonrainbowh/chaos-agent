@@ -24,6 +24,7 @@ from code_agent_win.cli import _split_global_options, _split_mode_option, run  #
 from code_agent.core.cancellation import CancellationError, CancellationToken  # noqa: E402
 from code_agent.core.engine import AgentEngine  # noqa: E402
 from code_agent.core.events import EventKind  # noqa: E402
+from code_agent.core.limits import EngineLimits  # noqa: E402
 from code_agent.core.models import ActionRequest  # noqa: E402
 from code_agent.core.models import ModelEvent, ModelEventKind, ToolCall, ToolDefinition  # noqa: E402
 from code_agent.core.task import TaskStatus  # noqa: E402
@@ -45,6 +46,7 @@ from code_agent.workspace.files import WorkspaceFiles  # noqa: E402
 from code_agent.workspace.ignore import IgnoreRules  # noqa: E402
 from code_agent.workspace.paths import WorkspacePathGuard  # noqa: E402
 from code_agent.workspace.edits import WorkspaceEditor  # noqa: E402
+from code_agent.workspace.errors import WorkspaceError  # noqa: E402
 from code_agent.verification.python_adapter import PythonVerificationAdapter  # noqa: E402
 from code_agent.verification.task_service import LedgerTaskVerificationService  # noqa: E402
 from code_agent.config.loader import load_runtime_config  # noqa: E402
@@ -201,6 +203,82 @@ class ManagedWorkspaceApplicationTests(unittest.IsolatedAsyncioTestCase):
             )
             with self.assertRaises(RuntimeError):
                 await application.tui.checkpoints.list(task.id)
+            await application.aclose()
+
+    async def test_managed_worktree_failure_does_not_fallback_to_source(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            _init_git_source(root)
+            application = _configured_application(root)
+
+            with patch.object(
+                application.workspace_runtime,
+                "prepare_task",
+                side_effect=WorkspaceError("cannot create worktree"),
+            ):
+                with self.assertRaises(RuntimeError):
+                    await application.foreground_tasks.start("edit safely")
+
+            self.assertEqual(await application.foreground_tasks._sessions.list_tasks(), ())
+            await application.aclose()
+
+    async def test_startup_hydrates_persisted_worktree_bindings(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            _init_git_source(root)
+            first = _configured_application(root)
+            task = await first.foreground_tasks.start("edit note.py")
+            task_root = Path(task.contract.authorization.workspace_root)
+            await first.aclose()
+
+            restarted = _configured_application(root)
+            await restarted.startup()
+
+            self.assertEqual(restarted.workspace_root_for(task.id), task_root)
+            self.assertEqual(
+                restarted.workspace_runtime.root_for_thread(task.thread_id),
+                task_root,
+            )
+            await restarted.aclose()
+
+    async def test_session_rewind_binds_replacement_task_to_worktree(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            _init_git_source(root)
+            application = _configured_application(root)
+            task = await application.foreground_tasks.start("rewind session")
+            task_root = Path(task.contract.authorization.workspace_root)
+            await application.tui.sessions.get_or_create_task_budget(
+                task.thread_id, "test", EngineLimits()
+            )
+            checkpoint = await application.tui.checkpoints.create(
+                task.id, "rewindable"
+            )
+            preview = await application.tui.checkpoints.preview_rewind(
+                task.id, checkpoint.id, "session"
+            )
+            await application.tui.sessions.transition_task(
+                task.id, TaskStatus.PAUSED, "test quiesce"
+            )
+
+            result = await application.tui.checkpoints.execute_rewind(
+                preview, confirmed=True
+            )
+
+            self.assertIsNotNone(result.replacement_task_id)
+            self.assertEqual(
+                application.workspace_root_for(result.replacement_task_id),
+                task_root,
+            )
+            replacement = await application.tui.sessions.load_task(
+                result.replacement_task_id
+            )
+            self.assertEqual(
+                application.workspace_runtime.root_for_thread(
+                    replacement.thread_id
+                ),
+                task_root,
+            )
             await application.aclose()
 
 
@@ -549,7 +627,7 @@ def _task_dispatcher(root: Path, runtime: object) -> RootActionDispatcher:
 
 def _configured_application(root: Path):
     state = root.parent / f"{root.name}-state"
-    state.mkdir()
+    state.mkdir(exist_ok=True)
     runtime = load_runtime_config(env={
         "CHAOS_CONFIG": str(root / "missing.toml"),
         "CHAOS_API": "responses",

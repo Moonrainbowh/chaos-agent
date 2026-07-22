@@ -59,7 +59,10 @@ class CheckpointRouter:
         control = self._runtime.services_for_root(Path(lineage.worktree_root)).checkpoints
         if control is None:
             raise RuntimeError("checkpoint control is unavailable")
-        return await control.execute_rewind(preview, confirmed=confirmed)
+        result = await control.execute_rewind(preview, confirmed=confirmed)
+        if result.replacement_task_id is not None:
+            await self._runtime.bind_persisted_task(result.replacement_task_id)
+        return result
 
     async def _control_for_task(self, task_id: str) -> CheckpointControl:
         lineage = await self._runtime._sessions.load_lineage_for_task(task_id)

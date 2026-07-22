@@ -30,6 +30,10 @@ class Application:
     workflows: WorkflowService | None = None
     workspace_runtime: object | None = None
 
+    async def startup(self) -> None:
+        if self.workspace_runtime is not None:
+            await self.workspace_runtime.startup()
+
     def workspace_root_for(self, task_id: str) -> Path:
         if self.workspace_runtime is not None:
             return self.workspace_runtime.root_for_task(task_id)

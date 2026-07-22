@@ -140,6 +140,9 @@ class _ThreadRootContextBuilder:
         cancellation: object,
     ) -> object:
         root = self._factory._workspace_runtime.root_for_thread(thread_id)
+        if root is None:
+            await self._factory._workspace_runtime.hydrate_bindings()
+            root = self._factory._workspace_runtime.root_for_thread(thread_id)
         builder = self._factory._build(
             self._mode, self._client, self._profile, root or self._factory._root
         )

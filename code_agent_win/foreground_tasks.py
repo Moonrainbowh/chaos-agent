@@ -17,7 +17,9 @@ from code_agent.workflows.observations import (
     RecoveryObservation,
     TaskCreatedObservation,
     VerificationObservation,
-)
+    )
+
+from code_agent_win.tool_support import discover_git_workspace
 
 
 class IntegratedForegroundTaskController(ForegroundTaskController):
@@ -84,12 +86,13 @@ class IntegratedForegroundTaskController(ForegroundTaskController):
     async def _prepare_workspace(self):
         if self._workspace_runtime is None:
             return None
-        try:
-            return await self._workspace_runtime.prepare_task(
-                Path(self._root), "pending"
-            )
-        except WorkspaceError:
+        source = Path(self._root)
+        if discover_git_workspace(source) is None:
             return None
+        try:
+            return await self._workspace_runtime.prepare_task(source, "pending")
+        except WorkspaceError as error:
+            raise RuntimeError("managed task worktree could not be prepared") from error
 
     async def _bind_workspace(
         self, thread_id: str, task_id: str, root: Path, workspace: object | None

@@ -29,6 +29,7 @@ class ModeAwareWindowsTerminalApp(WindowsTerminalApp):
         capability: ModePermissionView,
         plugin_errors: tuple[str, ...] = (),
         recover_pending: object | None = None,
+        startup: object | None = None,
         **kwargs: object,
     ) -> None:
         super().__init__(*args, **kwargs)
@@ -36,13 +37,17 @@ class ModeAwareWindowsTerminalApp(WindowsTerminalApp):
         self._plugin_errors = plugin_errors
         self._announced = False
         self._recover_pending = recover_pending
+        self._startup = startup
         self._recovered = False
 
     def update_capability(self, capability: ModePermissionView) -> None:
         self._capability = capability
 
     async def run(self, *, thread_id: str | None = None) -> None:
-        if not self._recovered and self._recover_pending is not None:
+        if not self._recovered and self._startup is not None:
+            await self._startup()
+            self._recovered = True
+        elif not self._recovered and self._recover_pending is not None:
             await self._recover_pending()
             self._recovered = True
         if not self._announced:
@@ -82,6 +87,7 @@ class TaskScopedGitDiffAdapter:
         task_id = self._active_task_id()
         if task_id is None:
             return await self._fallback.read_diff(paths)
+        await self._runtime.hydrate_bindings()
         try:
             services = self._runtime.services_for_root(
                 self._runtime.root_for_task(task_id)

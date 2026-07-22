@@ -123,6 +123,7 @@ def compose_ui(
             ),
         ),
         recover_pending=workspace_runtime.recover_pending,
+        startup=workspace_runtime.startup,
         plugin_errors=plugin_errors,
     )
     tui_ref.append(tui)

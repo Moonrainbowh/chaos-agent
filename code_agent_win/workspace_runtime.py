@@ -18,6 +18,7 @@ from code_agent.sessions.workspace_models import (
     RewindOperationStatus,
     WorkspaceLineageRecord,
 )
+from code_agent.sessions.errors import SessionNotFound
 from code_agent.verification.local_adapter import LocalVerificationAdapter
 from code_agent.workspace.edits import WorkspaceEditor
 from code_agent.workspace.files import WorkspaceFiles
@@ -67,6 +68,7 @@ class ManagedWorkspaceRuntime:
         self._task_roots: dict[str, Path] = {}
         self._prepared: dict[str, tuple[str, str]] = {}
         self._verification_invalidator = _noop_invalidate_verification
+        self._startup_complete = False
 
     async def prepare_task(self, source_root: Path, task_id: str) -> TaskWorkspace:
         source = source_root.resolve()
@@ -108,6 +110,29 @@ class ManagedWorkspaceRuntime:
     def root_for_task(self, task_id: str) -> Path:
         return self._task_roots[task_id]
 
+    async def startup(self) -> tuple[object, ...]:
+        if self._startup_complete:
+            return ()
+        await self.hydrate_bindings()
+        results = await self.recover_pending()
+        await self.hydrate_bindings()
+        self._startup_complete = True
+        return results
+
+    async def hydrate_bindings(self) -> None:
+        for task in await self._sessions.list_tasks(include_terminal=True):
+            await self.bind_persisted_task(task.id)
+
+    async def bind_persisted_task(self, task_id: str) -> None:
+        try:
+            task = await self._sessions.load_task(task_id)
+            lineage = await self._sessions.load_lineage_for_task(task_id)
+        except SessionNotFound:
+            return
+        root = Path(lineage.worktree_root)
+        self.bind_task(task.id, root)
+        self.bind_thread(task.thread_id, root)
+
     def services(self, workspace: TaskWorkspace) -> WorkspaceServices:
         return self.services_for_root(workspace.worktree_root)
 
@@ -127,9 +152,10 @@ class ManagedWorkspaceRuntime:
             control = self.services_for_root(Path(lineage.worktree_root)).checkpoints
             if control is not None:
                 async with control._rewind.locks.for_lineage(operation.lineage_id):
-                    results.append(
-                        await control._rewind.recovery._recover_one(operation)
-                    )
+                    result = await control._rewind.recovery._recover_one(operation)
+                    results.append(result)
+                    if result.replacement_task_id is not None:
+                        await self.bind_persisted_task(result.replacement_task_id)
         return tuple(results)
 
     def checkpoint_control(self) -> CheckpointControl:
