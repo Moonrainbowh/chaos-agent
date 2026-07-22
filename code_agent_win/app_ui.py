@@ -10,6 +10,16 @@ from code_agent.interfaces.windows_tui import WindowsTerminalApp
 from code_agent.interfaces.mode_control import ModeSummary
 from code_agent.orchestration.models import ModeSnapshot
 from code_agent.orchestration.plugin_extensions import PluginModeCatalog
+from code_agent_win.foreground_tasks import IntegratedForegroundTaskController
+
+
+__all__ = (
+    "GitDiffAdapter",
+    "IntegratedForegroundTaskController",
+    "ModeAwareWindowsTerminalApp",
+    "PluginModeControl",
+    "TaskScopedGitDiffAdapter",
+)
 
 
 class ModeAwareWindowsTerminalApp(WindowsTerminalApp):

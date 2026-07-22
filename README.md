@@ -185,8 +185,13 @@ file statistics plus bounded unified diff lines.
 Tasks persist lifecycle state, checkpoints, and cumulative budgets. Closing the
 terminal, sleep, hibernate, shutdown, or reboot does not keep work running;
 the next foreground session resumes from a checkpoint and never replays an
-in-flight command. This release deliberately has no daemon, remote observer,
-background continuation, worktrees, automatic commit, or push.
+in-flight command. Foreground coding tasks run in managed Git worktrees.
+Durable checkpoints can restore tracked and eligible untracked code,
+session/task state, or both. Ignored files, secrets, build outputs, Git
+metadata, links/reparse targets, and in-flight commands are never captured or
+replayed. Rewind keeps the original task history and requires an explicit
+preview confirmation. This release deliberately has no daemon, remote observer,
+background continuation, OS sandbox, automatic commit, or push.
 
 ## Context Budgets And Local Diagnostics
 
