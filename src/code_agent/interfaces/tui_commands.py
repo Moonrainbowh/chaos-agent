@@ -16,6 +16,7 @@ class TuiCommand:
     task_id: str | None = None
     instruction: str | None = None
     command_name: str | None = None
+    action: str | None = None
 
 @dataclass(frozen=True)
 class ParseOutcome:
@@ -37,6 +38,7 @@ def parse_tui_command(
     assert spec is not None
     if arguments and not spec.usage:
         return ParseOutcome(error="command does not accept arguments")
+    normalized_action = None
     if spec.actions and arguments:
         action = registry.resolve_action(spec, arguments[0])
         if action is None:
@@ -45,7 +47,8 @@ def parse_tui_command(
             return ParseOutcome(error="command action does not accept arguments")
         if len(arguments) == 1 and action.usage.startswith("<"):
             return ParseOutcome(error="command action argument is required")
+        normalized_action = action.name
     kinds = {"帮助": "help", "状态": "status", "清屏": "clear", "退出": "exit", "新建": "new", "会话": "sessions", "恢复": "restore", "任务": "tasks", "接受": "accept", "差异": "diff", "证据": "evidence", "检查点": "checkpoint", "回退": "rewind", "模式": "mode", "权限": "permission", "流程": "workflow", "技能": "skill", "mcp": "mcp"}
     kind = TuiCommandKind.PLUGIN if spec.source == "plugin" else TuiCommandKind(kinds[spec.name])
     value = " ".join(arguments) or None
-    return ParseOutcome(TuiCommand(kind, value if kind is TuiCommandKind.ACCEPT else None, value if kind in {TuiCommandKind.HELP, TuiCommandKind.RESTORE, TuiCommandKind.EVIDENCE, TuiCommandKind.CHECKPOINT, TuiCommandKind.REWIND, TuiCommandKind.MODE, TuiCommandKind.PERMISSION, TuiCommandKind.WORKFLOW, TuiCommandKind.SKILL, TuiCommandKind.MCP, TuiCommandKind.PLUGIN} else None, spec.name if kind is TuiCommandKind.PLUGIN else None))
+    return ParseOutcome(TuiCommand(kind, value if kind is TuiCommandKind.ACCEPT else None, value if kind in {TuiCommandKind.HELP, TuiCommandKind.RESTORE, TuiCommandKind.EVIDENCE, TuiCommandKind.CHECKPOINT, TuiCommandKind.REWIND, TuiCommandKind.MODE, TuiCommandKind.PERMISSION, TuiCommandKind.WORKFLOW, TuiCommandKind.SKILL, TuiCommandKind.MCP, TuiCommandKind.PLUGIN} else None, spec.name if kind is TuiCommandKind.PLUGIN else None, normalized_action))

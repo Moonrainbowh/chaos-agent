@@ -7,6 +7,7 @@ from collections.abc import Sequence
 
 from .interaction import InteractionResult
 from .terminal_tail import clear_live_tail
+from .checkpoint_tui import close_rewind_flow
 
 
 _FRAME_INTERVAL = 1 / 30
@@ -77,6 +78,7 @@ async def listen_interactions(app: object) -> None:
 
 
 async def close_tasks(app: object) -> None:
+    app._closing = True
     if app._pending_approval is not None:
         app.approvals.resolve(app._pending_approval.request_id, False)
         app._pending_approval = None
@@ -93,6 +95,7 @@ async def close_tasks(app: object) -> None:
         app._interaction_done.set()
     if app._token:
         app._token.cancel("TUI closed")
+    await close_rewind_flow(app)
     await _await_durable_interrupt(app)
     await _allow_run_to_finish(app)
     if app.state.has_draft:

@@ -36,6 +36,7 @@ from .diff_view import GitDiffSource
 from .tui_command_dispatch import handle_tui_command
 from .interaction import InteractionBroker
 from .checkpoint_control import CheckpointControl
+from .checkpoint_tui import close_rewind_flow, wait_rewind_task
 from .tui_lifecycle import (
     close_tasks,
     listen_approvals,
@@ -60,6 +61,8 @@ class WindowsTerminalApp:
         self.interaction_broker = interaction_broker
         self._pending_interaction = None
         self._rewind_flow = None
+        self._rewind_task: asyncio.Task[None] | None = None
+        self._closing = False
         self._interaction_done = asyncio.Event()
         self._interaction_task: asyncio.Task[None] | None = None
         self.interactions = TuiInteractions(diff_source)
@@ -114,6 +117,10 @@ class WindowsTerminalApp:
     async def wait_idle(self) -> None:
         if self._run_task: await self._run_task
         await stop_animation(self)
+    async def wait_checkpoint_idle(self) -> None:
+        await wait_rewind_task(self)
+    async def close_checkpoint_flow(self) -> None:
+        await close_rewind_flow(self)
     async def handle_key(self, key: str) -> None:
         if key == "\x03":
             await handle_interrupt(self)

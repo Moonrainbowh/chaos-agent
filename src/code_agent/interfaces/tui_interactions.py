@@ -18,7 +18,7 @@ from .interaction import (
     InteractionResult,
     render_interaction,
 )
-from .tui_builtin_commands import handle_rewind_key, rewind_rows
+from .checkpoint_tui import handle_rewind_key, rewind_rows
 
 
 class TuiInteractions:

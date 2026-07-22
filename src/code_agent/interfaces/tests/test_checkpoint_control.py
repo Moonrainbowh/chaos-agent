@@ -137,6 +137,13 @@ class CheckpointControlTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.checkpoints.listed, TASK)
         self.assertEqual(self.checkpoints.captured, (TASK, "manual"))
 
+    async def test_create_rejects_blank_and_oversized_labels(self) -> None:
+        for label in ("", " " * 3, "x" * 161):
+            with self.subTest(size=len(label)):
+                with self.assertRaises(ValueError):
+                    await self.control.create(TASK, label)
+        self.assertFalse(hasattr(self.checkpoints, "captured"))
+
     async def test_preview_defaults_to_code_and_accepts_three_modes(self) -> None:
         default = await self.control.preview_rewind(TASK, CHECKPOINT)
         self.assertEqual(default.mode, RewindMode.CODE)
@@ -224,10 +231,10 @@ class CheckpointTuiTests(unittest.IsolatedAsyncioTestCase):
         await app.submit(f"/rewind {CHECKPOINT}")
         self.assertIn("› 仅代码", app.interactions.rows(app)[0])
         await app.handle_key("\r")
-
+        await app.wait_checkpoint_idle()
         rows = app.interactions.rows(app)
         self.assertEqual(control.previewed, (TASK, CHECKPOINT, "code"))
-        self.assertIn("restore 8 · delete 4 · 4096 bytes", rows[0])
+        self.assertTrue(any("restore 8 · delete 4 · 4096 bytes" in row for row in rows))
         self.assertIn("› No", rows[-3])
         self.assertLessEqual(sum("src/file-" in row for row in rows), 6)
 
@@ -246,7 +253,7 @@ class CheckpointTuiTests(unittest.IsolatedAsyncioTestCase):
         app = self.app(LongPathControl((checkpoint(),)))
         await app.submit(f"/rewind {CHECKPOINT}")
         await app.handle_key("\r")
-
+        await app.wait_checkpoint_idle()
         rows = app.interactions.rows(app)
         self.assertLessEqual(len(rows), 10)
         self.assertLessEqual(sum(len(row.encode("utf-8")) for row in rows), 16_384)
@@ -258,10 +265,10 @@ class CheckpointTuiTests(unittest.IsolatedAsyncioTestCase):
         app = self.app(control)
         await app.submit(f"/rewind {CHECKPOINT}")
         await app.handle_key("\r")
-
+        await app.wait_checkpoint_idle()
         await app.handle_key("right")
         await app.handle_key("\r")
-
+        await app.wait_checkpoint_idle()
         self.assertEqual(control.executed[1], True)
         transcript = "\n".join(entry.text for entry in app.state.entries)
         self.assertIn("rewind in progress", transcript)
@@ -276,9 +283,10 @@ class CheckpointTuiTests(unittest.IsolatedAsyncioTestCase):
         app = self.app(RecoveryControl((checkpoint(),)))
         await app.submit(f"/rewind {CHECKPOINT}")
         await app.handle_key("\r")
+        await app.wait_checkpoint_idle()
         await app.handle_key("right")
         await app.handle_key("\r")
-
+        await app.wait_checkpoint_idle()
         self.assertEqual(app.state.entries[-1].kind, DisplayKind.ERROR)
         self.assertIn("recovery-required", app.state.entries[-1].text)
         self.assertIn("locked.py", app.state.entries[-1].text)
