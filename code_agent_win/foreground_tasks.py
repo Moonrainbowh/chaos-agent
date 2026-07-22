@@ -17,7 +17,8 @@ from code_agent.workflows.observations import (
     RecoveryObservation,
     TaskCreatedObservation,
     VerificationObservation,
-    )
+)
+from code_agent.sessions.errors import SessionNotFound
 
 from code_agent_win.tool_support import discover_git_workspace
 
@@ -53,10 +54,7 @@ class IntegratedForegroundTaskController(ForegroundTaskController):
         return task
 
     async def _create_managed_task(self, prompt: str):
-        if any(
-            _same_active_source(task, self._root)
-            for task in await self._sessions.list_tasks()
-        ):
+        if await self._has_active_source_task():
             raise RuntimeError("a foreground task is already active")
         thread_id = await self._sessions.create_thread()
         workspace = await self._prepare_workspace()
@@ -71,6 +69,24 @@ class IntegratedForegroundTaskController(ForegroundTaskController):
             {"task_id": task.id, "status": task.status.value},
         )
         return task
+
+    async def _has_active_source_task(self) -> bool:
+        for task in await self._sessions.list_tasks():
+            if not _active_task(task):
+                continue
+            source = await self._task_source_root(task)
+            if _same_path(source, Path(self._root)):
+                return True
+        return False
+
+    async def _task_source_root(self, task: object) -> Path:
+        if self._workspace_runtime is not None:
+            try:
+                lineage = await self._sessions.load_lineage_for_task(task.id)
+                return Path(lineage.source_root)
+            except SessionNotFound:
+                pass
+        return Path(task.contract.authorization.workspace_root)
 
     def _contract(self, prompt: str, root: Path) -> TaskContract:
         profile = self._profile_supplier() if self._profile_supplier else None
@@ -206,9 +222,13 @@ def _plugin_event_kind(event: object) -> str:
     return event.kind.value
 
 
-def _same_active_source(task: object, source_root: str) -> bool:
+def _active_task(task: object) -> bool:
     if task.status not in {TaskStatus.CREATED, TaskStatus.RUNNING}:
         return False
-    root = task.contract.authorization.workspace_root
-    source = getattr(task, "source_root", root)
-    return os.path.normcase(source) == os.path.normcase(source_root)
+    return True
+
+
+def _same_path(left: Path, right: Path) -> bool:
+    return os.path.normcase(str(left.resolve())) == os.path.normcase(
+        str(right.resolve())
+    )

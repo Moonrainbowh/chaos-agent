@@ -222,6 +222,18 @@ class ManagedWorkspaceApplicationTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(await application.foreground_tasks._sessions.list_tasks(), ())
             await application.aclose()
 
+    async def test_active_managed_task_blocks_second_task_from_same_source(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            _init_git_source(root)
+            application = _configured_application(root)
+
+            await application.foreground_tasks.start("first")
+
+            with self.assertRaises(RuntimeError):
+                await application.foreground_tasks.start("second")
+            await application.aclose()
+
     async def test_startup_hydrates_persisted_worktree_bindings(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()
