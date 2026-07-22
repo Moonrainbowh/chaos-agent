@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from dataclasses import replace
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from code_agent.config.loader import load_runtime_config
 from code_agent.context.repo_index import RepoIndexService
@@ -26,9 +27,11 @@ from code_agent.skills.controller import SkillController
 from code_agent.workspace.files import WorkspaceFiles
 from code_agent.workspace.ignore import IgnoreRules
 from code_agent.workspace.paths import WorkspacePathGuard
+from code_agent.workspace.edits import WorkspaceEditor
 
 from code_agent_win.application_context import RuntimeContextFactory, engine_for
 from code_agent_win.application_model import Application
+from code_agent_win.context_runtime import build_context_runtime
 from code_agent_win.action_dispatcher import RootActionDispatcher
 from code_agent_win.host_composition import compose_host, compose_subagents
 from code_agent_win.agent_modes import (
@@ -39,6 +42,8 @@ from code_agent_win.agent_modes import (
 from code_agent_win.app_ui import ModeAwareWindowsTerminalApp, PluginModeControl
 from code_agent_win.runtime_support import model_client, replace_model
 from code_agent_win.runtime_extensions import SkillApprovalAdapter, ThreadRuntimeBinding
+from code_agent_win.rewind_runtime import RewindRuntime
+from code_agent_win.rewind_sessions import build_rewind_write_side
 from code_agent_win.subagents import RestrictedDispatcher
 from code_agent_win.tool_support import discover_git_workspace
 from code_agent_win.ui_composition import compose_ui
@@ -90,7 +95,11 @@ def create_application(
         for mode in AgentMode
     }
 
-    sessions = SQLiteSessionRepository(_session_path())
+    session_path = _session_path()
+    session_path.parent.mkdir(parents=True, exist_ok=True)
+    product_state_root = _product_state_root()
+    product_state_root.mkdir(parents=True, exist_ok=True)
+    sessions = SQLiteSessionRepository(session_path)
     workspace_runtime = ManagedWorkspaceRuntime(sessions, _workspace_storage_path())
     source_services = workspace_runtime.services_for_root(root)
     guard = source_services.guard
@@ -98,6 +107,20 @@ def create_application(
     git = source_services.git
     repo_index = source_services.repo_index
     approvals = ApprovalBroker()
+    rewind_write = build_rewind_write_side(
+        guard,
+        WorkspaceEditor(guard),
+        product_state_root,
+        session_path,
+        has_git=git is not None,
+    )
+    sessions = rewind_write.coordinated
+    workspace_runtime._sessions = sessions
+    rewind = RewindRuntime(
+        rewind_write.base,
+        rewind_write.snapshots,
+        rewind_write.capture.editor,
+    )
     skills = SkillController(root, sessions, SkillApprovalAdapter(approvals))
     thread_binding = ThreadRuntimeBinding()
 
@@ -113,6 +136,7 @@ def create_application(
         thread_binding=thread_binding,
         skills=skills,
         workspace_runtime=workspace_runtime,
+        context_runtime_factory=build_context_runtime,
     )
 
     def invalidate_workspace_context(paths: tuple[str, ...]) -> None:
@@ -135,6 +159,7 @@ def create_application(
         sessions=sessions,
         approvals=approvals,
         thread_binding=thread_binding,
+        capture=rewind_write.capture,
     )
 
     def child_engine(agent: AgentDefinition) -> tuple[AgentEngine, object]:
@@ -317,23 +342,25 @@ def create_application(
         mcp=mcp,
         git=git,
         checkpoints=workspace_runtime.checkpoint_control(),
+        rewind=rewind,
         workspace_runtime=workspace_runtime,
         plugin_errors=plugin_errors,
         tui_ref=tui_ref,
     )
     application = Application(
-        controller,
-        foreground,
-        tui,
-        dispatcher,
-        manager,
-        mcp,
-        snapshot,
-        plugin_host,
-        subagents,
-        repo_index,
-        workflows,
-        workspace_runtime,
+        controller=controller,
+        foreground_tasks=foreground,
+        tui=tui,
+        dispatcher=dispatcher,
+        model=manager,
+        mcp=mcp,
+        mode=snapshot,
+        plugins=plugin_host,
+        subagents=subagents,
+        rewind=rewind,
+        repo_index=repo_index,
+        workflows=workflows,
+        workspace_runtime=workspace_runtime,
     )
     application_ref.append(application)
     return application
@@ -347,6 +374,13 @@ def _session_path() -> Path:
     if not current.exists() and legacy.exists():
         migrate_legacy_session_database(legacy, current)
     return current
+
+
+def _product_state_root() -> Path:
+    base = os.getenv("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
+    directory = Path(base) / "chaos-agent"
+    directory.mkdir(parents=True, exist_ok=True)
+    return directory
 
 
 def _workspace_storage_path() -> Path:

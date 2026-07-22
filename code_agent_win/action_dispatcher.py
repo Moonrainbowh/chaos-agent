@@ -46,6 +46,7 @@ class RootActionDispatcher:
         plugins: PluginToolBridge | None = None,
         subagents: SubagentTool | None = None,
         threads: ThreadIntelligenceTools | None = None,
+        capture: object | None = None,
         caller_thread: Callable[[], str] | None = None,
         invalidate_cache: Callable[[Sequence[str]], None] | None = None,
     ) -> None:
@@ -53,6 +54,7 @@ class RootActionDispatcher:
         self.git, self.runtime, self.verification = git, runtime, verification
         self.mcp, self.plugins, self.subagents = mcp, plugins, subagents
         self.threads, self.caller_thread = threads, caller_thread
+        self.capture = capture
         self.invalidate_cache = invalidate_cache
         self.interactive = False
 

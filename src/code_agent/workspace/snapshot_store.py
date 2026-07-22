@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterable, Mapping
 
+from ._rewind_snapshot_store import SnapshotHandle, WorkspaceSnapshotStore
 from ._snapshot_blob_io import (
     BlobIntegrityFailure,
     blob_path as _blob_path,
@@ -28,6 +29,12 @@ from ._snapshot_manifest import (
 from .edits import SnapshotEntry, WorkspaceSnapshot
 from .paths import PathInput
 
+
+__all__ = (
+    "ContentAddressedSnapshotStore",
+    "SnapshotHandle",
+    "WorkspaceSnapshotStore",
+)
 
 DEFAULT_MAX_SNAPSHOT_FILES = 10_000
 DEFAULT_MAX_SNAPSHOT_BYTES = 100_000_000

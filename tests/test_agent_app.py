@@ -64,6 +64,7 @@ from code_agent_win.app import (  # noqa: E402
 from code_agent_win.cli import _split_global_options, _split_mode_option, run  # noqa: E402
 from code_agent_win.rewind_sessions import CoordinatedSessionRepository  # noqa: E402
 from code_agent_win.rewind_runtime import RewindRuntime  # noqa: E402
+from tests.test_agent_app_full_stack import FakeModel  # noqa: E402
 
 
 def _configured_application(container: Path):
@@ -492,7 +493,7 @@ class ModeSwitchIntegrationTests(unittest.IsolatedAsyncioTestCase):
 
     def test_application_uses_keyword_construction(self) -> None:
         with tempfile.TemporaryDirectory() as temporary, patch(
-            "code_agent_win.app_factory.Application"
+            "code_agent_win.app.Application"
         ) as application_type:
             _configured_application(Path(temporary).resolve())
         args, kwargs = application_type.call_args
@@ -557,11 +558,7 @@ class ApplicationGuardTests(unittest.IsolatedAsyncioTestCase):
             with patch("code_agent_win.app.os.getenv", return_value=str(root)):
                 current = _product_state_root()
 
-            thread_id = events[0].payload["thread_id"]
-            messages = await sessions.load_messages(thread_id)
-            self.assertEqual(events[-1].kind, EventKind.COMPLETED)
-            self.assertEqual(messages[-1].content, "read complete")
-            self.assertIn("hello", messages[-2].content)
+            self.assertEqual(current, root / "chaos-agent")
 
     async def test_foreground_task_repairs_a_failed_test_then_checkpoints_completion(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -758,6 +755,30 @@ def _task_dispatcher(root: Path, runtime: object) -> RootActionDispatcher:
 
 
 def _configured_application(root: Path):
+    if not (root / ".git").exists() and not (root / "note.py").exists():
+        workspace, product = root / "workspace", root / "state"
+        workspace.mkdir()
+        runtime = load_runtime_config(env={
+            "CHAOS_CONFIG": str(root / "missing.toml"),
+            "CHAOS_API": "responses",
+            "CHAOS_BASE_URL": "https://api.example.test",
+            "CHAOS_MODEL": "test",
+            "CHAOS_API_KEY_ENV": "KEY",
+            "CHAOS_APPROVAL_MODE": "full-local",
+        })
+        patches = (
+            patch.dict("os.environ", {
+                "USERPROFILE": str(root / "profile"),
+                "LOCALAPPDATA": str(root / "localappdata"),
+            }, clear=True),
+            patch("code_agent_win.app._model_client", return_value=object()),
+            patch("code_agent_win.app._session_path",
+                  return_value=product / "sessions.sqlite3"),
+            patch("code_agent_win.app._product_state_root", return_value=product),
+            patch("code_agent_win.app.load_runtime_config", return_value=runtime),
+        )
+        with patches[0], patches[1], patches[2], patches[3], patches[4]:
+            return create_application(workspace), workspace, product
     state = root.parent / f"{root.name}-state"
     state.mkdir(exist_ok=True)
     runtime = load_runtime_config(env={

@@ -118,7 +118,8 @@ def _insert_checkpoints(connection: sqlite3.Connection, ids: dict[str, str]) -> 
     for prefix, snapshot_id, status in facts:
         checkpoint = ids[f"{prefix}_checkpoint"]
         connection.execute(
-            "INSERT INTO checkpoints VALUES (?, ?, ?, '{}', ?)",
+            "INSERT INTO checkpoints(id, thread_id, label, metadata, created_at) "
+            "VALUES (?, ?, ?, '{}', ?)",
             (checkpoint, ids[f"{prefix}_thread"], prefix, STAMP),
         )
         connection.execute(
@@ -160,7 +161,8 @@ class V14CompatibilityTests(unittest.IsolatedAsyncioTestCase):
             await repository.fork_task_from_checkpoint(ids["legacy_checkpoint"])
         self.assertEqual(len(await repository.list_checkpoints(ids["legacy_thread"])), 1)
         self.assertEqual(
-            _migration_facts(self.database, ids), (15, 3, "failure-a", None)
+            _migration_facts(self.database, ids),
+            (SCHEMA_VERSION, 3, "failure-a", None),
         )
 
     def test_failure_pair_backfill_uses_owner_pair_or_conservative_zero(self) -> None:

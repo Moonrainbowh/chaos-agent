@@ -58,7 +58,8 @@ class RewindMigrationTests(unittest.TestCase):
         create_v10_database(self.database)
         with sqlite3.connect(self.database) as connection:
             connection.execute(
-                "INSERT INTO threads VALUES (?, ?, ?, ?, ?)",
+                "INSERT INTO threads(id, created_at, updated_at, title, status) "
+                "VALUES (?, ?, ?, ?, ?)",
                 ("legacy", timestamp, timestamp, None, "active"),
             )
             connection.execute(
@@ -83,7 +84,7 @@ class RewindMigrationTests(unittest.TestCase):
             legacy = connection.execute(
                 "SELECT COUNT(*) FROM checkpoints WHERE id = 'checkpoint'"
             ).fetchone()[0]
-        self.assertEqual(version, 11)
+        self.assertEqual(version, SCHEMA_VERSION)
         self.assertEqual(counts, (0, 0, 0, 0, 0))
         self.assertEqual(legacy, 1)
 
@@ -137,11 +138,16 @@ class RewindMigrationTests(unittest.TestCase):
             with self.subTest(corruption=name):
                 database = Path(self.temporary.name) / f"{name}.sqlite3"
                 create_v10_database(database)
-                statements = tuple(filter(None, map(transform, _MIGRATIONS[11])))
+                with sqlite3.connect(database) as connection:
+                    for version in range(11, 16):
+                        for statement in _MIGRATIONS[version]:
+                            connection.execute(statement)
+                    connection.execute("PRAGMA user_version = 15")
+                statements = tuple(filter(None, map(transform, _MIGRATIONS[16])))
                 with sqlite3.connect(database) as connection:
                     for statement in statements:
                         connection.execute(statement)
-                    connection.execute("PRAGMA user_version = 11")
+                    connection.execute("PRAGMA user_version = 16")
                 with self.assertRaises(SessionCorruptionError):
                     SQLiteSessionRepository(database)
 

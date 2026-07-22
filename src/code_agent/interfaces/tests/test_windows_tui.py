@@ -22,7 +22,7 @@ from code_agent.interfaces.terminal_status import status_context, status_present
 from code_agent.interfaces.terminal_io import BRACKETED_PASTE_DISABLE, BRACKETED_PASTE_ENABLE
 from code_agent.interfaces.terminal_state import ApprovalBroker, ApprovalRequest
 from code_agent.interfaces.tests._support import FakeEngine
-from code_agent.interfaces.windows_tui import WindowsTerminalApp
+from code_agent.interfaces.windows_tui import WindowsTerminalApp, render_terminal
 
 
 _ANSI = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")

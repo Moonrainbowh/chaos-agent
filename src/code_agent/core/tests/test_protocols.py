@@ -35,6 +35,22 @@ from code_agent.core.protocols import (  # noqa: E402
 from code_agent.core.task import TaskAuthorization  # noqa: E402
 from code_agent.core.task_state import TaskState  # noqa: E402
 
+message = Message(role="user", content="hello")
+
+
+def context_request(**updates: object) -> ContextRequest:
+    values = {
+        "thread_id": "thread-1",
+        "revision": 1,
+        "messages": (message,),
+        "user_input": "system",
+        "tools": (),
+        "task_state": TaskState.empty(),
+        "cancellation": CancellationToken(),
+    }
+    values.update(updates)
+    return ContextRequest(**values)  # type: ignore[arg-type]
+
 
 class FakeModelClient:
     async def stream(

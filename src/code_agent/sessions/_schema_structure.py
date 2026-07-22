@@ -27,6 +27,23 @@ _FOREIGN_KEYS = {
     "workspace_lineage_usage": {
         ("lineage_id", "workspace_lineages", "id", "CASCADE")
     },
+    "workspace_mutations": {
+        ("workspace_fingerprint", "workspace_rewind_coverage", "workspace_fingerprint", "NO ACTION"),
+        ("owner_thread_id", "threads", "id", "NO ACTION"),
+        ("origin_thread_id", "threads", "id", "NO ACTION"),
+        ("task_id", "tasks", "id", "NO ACTION"),
+    },
+    "workspace_mutation_paths": {
+        ("mutation_sequence", "workspace_mutations", "sequence", "CASCADE")
+    },
+    "checkpoint_rewind_facts": {
+        ("checkpoint_id", "checkpoints", "id", "CASCADE"),
+        ("owner_thread_id", "threads", "id", "NO ACTION"),
+        ("workspace_fingerprint", "workspace_rewind_coverage", "workspace_fingerprint", "NO ACTION"),
+    },
+    "checkpoint_rewind_expectations": {
+        ("checkpoint_id", "checkpoints", "id", "CASCADE")
+    },
 }
 
 _INDEXES = {
@@ -44,6 +61,18 @@ _INDEXES = {
     ),
     "rewind_operations_one_pending": (
         "rewind_operations", ("lineage_id",), True, True
+    ),
+    "workspace_mutations_workspace_sequence": (
+        "workspace_mutations", ("workspace_fingerprint", "sequence"), False, False
+    ),
+    "workspace_mutations_owner_sequence": (
+        "workspace_mutations", ("owner_thread_id", "sequence"), False, False
+    ),
+    "workspace_mutation_paths_path_sequence": (
+        "workspace_mutation_paths", ("path", "mutation_sequence"), False, False
+    ),
+    "checkpoint_rewind_facts_owner": (
+        "checkpoint_rewind_facts", ("owner_thread_id", "mutation_sequence"), False, False
     ),
 }
 

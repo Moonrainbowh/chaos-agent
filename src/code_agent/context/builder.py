@@ -88,16 +88,51 @@ class WorkspaceContextBuilder:
 
     async def build(
         self,
-        thread_id: str,
-        messages: Sequence[Message],
-        user_input: str,
-        tools: Sequence[ToolDefinition],
-        task_state: TaskState,
-        cancellation: CancellationToken,
+        thread_id: str | ContextRequest,
+        messages: Sequence[Message] | None = None,
+        user_input: str | None = None,
+        tools: Sequence[ToolDefinition] | None = None,
+        task_state: TaskState | None = None,
+        cancellation: CancellationToken | None = None,
     ) -> ContextBundle:
         """Build a stable prompt and compacted messages for one model turn."""
-        if not isinstance(thread_id, str) or not thread_id.strip():
+        request = self._request_from_arguments(
+            thread_id, messages, user_input, tools, task_state, cancellation
+        )
+        plan = await asyncio.to_thread(self._prepare_sync, request)
+        semantic = await self._compact_semantic(request, plan)
+        bundle = await asyncio.to_thread(
+            self._finish_sync, request, plan, semantic
+        )
+        request.cancellation.raise_if_cancelled()
+        return bundle
+
+    @staticmethod
+    def _request_from_arguments(
+        thread_id: str | ContextRequest,
+        messages: Sequence[Message] | None,
+        user_input: str | None,
+        tools: Sequence[ToolDefinition] | None,
+        task_state: TaskState | None,
+        cancellation: CancellationToken | None,
+    ) -> ContextRequest:
+        if isinstance(thread_id, ContextRequest):
+            if any(
+                value is not None
+                for value in (messages, user_input, tools, task_state, cancellation)
+            ):
+                raise TypeError("ContextRequest cannot be combined with legacy arguments")
+            return thread_id
+        if not isinstance(thread_id, str):
+            raise TypeError("context request must be a ContextRequest or legacy arguments")
+        if not thread_id.strip():
             raise ValueError("thread_id must be non-blank text")
+        if messages is None or user_input is None or tools is None:
+            raise TypeError("legacy context arguments are incomplete")
+        if task_state is None:
+            raise TypeError("task_state is required")
+        if cancellation is None:
+            raise TypeError("cancellation is required")
         if not isinstance(cancellation, CancellationToken):
             raise TypeError("cancellation must be a CancellationToken")
         cancellation.raise_if_cancelled()
@@ -111,11 +146,15 @@ class WorkspaceContextBuilder:
             raise TypeError("tools must contain only ToolDefinition values")
         if not isinstance(task_state, TaskState):
             raise TypeError("task_state must be a TaskState")
-        bundle = await asyncio.to_thread(
-            self._build_sync, checked, user_input, checked_tools, task_state
+        return ContextRequest(
+            thread_id=thread_id,
+            revision=1,
+            messages=checked,
+            user_input=user_input,
+            tools=checked_tools,
+            task_state=task_state,
+            cancellation=cancellation,
         )
-        cancellation.raise_if_cancelled()
-        return bundle
 
     def _prepare_sync(self, request: ContextRequest) -> _BuildPlan:
         request.cancellation.raise_if_cancelled()

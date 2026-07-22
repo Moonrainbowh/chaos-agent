@@ -18,7 +18,7 @@ from ._schema_structure import validate_schema_structure
 from ._schema_validation import REQUIRED_COLUMNS
 
 
-SCHEMA_VERSION = 15
+SCHEMA_VERSION = 16
 _BUSY_TIMEOUT_MS = 5_000
 _SQLITE_CORRUPT = 11
 _SQLITE_NOTADB = 26
@@ -36,7 +36,7 @@ _MIGRATIONS: dict[int, tuple[str, ...]] = {
         "ALTER TABLE threads ADD COLUMN title TEXT",
         "ALTER TABLE threads ADD COLUMN status TEXT NOT NULL DEFAULT 'active'",
         "CREATE TABLE goals (id TEXT PRIMARY KEY, thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE, objective TEXT NOT NULL, status TEXT NOT NULL, metadata TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)",
-        "CREATE TABLE checkpoints (id TEXT PRIMARY KEY, thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE, label TEXT NOT NULL, metadata TEXT NOT NULL, created_at TEXT NOT NULL)",
+        "CREATE TABLE checkpoints (id TEXT PRIMARY KEY, thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE, label TEXT NOT NULL, metadata TEXT NOT NULL, created_at TEXT NOT NULL, message_sequence INTEGER, event_sequence INTEGER)",
         "CREATE INDEX goals_thread_created ON goals(thread_id, created_at, id)",
         "CREATE INDEX checkpoints_thread_created ON checkpoints(thread_id, created_at, id)",
     ),
@@ -119,6 +119,7 @@ _MIGRATIONS: dict[int, tuple[str, ...]] = {
         "UPDATE checkpoint_workspace_state SET lineage_id = (SELECT t.workspace_lineage_id FROM checkpoints c JOIN tasks t ON t.thread_id = c.thread_id WHERE c.id = checkpoint_workspace_state.checkpoint_id AND t.workspace_lineage_id IS NOT NULL) WHERE lineage_id IS NULL AND snapshot_id IS NULL",
         "UPDATE workspace_lineage_usage SET repeated_failures = COALESCE((SELECT b.repeated_failures FROM workspace_lineages l JOIN tasks t ON t.id = l.owner_task_id AND t.workspace_lineage_id = l.id JOIN task_budgets b ON b.thread_id = t.thread_id WHERE l.id = workspace_lineage_usage.lineage_id), 0), last_failure_signature = (SELECT b.last_failure_signature FROM workspace_lineages l JOIN tasks t ON t.id = l.owner_task_id AND t.workspace_lineage_id = l.id JOIN task_budgets b ON b.thread_id = t.thread_id WHERE l.id = workspace_lineage_usage.lineage_id)",
     ),
+    16: REWIND_MIGRATION,
 }
 
 
@@ -208,6 +209,11 @@ class SessionDatabase:
     @staticmethod
     def _validate_schema(connection: sqlite3.Connection) -> None:
         for table, expected in REQUIRED_COLUMNS.items():
+            rows = connection.execute(f"PRAGMA table_info({table})").fetchall()
+            columns = {row[1] for row in rows}
+            if not expected.issubset(columns):
+                raise SessionCorruptionError(f"session schema is missing {table}")
+        for table, expected in REWIND_REQUIRED_COLUMNS.items():
             rows = connection.execute(f"PRAGMA table_info({table})").fetchall()
             columns = {row[1] for row in rows}
             if not expected.issubset(columns):

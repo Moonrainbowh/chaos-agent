@@ -114,8 +114,53 @@ class GitWorkspace:
         self._require_success("diff", result)
         return _decode(result.stdout)
 
+    def diff_snapshot(self, paths: Iterable[PathInput] = ()) -> GitDiffSnapshot:
+        """Return staged, unstaged, and untracked diffs under one byte budget."""
+        if isinstance(paths, (str, os.PathLike)):
+            supplied_paths: Iterable[PathInput] = (paths,)
+        else:
+            supplied_paths = paths
+        relative_paths = tuple(
+            self.guard.relative_literal(path).as_posix() for path in supplied_paths
+        )
+        budget = SnapshotBudget(self.max_output_bytes)
+
+        def invoke(
+            operation: str, arguments: tuple[str, ...], limit: int | None
+        ) -> _GitResult:
+            return self._invoke(operation, arguments, max_output_bytes=limit)
+
+        try:
+            staged, unstaged, untracked, untracked_paths = collect_diff_facets(
+                invoke,
+                self._require_success,
+                self.guard,
+                budget,
+                relative_paths,
+            )
+        except SnapshotBudgetExceeded as error:
+            raise GitOutputLimitError(
+                "diff_snapshot",
+                (self._git_executable, "diff_snapshot"),
+                None,
+                b"",
+                b"",
+                self.max_output_bytes,
+            ) from error
+        return GitDiffSnapshot(
+            staged=_decode_snapshot_patch(staged),
+            unstaged=_decode_snapshot_patch(unstaged),
+            untracked=untracked,
+            untracked_paths=untracked_paths,
+        )
+
     def _invoke(
-        self, operation: str, arguments: tuple[str, ...], *, timeout_s: float | None = None
+        self,
+        operation: str,
+        arguments: tuple[str, ...],
+        max_output_bytes: int | None = None,
+        *,
+        timeout_s: float | None = None,
     ) -> _GitResult:
         argv = (
             self._git_executable,
@@ -126,8 +171,9 @@ class GitWorkspace:
         )
         effective_timeout = self._effective_timeout(timeout_s)
         process = self._start_process(operation, argv)
+        output_limit = self.max_output_bytes if max_output_bytes is None else max_output_bytes
         capture = collect_bounded_output(
-            process, self.max_output_bytes, effective_timeout
+            process, output_limit, effective_timeout
         )
         if capture.exceeded:
             raise GitOutputLimitError(
@@ -136,7 +182,7 @@ class GitWorkspace:
                 capture.returncode,
                 capture.stdout,
                 capture.stderr,
-                self.max_output_bytes,
+                output_limit,
             )
         if capture.timed_out:
             raise GitTimeoutError(
@@ -211,6 +257,13 @@ class GitWorkspace:
 
 def _decode(value: bytes) -> str:
     return value.decode("utf-8", errors="replace")
+
+
+def _decode_snapshot_patch(value: bytes) -> str:
+    try:
+        return value.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise WorkspaceError("git diff snapshot returned non-UTF-8 patch") from error
 
 
 def _decode_path_list(value: bytes) -> tuple[str, ...]:

@@ -6,6 +6,7 @@ from typing import Protocol
 
 from code_agent.context.tokens import estimate_tokens
 from code_agent.core.cancellation import CancellationToken
+from code_agent.core.context_request import ContextRequest
 from code_agent.core.models import ContextBundle, Message, ToolDefinition
 from code_agent.core.protocols import ContextBuilder
 from code_agent.core.task_state import TaskState
@@ -52,18 +53,39 @@ class ThreadAwareContextBuilder:
 
     async def build(
         self,
-        thread_id: str,
-        messages: Sequence[Message],
-        user_input: str,
-        tools: Sequence[ToolDefinition],
-        task_state: TaskState,
-        cancellation: CancellationToken,
+        thread_id: str | ContextRequest,
+        messages: Sequence[Message] | None = None,
+        user_input: str | None = None,
+        tools: Sequence[ToolDefinition] | None = None,
+        task_state: TaskState | None = None,
+        cancellation: CancellationToken | None = None,
     ) -> ContextBundle:
+        if isinstance(thread_id, ContextRequest):
+            request = thread_id
+        else:
+            if messages is None or user_input is None or tools is None:
+                raise TypeError("legacy context arguments are incomplete")
+            if task_state is None or cancellation is None:
+                raise TypeError("task_state and cancellation are required")
+            request = ContextRequest(
+                thread_id=thread_id,
+                revision=1,
+                messages=tuple(messages),
+                user_input=user_input,
+                tools=tuple(tools),
+                task_state=task_state,
+                cancellation=cancellation,
+            )
+        thread_id = request.thread_id
+        tools = request.tools
+        task_state = request.task_state
+        cancellation = request.cancellation
         cancellation.raise_if_cancelled()
         records = await self._store.load_message_records(thread_id)
         durable = tuple(record.message for record in records)
         result = await self._compactor.compact(
             thread_id,
+            request.revision,
             durable,
             message_sequences=tuple(record.sequence for record in records),
             context_tokens=_message_tokens(durable),

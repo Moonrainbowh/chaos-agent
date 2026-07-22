@@ -12,6 +12,7 @@ from code_agent.plugins.registry import PluginHost
 from code_agent.workflows.service import WorkflowService
 from code_agent_win.action_dispatcher import RootActionDispatcher
 from code_agent_win.app_ui import ModeAwareWindowsTerminalApp
+from code_agent_win.rewind_runtime import RewindRuntime
 from code_agent_win.subagents import SubagentRuntime
 
 
@@ -26,6 +27,7 @@ class Application:
     mode: ModeSnapshot | None = None
     plugins: PluginHost | None = None
     subagents: SubagentRuntime | None = None
+    rewind: RewindRuntime | None = None
     repo_index: RepoIndexService | None = None
     workflows: WorkflowService | None = None
     workspace_runtime: object | None = None

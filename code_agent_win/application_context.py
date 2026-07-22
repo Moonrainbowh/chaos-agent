@@ -19,6 +19,7 @@ from code_agent.verification.task_service import (
     LedgerTaskVerificationService,
 )
 from code_agent_win.agent_modes import mode_prompt
+from code_agent_win.context_runtime import build_context_runtime
 from code_agent_win.runtime_extensions import (
     BoundSkillContextBuilder,
     ModelSemanticSummarizer,
@@ -41,6 +42,7 @@ class RuntimeContextFactory:
         thread_binding: object,
         skills: object,
         workspace_runtime: object | None = None,
+        context_runtime_factory: object = build_context_runtime,
     ) -> None:
         self._root = root
         self._git_available = git_available
@@ -53,6 +55,7 @@ class RuntimeContextFactory:
         self._sessions = sessions
         self._thread_binding, self._skills = thread_binding, skills
         self._workspace_runtime = workspace_runtime
+        self._context_runtime_factory = context_runtime_factory
 
     def __call__(
         self,
@@ -83,29 +86,15 @@ class RuntimeContextFactory:
             prompt,
             repo_map_enabled=self._repo_map_enabled,
         )
-        fallback = DeterministicCompactor(config)
-        context = WorkspaceContextBuilder(
+        rules = RuleLoader(guard, files, config)
+        repo_map = RepoMapBuilder(
+            files,
             config,
-            RuleLoader(guard, files, config),
-            RepoMapBuilder(
-                files,
-                config,
-                index=repo_index,
-                view_cache=self._repo_view_cache,
-            ),
-            fallback,
+            index=repo_index,
+            view_cache=self._repo_view_cache,
         )
-        semantic = ThreadAwareContextBuilder(
-            self._sessions,
-            SemanticCompactor(
-                ModelSemanticSummarizer(
-                    client, profile.provider.model, self._sessions
-                ),
-                fallback,
-            ),
-            context,
-            context_limit=profile.context_window,
-            target_tokens=config.prompt_budget.max_message_tokens,
+        semantic = self._context_runtime_factory(
+            config, rules, repo_map, self._skills, self._sessions
         )
         return BoundSkillContextBuilder(
             semantic, self._thread_binding, self._skills
@@ -132,22 +121,30 @@ class _ThreadRootContextBuilder:
 
     async def build(
         self,
-        thread_id: str,
-        messages: object,
-        user_input: str,
-        tools: object,
-        task_state: object,
-        cancellation: object,
+        thread_id: object,
+        messages: object = None,
+        user_input: str | None = None,
+        tools: object = None,
+        task_state: object = None,
+        cancellation: object = None,
     ) -> object:
-        root = self._factory._workspace_runtime.root_for_thread(thread_id)
+        if hasattr(thread_id, "thread_id"):
+            request = thread_id
+            active_thread_id = request.thread_id
+        else:
+            request = None
+            active_thread_id = thread_id
+        root = self._factory._workspace_runtime.root_for_thread(active_thread_id)
         if root is None:
             await self._factory._workspace_runtime.hydrate_bindings()
-            root = self._factory._workspace_runtime.root_for_thread(thread_id)
+            root = self._factory._workspace_runtime.root_for_thread(active_thread_id)
         builder = self._factory._build(
             self._mode, self._client, self._profile, root or self._factory._root
         )
+        if request is not None:
+            return await builder.build(request)
         return await builder.build(
-            thread_id, messages, user_input, tools, task_state, cancellation
+            active_thread_id, messages, user_input, tools, task_state, cancellation
         )
 
 

@@ -52,6 +52,7 @@ def compose_ui(
     mcp: object,
     git: object,
     checkpoints: object,
+    rewind: object | None,
     workspace_runtime: object,
     plugin_errors: tuple[str, ...],
     tui_ref: list[ModeAwareWindowsTerminalApp],
@@ -106,6 +107,7 @@ def compose_ui(
         workflows=sessions,
         command_registry=command_registry,
         checkpoints=checkpoints,
+        rewind=rewind,
         plugins=plugin_commands,
         interaction_broker=interaction_broker,
         diff_source=TaskScopedGitDiffAdapter(

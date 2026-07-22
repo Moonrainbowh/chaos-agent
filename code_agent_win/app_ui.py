@@ -7,7 +7,8 @@ from dataclasses import replace
 from code_agent.interfaces.capability_view import ModePermissionView
 from code_agent.interfaces.rewind_models import RewindPreviewSource
 from code_agent.interfaces.terminal_display import DisplayKind
-from code_agent.interfaces.tui_commands import ParseOutcome, TuiCommandKind
+from code_agent.interfaces.command_availability import available_services
+from code_agent.interfaces.tui_commands import ParseOutcome, TuiCommandKind, parse_tui_command
 from code_agent.interfaces.tui_rewind_commands import handle_rewind_command
 from code_agent.interfaces.windows_tui import WindowsTerminalApp
 from code_agent.interfaces.mode_control import ModeSummary
@@ -30,6 +31,7 @@ class ModeAwareWindowsTerminalApp(WindowsTerminalApp):
         self,
         *args: object,
         capability: ModePermissionView,
+        rewind: RewindPreviewSource | None = None,
         plugin_errors: tuple[str, ...] = (),
         recover_pending: object | None = None,
         startup: object | None = None,
@@ -46,6 +48,24 @@ class ModeAwareWindowsTerminalApp(WindowsTerminalApp):
 
     def update_capability(self, capability: ModePermissionView) -> None:
         self._capability = capability
+
+    async def submit(self, text: str) -> bool:
+        if (
+            isinstance(text, str)
+            and text.lstrip().startswith("/rewind")
+            and self.rewind is not None
+        ):
+            parsed = parse_tui_command(
+                text,
+                set(available_services(self)) | {"rewind", "checkpoints"},
+                self.command_registry,
+            )
+            if parsed.is_command:
+                return await self._handle_command(parsed)
+            if parsed.error:
+                self._append(DisplayKind.ERROR, parsed.error)
+                return False
+        return await super().submit(text)
 
     async def run(self, *, thread_id: str | None = None) -> None:
         if not self._recovered and self._startup is not None:

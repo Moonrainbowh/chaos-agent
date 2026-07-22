@@ -12,6 +12,7 @@ from code_agent.core.models import (
 )
 from code_agent.orchestration.models import (
     AgentDefinition,
+    AgentMode,
     AgentRole,
     ChildRunRequest,
     ChildRunResult,
@@ -27,9 +28,6 @@ from code_agent.plugins.registry import PluginHost
 from code_agent.providers.config import ModelProfile
 from code_agent_win.agent_modes import child_mode_for_role
 from code_agent_win.child_runner import EngineChildRunner
-
-from code_agent_win.subagent_runner import EngineChildRunner
-
 
 _READ_ONLY_ROLES = {
     AgentRole.ORACLE,
@@ -62,7 +60,12 @@ class RestrictedDispatcher:
                 {"error": "child tool is outside its mode and role"},
                 is_error=True,
             )
-        return await self._inner.dispatch(request, cancellation, task_authorization)
+        return await self._inner.dispatch(
+            request,
+            cancellation,
+            task_authorization,
+            execution_context=execution_context,
+        )
 
 
 class SubagentTool:
@@ -252,13 +255,17 @@ class SubagentRuntime:
             )
             supervisor.subscribe(self._publish)
             self._supervisors[parent_id] = supervisor
-        return await SubagentTool(
-            supervisor,
-            self._modes,
-            self._profiles,
-            self._agents,
-            parent_id,
-        ).dispatch(request, cancellation)
+        token = self._runner.bind_execution_context(execution_context)
+        try:
+            return await SubagentTool(
+                supervisor,
+                self._modes,
+                self._profiles,
+                self._agents,
+                parent_id,
+            ).dispatch(request, cancellation)
+        finally:
+            self._runner.reset_execution_context(token)
 
     async def release(self, parent_id: str) -> None:
         supervisor = self._supervisors.pop(parent_id, None)

@@ -244,7 +244,7 @@ class WorkspaceContextBuilderTests(unittest.IsolatedAsyncioTestCase):
             ("src/changed.py", "src/shared.py", "src/read.py"),
         )
 
-    def test_context_request_rejects_invalid_message_sequences(self) -> None:
+    async def test_context_request_rejects_invalid_message_sequences(self) -> None:
         with self.assertRaises(TypeError):
             await self.builder.build(
                 "thread-1", ("not a message",), "request", (), TaskState.empty(),

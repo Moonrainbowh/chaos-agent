@@ -5,6 +5,20 @@ from enum import Enum
 
 from .command_registry import CommandRegistry, REGISTRY
 
+_DEFAULT_SERVICES = {
+    "sessions",
+    "history",
+    "tasks",
+    "evidence",
+    "checkpoints",
+    "modes",
+    "permissions",
+    "workflows",
+    "skills",
+    "mcp",
+    "plugins",
+}
+
 
 class TuiCommandKind(str, Enum):
     HELP = "help"; STATUS = "status"; CLEAR = "clear"; EXIT = "exit"; NEW = "new"; SESSIONS = "sessions"; RESTORE = "restore"; TASKS = "tasks"; ACCEPT = "accept"; DIFF = "diff"; EVIDENCE = "evidence"; CHECKPOINT = "checkpoint"; REWIND = "rewind"; MODE = "mode"; PERMISSION = "permission"; WORKFLOW = "workflow"; SKILL = "skill"; MCP = "mcp"; PLUGIN = "plugin"
@@ -32,18 +46,17 @@ def parse_tui_command(
     registry: CommandRegistry = REGISTRY,
 ) -> ParseOutcome:
     if not isinstance(text, str): raise TypeError("text must be a string")
-    spec, arguments, error = registry.parse(text, services or {"sessions", "history", "tasks", "evidence", "checkpoints", "modes", "permissions", "workflows", "skills", "mcp"})
     if not text.startswith("/"): return ParseOutcome()
-    effective = {"sessions", "history", "tasks", "evidence", "modes"} if services is None else services
+    effective = _DEFAULT_SERVICES if services is None else services
     raw_body = text[1:].lstrip()
     head = raw_body.split(maxsplit=1)[0] if raw_body else ""
-    rewind_spec = REGISTRY.resolve(head)
+    rewind_spec = registry.resolve(head)
     if rewind_spec is not None and rewind_spec.name == "回溯":
         if not set(rewind_spec.requires).issubset(effective):
             return ParseOutcome(error="unknown or unavailable slash command")
         instruction = raw_body[len(head):].lstrip() or None
         return ParseOutcome(TuiCommand(TuiCommandKind.REWIND, instruction=instruction))
-    spec, arguments, error = REGISTRY.parse(text, effective)
+    spec, arguments, error = registry.parse(text, effective)
     if error: return ParseOutcome(error=error)
     assert spec is not None
     if arguments and not spec.usage:

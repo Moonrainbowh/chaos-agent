@@ -226,13 +226,14 @@ class ModelAndBoundaryValidationTests(RewindStateTestCase):
         before = WorkspaceFileState("file.bin", True, sha256(b"x"), 1)
         after = WorkspaceFileState("file.bin", True, sha256(b"after"), 5)
         invalid_entries = (
-            SnapshotEntry("file.bin", bytearray(b"x"), True),  # type: ignore[arg-type]
-            SnapshotEntry("file.bin", b"x", 1),  # type: ignore[arg-type]
-            SnapshotEntry("file.bin", None, 0),  # type: ignore[arg-type]
+            lambda: SnapshotEntry("file.bin", bytearray(b"x"), True),  # type: ignore[arg-type]
+            lambda: SnapshotEntry("file.bin", b"x", 1),  # type: ignore[arg-type]
+            lambda: SnapshotEntry("file.bin", None, 0),  # type: ignore[arg-type]
         )
-        for entry in invalid_entries:
-            with self.subTest(entry=entry):
+        for entry_factory in invalid_entries:
+            with self.subTest(entry=entry_factory):
                 with self.assertRaises((TypeError, ValueError)):
+                    entry = entry_factory()
                     PreparedEditState(WorkspaceSnapshot((entry,)), before, after)
 
     def test_prepared_edit_rejects_snapshot_before_mismatch(self) -> None:

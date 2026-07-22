@@ -211,8 +211,13 @@ class TaskScopedDispatcher:
         self.plugins = dependencies.get("plugins")
         self.threads = dependencies.get("threads")
         self.caller_thread = dependencies.get("caller_thread")
+        self.capture = dependencies.get("capture")
         self.subagents = None
         self.interactive = False
+
+    @property
+    def editor(self) -> WorkspaceEditor:
+        return WorkspaceEditor(self._source.guard)
 
     def tools(self) -> Sequence[ToolDefinition]:
         return self._dispatcher(self._source).tools()
@@ -222,12 +227,15 @@ class TaskScopedDispatcher:
         request: ActionRequest,
         cancellation: object,
         task_authorization: TaskAuthorization | None = None,
+        *,
+        execution_context: object | None = None,
     ) -> ActionResult:
         services = self._runtime.services_for_root(
             self._authorized_root(task_authorization)
         )
         return await self._dispatcher(services).dispatch(
-            request, cancellation, task_authorization
+            request, cancellation, task_authorization,
+            execution_context=execution_context,
         )
 
     def _authorized_root(self, authorization: TaskAuthorization | None) -> Path:
@@ -250,6 +258,7 @@ class TaskScopedDispatcher:
             plugins=self.plugins,
             subagents=self.subagents,
             threads=self.threads,
+            capture=self.capture,
             caller_thread=self.caller_thread,
             invalidate_cache=lambda paths: _invalidate(service, paths),
         )

@@ -37,6 +37,7 @@ def compose_host(
     sessions: object,
     approvals: object,
     thread_binding: object,
+    capture: object | None = None,
 ) -> tuple[object, McpController, object, tuple[str, ...], PluginToolBridge, InteractionBroker]:
     risks: dict[str, str] = {
         "delegate_agent": "write",
@@ -79,6 +80,7 @@ def compose_host(
         approvals,
         mcp=mcp,
         plugins=plugin_bridge,
+        capture=capture,
         threads=ThreadIntelligenceTools(
             sessions, ThreadAuthorization(sessions)
         ),

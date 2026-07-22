@@ -106,20 +106,29 @@ class AgentEngineRunMixin:
         source_input = user_input if turn.number == 1 else ""
         try:
             task_state = await self._journal.load_task_state(state.thread_id)
-            bundle = await self._context.build(
-                ContextRequest(
-                    thread_id=state.thread_id,
-                    revision=state.budget.model_turns,
-                    messages=source_messages,
-                    user_input=source_input,
-                    tools=turn.tools,
-                    task_state=task_state,
-                    cancellation=state.token,
-                    mode_snapshot=self._context_mode_snapshot,
-                    permission_snapshot=self._context_permission_snapshot,
-                    budget_lease=budget_lease(state.budget),
-                )
+            request = ContextRequest(
+                thread_id=state.thread_id,
+                revision=state.budget.model_turns,
+                messages=source_messages,
+                user_input=source_input,
+                tools=turn.tools,
+                task_state=task_state,
+                cancellation=state.token,
+                mode_snapshot=self._context_mode_snapshot,
+                permission_snapshot=self._context_permission_snapshot,
+                budget_lease=budget_lease(state.budget),
             )
+            try:
+                bundle = await self._context.build(request)
+            except TypeError:
+                bundle = await self._context.build(
+                    request.thread_id,
+                    request.messages,
+                    request.user_input,
+                    request.tools,
+                    request.task_state,
+                    request.cancellation,
+                )
             if not isinstance(bundle, ContextBundle):
                 raise TypeError("context builder returned an invalid bundle")
             return bundle
