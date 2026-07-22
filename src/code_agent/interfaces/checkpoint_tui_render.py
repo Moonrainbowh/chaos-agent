@@ -18,6 +18,7 @@ def render_rewind_rows(flow: Any, width: int) -> tuple[str, ...]:
     assert value is not None and flow.checkpoint is not None
     headings = (
         f"checkpoint {flow.checkpoint.id}",
+        f"label {flow.checkpoint.label}",
         f"mode {value.mode.value}",
         "impact: " + mode_impact(value.mode.value),
         f"restore {value.restore_count} · delete {value.delete_count} · "

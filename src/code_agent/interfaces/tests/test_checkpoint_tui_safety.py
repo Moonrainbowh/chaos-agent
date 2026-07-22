@@ -99,10 +99,11 @@ class CheckpointTuiSafetyTests(unittest.IsolatedAsyncioTestCase):
         )
         for moves, mode, impact in expected:
             with self.subTest(mode=mode):
-                value = app(Control())
+                value = app(Control(label="pre-release label"))
                 await reach_confirmation(value, mode_moves=moves)
                 rows = "\n".join(value.interactions.rows(value))
                 self.assertIn(f"checkpoint {CHECKPOINT}", rows)
+                self.assertIn("label pre-release label", rows)
                 self.assertIn(f"mode {mode}", rows)
                 self.assertIn(impact, rows)
                 self.assertIn("› No", rows)
