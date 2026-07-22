@@ -2,15 +2,17 @@
 以有界、可取消的事件循环协调模型、上下文和工具动作，形成与界面无关的编码 Agent 内核。
 
 ## 边界
+- 负责：提供终态 `SUPERSEDED`，阻止被 Rewind 替代的旧任务再次执行。
 - 负责：回合状态机、工具调用编排、停止条件、错误回送、事件发布和验证结果闭环。
 - 负责：对同一持久任务累计模型回合和工具调用，并执行每回合工具限制。
 - 负责：通过抽象协议调用模型、上下文、动作分发与会话能力，不依赖具体实现。
-- 负责：以不可变 `ContextRequest` 携带真实 `thread_id` 与正数 `revision`。
+- 负责：把当前 `thread_id` 和同一取消令牌传入 `ContextBuilder`；上下文实现不得从消息文本猜测调用方身份。
 - 不负责：直接访问模型 API、文件系统、子进程、数据库或终端界面。
 - 不负责：绕过权限策略执行任何外部动作。
 - 任何模型调用或外部动作前必须读取恢复后的持久预算与控制状态；已耗尽任务必须零 provider、零工具调用地进入稳定暂停状态。
 - `COMPLETED` 只能由最新 contract、subject generation 和 required evidence 的系统评估产生；模型文本或 completion candidate 不能直接完成任务。
 - 负责协调抽象 `VerificationService` 的完成评估与 `VERIFYING` 状态；不导入具体 verification 或 projects adapter。
+- 语义上下文构建消耗当前持久任务冻结的模型、profile、token、时间和取消预算，不存在隐藏的免费调用。
 
 - 负责：把 owner/origin thread、task、request 和 parent request 作为不可变 Action execution context 显式传给 dispatcher。
 - 不负责：工作区快照、mutation journal、coverage 或 rewind UI。
@@ -32,13 +34,13 @@
 - `AgentEvent`: 发布可持久化的内核生命周期事件 | 生成 UTC 时间戳 | `CONTEXT_BUILT` 仅记录本地数值预算、压缩和缓存计数，不含提示或工具输出
 - `CancellationToken`、`CancellationError`: 在线程与异步调用间传播首次取消原因 | 唤醒等待者
 - `ModelClient`: 约束统一的模型流式调用接口 | 具体副作用由实现负责
-- `ContextBuilder`: 异步构建当前回合上下文 | 具体副作用由实现负责
+- `ContextBuilder.build(thread_id, messages, user_input, tools, task_state, cancellation)`: 以 Host 注入的 thread 身份和同一取消令牌构建当前回合上下文 | 具体副作用由实现负责 | 不从消息文本猜测身份
 - `CommandFact`、`TaskState`、`TaskStateUpdate`、`reduce_task_state`: 以有界 JSON 兼容事实表达持久任务进度 | 无副作用 | 工作笔记始终显式标注为未验证
 - `ActionDispatcher`: 暴露工具并接收可取消动作、可选任务授权和 keyword-only execution context | 具体副作用由实现负责 | unavailable/dispatch 前暂停不产生执行上下文
 - `SessionRepository`: 异步创建线程并持久化消息与事件 | 具体副作用由实现负责
 - `EngineLimits`: 冻结模型回合、工具调用、token 与输出字符预算 | 无副作用 | 越界前先阻止新的外部工具动作
 - `TaskBudget`: 表达可恢复任务的模型名、限制和已消耗额度 | 无副作用 | 只允许单调增加的使用量
-- `TaskAuthorization`、`TaskContract`、`TaskRecord`、`TaskStatus`: 表达前台自主任务的范围、预算和生命周期 | 无副作用 | `ACCEPTED_PARTIAL` 只能由显式用户决定产生，不计为 verified completion
+- `TaskAuthorization`、`TaskContract`、`TaskRecord`、`TaskStatus`: 表达前台自主任务的范围、预算和生命周期 | 无副作用 | `ACCEPTED_PARTIAL` 只能由显式用户决定产生；`SUPERSEDED` 是不可恢复执行的终态
 - `TaskSupervisor.observe(...)`: 根据恢复后的持久预算、验证结果和失败指纹决定继续、checkpoint、暂停或等待决策 | 无副作用 | 累计活跃时间、重复失败和修复循环不依赖进程内状态
 - `AgentEngine.run(..., task=...)`: 在同一 thread 内执行显式任务并持久化任务事件 | 调用抽象模型、动作与会话协议 | root 动作使用 active thread/task 归因；安全边界消费 steering，自动验证通过后由持久完成门收尾
 - `AgentEngine.run(user_input, thread_id, cancellation)`: 持久化并流式发布回合、模型、工具和终态事件 | 调用抽象模型、动作与会话协议 | ad-hoc root 的 owner/origin 均为 active thread，child engine 继承构造器 lineage；未声明工具、重复 ID、无完成事件和预算越界均失败闭合

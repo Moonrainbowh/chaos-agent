@@ -15,6 +15,17 @@ class TuiCommandTests(unittest.TestCase):
         self.assertEqual(parse_tui_command("/接受 T-042").command.task_id, "T-042")
         self.assertEqual(parse_tui_command("/pause T-042").error, "unknown or unavailable slash command")
         self.assertEqual(parse_tui_command("/模式 ultra").command.instruction, "ultra")
+        self.assertEqual(parse_tui_command("/权限 unrestricted").command.kind, TuiCommandKind.PERMISSION)
+        self.assertEqual(parse_tui_command("/流程 失败").command.kind, TuiCommandKind.WORKFLOW)
+        self.assertEqual(parse_tui_command("/flow review").command.instruction, "review")
+        self.assertEqual(
+            parse_tui_command("/技能 启用 review").command.kind,
+            TuiCommandKind.SKILL,
+        )
+        self.assertEqual(
+            parse_tui_command("/mcp restart docs").command.kind,
+            TuiCommandKind.MCP,
+        )
         self.assertFalse(parse_tui_command("/does-not-exist").is_command)
         self.assertEqual(parse_tui_command("/does-not-exist").error, "unknown or unavailable slash command")
 
@@ -29,7 +40,10 @@ class TuiCommandTests(unittest.TestCase):
         self.assertEqual(REGISTRY.parse("/模型", {"modes"})[2], "unknown or unavailable slash command")
 
     def test_every_registered_name_and_alias_resolves_to_its_own_command(self) -> None:
-        services = {"sessions", "history", "tasks", "evidence", "modes"}
+        services = {
+            "sessions", "history", "tasks", "evidence", "modes", "permissions", "workflows",
+            "skills", "mcp",
+        }
 
         for expected in REGISTRY.available(services):
             for name in (expected.name, *expected.aliases):
@@ -53,6 +67,27 @@ class TuiCommandTests(unittest.TestCase):
         self.assertEqual(help_command.instruction, "模式")
         self.assertEqual(evidence_command.instruction, "T-042")
 
+    def test_checkpoint_and_rewind_have_chinese_and_english_aliases(self) -> None:
+        services = {"checkpoints"}
+
+        self.assertEqual(
+            parse_tui_command("/checkpoint list", services).command.kind,
+            TuiCommandKind.CHECKPOINT,
+        )
+        self.assertEqual(
+            parse_tui_command("/检查点 创建 发布前", services).command.instruction,
+            "创建 发布前",
+        )
+        self.assertEqual(
+            parse_tui_command("/rewind", services).command.kind,
+            TuiCommandKind.REWIND,
+        )
+        self.assertIsNone(parse_tui_command("/回退", services).command.instruction)
+        self.assertEqual(
+            parse_tui_command(f"/rewind {'3' * 32}", services).command.instruction,
+            "3" * 32,
+        )
+
     def test_registry_contains_only_the_confirmed_common_commands(self) -> None:
         self.assertEqual(
             tuple(spec.name for spec in REGISTRY.all()),
@@ -60,8 +95,16 @@ class TuiCommandTests(unittest.TestCase):
                 "帮助", "状态", "清屏", "退出",
                 "新建", "会话", "恢复",
                 "任务", "接受",
-                "差异", "证据", "模式", "回溯",
+                "差异", "证据", "检查点", "回退", "模式", "权限", "流程", "技能", "mcp",
             ),
+        )
+
+    def test_checkpoint_declares_list_and_create_actions(self) -> None:
+        spec = REGISTRY.resolve("checkpoint")
+
+        self.assertEqual(
+            tuple(action.name for action in spec.actions),
+            ("列表", "创建"),
         )
 
     def test_mode_declares_direct_secondary_choices(self) -> None:
@@ -74,62 +117,28 @@ class TuiCommandTests(unittest.TestCase):
         self.assertEqual(parse_tui_command("/mode high").command.kind, TuiCommandKind.MODE)
         self.assertEqual(parse_tui_command("/模式 high").command.instruction, "high")
 
-    def test_rewind_registry_is_read_only_and_has_exact_actions(self) -> None:
-        rewind = REGISTRY.resolve("rewind")
-        self.assertEqual(rewind.name, "回溯")
-        self.assertEqual(rewind.aliases, ("rewind",))
-        self.assertEqual(rewind.group, "工作区")
-        self.assertEqual(rewind.description, "只读预览 checkpoint 回溯")
-        self.assertEqual(rewind.usage, "<action>")
-        self.assertEqual(rewind.requires, ("rewind",))
+    def test_permission_declares_direct_secondary_choices(self) -> None:
+        permission = REGISTRY.resolve("权限")
+
         self.assertEqual(
-            tuple((item.name, item.aliases, item.description, item.usage) for item in rewind.actions),
-            (
-                ("列表", ("list",), "列出 checkpoint 候选", "[cursor]"),
-                (
-                    "预览",
-                    ("preview",),
-                    "预览 checkpoint 回溯",
-                    "<checkpoint-id> <conversation|code|both>",
-                ),
-            ),
+            tuple(action.name for action in permission.actions),
+            ("unrestricted", "plan", "ask", "auto", "elevated", "full-local"),
+        )
+        self.assertEqual(
+            parse_tui_command("/permission unrestricted").command.kind,
+            TuiCommandKind.PERMISSION,
         )
 
-    def test_rewind_preserves_raw_instruction_and_malformed_quotes(self) -> None:
-        parsed = parse_tui_command(
-            '/rewind preview "checkpoint one" both', {"rewind"}
-        )
-        malformed = parse_tui_command(
-            '/rewind preview "unterminated', {"rewind"}
-        )
-        chinese = parse_tui_command('/回溯 列表 "opaque cursor"', {"rewind"})
-        self.assertEqual(parsed.command.kind, TuiCommandKind.REWIND)
+    def test_skill_and_mcp_actions_validate_required_arguments(self) -> None:
         self.assertEqual(
-            parsed.command.instruction, 'preview "checkpoint one" both'
+            parse_tui_command("/技能 启用").error,
+            "command action argument is required",
         )
         self.assertEqual(
-            malformed.command.instruction, 'preview "unterminated'
-        )
-        self.assertEqual(chinese.command.instruction, '列表 "opaque cursor"')
-
-    def test_default_and_explicit_empty_services_do_not_enable_rewind(self) -> None:
-        self.assertEqual(
-            parse_tui_command("/rewind list").error,
-            "unknown or unavailable slash command",
+            parse_tui_command("/mcp restart").error,
+            "command action argument is required",
         )
         self.assertEqual(
-            parse_tui_command("/任务", set()).error,
-            "unknown or unavailable slash command",
+            parse_tui_command("/技能 unknown").error,
+            "unknown slash command action",
         )
-        self.assertEqual(
-            parse_tui_command("/rewind list", set()).error,
-            "unknown or unavailable slash command",
-        )
-
-    def test_available_services_only_exposes_non_null_rewind_source(self) -> None:
-        missing = type("App", (), {})()
-        absent = type("App", (), {"rewind": None})()
-        present = type("App", (), {"rewind": object()})()
-        self.assertNotIn("rewind", available_services(missing))
-        self.assertNotIn("rewind", available_services(absent))
-        self.assertIn("rewind", available_services(present))

@@ -20,16 +20,22 @@ class TaskStatus(str, Enum):
     ACCEPTED_PARTIAL = "accepted_partial"
     FAILED = "failed"
     INTERRUPTED = "interrupted"
+    SUPERSEDED = "superseded"
 
 
-_TERMINAL = {TaskStatus.COMPLETED, TaskStatus.ACCEPTED_PARTIAL, TaskStatus.FAILED}
+_TERMINAL = {
+    TaskStatus.COMPLETED,
+    TaskStatus.ACCEPTED_PARTIAL,
+    TaskStatus.FAILED,
+    TaskStatus.SUPERSEDED,
+}
 _ALLOWED = {
     TaskStatus.CREATED: {TaskStatus.RUNNING, TaskStatus.PAUSED, TaskStatus.FAILED, TaskStatus.INTERRUPTED},
-    TaskStatus.RUNNING: {TaskStatus.VERIFYING, TaskStatus.PAUSED, TaskStatus.WAITING_DECISION, TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.INTERRUPTED},
-    TaskStatus.VERIFYING: {TaskStatus.RUNNING, TaskStatus.PAUSED, TaskStatus.WAITING_DECISION, TaskStatus.ACCEPTED_PARTIAL, TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.INTERRUPTED},
-    TaskStatus.PAUSED: {TaskStatus.RUNNING},
-    TaskStatus.INTERRUPTED: {TaskStatus.RUNNING},
-    TaskStatus.WAITING_DECISION: {TaskStatus.RUNNING, TaskStatus.ACCEPTED_PARTIAL, TaskStatus.FAILED},
+    TaskStatus.RUNNING: {TaskStatus.VERIFYING, TaskStatus.PAUSED, TaskStatus.WAITING_DECISION, TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.INTERRUPTED, TaskStatus.SUPERSEDED},
+    TaskStatus.VERIFYING: {TaskStatus.RUNNING, TaskStatus.PAUSED, TaskStatus.WAITING_DECISION, TaskStatus.ACCEPTED_PARTIAL, TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.INTERRUPTED, TaskStatus.SUPERSEDED},
+    TaskStatus.PAUSED: {TaskStatus.RUNNING, TaskStatus.SUPERSEDED},
+    TaskStatus.INTERRUPTED: {TaskStatus.RUNNING, TaskStatus.SUPERSEDED},
+    TaskStatus.WAITING_DECISION: {TaskStatus.RUNNING, TaskStatus.ACCEPTED_PARTIAL, TaskStatus.FAILED, TaskStatus.SUPERSEDED},
 }
 
 

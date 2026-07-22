@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import asyncio
+import contextlib
+import hashlib
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -20,6 +24,7 @@ from code_agent.core.cancellation import CancellationError, CancellationToken  #
 from code_agent.core.action_execution import ActionExecutionContext  # noqa: E402
 from code_agent.core.engine import AgentEngine  # noqa: E402
 from code_agent.core.events import EventKind  # noqa: E402
+from code_agent.core.limits import EngineLimits  # noqa: E402
 from code_agent.core.models import ActionRequest  # noqa: E402
 from code_agent.core.models import ModelEvent, ModelEventKind, ToolCall, ToolDefinition  # noqa: E402
 from code_agent.core.task import TaskStatus  # noqa: E402
@@ -31,7 +36,6 @@ from code_agent.context.compaction import DeterministicCompactor  # noqa: E402
 from code_agent.context.models import ContextConfig  # noqa: E402
 from code_agent.context.repo_index import RepoIndexService  # noqa: E402
 from code_agent.context.repo_map import RepoMapBuilder  # noqa: E402
-from code_agent.context.cache import RepoMapCache  # noqa: E402
 from code_agent.context.rules import RuleLoader  # noqa: E402
 from code_agent.interfaces.terminal_state import ApprovalBroker  # noqa: E402
 from code_agent.policy.engine import ActionPolicy, PolicyConfig  # noqa: E402
@@ -42,6 +46,7 @@ from code_agent.workspace.files import WorkspaceFiles  # noqa: E402
 from code_agent.workspace.ignore import IgnoreRules  # noqa: E402
 from code_agent.workspace.paths import WorkspacePathGuard  # noqa: E402
 from code_agent.workspace.edits import WorkspaceEditor  # noqa: E402
+from code_agent.workspace.errors import WorkspaceError  # noqa: E402
 from code_agent.verification.python_adapter import PythonVerificationAdapter  # noqa: E402
 from code_agent.verification.task_service import LedgerTaskVerificationService  # noqa: E402
 from code_agent.config.loader import load_runtime_config  # noqa: E402
@@ -238,6 +243,129 @@ class ApplicationConstructionTests(unittest.TestCase):
         self.assertIs(application.tui.evidence, sessions)
 
 
+class ManagedWorkspaceApplicationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_new_task_uses_managed_worktree_and_preserves_source(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            _init_git_source(root)
+            source_before = _tree_digest(root)
+            application = _configured_application(root)
+
+            task = await application.foreground_tasks.start("edit note.py")
+            task_root = Path(task.contract.authorization.workspace_root)
+
+            self.assertNotEqual(task_root, root)
+            self.assertIn("managed-workspaces", str(task_root))
+            self.assertEqual(_tree_digest(root), source_before)
+            self.assertEqual(application.workspace_root_for(task.id), task_root)
+            self.assertEqual(application.runtime_root_for(task.id), task_root)
+            self.assertEqual(application.verification_root_for(task.id), task_root)
+            await application.aclose()
+
+    async def test_non_git_source_stays_available_without_checkpoints(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            (root / "note.py").write_text("print('hi')\n", encoding="utf-8")
+            application = _configured_application(root)
+
+            task = await application.foreground_tasks.start("inspect")
+
+            self.assertEqual(
+                Path(task.contract.authorization.workspace_root), root
+            )
+            with self.assertRaises(RuntimeError):
+                await application.tui.checkpoints.list(task.id)
+            await application.aclose()
+
+    async def test_managed_worktree_failure_does_not_fallback_to_source(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            _init_git_source(root)
+            application = _configured_application(root)
+
+            with patch.object(
+                application.workspace_runtime,
+                "prepare_task",
+                side_effect=WorkspaceError("cannot create worktree"),
+            ):
+                with self.assertRaises(RuntimeError):
+                    await application.foreground_tasks.start("edit safely")
+
+            self.assertEqual(await application.foreground_tasks._sessions.list_tasks(), ())
+            await application.aclose()
+
+    async def test_active_managed_task_blocks_second_task_from_same_source(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            _init_git_source(root)
+            application = _configured_application(root)
+
+            await application.foreground_tasks.start("first")
+
+            with self.assertRaises(RuntimeError):
+                await application.foreground_tasks.start("second")
+            await application.aclose()
+
+    async def test_startup_hydrates_persisted_worktree_bindings(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            _init_git_source(root)
+            first = _configured_application(root)
+            task = await first.foreground_tasks.start("edit note.py")
+            task_root = Path(task.contract.authorization.workspace_root)
+            await first.aclose()
+
+            restarted = _configured_application(root)
+            await restarted.startup()
+
+            self.assertEqual(restarted.workspace_root_for(task.id), task_root)
+            self.assertEqual(
+                restarted.workspace_runtime.root_for_thread(task.thread_id),
+                task_root,
+            )
+            await restarted.aclose()
+
+    async def test_session_rewind_binds_replacement_task_to_worktree(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            _init_git_source(root)
+            application = _configured_application(root)
+            task = await application.foreground_tasks.start("rewind session")
+            task_root = Path(task.contract.authorization.workspace_root)
+            await application.tui.sessions.get_or_create_task_budget(
+                task.thread_id, "test", EngineLimits()
+            )
+            checkpoint = await application.tui.checkpoints.create(
+                task.id, "rewindable"
+            )
+            preview = await application.tui.checkpoints.preview_rewind(
+                task.id, checkpoint.id, "session"
+            )
+            await application.tui.sessions.transition_task(
+                task.id, TaskStatus.PAUSED, "test quiesce"
+            )
+
+            result = await application.tui.checkpoints.execute_rewind(
+                preview, confirmed=True
+            )
+
+            self.assertIsNotNone(result.replacement_task_id)
+            self.assertEqual(
+                application.workspace_root_for(result.replacement_task_id),
+                task_root,
+            )
+            replacement = await application.tui.sessions.load_task(
+                result.replacement_task_id
+            )
+            self.assertEqual(
+                application.workspace_runtime.root_for_thread(
+                    replacement.thread_id
+                ),
+                task_root,
+            )
+            await application.aclose()
+
+
 class ModeSwitchIntegrationTests(unittest.IsolatedAsyncioTestCase):
     async def test_successful_write_refreshes_the_shared_repo_index(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -429,7 +557,295 @@ class ApplicationGuardTests(unittest.IsolatedAsyncioTestCase):
             with patch("code_agent_win.app.os.getenv", return_value=str(root)):
                 current = _product_state_root()
 
-            self.assertEqual(current, root / "chaos-agent")
+            thread_id = events[0].payload["thread_id"]
+            messages = await sessions.load_messages(thread_id)
+            self.assertEqual(events[-1].kind, EventKind.COMPLETED)
+            self.assertEqual(messages[-1].content, "read complete")
+            self.assertIn("hello", messages[-2].content)
+
+    async def test_foreground_task_repairs_a_failed_test_then_checkpoints_completion(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            (root / "note.txt").write_text("before\n", encoding="utf-8")
+            runtime = _RecordingRuntime((1, 0))
+            dispatcher = _task_dispatcher(root, runtime)
+            calls = (
+                ToolCall("read", "read_file", {"path": "note.txt"}),
+                ToolCall("write-1", "write_file", {"path": "note.txt", "content": "broken\n"}),
+                ToolCall("test-1", "run_verification", {"kind": "python_unittest"}),
+                ToolCall("write-2", "write_file", {"path": "note.txt", "content": "fixed\n"}),
+                ToolCall("test-2", "run_verification", {"kind": "python_unittest"}),
+            )
+            model = FakeModel(tuple(
+                (ModelEvent(ModelEventKind.TOOL_CALL, tool_call=call), ModelEvent(ModelEventKind.COMPLETED))
+                for call in calls
+            ) + ((ModelEvent(ModelEventKind.TEXT_DELTA, text="fixed and verified"), ModelEvent(ModelEventKind.COMPLETED)),))
+            sessions = SQLiteSessionRepository(root / "sessions.sqlite3")
+            controller = ForegroundTaskController(
+                AgentController(AgentEngine(
+                    model,
+                    _task_context(root),
+                    dispatcher,
+                    sessions,
+                    verification=LedgerTaskVerificationService(root, sessions),
+                )),
+                sessions,
+                root,
+            )
+            task = await controller.start("repair note")
+
+            events = [event async for event in controller.events(task.id)]
+            stored = await sessions.load_task(task.id)
+
+            self.assertEqual(stored.status, TaskStatus.COMPLETED)
+            self.assertEqual((root / "note.txt").read_text(encoding="utf-8"), "fixed\n")
+            self.assertIn("note.txt", (await sessions.load_task_state(task.thread_id)).files_changed)
+            self.assertGreaterEqual(len(await sessions.list_checkpoints(task.thread_id)), 3)
+            self.assertEqual((await sessions.load_task_budget(task.id)).repair_cycles, 1)
+            self.assertEqual(len(runtime.commands), 2)
+            self.assertEqual(events[-1].kind, EventKind.COMPLETED)
+
+    async def test_current_verification_evidence_expires_after_a_later_write(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            (root / "note.txt").write_text("before\n", encoding="utf-8")
+            runtime = _RecordingRuntime((0,))
+            sessions = SQLiteSessionRepository(root / "sessions.sqlite3")
+            model = FakeModel((
+                (ModelEvent(ModelEventKind.TOOL_CALL, tool_call=ToolCall("verify", "run_verification", {"kind": "python_unittest"})), ModelEvent(ModelEventKind.COMPLETED)),
+                (ModelEvent(ModelEventKind.TOOL_CALL, tool_call=ToolCall("write", "write_file", {"path": "note.txt", "content": "after\n"})), ModelEvent(ModelEventKind.COMPLETED)),
+                (ModelEvent(ModelEventKind.TEXT_DELTA, text="done"), ModelEvent(ModelEventKind.COMPLETED)),
+            ))
+            controller = ForegroundTaskController(
+                AgentController(AgentEngine(
+                    model,
+                    _task_context(root),
+                    _task_dispatcher(root, runtime),
+                    sessions,
+                    verification=LedgerTaskVerificationService(root, sessions),
+                )),
+                sessions,
+                root,
+            )
+            task = await controller.start("verify then edit")
+
+            events = [event async for event in controller.events(task.id)]
+
+            self.assertEqual((await sessions.load_task(task.id)).status, TaskStatus.VERIFYING)
+            self.assertNotIn(EventKind.COMPLETED, [event.kind for event in events])
+
+    async def test_model_completion_automatically_runs_discovered_project_tests(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            (root / "pyproject.toml").write_text("[project]\nname = 'demo'\nversion = '0.0.0'\n", encoding="utf-8")
+            runtime = _RecordingRuntime((0,))
+            sessions = SQLiteSessionRepository(root / "sessions.sqlite3")
+            model = FakeModel(((
+                ModelEvent(ModelEventKind.TEXT_DELTA, text="done"),
+                ModelEvent(ModelEventKind.COMPLETED),
+            ),))
+            controller = ForegroundTaskController(
+                AgentController(AgentEngine(
+                    model,
+                    _task_context(root),
+                    _task_dispatcher(root, runtime),
+                    sessions,
+                    verification=LedgerTaskVerificationService(root, sessions),
+                )),
+                sessions,
+                root,
+            )
+            task = await controller.start("repair project")
+
+            events = [event async for event in controller.events(task.id)]
+
+            self.assertEqual((await sessions.load_task(task.id)).status, TaskStatus.COMPLETED)
+            self.assertEqual(len(runtime.commands), 1)
+            self.assertIn("-m unittest discover", runtime.commands[0])
+            self.assertEqual(events[-1].kind, EventKind.COMPLETED)
+            messages = await sessions.load_messages(task.thread_id)
+            self.assertEqual([message.role for message in messages[-3:]], ["assistant", "assistant", "tool"])
+            self.assertEqual(messages[-2].tool_calls[0].id, messages[-1].tool_call_id)
+            self.assertEqual(model.streams, [])
+
+    async def test_task_boundary_waits_for_decision_without_starting_network_command(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            runtime = _RecordingRuntime(())
+            dispatcher = _task_dispatcher(root, runtime)
+            model = FakeModel(((
+                ModelEvent(ModelEventKind.TOOL_CALL, tool_call=ToolCall("install", "run_command", {"command": "pip install package"})),
+                ModelEvent(ModelEventKind.COMPLETED),
+            ),))
+            sessions = SQLiteSessionRepository(root / "sessions.sqlite3")
+            controller = ForegroundTaskController(
+                AgentController(AgentEngine(model, _task_context(root), dispatcher, sessions)),
+                sessions,
+                root,
+            )
+            task = await controller.start("install package")
+
+            events = [event async for event in controller.events(task.id)]
+
+            self.assertEqual((await sessions.load_task(task.id)).status, TaskStatus.WAITING_DECISION)
+            self.assertEqual(runtime.commands, [])
+            self.assertIn(EventKind.TASK_DECISION_REQUIRED, [event.kind for event in events])
+
+    async def test_resume_never_replays_an_interrupted_command(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            database = root / "sessions.sqlite3"
+            first_runtime = _BlockingRuntime()
+            first_model = FakeModel(((
+                ModelEvent(ModelEventKind.TOOL_CALL, tool_call=ToolCall("test", "run_verification", {"kind": "python_unittest"})),
+                ModelEvent(ModelEventKind.COMPLETED),
+            ),))
+            sessions = SQLiteSessionRepository(database)
+            first_controller = ForegroundTaskController(
+                AgentController(AgentEngine(first_model, _task_context(root), _task_dispatcher(root, first_runtime), sessions)),
+                sessions,
+                root,
+            )
+            task = await first_controller.start("run tests")
+            running = asyncio.create_task(_collect_events(first_controller.events(task.id)))
+            await first_runtime.started.wait()
+            await first_controller.pause(task.id, "terminal closed")
+            await running
+
+            resumed_runtime = _RecordingRuntime(())
+            resumed = ForegroundTaskController(
+                AgentController(AgentEngine(
+                    FakeModel(((ModelEvent(ModelEventKind.TEXT_DELTA, text="rechecked"), ModelEvent(ModelEventKind.COMPLETED)),)),
+                    _task_context(root), _task_dispatcher(root, resumed_runtime), SQLiteSessionRepository(database),
+                )),
+                SQLiteSessionRepository(database),
+                root,
+            )
+
+            events = [event async for event in resumed.resume(task.id, "recheck workspace safely")]
+
+            self.assertEqual(len(first_runtime.commands), 1)
+            self.assertIn("-m unittest discover -s .", first_runtime.commands[0])
+            self.assertEqual(resumed_runtime.commands, [])
+            self.assertEqual((await sessions.load_task(task.id)).status, TaskStatus.VERIFYING)
+            self.assertGreaterEqual(len(await sessions.list_checkpoints(task.thread_id)), 2)
+            self.assertNotEqual(events[-1].kind, EventKind.COMPLETED)
+
+
+def _task_context(root: Path) -> WorkspaceContextBuilder:
+    guard = WorkspacePathGuard(root)
+    files = WorkspaceFiles(guard, IgnoreRules.from_workspace(root))
+    config = ContextConfig(root, root, "System", repo_scan=100)
+    return WorkspaceContextBuilder(
+        config,
+        RuleLoader(guard, files, config),
+        RepoMapBuilder(files, config),
+        DeterministicCompactor(config),
+    )
+
+
+def _task_dispatcher(root: Path, runtime: object) -> RootActionDispatcher:
+    guard = WorkspacePathGuard(root)
+    files = WorkspaceFiles(guard, IgnoreRules.from_workspace(root))
+    return RootActionDispatcher(
+        files,
+        WorkspaceEditor(guard),
+        ActionPolicy(PolicyConfig(ApprovalMode.AUTO, workspace_root=root)),
+        ApprovalBroker(),
+        runtime=runtime,  # type: ignore[arg-type]
+        verification=PythonVerificationAdapter(root),
+    )
+
+
+def _configured_application(root: Path):
+    state = root.parent / f"{root.name}-state"
+    state.mkdir(exist_ok=True)
+    runtime = load_runtime_config(env={
+        "CHAOS_CONFIG": str(root / "missing.toml"),
+        "CHAOS_API": "responses",
+        "CHAOS_BASE_URL": "https://api.example.test",
+        "CHAOS_MODEL": "test",
+        "CHAOS_API_KEY_ENV": "KEY",
+        "CHAOS_APPROVAL_MODE": "auto",
+    })
+    mode_env = {
+        f"CHAOS_MODE_{mode.value.upper()}_PROFILE": runtime.profile
+        for mode in agent_modes.AgentMode
+    }
+    patches = (
+        patch("code_agent_win.app._model_client", side_effect=lambda _: object()),
+        patch("code_agent_win.app._session_path", return_value=state / "sessions.sqlite3"),
+        patch("code_agent_win.app.load_runtime_config", return_value=runtime),
+        patch.dict("os.environ", mode_env),
+    )
+    stack = contextlib.ExitStack()
+    for item in patches:
+        stack.enter_context(item)
+    application = create_application(root)
+    application._test_stack = stack
+    return application
+
+
+def _init_git_source(root: Path) -> None:
+    (root / "note.py").write_text("print('source')\n", encoding="utf-8")
+    _git(root, "init")
+    _git(root, "config", "user.email", "test@example.test")
+    _git(root, "config", "user.name", "Test")
+    _git(root, "add", "note.py")
+    _git(root, "commit", "-m", "initial")
+    (root / "note.py").write_text("print('dirty')\n", encoding="utf-8")
+
+
+def _tree_digest(root: Path) -> str:
+    digest = hashlib.sha256()
+    for path in sorted(root.rglob("*")):
+        if path.is_file() and ".git" not in path.parts:
+            digest.update(path.relative_to(root).as_posix().encode("utf-8"))
+            digest.update(path.read_bytes())
+    return digest.hexdigest()
+
+
+def _git(root: Path, *arguments: str) -> None:
+    subprocess.run(
+        ("git", *arguments),
+        cwd=root,
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+
+class _RecordingRuntime:
+    def __init__(self, returncodes: tuple[int, ...]) -> None:
+        self.returncodes = list(returncodes)
+        self.commands: list[str] = []
+
+    async def run(self, spec: object, cancellation: object, sink: object) -> CommandResult:
+        command = " ".join(getattr(spec, "argv") or ())
+        self.commands.append(command)
+        returncode = self.returncodes.pop(0)
+        return CommandResult(
+            argv=("powershell",), display_command=command, returncode=returncode,
+            reason=TerminationReason.EXITED, stdout=b"", stderr=b"test failure" if returncode else b"",
+            duration_s=0, truncated=False, cwd=".",
+        )
+
+
+class _BlockingRuntime:
+    def __init__(self) -> None:
+        self.started = asyncio.Event()
+        self.commands: list[str] = []
+
+    async def run(self, spec: object, cancellation: CancellationToken, sink: object) -> CommandResult:
+        command = " ".join(getattr(spec, "argv") or ())
+        self.commands.append(command)
+        self.started.set()
+        await cancellation.wait_async()
+        raise CancellationError(cancellation.reason)
+
+
+async def _collect_events(events: AsyncIterator[object]) -> list[object]:
+    return [event async for event in events]
 
 
 if __name__ == "__main__":

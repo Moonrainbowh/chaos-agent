@@ -63,6 +63,9 @@ class StdioMcpManager:
     async def aclose(self) -> None:
         await asyncio.gather(*(self.close(name) for name in tuple(self._adapters)), return_exceptions=True)
 
+    def health(self, server: str) -> McpHealth:
+        return McpHealth(server, server in self._adapters)
+
 
 async def _close(adapter: McpSdkAdapter) -> None:
     try: await adapter.close()

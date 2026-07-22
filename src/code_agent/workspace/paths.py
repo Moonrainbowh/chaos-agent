@@ -96,6 +96,25 @@ class WorkspacePathGuard:
         except ValueError:
             return resolved
 
+    def relative_literal(self, path: PathInput) -> Path:
+        """Validate a non-dereferenced literal pathspec inside the workspace."""
+        raw = os.fspath(path)
+        if not isinstance(raw, str):
+            raise TypeError("path must be text")
+        if "\0" in raw:
+            raise PathOutsideWorkspace("path contains a NUL byte")
+        candidate = Path(raw).expanduser()
+        if not candidate.is_absolute():
+            candidate = self.root / candidate
+        absolute = Path(os.path.abspath(candidate))
+        try:
+            relative = absolute.relative_to(self.root)
+        except ValueError as error:
+            raise PathOutsideWorkspace(f"path escapes workspace: {raw!r}") from error
+        self._reject_link_components(relative.parent, raw)
+        self._check_policy(relative)
+        return relative
+
     def _check_policy(self, relative: Path) -> None:
         parts = relative.parts
         if any(os.path.normcase(part) in _NORMALIZED_PROTECTED for part in parts):
@@ -139,8 +158,12 @@ def _is_link_like(path: Path) -> bool:
         if path.is_symlink():
             return True
         attributes = getattr(path.lstat(), "st_file_attributes", 0)
-    except OSError:
+    except (FileNotFoundError, NotADirectoryError):
         return False
+    except OSError as error:
+        raise PathOutsideWorkspace(
+            f"cannot inspect path metadata: {path}"
+        ) from error
     reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
     return bool(attributes & reparse_flag)
 

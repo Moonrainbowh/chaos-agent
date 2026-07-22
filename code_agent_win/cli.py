@@ -21,6 +21,7 @@ async def run(arguments: Sequence[str]) -> int:
         application = create_application(
             model_name=model_name, profile_name=profile_name, mode_name=mode_name
         )
+        await application.startup()
         application.dispatcher.interactive = command.kind is CommandKind.TUI
         return await execute_command(
             command,

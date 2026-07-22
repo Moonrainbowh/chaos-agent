@@ -24,6 +24,7 @@ from code_agent.workspace.git import (  # noqa: E402
     GitCommandError,
     GitDiffSnapshot,
     GitWorkspace,
+    _decode_path_list,
 )
 
 
@@ -165,130 +166,23 @@ class GitRepositoryTests(GitWorkspaceTestCase):
         with self.assertRaises(PathOutsideWorkspace):
             GitWorkspace(self.root).diff((outside,))
 
-    def test_diff_snapshot_exposes_all_facets_and_excludes_ignored_files(self) -> None:
+    def test_snapshot_paths_include_deleted_tracked_and_nonignored_untracked(self) -> None:
         self.initialize_repository()
-        unstaged = self.root / "unstaged.txt"
-        unstaged.write_text("old\n", encoding="utf-8")
-        run_git(self.root, "add", "unstaged.txt")
-        run_git(self.root, "commit", "-q", "-m", "add unstaged baseline")
-        unstaged.write_text("new\n", encoding="utf-8")
-        (self.root / "staged.txt").write_text("staged\n", encoding="utf-8")
-        run_git(self.root, "add", "staged.txt")
-        (self.root / "untracked.txt").write_text("héllo\n", encoding="utf-8")
-        (self.root / ".gitignore").write_text("ignored.txt\n", encoding="utf-8")
-        (self.root / "ignored.txt").write_text("ignore me\n", encoding="utf-8")
+        (self.root / "tracked.txt").unlink()
+        (self.root / "visible.py").write_bytes(b"new")
+        (self.root / "ignored.tmp").write_bytes(b"cache")
+        (self.root / ".gitignore").write_text("*.tmp\n", encoding="utf-8")
 
-        snapshot = GitWorkspace(self.root).diff_snapshot()
+        paths = GitWorkspace(self.root).snapshot_paths()
 
-        self.assertIn("staged.txt", snapshot.staged)
-        self.assertNotIn("diff --git a/unstaged.txt", snapshot.staged)
-        self.assertIn("unstaged.txt", snapshot.unstaged)
-        self.assertNotIn("diff --git a/staged.txt", snapshot.unstaged)
-        self.assertIn("--- /dev/null", snapshot.untracked)
-        self.assertIn("+++ b/untracked.txt", snapshot.untracked)
-        self.assertIn("+héllo", snapshot.untracked)
-        self.assertEqual(snapshot.untracked_paths, (".gitignore", "untracked.txt"))
-        self.assertNotIn("+++ b/ignored.txt", snapshot.untracked)
+        self.assertEqual(paths, (".gitignore", "tracked.txt", "visible.py"))
 
-    def test_diff_snapshot_sorts_untracked_paths_and_marks_binary_without_bytes(self) -> None:
-        self.initialize_repository()
-        (self.root / "z.txt").write_text("last\n", encoding="utf-8")
-        (self.root / "a.bin").write_bytes(b"SECRET_BINARY\x00payload")
-        workspace = GitWorkspace(self.root)
+    def test_snapshot_path_decoder_rejects_non_utf8_git_output(self) -> None:
+        with self.assertRaisesRegex(GitCommandError, "undecodable path") as raised:
+            _decode_path_list(b"valid.py\0\xff.py\0")
 
-        first = workspace.diff_snapshot()
-        second = workspace.diff_snapshot()
-
-        self.assertEqual(first, second)
-        self.assertEqual(first.untracked_paths, ("a.bin", "z.txt"))
-        self.assertIn("Binary files /dev/null and b/a.bin differ", first.untracked)
-        self.assertNotIn("SECRET_BINARY", first.untracked)
-        self.assertLess(first.untracked.index("b/a.bin"), first.untracked.index("b/z.txt"))
-
-    def test_diff_snapshot_uses_only_fixed_argv(self) -> None:
-        self.initialize_repository()
-        (self.root / "tracked.txt").write_text("new\n", encoding="utf-8")
-        real_popen = subprocess.Popen
-
-        with patch(
-            "code_agent.workspace.git.subprocess.Popen", wraps=real_popen
-        ) as invoked:
-            GitWorkspace(self.root).diff_snapshot(("tracked.txt",))
-
-        commands = [call.args[0] for call in invoked.call_args_list]
-        expected = [
-            ["diff", "--no-ext-diff", "--no-textconv", "--cached", "--name-only", "-z", "--no-renames", "--"],
-            ["diff", "--no-ext-diff", "--no-textconv", "--name-only", "-z", "--no-renames", "--"],
-            ["diff", "--no-ext-diff", "--no-textconv", "--no-renames", "--", "tracked.txt"],
-            ["ls-files", "--others", "--exclude-standard", "-z", "--", "tracked.txt"],
-        ]
-        self.assertEqual([command[4:] for command in commands], expected)
-        for call in invoked.call_args_list:
-            self.assertEqual(call.args[0][1:4], ["-c", "core.pager=cat", "--literal-pathspecs"])
-            self.assertIs(call.kwargs["shell"], False)
-
-    def test_diff_snapshot_path_filters_are_literal(self) -> None:
-        self.initialize_repository()
-        source = self.root / "a.py"
-        source.write_text("old\n", encoding="utf-8")
-        run_git(self.root, "add", "a.py")
-        run_git(self.root, "commit", "-q", "-m", "add source")
-        source.write_text("new\n", encoding="utf-8")
-        (self.root / "b.py").write_text("untracked\n", encoding="utf-8")
-        workspace = GitWorkspace(self.root)
-
-        self.assertEqual(workspace.diff_snapshot(("*.py",)), GitDiffSnapshot())
-        self.assertEqual(workspace.diff_snapshot((":(glob)*.py",)), GitDiffSnapshot())
-        self.assertIn("a.py", workspace.diff_snapshot(("a.py",)).unstaged)
-
-    def test_diff_snapshot_rejects_unsafe_filters_before_git(self) -> None:
-        self.initialize_repository()
-        workspace = GitWorkspace(self.root)
-        with patch("code_agent.workspace.git.subprocess.Popen") as invoked:
-            with self.assertRaises(SensitivePathError):
-                workspace.diff_snapshot((".git/config",))
-            with self.assertRaises(PathOutsideWorkspace):
-                workspace.diff_snapshot((self.root.parent / "outside.txt",))
-        invoked.assert_not_called()
-
-    def test_diff_snapshot_rejects_binary_sensitive_tracked_facets(self) -> None:
-        self.initialize_repository()
-        secret = self.root / ".env"
-        secret.write_bytes(b"old\x00")
-        run_git(self.root, "add", ".env")
-        run_git(self.root, "commit", "-q", "-m", "add sensitive baseline")
-        secret.write_bytes(b"SECRET_UNSTAGED\x00")
-        workspace = GitWorkspace(self.root)
-
-        with self.subTest(facet="unstaged"):
-            with self.assertRaises(SensitivePathError):
-                workspace.diff_snapshot()
-        run_git(self.root, "add", ".env")
-        with self.subTest(facet="staged"):
-            with self.assertRaises(SensitivePathError):
-                workspace.diff_snapshot()
-        run_git(self.root, "commit", "-q", "-m", "update sensitive baseline")
-        run_git(self.root, "mv", ".env", "safe.bin")
-        with self.subTest(facet="rename"):
-            with self.assertRaises(SensitivePathError):
-                workspace.diff_snapshot()
-
-    def test_diff_snapshot_reguards_every_path_reported_by_git(self) -> None:
-        self.initialize_repository()
-        workspace = GitWorkspace(self.root)
-        empty = SimpleNamespace(argv=("git",), returncode=0, stdout=b"", stderr=b"")
-
-        for raw, expected in (
-            (b"../outside.txt\x00", PathOutsideWorkspace),
-            (b".git/config\x00", SensitivePathError),
-        ):
-            listed = SimpleNamespace(argv=("git",), returncode=0, stdout=raw, stderr=b"")
-            with self.subTest(raw=raw):
-                with patch.object(
-                    workspace, "_invoke", side_effect=(empty, empty, listed)
-                ):
-                    with self.assertRaises(expected):
-                        workspace.diff_snapshot()
+        self.assertEqual(raised.exception.operation, "snapshot_paths")
+        self.assertEqual(raised.exception.stderr, "invalid UTF-8 path")
 
 
 if __name__ == "__main__":

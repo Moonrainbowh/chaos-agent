@@ -20,7 +20,8 @@ from ._git_errors import (
     decode_git_output as _decode,
 )
 from .errors import WorkspaceError
-from ._git_process import ProcessCapture, collect_bounded_output
+from ._git_environment import isolated_git_environment
+from ._git_process import collect_bounded_output
 from .paths import PathInput, WorkspacePathGuard
 
 
@@ -83,6 +84,16 @@ class GitWorkspace:
         self._require_success("status", result)
         return _decode(result.stdout)
 
+    def snapshot_paths(self, *, timeout_s: float | None = None) -> tuple[str, ...]:
+        """Return tracked and non-ignored untracked paths for a snapshot."""
+        result = self._invoke(
+            "snapshot_paths",
+            ("ls-files", "-z", "--cached", "--others", "--exclude-standard"),
+            timeout_s=timeout_s,
+        )
+        self._require_success("snapshot_paths", result)
+        return tuple(sorted(_decode_path_list(result.stdout)))
+
     def diff(self, paths: Iterable[PathInput] = ()) -> str:
         """Return a safe built-in Git diff, optionally restricted to paths."""
         if isinstance(paths, (str, os.PathLike)):
@@ -90,7 +101,7 @@ class GitWorkspace:
         else:
             supplied_paths = paths
         relative_paths = tuple(
-            self.guard.relative(path).as_posix() for path in supplied_paths
+            self.guard.relative_literal(path).as_posix() for path in supplied_paths
         )
         arguments = (
             "diff",
@@ -103,43 +114,8 @@ class GitWorkspace:
         self._require_success("diff", result)
         return _decode(result.stdout)
 
-    def diff_snapshot(
-        self, paths: Iterable[PathInput] = ()
-    ) -> GitDiffSnapshot:
-        """Return staged, unstaged, and untracked diff facets under one budget."""
-        if isinstance(paths, (str, os.PathLike)):
-            supplied_paths: Iterable[PathInput] = (paths,)
-        else:
-            supplied_paths = paths
-        relative = tuple(self.guard.relative(path).as_posix() for path in supplied_paths)
-        budget = SnapshotBudget(self.max_output_bytes)
-        try:
-            staged, unstaged, untracked, untracked_paths = collect_diff_facets(
-                self._invoke,
-                self._require_success,
-                self.guard,
-                budget,
-                relative,
-            )
-        except SnapshotBudgetExceeded as error:
-            raise self._snapshot_limit_error() from error
-        staged_text = _decode_snapshot_facet("staged", staged)
-        unstaged_text = _decode_snapshot_facet("unstaged", unstaged)
-        return GitDiffSnapshot(
-            staged_text, unstaged_text, untracked, untracked_paths
-        )
-
-    def _snapshot_limit_error(self) -> GitOutputLimitError:
-        argv = (self._git_executable, "diff_snapshot")
-        return GitOutputLimitError(
-            "diff_snapshot", argv, None, b"", b"", self.max_output_bytes
-        )
-
     def _invoke(
-        self,
-        operation: str,
-        arguments: tuple[str, ...],
-        max_output_bytes: int | None = None,
+        self, operation: str, arguments: tuple[str, ...], *, timeout_s: float | None = None
     ) -> _GitResult:
         argv = (
             self._git_executable,
@@ -148,36 +124,11 @@ class GitWorkspace:
             "--literal-pathspecs",
             *arguments,
         )
+        effective_timeout = self._effective_timeout(timeout_s)
         process = self._start_process(operation, argv)
-        output_limit = self.max_output_bytes if max_output_bytes is None else max_output_bytes
-        capture = collect_bounded_output(process, output_limit, self.timeout_s)
-        return self._finish_invoke(operation, argv, capture)
-
-    def _start_process(
-        self, operation: str, argv: tuple[str, ...]
-    ) -> subprocess.Popen[bytes]:
-        try:
-            return subprocess.Popen(
-                list(argv),
-                cwd=self.root,
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                shell=False,
-                bufsize=0,
-            )
-        except OSError as error:
-            raise GitCommandError(
-                operation,
-                argv,
-                None,
-                str(error),
-                f"git {operation} could not start: {error}",
-            ) from error
-
-    def _finish_invoke(
-        self, operation: str, argv: tuple[str, ...], capture: ProcessCapture
-    ) -> _GitResult:
+        capture = collect_bounded_output(
+            process, self.max_output_bytes, effective_timeout
+        )
         if capture.exceeded:
             raise GitOutputLimitError(
                 operation,
@@ -194,7 +145,7 @@ class GitWorkspace:
                 capture.returncode,
                 capture.stdout,
                 capture.stderr,
-                self.timeout_s,
+                effective_timeout,
             )
         if capture.read_error is not None:
             raise GitCommandError(
@@ -208,6 +159,38 @@ class GitWorkspace:
             ) from capture.read_error
         assert capture.returncode is not None
         return _GitResult(argv, capture.returncode, capture.stdout, capture.stderr)
+
+    def _effective_timeout(self, timeout_s: float | None) -> float:
+        if timeout_s is None:
+            return self.timeout_s
+        if isinstance(timeout_s, bool) or not isinstance(timeout_s, (int, float)):
+            raise TypeError("timeout_s must be a number")
+        if not math.isfinite(timeout_s) or timeout_s <= 0:
+            raise ValueError("timeout_s must be positive and finite")
+        return min(self.timeout_s, float(timeout_s))
+
+    def _start_process(
+        self, operation: str, argv: tuple[str, ...]
+    ) -> subprocess.Popen[bytes]:
+        try:
+            return subprocess.Popen(
+                list(argv),
+                cwd=self.root,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=isolated_git_environment(),
+                shell=False,
+                bufsize=0,
+            )
+        except OSError as error:
+            raise GitCommandError(
+                operation,
+                argv,
+                None,
+                str(error),
+                f"git {operation} could not start: {error}",
+            ) from error
 
     @staticmethod
     def _require_success(operation: str, result: _GitResult) -> None:
@@ -226,8 +209,20 @@ class GitWorkspace:
         )
 
 
-def _decode_snapshot_facet(facet: str, raw: bytes) -> str:
+def _decode(value: bytes) -> str:
+    return value.decode("utf-8", errors="replace")
+
+
+def _decode_path_list(value: bytes) -> tuple[str, ...]:
+    if not value:
+        return ()
     try:
-        return raw.decode("utf-8")
+        return tuple(part.decode("utf-8") for part in value.split(b"\0") if part)
     except UnicodeDecodeError as error:
-        raise WorkspaceError(f"git returned a non-UTF-8 {facet} diff") from error
+        raise GitCommandError(
+            "snapshot_paths",
+            (),
+            None,
+            "invalid UTF-8 path",
+            "git snapshot_paths returned an undecodable path",
+        ) from error

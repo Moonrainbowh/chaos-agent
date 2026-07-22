@@ -15,10 +15,7 @@ if str(SRC_ROOT) not in sys.path:
 
 from code_agent.core.events import AgentEvent, EventKind  # noqa: E402
 from code_agent.core.models import Message  # noqa: E402
-from code_agent.sessions._database import (  # noqa: E402
-    SCHEMA_VERSION,
-    _MIGRATIONS,
-)
+from code_agent.sessions._database import SCHEMA_VERSION, _MIGRATIONS  # noqa: E402
 from code_agent.sessions.errors import (  # noqa: E402
     SessionCorruptionError,
     SessionMigrationError,
@@ -154,39 +151,62 @@ class SessionMigrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(version, SCHEMA_VERSION)
         self.assertIn("task_states", tables)
 
-    async def test_v3_checkpoint_migrates_without_rewind_bounds(self) -> None:
-        create_v3_database(self.database)
-        insert_legacy_checkpoint(self.database)
+    def test_every_historical_schema_version_migrates_to_current_idempotently(self) -> None:
+        for version in range(SCHEMA_VERSION):
+            database = Path(self.temporary.name) / f"sessions-v{version}.sqlite3"
+            with sqlite3.connect(database) as connection:
+                for target in range(1, version + 1):
+                    for statement in _MIGRATIONS[target]:
+                        connection.execute(statement)
+                connection.execute(f"PRAGMA user_version = {version}")
 
-        checkpoint = (
-            await SQLiteSessionRepository(self.database).list_checkpoints("legacy")
-        )[0]
+            SQLiteSessionRepository(database)
+            SQLiteSessionRepository(database)
 
-        self.assertIsNone(checkpoint.message_sequence)
-        self.assertIsNone(checkpoint.event_sequence)
+            with sqlite3.connect(database) as connection:
+                migrated = connection.execute("PRAGMA user_version").fetchone()[0]
+                foreign_keys = {
+                    row[2]
+                    for row in connection.execute(
+                        "PRAGMA foreign_key_list(rewind_operations)"
+                    )
+                }
+            self.assertEqual(migrated, SCHEMA_VERSION, version)
+            self.assertTrue(
+                {"workspace_lineages", "checkpoints", "tasks"}.issubset(foreign_keys),
+                version,
+            )
 
-    async def test_v9_checkpoint_migrates_without_rewind_bounds(self) -> None:
-        create_v3_database(self.database)
-        advance_v3_database(self.database, 9)
-        insert_legacy_checkpoint(self.database)
+    def test_current_required_indexes_and_columns_are_validated_on_reopen(self) -> None:
+        SQLiteSessionRepository(self.database)
+        with sqlite3.connect(self.database) as connection:
+            columns = {
+                row[1]
+                for row in connection.execute("PRAGMA table_info(rewind_operations)")
+            }
+            indexes = {
+                row[1]
+                for row in connection.execute("PRAGMA index_list(rewind_operations)")
+            }
+            cursor_columns = {
+                row[1]
+                for row in connection.execute(
+                    "PRAGMA table_info(checkpoint_workspace_state)"
+                )
+            }
+            usage_columns = {
+                row[1]
+                for row in connection.execute(
+                    "PRAGMA table_info(workspace_lineage_usage)"
+                )
+            }
+        self.assertIn("replacement_task_id", columns)
+        self.assertIn("rewind_operations_one_pending", indexes)
+        self.assertIn("lineage_id", cursor_columns)
+        self.assertIn("last_failure_signature", usage_columns)
 
-        checkpoint = (
-            await SQLiteSessionRepository(self.database).list_checkpoints("legacy")
-        )[0]
-
-        self.assertIsNone(checkpoint.message_sequence)
-        self.assertIsNone(checkpoint.event_sequence)
-
-    def test_v10_missing_checkpoint_bound_column_fails_schema_check(self) -> None:
-        create_v3_database(self.database)
-        advance_v3_database(self.database, 9)
-        connection = sqlite3.connect(self.database)
-        try:
-            connection.execute("PRAGMA user_version = 10")
-            connection.commit()
-        finally:
-            connection.close()
-
+        with sqlite3.connect(self.database) as connection:
+            connection.execute("DROP INDEX rewind_operations_status_created")
         with self.assertRaises(SessionCorruptionError):
             SQLiteSessionRepository(self.database)
 

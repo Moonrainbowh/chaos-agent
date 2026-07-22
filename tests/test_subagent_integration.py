@@ -94,6 +94,48 @@ class RestrictedDispatcherTests(unittest.IsolatedAsyncioTestCase):
 
 
 class EngineChildRunnerTests(unittest.IsolatedAsyncioTestCase):
+    async def test_child_thread_is_created_under_the_active_parent(self) -> None:
+        class Sessions:
+            async def create_thread(self, *, parent_thread_id=None):
+                self.parent = parent_thread_id
+                return "child-thread"
+
+        class Engine:
+            async def run(self, objective, **kwargs):
+                self.thread_id = kwargs["thread_id"]
+                yield AgentEvent(
+                    EventKind.MESSAGE_ADDED,
+                    {
+                        "message": Message(
+                            role="assistant", content="done"
+                        ).to_dict()
+                    },
+                )
+
+        sessions = Sessions()
+        engine = Engine()
+        runner = EngineChildRunner(
+            lambda _: (engine, None),
+            sessions=sessions,
+            parent_thread=lambda: "parent-thread",
+        )
+        registry, profiles = _runtime()
+        agent = AgentDefinition(
+            "reviewer",
+            AgentRole.REVIEW,
+            registry.freeze("medium", profiles),
+            "Review.",
+            ("read_file",),
+        )
+
+        await runner.run(
+            ChildRunRequest("parent", "review", agent, 1, 100, 4, 30),
+            CancellationToken(),
+        )
+
+        self.assertEqual(sessions.parent, "parent-thread")
+        self.assertEqual(engine.thread_id, "child-thread")
+
     async def test_runtime_publishes_live_child_statuses(self) -> None:
         registry, profiles = _runtime()
 

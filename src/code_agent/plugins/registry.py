@@ -145,6 +145,13 @@ class PluginRegistryBuilder:
             action = value.action  # type: ignore[attr-defined]
             if action is not None and action.target not in self._actions and action.target not in self._mcp:
                 raise ValueError("event proposal has an unknown action target")
+            host_risk = None if action is None else self._risks.get(action.target)
+            if (
+                action is not None
+                and host_risk is not None
+                and _RISK_ORDER[action.risk] < _RISK_ORDER[host_risk]
+            ):
+                raise ValueError("event risk cannot lower host risk")
 
 
 class PluginHost:
@@ -154,6 +161,7 @@ class PluginHost:
         self._current = snapshot
         self._staged: ContributionSnapshot | None = None
         self._revoked: set[str] = set()
+        self._generation = 0
 
     def stage(self, snapshot: ContributionSnapshot) -> None:
         if not isinstance(snapshot, ContributionSnapshot):
@@ -165,6 +173,10 @@ class PluginHost:
             return False
         self._current = self._staged
         self._staged = None
+        self._revoked.intersection_update(
+            manifest.identifier for manifest in self._current.manifests
+        )
+        self._generation += 1
         return True
 
     def revoke(self, plugin_id: str) -> bool:
@@ -179,3 +191,21 @@ class PluginHost:
     @property
     def snapshot(self) -> ContributionSnapshot:
         return self._current
+
+    @property
+    def generation(self) -> int:
+        return self._generation
+
+    def manifest_digest(self, plugin_id: str) -> str:
+        for manifest in self._current.manifests:
+            if manifest.identifier == plugin_id:
+                return manifest.digest
+        raise KeyError("plugin is not active")
+
+    def is_active(self, plugin_id: str, digest: str, generation: int) -> bool:
+        if generation != self._generation or plugin_id in self._revoked:
+            return False
+        return any(
+            manifest.identifier == plugin_id and manifest.digest == digest
+            for manifest in self._current.manifests
+        )

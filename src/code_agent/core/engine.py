@@ -69,12 +69,165 @@ class AgentEngine(
         try:
             added, user_message = await self._prepare_request(state, user_input)
             yield added
-            state.messages = state.prior_messages + (user_message,)
-            for turn in range(1, state.budget.limits.max_agent_rounds + 1):
-                state.token.raise_if_cancelled()
-                async for event in self._run_turn(state, turn, user_input):
-                    yield event
-                if state.stop_requested:
+
+            messages = prior_messages + (user_message,)
+            used_call_ids: set[str] = set()
+            total_usage = Usage()
+
+            for turn in range(1, task_budget.limits.max_agent_rounds + 1):
+                token.raise_if_cancelled()
+                if supervisor is not None:
+                    decision = supervisor.before_model_turn()
+                    if decision.kind is SupervisionKind.PAUSE:
+                        await self._pause_task(active_thread, task, supervisor, decision.reason or "task paused")
+                        paused = AgentEvent(EventKind.TASK_PAUSED, {"task_id": task.id, "status": "paused", "reason": decision.reason or "task paused"})
+                        await self._journal.append_event(active_thread, paused)
+                        yield paused
+                        return
+                    await self._journal.record_task_active_seconds(
+                        task.id, supervisor.checkpoint_active_seconds()
+                    )
+                    await self._journal.consume_task_controls(task.id)
+                reserved = await self._journal.reserve_task_budget(
+                    active_thread, model_turns=1
+                )
+                if reserved is None:
+                    raise EngineLimitError("model turn budget exceeded")
+                task_budget = reserved
+                tools, tool_names = self._advertised_tools()
+                turn_started = AgentEvent(
+                    kind=EventKind.TURN_STARTED,
+                    payload={"turn": turn},
+                )
+                await self._journal.append_event(active_thread, turn_started)
+                yield turn_started
+
+                source_messages = (
+                    await self._journal.load_messages(active_thread)
+                    if task is not None
+                    else prior_messages if turn == 1 else messages
+                )
+                source_input = user_input if turn == 1 else ""
+                try:
+                    task_state = await self._journal.load_task_state(active_thread)
+                    bundle = await self._context.build(
+                        active_thread,
+                        source_messages,
+                        source_input,
+                        tools,
+                        task_state,
+                        token,
+                    )
+                    if not isinstance(bundle, ContextBundle):
+                        raise TypeError("context builder returned an invalid bundle")
+                except CancellationError:
+                    raise
+                except Exception:
+                    raise ContextBuildError("context build failed") from None
+
+                built = AgentEvent(
+                    kind=EventKind.CONTEXT_BUILT,
+                    payload={"turn": turn, **bundle.measurements},
+                )
+                await self._journal.append_event(active_thread, built)
+                yield built
+
+                model_started = AgentEvent(
+                    kind=EventKind.MODEL_STARTED,
+                    payload={"turn": turn},
+                )
+                await self._journal.append_event(active_thread, model_started)
+                yield model_started
+
+                text_parts: list[str] = []
+                calls: list[ToolCall] = []
+                completed = False
+                try:
+                    stream = self._model.stream(
+                        bundle.system_prompt,
+                        bundle.messages,
+                        tools,
+                    )
+                    async for model_event in stream:
+                        token.raise_if_cancelled()
+                        if completed:
+                            raise ModelStreamError(
+                                "model emitted an event after completion"
+                            )
+                        self._accumulate_model_event(
+                            model_event,
+                            text_parts,
+                            calls,
+                        )
+                        if model_event.kind is ModelEventKind.COMPLETED:
+                            completed = True
+                        streamed = AgentEvent(
+                            kind=EventKind.MODEL_EVENT,
+                            payload={"event": model_event.to_dict()},
+                        )
+                        await self._journal.append_event(active_thread, streamed)
+                        yield streamed
+                        if model_event.usage is not None:
+                            total_usage = add_usage(total_usage, model_event.usage)
+                            if task is not None:
+                                await self._journal.consume_task_usage(task.id, model_event.usage)
+                                for threshold in await self._journal.mark_task_budget_warnings(task.id):
+                                    warning = AgentEvent(
+                                        EventKind.TASK_BUDGET_WARNING,
+                                        {"task_id": task.id, "threshold": threshold, "reason": f"token budget reached {threshold}%"},
+                                    )
+                                    await self._journal.append_event(active_thread, warning)
+                                    yield warning
+                            if total_usage.total_tokens > self._limits.max_total_tokens:
+                                raise EngineLimitError("token budget exceeded")
+                except (AgentEngineError, CancellationError):
+                    raise
+                except Exception:
+                    raise ModelStreamError("model stream failed") from None
+
+                if not completed:
+                    raise ModelStreamError("model stream ended before completion")
+
+                assistant, assistant_added = await self._persist_assistant_message(
+                    active_thread, text_parts, calls
+                )
+                messages += (assistant,)
+                yield assistant_added
+
+                if not calls:
+                    if task is not None:
+                        if supervisor is not None:
+                            await self._journal.record_task_active_seconds(
+                                task.id, supervisor.checkpoint_active_seconds()
+                            )
+                        automatic = await self._run_suggested_verification(
+                            active_thread, task, token, supervisor, task_budget, tool_names
+                        )
+                        if automatic is not None:
+                            task_budget, automatic_events = automatic
+                            for action_event in automatic_events:
+                                yield action_event
+                            if self._should_stop_after_action(automatic_events):
+                                return
+                            next_task = await self._resolve_task_completion(task, active_thread)
+                            if next_task.status is not TaskStatus.RUNNING:
+                                for completion_event in self._task_completion_events(
+                                    active_thread, next_task, task_budget, total_usage
+                                ):
+                                    await self._journal.append_event(active_thread, completion_event)
+                                    yield completion_event
+                                return
+                            continue
+                        next_task = await self._resolve_task_completion(task, active_thread)
+                        for completion_event in self._task_completion_events(
+                            active_thread, next_task, task_budget, total_usage
+                        ):
+                            await self._journal.append_event(active_thread, completion_event)
+                            yield completion_event
+                        return
+                    finished = self._completed_event(active_thread, task_budget, total_usage)
+                    await self._journal.append_event(active_thread, finished)
+                    yield finished
                     return
 
             raise EngineLimitError("model turn budget exceeded")

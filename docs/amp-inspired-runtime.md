@@ -10,7 +10,7 @@ not a claim of source compatibility or copied behavior.
 | --- | --- | --- |
 | Modes | `low`, `medium`, `high`, `ultra` freeze profile, actual model, prompt policy, tools, reasoning effort, and limits. Mode never changes permission. | `--mode`, `CHAOS_MODE`, per-mode profile environment bindings, TUI mode/permission lines. |
 | Child agents | Subagent, Oracle, Review, Search, and Librarian run in child threads with cancellation, concurrency, single-writer serialization, and cumulative parent reservations. | `delegate_agent` typed schema, central policy decision, advisory result marker, token/tool/time usage. |
-| Plugins | Versioned JSON manifests validate digest, host API, trust, namespace, contribution conflicts, risk floors, and explicit enablement. | Trusted plugin tools are integrated as qualified definitions and checked against plugin risk and mapped Host risk. Other contribution snapshots are validated but still await Host routing. |
+| Plugins | Versioned JSON manifests validate digest, host API, trust, namespace, contribution conflicts, risk floors, and explicit enablement. | Tools, namespaced commands/modes, custom Agents, typed event proposals, and Host-owned interactions are runtime-integrated; proposed actions pass plugin and Host policy. |
 | TUI Picker | One bottom-oriented keyboard Picker model supports command, session, mode, Skill, MCP, and plugin item sources. | Command candidates are integrated; selection, completion, disabled reasons, error recovery, and `Esc` cancellation are tested. |
 | Task truth | Running, verifying, paused, waiting decision, approval, partial, completed, failed, interrupted, and cancelled have distinct presentations. | Status rendering tests and persisted task events. |
 | Steering | `queued`, `steered`, `dequeued`, and `applied` remain distinct with queue count. | `TURN_STARTED` proves dequeue; `CONTEXT_BUILT` proves application to rebuilt context. |
@@ -19,22 +19,14 @@ not a claim of source compatibility or copied behavior.
 | Context and checkpoints | Each model turn carries a real thread ID and positive revision in an immutable `ContextRequest`; sanitized semantic checkpoint facts are persisted by the Host and ordered with the workspace mutation high-water. | Source-anchor, context-runtime, coordinated-session, and checkpoint-ordering tests. |
 | Rewind preview | `/rewind list` paginates arbitrary checkpoint candidates; `/rewind preview` projects `conversation`, `code`, or `both` through two bounded observations. | Complete capture coverage, durable `GAP`, exact snapshot/preimage, path-continuity, current-tip, candidate, Runtime, and TUI integration tests. |
 
-## Runtime-integrated Recovery Boundaries
+## Runtime-integrated Thread Intelligence
 
-Semantic checkpoints, source anchors, bounded thread index/search, and
-revision-aware `read_thread` are connected through the real per-turn
-`ContextRequest`. The Windows Host persists the sanitized checkpoint facts and
-serializes checkpoint anchors with the mutation journal; it does not guess
-thread identity or persist summary/source text in the checkpoint payload.
-
-Arbitrary-checkpoint rewind remains preview-only. Candidate message-bound and
-code-anchor facets are discovery hints, not availability promises. A code
-facet requires complete mutation-capture coverage plus validated exact inverse
-snapshot preimages, adjacent path continuity, and a matching current workspace
-tip. Any writer with unknown exact effects first persists a durable `GAP`,
-which invalidates code rewind for that coverage. `/rewind` exposes no apply or
-restore action, performs no `git reset` or `git checkout`, requests no approval,
-and calls no provider or typed tool.
+`ContextBuilder.build(...)` now receives `thread_id` and cancellation. The
+runtime loads stable SQLite message sequences, invokes the frozen task model
+near context pressure, charges usage to the same task, publishes semantic
+checkpoints and index entries atomically, and retains deterministic compaction
+as the failure path. `search_threads` and `read_thread` receive caller identity
+only from Host context and enforce the persisted two-level thread tree.
 
 ## Deliberate Differences
 

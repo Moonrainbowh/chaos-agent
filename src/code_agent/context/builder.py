@@ -9,6 +9,7 @@ from typing import Sequence
 
 from code_agent.core.context_request import ContextRequest
 from code_agent.core.models import ContextBundle, Message, ToolDefinition
+from code_agent.core.cancellation import CancellationToken
 from code_agent.core.task_state import TaskState
 from code_agent.thread_intelligence.compaction import SemanticCompactionResult
 
@@ -85,17 +86,35 @@ class WorkspaceContextBuilder:
         self.compactor = compactor
         self.semantic_compactor = semantic_compactor
 
-    async def build(self, request: ContextRequest) -> ContextBundle:
+    async def build(
+        self,
+        thread_id: str,
+        messages: Sequence[Message],
+        user_input: str,
+        tools: Sequence[ToolDefinition],
+        task_state: TaskState,
+        cancellation: CancellationToken,
+    ) -> ContextBundle:
         """Build a stable prompt and compacted messages for one model turn."""
-        if not isinstance(request, ContextRequest):
-            raise TypeError("request must be a ContextRequest")
-        request.cancellation.raise_if_cancelled()
-        plan = await asyncio.to_thread(self._prepare_sync, request)
-        request.cancellation.raise_if_cancelled()
-        semantic = await self._compact_semantic(request, plan)
-        request.cancellation.raise_if_cancelled()
-        bundle = await asyncio.to_thread(self._finish_sync, request, plan, semantic)
-        request.cancellation.raise_if_cancelled()
+        if not isinstance(thread_id, str) or not thread_id.strip():
+            raise ValueError("thread_id must be non-blank text")
+        if not isinstance(cancellation, CancellationToken):
+            raise TypeError("cancellation must be a CancellationToken")
+        cancellation.raise_if_cancelled()
+        checked = tuple(messages)
+        if not all(isinstance(message, Message) for message in checked):
+            raise TypeError("messages must contain only Message values")
+        if not isinstance(user_input, str):
+            raise TypeError("user_input must be text")
+        checked_tools = tuple(tools)
+        if not all(isinstance(tool, ToolDefinition) for tool in checked_tools):
+            raise TypeError("tools must contain only ToolDefinition values")
+        if not isinstance(task_state, TaskState):
+            raise TypeError("task_state must be a TaskState")
+        bundle = await asyncio.to_thread(
+            self._build_sync, checked, user_input, checked_tools, task_state
+        )
+        cancellation.raise_if_cancelled()
         return bundle
 
     def _prepare_sync(self, request: ContextRequest) -> _BuildPlan:

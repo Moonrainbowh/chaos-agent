@@ -1,196 +1,226 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import sys
 import tempfile
 import unittest
-from dataclasses import FrozenInstanceError
+from dataclasses import replace
 from pathlib import Path
-from unittest.mock import patch
 
 
 SRC_ROOT = Path(__file__).resolve().parents[3]
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from code_agent.workspace.edits import (  # noqa: E402
-    SnapshotEntry,
-    WorkspaceEditor,
-    WorkspaceSnapshot,
+from code_agent.workspace.edits import SnapshotEntry, WorkspaceSnapshot  # noqa: E402
+from code_agent.workspace.errors import (  # noqa: E402
+    FileTooLargeError,
+    WorkspaceScanLimitError,
 )
-from code_agent.workspace.errors import FileTooLargeError, WorkspaceError  # noqa: E402
-from code_agent.workspace.paths import WorkspacePathGuard  # noqa: E402
 from code_agent.workspace.snapshot_store import (  # noqa: E402
-    SnapshotHandle,
-    WorkspaceSnapshotStore,
+    ContentAddressedSnapshotStore,
+    SnapshotIntegrityError,
+    SnapshotManifest,
+    SnapshotManifestEntry,
 )
 
 
 class SnapshotStoreTestCase(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
-        self.base = Path(self.temporary.name).resolve()
-        self.root = self.base / "workspace"
-        self.artifacts = self.base / "product-state"
-        self.root.mkdir()
-        self.guard = WorkspacePathGuard(self.root)
-        self.editor = WorkspaceEditor(self.guard)
-        self.store = WorkspaceSnapshotStore(self.guard, self.artifacts)
+        self.root = Path(self.temporary.name).resolve()
 
     def tearDown(self) -> None:
         self.temporary.cleanup()
 
+    def store(self, **limits: object) -> ContentAddressedSnapshotStore:
+        return ContentAddressedSnapshotStore(self.root / "store", **limits)
+
 
 class SnapshotStoreRoundTripTests(SnapshotStoreTestCase):
-    def test_persists_dirty_missing_and_binary_bytes_for_restore(self) -> None:
-        dirty = self.root / "dirty.bin"
-        deleted = self.root / "deleted.txt"
-        future = self.root / "future.txt"
-        dirty.write_bytes(b"\x00dirty\xff")
-        deleted.write_bytes(b"delete me")
-        snapshot = self.editor.snapshot(("dirty.bin", "deleted.txt", "future.txt"))
-
-        handle = self.store.save(snapshot)
-        loaded = self.store.load(handle)
-
-        self.assertEqual(handle.paths, ("dirty.bin", "deleted.txt", "future.txt"))
-        self.assertEqual(handle.total_bytes, len(b"\x00dirty\xffdelete me"))
-        expected_blobs = {
-            hashlib.sha256(b"\x00dirty\xff").hexdigest(),
-            hashlib.sha256(b"delete me").hexdigest(),
-        }
-        self.assertEqual({path.name for path in (self.artifacts / "blobs").iterdir()}, expected_blobs)
-        self.assertTrue((self.artifacts / "manifests" / f"{handle.identifier}.json").is_file())
-
-        dirty.write_bytes(b"changed")
-        deleted.unlink()
-        future.write_bytes(b"created later")
-        self.editor.restore(loaded)
-
-        self.assertEqual(dirty.read_bytes(), b"\x00dirty\xff")
-        self.assertEqual(deleted.read_bytes(), b"delete me")
-        self.assertFalse(future.exists())
-        self.assertEqual(loaded, snapshot)
-
-    def test_repeated_content_reuses_content_addressed_blob(self) -> None:
+    def test_identical_content_is_stored_once_and_materializes(self) -> None:
+        store = self.store()
         snapshot = WorkspaceSnapshot(
             (
-                SnapshotEntry("one.bin", b"same", True),
-                SnapshotEntry("two.bin", b"same", True),
+                SnapshotEntry("two.py", b"same", True),
+                SnapshotEntry("one.py", b"same", True),
             )
         )
 
-        first = self.store.save(snapshot)
-        second = self.store.save(snapshot)
+        manifest = store.put(snapshot, {"one.py": 0o644, "two.py": 0o644})
 
-        self.assertNotEqual(first.identifier, second.identifier)
-        self.assertEqual(len(tuple((self.artifacts / "blobs").iterdir())), 1)
+        self.assertEqual(tuple(e.relative_path for e in manifest.entries), ("one.py", "two.py"))
+        self.assertEqual(manifest.entries[0].blob_sha256, manifest.entries[1].blob_sha256)
+        blobs = tuple(path for path in (self.root / "store" / "blobs").rglob("*") if path.is_file())
+        self.assertEqual(len(blobs), 1)
+        materialized = store.materialize(manifest)
+        self.assertEqual(materialized.snapshot.entries, tuple(sorted(snapshot.entries, key=lambda e: e.relative_path)))
+        self.assertEqual(dict(materialized.modes), {"one.py": 0o644, "two.py": 0o644})
 
-
-class SnapshotHandleTests(unittest.TestCase):
-    def test_handle_is_frozen_and_has_strict_json_round_trip(self) -> None:
-        handle = SnapshotHandle("a" * 32, "b" * 64, ("file.bin",), 4)
-        payload = {
-            "identifier": "a" * 32,
-            "digest": "b" * 64,
-            "paths": ["file.bin"],
-            "total_bytes": 4,
-        }
-
-        self.assertEqual(handle.to_dict(), payload)
-        self.assertEqual(SnapshotHandle.from_dict(payload), handle)
-        with self.assertRaises(FrozenInstanceError):
-            handle.digest = "c" * 64  # type: ignore[misc]
-
-        invalid_payloads = (
-            {**payload, "extra": True},
-            {**payload, "paths": ("file.bin",)},
-            {**payload, "total_bytes": True},
-            {**payload, "identifier": "../manifest"},
-            {**payload, "digest": "not-a-digest"},
+    def test_tombstone_has_no_blob_size_or_mode(self) -> None:
+        snapshot = WorkspaceSnapshot(
+            (
+                SnapshotEntry("gone.py", None, False),
+                SnapshotEntry("kept.py", b"ok", True),
+            )
         )
-        for invalid in invalid_payloads:
-            with self.subTest(invalid=invalid):
-                with self.assertRaises((TypeError, ValueError)):
-                    SnapshotHandle.from_dict(invalid)
 
+        manifest = self.store().put(snapshot, {"kept.py": 0o755})
 
-class SnapshotStoreBoundaryTests(SnapshotStoreTestCase):
-    def test_rejects_duplicate_and_noncanonical_snapshot_paths(self) -> None:
-        snapshots = (
-            WorkspaceSnapshot(
-                (
-                    SnapshotEntry("same.bin", b"one", True),
-                    SnapshotEntry("same.bin", b"two", True),
-                )
-            ),
-            WorkspaceSnapshot((SnapshotEntry("dir/../same.bin", b"one", True),)),
+        tombstone = manifest.entries[0]
+        self.assertEqual((tombstone.relative_path, tombstone.existed), ("gone.py", False))
+        self.assertEqual((tombstone.blob_sha256, tombstone.size, tombstone.mode), (None, 0, None))
+
+    def test_manifest_digest_is_deterministic_across_input_order(self) -> None:
+        first = WorkspaceSnapshot(
+            (SnapshotEntry("b.py", b"b", True), SnapshotEntry("a.py", None, False))
         )
-        for snapshot in snapshots:
-            with self.subTest(paths=[entry.relative_path for entry in snapshot.entries]):
-                with self.assertRaises((ValueError, WorkspaceError)):
-                    self.store.save(snapshot)
+        second = WorkspaceSnapshot(tuple(reversed(first.entries)))
 
-    def test_total_byte_limit_is_exact(self) -> None:
-        snapshot = WorkspaceSnapshot((SnapshotEntry("three.bin", b"123", True),))
+        first_manifest = self.store().put(first, {"b.py": 0o600})
+        second_manifest = self.store().put(second, {"b.py": 0o600})
 
-        handle = WorkspaceSnapshotStore(
-            self.guard, self.base / "exact", max_total_bytes=3
-        ).save(snapshot)
+        self.assertEqual(first_manifest, second_manifest)
 
-        self.assertEqual(handle.total_bytes, 3)
-        with self.assertRaises(FileTooLargeError):
-            WorkspaceSnapshotStore(
-                self.guard, self.base / "too-small", max_total_bytes=2
-            ).save(snapshot)
-
-    def test_artifact_root_must_be_absolute_and_outside_workspace(self) -> None:
-        for root in (Path("relative-state"), self.root / "state", self.root / ".git" / "state"):
-            with self.subTest(root=root):
-                with self.assertRaises(ValueError):
-                    WorkspaceSnapshotStore(self.guard, root)
-
-    def test_authorized_local_config_state_root_round_trips(self) -> None:
-        local_app_data = self.base / "local-app-data"
-        product_state = local_app_data / "chaos-agent" / "snapshots"
-        with patch.dict(os.environ, {"LOCALAPPDATA": str(local_app_data)}, clear=False):
-            guard = WorkspacePathGuard(self.root)
-            editor = WorkspaceEditor(guard)
-            store = WorkspaceSnapshotStore(guard, product_state)
-            (self.root / "authorized.bin").write_bytes(b"authorized")
-            snapshot = editor.snapshot(("authorized.bin",))
-
-            handle = store.save(snapshot)
-
-            self.assertEqual(store.load(handle), snapshot)
-
-    def test_external_git_artifact_roots_are_always_rejected(self) -> None:
-        roots = (
-            self.base / "outside" / ".git",
-            self.base / "outside" / ".GiT" / "snapshots",
+    def test_inventory_digest_matches_workspace_inventory_shape(self) -> None:
+        content = b"kept"
+        digest = hashlib.sha256(content).hexdigest()
+        snapshot = WorkspaceSnapshot(
+            (SnapshotEntry("gone.py", None, False), SnapshotEntry("kept.py", content, True))
         )
-        for root in roots:
-            with self.subTest(root=root):
-                with self.assertRaises((ValueError, WorkspaceError)):
-                    WorkspaceSnapshotStore(self.guard, root)
+        encoded = json.dumps(
+            [["kept.py", len(content), digest, 0o640]],
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ).encode("utf-8")
 
-    def test_artifact_root_rejects_link_like_parent_components(self) -> None:
-        parent = self.base / "linked-parent"
-        parent.mkdir()
-        with patch(
-            "code_agent.workspace._snapshot_artifacts._is_link_like",
-            side_effect=lambda path: path == parent,
+        manifest = self.store().put(snapshot, {"kept.py": 0o640})
+
+        self.assertEqual(manifest.inventory_digest, hashlib.sha256(encoded).hexdigest())
+
+    def test_duplicate_canonical_paths_are_rejected_before_publish(self) -> None:
+        store = self.store()
+        snapshot = WorkspaceSnapshot(
+            (SnapshotEntry("same.py", b"a", True), SnapshotEntry("same.py", b"b", True))
+        )
+
+        with self.assertRaisesRegex(ValueError, "duplicate snapshot path"):
+            store.put(snapshot, {"same.py": 0o644})
+
+        self.assertFalse((self.root / "store" / "blobs").exists())
+
+    def test_noncanonical_paths_are_rejected(self) -> None:
+        for path in (
+            "../escape.py",
+            "/absolute.py",
+            "C:/absolute.py",
+            "C:drive-relative.py",
+            "folder\\file.py",
+            "./file.py",
+            "",
         ):
-            with self.assertRaises(WorkspaceError):
-                WorkspaceSnapshotStore(self.guard, parent / "snapshots")
-
-    def test_absolute_sensitive_and_traversal_paths_fail_closed(self) -> None:
-        for path in (str(self.root / "absolute.bin"), ".env", "../outside.bin"):
             with self.subTest(path=path):
-                snapshot = WorkspaceSnapshot((SnapshotEntry(path, b"secret", True),))
-                with self.assertRaises(WorkspaceError):
-                    self.store.save(snapshot)
+                snapshot = WorkspaceSnapshot((SnapshotEntry(path, b"bad", True),))
+                with self.assertRaises((TypeError, ValueError)):
+                    self.store().put(snapshot, {path: 0o644})
+
+    def test_modes_must_exactly_match_existing_entries(self) -> None:
+        snapshot = WorkspaceSnapshot(
+            (SnapshotEntry("live.py", b"ok", True), SnapshotEntry("gone.py", None, False))
+        )
+
+        for modes in ({}, {"live.py": 0o644, "gone.py": 0o644}, {"other.py": 0o644}):
+            with self.subTest(modes=modes):
+                with self.assertRaisesRegex(ValueError, "modes"):
+                    self.store().put(snapshot, modes)
+
+
+class SnapshotStoreLimitTests(SnapshotStoreTestCase):
+    def test_file_count_limit_fails_before_publish(self) -> None:
+        store = self.store(max_files=1)
+        snapshot = WorkspaceSnapshot(
+            (SnapshotEntry("a", b"a", True), SnapshotEntry("b", b"b", True))
+        )
+
+        with self.assertRaises(WorkspaceScanLimitError):
+            store.put(snapshot, {"a": 0o600, "b": 0o600})
+        self.assertFalse((self.root / "store" / "blobs").exists())
+
+    def test_per_file_limit_fails_before_publish(self) -> None:
+        store = self.store(max_file_bytes=2)
+
+        with self.assertRaises(FileTooLargeError):
+            store.put(WorkspaceSnapshot((SnapshotEntry("a", b"abc", True),)), {"a": 0o600})
+        self.assertFalse((self.root / "store" / "blobs").exists())
+
+    def test_total_byte_limit_fails_before_publish(self) -> None:
+        store = self.store(max_total_bytes=3)
+        snapshot = WorkspaceSnapshot(
+            (SnapshotEntry("a", b"aa", True), SnapshotEntry("b", b"bb", True))
+        )
+
+        with self.assertRaises(FileTooLargeError):
+            store.put(snapshot, {"a": 0o600, "b": 0o600})
+        self.assertFalse((self.root / "store" / "blobs").exists())
+
+
+class SnapshotMaterializeValidationTests(SnapshotStoreTestCase):
+    def test_corrupt_blob_has_a_clear_integrity_error(self) -> None:
+        store = self.store()
+        manifest = store.put(
+            WorkspaceSnapshot((SnapshotEntry("a.py", b"ok", True),)),
+            {"a.py": 0o644},
+        )
+        store.blob_path(manifest.entries[0].blob_sha256).write_bytes(b"bad")
+
+        with self.assertRaisesRegex(SnapshotIntegrityError, "a.py.*(size|digest)"):
+            store.materialize(manifest)
+
+    def test_manifest_digest_is_verified_before_blob_reads(self) -> None:
+        store = self.store()
+        manifest = store.put(
+            WorkspaceSnapshot((SnapshotEntry("a.py", b"ok", True),)),
+            {"a.py": 0o644},
+        )
+        corrupt = replace(manifest, inventory_digest="0" * 64)
+        store.blob_path(manifest.entries[0].blob_sha256).unlink()
+
+        with self.assertRaisesRegex(SnapshotIntegrityError, "manifest digest"):
+            store.materialize(corrupt)
+
+    def test_manifest_total_and_entry_shapes_are_verified(self) -> None:
+        digest = "0" * 64
+        bad_entries = (
+            SnapshotManifestEntry("gone.py", False, digest, 0, None),
+            SnapshotManifestEntry("live.py", True, None, 0, 0o644),
+        )
+        for entry in bad_entries:
+            with self.subTest(entry=entry):
+                manifest = SnapshotManifest((entry,), digest, 0)
+                with self.assertRaises(SnapshotIntegrityError):
+                    self.store().materialize(manifest)
+
+    def test_manifest_limits_are_rechecked_before_blob_reads(self) -> None:
+        writer = self.store()
+        manifest = writer.put(
+            WorkspaceSnapshot((SnapshotEntry("a.py", b"abc", True),)),
+            {"a.py": 0o600},
+        )
+
+        with self.assertRaises(FileTooLargeError):
+            self.store(max_total_bytes=2).materialize(manifest)
+
+    @unittest.skipUnless(os.name == "nt", "Windows mode mapping is platform-neutral")
+    def test_windows_materialize_preserves_posix_mode_bits(self) -> None:
+        store = self.store()
+        manifest = store.put(
+            WorkspaceSnapshot((SnapshotEntry("tool.py", b"x", True),)),
+            {"tool.py": 0o751},
+        )
+
+        self.assertEqual(dict(store.materialize(manifest).modes), {"tool.py": 0o751})
 
 
 if __name__ == "__main__":

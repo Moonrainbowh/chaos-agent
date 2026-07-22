@@ -6,6 +6,7 @@ from typing import FrozenSet, Iterable
 
 
 class ApprovalMode(str, Enum):
+    UNRESTRICTED = "unrestricted"
     PLAN = "plan"
     ASK = "ask"
     AUTO = "auto"

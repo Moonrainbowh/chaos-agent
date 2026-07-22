@@ -49,8 +49,15 @@ def status_presentation(
     return ("就绪" if language is Language.ZH_CN else "ready"), "·" if symbols else ".", None
 
 
-def status_context(model: str | None, started_at: float | None, now: float) -> str:
+def status_context(
+    model: str | None,
+    started_at: float | None,
+    now: float,
+    token_rate: float | None = None,
+) -> str:
     parts = [model] if model else []
+    if token_rate is not None:
+        parts.append(f"{token_rate:.1f} token/s")
     if started_at is not None:
         elapsed = int(now - started_at)
         parts.append(f"{elapsed // 60:02d}:{elapsed % 60:02d}")

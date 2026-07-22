@@ -6,17 +6,17 @@
 - 负责：记录决策依据，并保证只读、写入、命令和外部访问使用一致的策略入口。
 - 不负责：执行文件或进程操作、保存会话、调用模型或实现交互界面。
 - 不负责：把本机执行描述为操作系统级沙箱；强隔离由 Runtime adapter 提供。
-- 任务授权不得自动允许模型提供的任意 PowerShell 文本；只有参数受限、由本地 adapter 生成 argv 的 typed verification 可在匹配的本地授权下自动执行。
-- 明确受保护路径、网络、工作区外路径、critical 动作和未知工具始终保持拒绝或逐次审批，不能由任务授权降级。
+- 除显式 `unrestricted` 访问级别外，任务授权不得自动允许模型提供的任意 PowerShell 文本；只有参数受限、由本地 adapter 生成 argv 的 typed verification 可在匹配的本地授权下自动执行。
+- `unrestricted` 可自动允许已识别的非 critical 受保护路径、网络和工作区外动作；critical 动作与未知工具始终拒绝，其他访问级别保持拒绝或逐次审批，且不能由任务授权降级。
 - MCP 工具必须按本地配置显式映射为 read、write、network 或 critical；server 自报只读属性不能替代映射，未知映射保持拒绝。
 - Agent 模式、Subagent、Oracle 和插件不得直接授予权限；它们只能在现有用户授权与任务授权内增加约束，所有外部动作仍使用同一策略入口。
 - 插件风险声明只能提高或补充本地风险分类，不能降低风险、替用户批准动作或绕过 protected、unknown、critical 与 network 边界。
 
 ## Units
-- `ApprovalMode`、`Capability`、`DecisionOutcome`、`RiskLevel`、`PolicyDecision`: 表达稳定的审批、能力、结果与风险词汇以及不可变决定 | 无副作用 | `plan`、`ask`、`auto`、`elevated`、`full-local` 是本地访问级别；外部路径能力必须由策略明确决策
+- `ApprovalMode`、`Capability`、`DecisionOutcome`、`RiskLevel`、`PolicyDecision`: 表达稳定的审批、能力、结果与风险词汇以及不可变决定 | 无副作用 | `unrestricted` 是默认访问级别，自动允许已识别的非 critical 动作；`plan`、`ask`、`auto`、`elevated`、`full-local` 保留为显式收紧选项
 - `RAW_SHELL`、`VERIFICATION`、`PROTECTED_PATH`: 区分模型原始 shell、受信验证和受保护路径 | 无副作用 | task grant 只可自动允许 `VERIFICATION`
 - `classify_action(request, workspace_root): ActionClassification`: 从工具名、递归路径参数和命令信号生成能力与风险提示 | 解析路径但不写入 | 路径执行 workspace containment；命令检查是保守启发式，不是 shell parser
-- `PolicyConfig`、`ActionPolicy.evaluate(request): PolicyDecision`: 以不可变模式、网络开关和 workspace root 执行访问级别决策表 | 无副作用 | `ask` 只可确认外部读取，`elevated` 外部动作逐次确认，`full-local` 允许非 critical typed 外部动作；所有 execute 仍必须询问
+- `PolicyConfig`、`ActionPolicy.evaluate(request): PolicyDecision`: 以不可变模式、网络开关和 workspace root 执行访问级别决策表 | 无副作用 | 默认 `unrestricted` 不产生审批并允许已识别的非 critical 动作；critical 与未知工具仍拒绝，其余模式保持原有收紧语义
 - `ActionPolicy.evaluate(request, task_authorization)`: 在有效任务授权下允许普通工作区写入和本地非网络命令 | 无副作用 | unknown、critical、network、outside-workspace 仍按硬边界处理
 - `sanitize_environment(host_env, allowed_names, explicit_env): dict`: 生成 Windows 子进程最小环境白名单 | 无副作用 | 名称不区分大小写，显式值仅限批准名称
 - `redact_sensitive(value): value`: 递归复制并遮盖敏感键对应的值 | 无副作用 | 不修改输入

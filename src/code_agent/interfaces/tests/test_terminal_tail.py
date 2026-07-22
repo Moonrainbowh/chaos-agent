@@ -3,12 +3,42 @@ from __future__ import annotations
 import unittest
 
 from code_agent.interfaces.terminal_renderer import ColorMode, render_live_tail
+from code_agent.interfaces.terminal_tail import _wrap_plain, render_live_tail_frame
 from code_agent.interfaces.i18n import Language
 from code_agent.interfaces.terminal_renderer import Theme
 from code_agent.interfaces.terminal_status import status_presentation
 
 
 class TerminalTailPaletteTests(unittest.TestCase):
+    def test_live_tail_places_streaming_answer_above_composer(self) -> None:
+        frame = render_live_tail_frame(
+            "next", "running", 40,
+            assistant_draft="first\nsecond",
+            terminal_height=12,
+            color=ColorMode.NEVER,
+        )
+
+        self.assertLess(frame.text.index("◆ 正在回答"), frame.text.index("╭"))
+        self.assertIn("first", frame.text)
+        self.assertIn("second", frame.text)
+        self.assertGreater(frame.geometry.height, 4)
+
+    def test_streaming_answer_is_bounded_and_sanitized(self) -> None:
+        draft = "\n".join(f"line {index}" for index in range(30)) + "\x1b[2J"
+        frame = render_live_tail_frame(
+            "", "running", 32,
+            assistant_draft=draft,
+            terminal_height=10,
+            color=ColorMode.NEVER,
+        )
+
+        self.assertIn("…", frame.text)
+        self.assertNotIn("\x1b[2J", frame.text)
+        self.assertLessEqual(frame.geometry.height, 10)
+
+    def test_streaming_answer_wraps_double_width_text_in_narrow_terminal(self) -> None:
+        self.assertEqual(_wrap_plain("中", 1), ["?"])
+
     def test_picker_highlight_follows_the_selected_marker(self) -> None:
         rendered = render_live_tail(
             "",

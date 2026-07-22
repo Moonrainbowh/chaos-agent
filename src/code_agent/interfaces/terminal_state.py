@@ -9,6 +9,8 @@ from code_agent.sessions.models import GoalStatus
 from code_agent.interfaces.terminal_display import DisplayKind, DisplayEntry, text_entry
 from code_agent.interfaces.action_summary import action_summary
 from code_agent.interfaces.approval import ApprovalBroker, ApprovalRequest
+from code_agent.interfaces.token_rate import TokenRateTracker
+from code_agent.interfaces.streaming_state import DraftBuffer
 
 
 class TerminalState:
@@ -20,7 +22,7 @@ class TerminalState:
         self.summary: list[str] = []
         self.transcript: list[str] = []
         self.entries: list[DisplayEntry] = []
-        self._answer_parts: list[str] = []
+        self._draft = DraftBuffer()
         self._actions: list[str] = []
         self._failed_actions: list[str] = []
         self._action_requests: dict[str, Mapping[str, object]] = {}
@@ -32,13 +34,26 @@ class TerminalState:
         self.task_status: Optional[str] = None
         self.task_budget_line: Optional[str] = None
         self.pending_decision: Optional[str] = None
+        self.token_rate = TokenRateTracker()
+
+    @property
+    def draft_answer(self) -> str:
+        return self._draft.safe_text
+
+    @property
+    def has_draft(self) -> bool:
+        return self._draft.has_text
+
+    @property
+    def draft_revision(self) -> int:
+        return self._draft.revision
 
     def restore(self, history: RestoredThread) -> None:
         """Project persisted thread records into a terminal-safe view model."""
         self.thread_id = history.thread_id
         self.transcript = _transcript_lines(history.messages)
         self.entries = [text_entry(DisplayKind.USER if line.startswith("user:") else DisplayKind.AGENT, line.split(": ", 1)[-1]) for line in self.transcript]
-        self._answer_parts = []
+        self._draft.clear()
         self._actions = []
         self._failed_actions = []
         self._action_requests = {}
@@ -55,15 +70,18 @@ class TerminalState:
     def begin_run(self) -> None:
         """Reset transient progress so a new prompt cannot inherit the prior result."""
         self.status = "running"
-        self._answer_parts = []
+        self._draft.clear()
         self._actions = []
         self._failed_actions = []
         self._action_requests = {}
         self.active_action = None
         self.execution_summary = ""
+        self.token_rate.reset()
 
     def apply(self, event: AgentEvent) -> None:
         self.timeline.append(_timeline_line(event))
+        if event.kind in {EventKind.CANCELLED, EventKind.ERROR}:
+            self._freeze_partial_answer()
         if event.kind is EventKind.RUN_STARTED:
             thread_id = event.payload.get("thread_id")
             if isinstance(thread_id, str):
@@ -72,8 +90,10 @@ class TerminalState:
         elif event.kind in {
             EventKind.TURN_STARTED,
             EventKind.CONTEXT_BUILT,
-            EventKind.MODEL_STARTED,
         }:
+            self._update_status(event)
+        elif event.kind is EventKind.MODEL_STARTED:
+            self._draft.clear(); self.token_rate.reset()
             self._update_status(event)
         elif event.kind in {EventKind.TASK_CREATED, EventKind.TASK_STATUS_CHANGED, EventKind.TASK_PAUSED}:
             task_id = event.payload.get("task_id")
@@ -92,13 +112,7 @@ class TerminalState:
         elif event.kind is EventKind.MESSAGE_ADDED:
             self._apply_completed_message(event)
         elif event.kind is EventKind.ACTION_REQUESTED:
-            self._capture_diff(event)
-            self._answer_parts = []
-            self.status = "running"
-            self.active_action = _action_name(event)
-            request = event.payload.get("request")
-            if isinstance(request, Mapping) and isinstance(request.get("id"), str):
-                self._action_requests[request["id"]] = request
+            self._apply_action_request(event)
         elif event.kind is EventKind.ACTION_COMPLETED:
             line = _timeline_line(event)
             name = _action_name(event)
@@ -114,6 +128,15 @@ class TerminalState:
             self._update_status(event)
         if event.kind is EventKind.COMPLETED:
             self._finish_display()
+
+    def _apply_action_request(self, event: AgentEvent) -> None:
+        self._capture_diff(event)
+        self._draft.clear()
+        self.status = "running"
+        self.active_action = _action_name(event)
+        request = event.payload.get("request")
+        if isinstance(request, Mapping) and isinstance(request.get("id"), str):
+            self._action_requests[request["id"]] = request
 
     def _update_status(self, event: AgentEvent) -> None:
         if event.kind is EventKind.CANCELLED:
@@ -141,7 +164,10 @@ class TerminalState:
             return
         if model_event.kind is ModelEventKind.TEXT_DELTA and model_event.text:
             self.status = "running"
-            self._answer_parts.append(model_event.text)
+            self._draft.append(model_event.text)
+            self.token_rate.observe_text(model_event.text)
+        elif model_event.kind is ModelEventKind.USAGE and model_event.usage is not None:
+            self.token_rate.calibrate(model_event.usage.output_tokens)
 
     def _apply_completed_message(self, event: AgentEvent) -> None:
         raw = event.payload.get("message")
@@ -155,13 +181,18 @@ class TerminalState:
             self._finish_display(message.content)
 
     def _finish_display(self, completed_text: str | None = None) -> None:
-        answer = _compact_response(completed_text if completed_text is not None else "".join(self._answer_parts))
-        self._answer_parts = []
+        answer = _compact_response(completed_text if completed_text is not None else self._draft.raw_text)
+        self._draft.clear()
         if answer:
             self.transcript.append("assistant: " + answer)
             self.entries.append(text_entry(DisplayKind.AGENT, answer))
         if self._actions:
             self.execution_summary = _action_summary(self._actions, self._failed_actions)
+
+    def _freeze_partial_answer(self) -> None:
+        answer = _compact_response(self._draft.take_partial())
+        if answer:
+            self.entries.append(text_entry(DisplayKind.PARTIAL_AGENT, answer))
 
     def _capture_diff(self, event: AgentEvent) -> None:
         request = event.payload.get("request")

@@ -10,6 +10,7 @@ from code_agent.core._json import (
     freeze_mapping,
     validate_json_mapping,
 )
+from code_agent.core.models import Message
 
 
 class ThreadStatus(str, Enum):
@@ -97,6 +98,61 @@ class ThreadSummary:
             _optional_text(
                 self.last_message_preview, "last_message_preview", blank=True
             ),
+        )
+
+
+@dataclass(frozen=True)
+class ThreadRelation:
+    thread_id: str
+    parent_thread_id: Optional[str]
+    child_thread_ids: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "thread_id", _required_text(self.thread_id, "thread_id"))
+        object.__setattr__(
+            self,
+            "parent_thread_id",
+            _optional_text(self.parent_thread_id, "parent_thread_id"),
+        )
+        children = tuple(
+            _required_text(child, "child_thread_id") for child in self.child_thread_ids
+        )
+        if len(set(children)) != len(children):
+            raise ValueError("child_thread_ids must be unique")
+        object.__setattr__(self, "child_thread_ids", children)
+
+
+@dataclass(frozen=True)
+class MessageRecord:
+    sequence: int
+    thread_id: str
+    message: Message
+    created_at: datetime
+
+    def __post_init__(self) -> None:
+        if isinstance(self.sequence, bool) or not isinstance(self.sequence, int):
+            raise TypeError("sequence must be an integer")
+        if self.sequence <= 0:
+            raise ValueError("sequence must be positive")
+        object.__setattr__(self, "thread_id", _required_text(self.thread_id, "thread_id"))
+        if not isinstance(self.message, Message):
+            raise TypeError("message must be a Message")
+        object.__setattr__(self, "created_at", _utc(self.created_at, "created_at"))
+
+
+@dataclass(frozen=True)
+class SkillActivationRecord:
+    thread_id: str
+    skill_id: str
+    source: str
+    digest: str
+    activated_at: datetime
+
+    def __post_init__(self) -> None:
+        for name in ("thread_id", "skill_id", "source", "digest"):
+            object.__setattr__(self, name, _required_text(getattr(self, name), name))
+        object.__setattr__(
+            self, "activated_at", _utc(self.activated_at, "activated_at")
         )
 
 

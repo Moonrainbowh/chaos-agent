@@ -25,6 +25,7 @@ from code_agent.context.tokens import estimate_tokens  # noqa: E402
 from code_agent.core.cancellation import CancellationError, CancellationToken  # noqa: E402
 from code_agent.core.context_request import ContextRequest  # noqa: E402
 from code_agent.core.models import Message, ToolDefinition  # noqa: E402
+from code_agent.core.cancellation import CancellationToken  # noqa: E402
 from code_agent.core.task_state import TaskState  # noqa: E402
 from code_agent.workspace.files import WorkspaceFiles  # noqa: E402
 from code_agent.workspace.ignore import IgnoreRules  # noqa: E402
@@ -81,7 +82,7 @@ class WorkspaceContextBuilderTests(unittest.IsolatedAsyncioTestCase):
         history = (Message(role="assistant", content="Earlier answer."),)
 
         bundle = await self.builder.build(
-            _context_request(messages=history, user_input="inspect tool")
+            "thread-1", history, "inspect tool", (), TaskState.empty(), CancellationToken()
         )
 
         self.assertEqual(bundle.messages, history + (Message(role="user", content="inspect tool"),))
@@ -99,7 +100,7 @@ class WorkspaceContextBuilderTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(bundle.measurements["cache_hits"], 0)
         self.assertEqual(bundle.measurements["removed_message_count"], 0)
         again = await self.builder.build(
-            _context_request(messages=history, user_input="inspect tool")
+            "thread-1", history, "inspect tool", (), TaskState.empty(), CancellationToken()
         )
         self.assertEqual(bundle, again)
         self.assertEqual(
@@ -166,7 +167,9 @@ class WorkspaceContextBuilderTests(unittest.IsolatedAsyncioTestCase):
             Message(role="user", content="latest request"),
         )
 
-        bundle = await self.builder.build(_context_request(messages=history))
+        bundle = await self.builder.build(
+            "thread-1", history, "", (), TaskState.empty(), CancellationToken()
+        )
 
         self.assertNotIn(Message(role="user", content=""), bundle.messages)
         self.assertEqual(bundle.messages[-1].content, "latest request")
@@ -198,7 +201,8 @@ class WorkspaceContextBuilderTests(unittest.IsolatedAsyncioTestCase):
             side_effect=AssertionError("repo map must stay disabled"),
         ):
             bundle = await builder.build(
-                _context_request(user_input="explain this directory")
+                "thread-1", (), "explain this directory", (), TaskState.empty(),
+                CancellationToken(),
             )
 
         self.assertNotIn("src/tool.py", bundle.system_prompt)
@@ -212,7 +216,7 @@ class WorkspaceContextBuilderTests(unittest.IsolatedAsyncioTestCase):
             side_effect=AssertionError("greetings must not scan the repository"),
         ):
             bundle = await self.builder.build(
-                _context_request(user_input="你好！")
+                "thread-1", (), "你好！", (), TaskState.empty(), CancellationToken()
             )
 
         self.assertNotIn("src/tool.py", bundle.system_prompt)
@@ -231,7 +235,7 @@ class WorkspaceContextBuilderTests(unittest.IsolatedAsyncioTestCase):
             wraps=self.builder.repo_map.render_with_metrics,
         ) as render:
             await self.builder.build(
-                _context_request(user_input="repair", task_state=task_state)
+                "thread-1", (), "repair", (), task_state, CancellationToken()
             )
 
         self.assertEqual(render.call_count, 1)
@@ -242,7 +246,10 @@ class WorkspaceContextBuilderTests(unittest.IsolatedAsyncioTestCase):
 
     def test_context_request_rejects_invalid_message_sequences(self) -> None:
         with self.assertRaises(TypeError):
-            _context_request(messages=("not a message",))
+            await self.builder.build(
+                "thread-1", ("not a message",), "request", (), TaskState.empty(),
+                CancellationToken(),
+            )  # type: ignore[arg-type]
 
     async def test_build_reserves_tools_before_dynamically_capping_messages(self) -> None:
         config = ContextConfig(
@@ -263,9 +270,11 @@ class WorkspaceContextBuilderTests(unittest.IsolatedAsyncioTestCase):
         tool = ToolDefinition("inspect", "x" * 3_600, {"type": "object"})
         history = (Message(role="user", content="y" * 12_000),)
 
-        without_tools = await builder.build(_context_request(messages=history))
+        without_tools = await builder.build(
+            "thread-1", history, "", (), TaskState.empty(), CancellationToken()
+        )
         with_tools = await builder.build(
-            _context_request(messages=history, tools=(tool,))
+            "thread-1", history, "", (tool,), TaskState.empty(), CancellationToken()
         )
 
         self.assertLess(
@@ -275,11 +284,10 @@ class WorkspaceContextBuilderTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_build_keeps_real_prompt_within_budget_before_safety(self) -> None:
         tools = (ToolDefinition("inspect", "Read workspace information.", {"type": "object"}),)
-        bundle = await self.builder.build(_context_request(
-            messages=(Message(role="user", content="history " * 4_000),),
-            user_input="inspect tool",
-            tools=tools,
-        ))
+        bundle = await self.builder.build(
+            "thread-1", (Message(role="user", content="history " * 4_000),),
+            "inspect tool", tools, TaskState.empty(), CancellationToken(),
+        )
         rendered_messages = sum(estimate_tokens(message.content) + 1 for message in bundle.messages)
         rendered_tools = sum(estimate_tokens(str(tool.to_dict())) for tool in tools)
         self.assertLessEqual(
@@ -291,7 +299,9 @@ class WorkspaceContextBuilderTests(unittest.IsolatedAsyncioTestCase):
         (self.root / "AGENTS.md").write_text("x" * 12_100, encoding="utf-8")
 
         with self.assertRaisesRegex(RuleLimitError, "3,000"):
-            await self.builder.build(_context_request(user_input="request"))
+            await self.builder.build(
+                "thread-1", (), "request", (), TaskState.empty(), CancellationToken()
+            )
 
     async def test_concurrent_builds_attribute_cache_counts_to_their_own_render(self) -> None:
         class SlowRepoMapBuilder(RepoMapBuilder):
@@ -313,8 +323,12 @@ class WorkspaceContextBuilderTests(unittest.IsolatedAsyncioTestCase):
         )
 
         first, second = await asyncio.gather(
-            builder.build(_context_request(user_input="same")),
-            builder.build(_context_request(user_input="same")),
+            builder.build(
+                "thread-1", (), "same", (), TaskState.empty(), CancellationToken()
+            ),
+            builder.build(
+                "thread-1", (), "same", (), TaskState.empty(), CancellationToken()
+            ),
         )
 
         counts = sorted(

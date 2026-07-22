@@ -45,7 +45,9 @@ from code_agent.plugins.registry import (  # noqa: E402
     PluginHost,
     RegisteredContribution,
 )
-from code_agent_win.plugin_runtime import PluginToolBridge  # noqa: E402
+from code_agent_win.plugin_runtime import (  # noqa: E402
+    PluginToolBridge,
+)
 
 
 def command_result(returncode: int = 0) -> CommandResult:

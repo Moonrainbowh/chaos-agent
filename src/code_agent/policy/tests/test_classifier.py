@@ -29,7 +29,7 @@ class PolicyModelTests(unittest.TestCase):
     def test_enums_have_stable_wire_values(self) -> None:
         self.assertEqual(
             [item.value for item in ApprovalMode],
-            ["plan", "ask", "auto", "elevated", "full-local"],
+            ["unrestricted", "plan", "ask", "auto", "elevated", "full-local"],
         )
         self.assertEqual(
             [item.value for item in Capability],

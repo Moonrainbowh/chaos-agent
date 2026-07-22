@@ -70,7 +70,10 @@ class PickerStateTests(unittest.TestCase):
         self.assertTrue(any("command-11" in row for row in picker.rows(80)))
 
     def test_exact_command_completions_keep_the_selected_command_name(self) -> None:
-        services = {"sessions", "history", "tasks", "evidence", "modes", "rewind"}
+        services = {
+            "sessions", "history", "tasks", "evidence", "modes", "permissions", "workflows",
+            "skills", "mcp", "checkpoints",
+        }
         items = command_picker_items(REGISTRY.all(), services)
 
         for spec in REGISTRY.all():

@@ -16,5 +16,6 @@ coverage.xml
 
 # Local planning and brainstorming artifacts
 /.superpowers/
+/.worktrees/
 /local_api_config_implementation_prompt.md
 /plan.md

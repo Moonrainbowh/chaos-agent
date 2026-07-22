@@ -11,6 +11,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from code_agent.core.engine import AgentEngine  # noqa: E402
+from code_agent.core.cancellation import CancellationToken  # noqa: E402
 from code_agent.core.errors import ContextBuildError, SessionPersistenceError  # noqa: E402
 from code_agent.core.events import EventKind  # noqa: E402
 from code_agent.core.models import (  # noqa: E402
@@ -38,70 +39,48 @@ def model_event(kind: ModelEventKind, **values: object) -> ModelEvent:
 
 
 class AgentEngineRunTests(unittest.IsolatedAsyncioTestCase):
-    async def test_context_request_carries_identity_snapshots_and_budget(self) -> None:
-        context = FakeContextBuilder()
-        sessions = MemorySessionRepository()
-        thread_id = await sessions.create_thread()
-        sessions.messages[thread_id].append(Message("user", "old"))
-        sessions.task_states[thread_id] = TaskState(objective="inspect")
-        token = CancellationToken()
-        modes = {"selection": ["normal"]}
-        permissions = {"paths": ["src"]}
+    async def test_context_receives_active_thread_and_cancellation(self) -> None:
+        class RecordingIdentityContext:
+            def __init__(self) -> None:
+                self.call: tuple[object, ...] | None = None
+
+            async def build(
+                self,
+                thread_id: str,
+                messages: object,
+                user_input: str,
+                tools: object,
+                task_state: TaskState,
+                cancellation: CancellationToken,
+            ) -> object:
+                self.call = (
+                    thread_id,
+                    messages,
+                    user_input,
+                    tools,
+                    task_state,
+                    cancellation,
+                )
+                return __import__(
+                    "code_agent.core.models", fromlist=["ContextBundle"]
+                ).ContextBundle(system_prompt="system", messages=messages)
+
+        context = RecordingIdentityContext()
+        cancellation = CancellationToken()
         engine = AgentEngine(
             FakeModelClient(((model_event(ModelEventKind.COMPLETED),),)),
-            context,
+            context,  # type: ignore[arg-type]
             FakeActionDispatcher(),
-            sessions,
-            context_mode_snapshot=modes,
-            context_permission_snapshot=permissions,
-        )
-        modes["selection"].append("changed")
-        permissions["paths"] = ["elsewhere"]
-
-        _ = [event async for event in engine.run(
-            "new", thread_id=thread_id, cancellation=token
-        )]
-        request = context.requests[0]
-        self.assertEqual((request.thread_id, request.revision), (thread_id, 1))
-        self.assertEqual(request.messages, (Message("user", "old"),))
-        self.assertEqual(request.user_input, "new")
-        self.assertEqual(request.tools, FakeActionDispatcher().tools())
-        self.assertIs(request.task_state, sessions.task_states[thread_id])
-        self.assertIs(request.cancellation, token)
-        self.assertEqual(request.mode_snapshot["selection"], ("normal",))
-        self.assertEqual(request.permission_snapshot["paths"], ("src",))
-        self.assertEqual(request.budget_lease["model_turns"], 1)
-        self.assertTrue(all(type(value) is int for value in request.budget_lease.values()))
-        with self.assertRaises(TypeError):
-            request.mode_snapshot["extra"] = True  # type: ignore[index]
-
-    async def test_context_request_revision_advances_for_second_model_turn(self) -> None:
-        call = ToolCall("call-1", "read_file", {"path": "a.txt"})
-        model = FakeModelClient((
-            (model_event(ModelEventKind.TOOL_CALL, tool_call=call), model_event(ModelEventKind.COMPLETED)),
-            (model_event(ModelEventKind.COMPLETED),),
-        ))
-        context = FakeContextBuilder()
-        engine = AgentEngine(
-            model,
-            context,
-            FakeActionDispatcher((ActionResult("call-1", "read_file", None),)),
             MemorySessionRepository(),
         )
-        _ = [event async for event in engine.run("inspect")]
-        self.assertEqual([request.revision for request in context.requests], [1, 2])
-        self.assertEqual(context.requests[1].user_input, "")
 
-    async def test_context_request_revision_persists_across_runs(self) -> None:
-        context, sessions = FakeContextBuilder(), MemorySessionRepository()
-        thread_id = await sessions.create_thread()
-        completed = (model_event(ModelEventKind.COMPLETED),)
-        engine = AgentEngine(FakeModelClient((completed, completed)), context,
-                             FakeActionDispatcher(), sessions)
-        for user_input in ("first", "second"):
-            _ = [event async for event in engine.run(user_input, thread_id=thread_id)]
-        self.assertEqual([request.revision for request in context.requests], [1, 2])
-        self.assertEqual(context.requests[1].budget_lease["model_turns"], 2)
+        events = [
+            event
+            async for event in engine.run("inspect", cancellation=cancellation)
+        ]
+
+        self.assertEqual(context.call[0], events[0].payload["thread_id"])
+        self.assertIs(context.call[-1], cancellation)
 
     async def test_context_event_records_numeric_measurements_without_prompt_text(self) -> None:
         measurements = {
