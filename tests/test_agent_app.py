@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import hashlib
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -32,7 +35,6 @@ from code_agent.context.compaction import DeterministicCompactor  # noqa: E402
 from code_agent.context.models import ContextConfig  # noqa: E402
 from code_agent.context.repo_index import RepoIndexService  # noqa: E402
 from code_agent.context.repo_map import RepoMapBuilder  # noqa: E402
-from code_agent.context.cache import RepoMapCache  # noqa: E402
 from code_agent.context.rules import RuleLoader  # noqa: E402
 from code_agent.interfaces.terminal_state import ApprovalBroker  # noqa: E402
 from code_agent.policy.engine import ActionPolicy, PolicyConfig  # noqa: E402
@@ -165,6 +167,41 @@ class ApplicationConstructionTests(unittest.TestCase):
         self.assertIsInstance(application.repo_index, RepoIndexService)
         self.assertIs(main_context.repo_map.index, application.repo_index)
         self.assertIs(child_context.repo_map.index, application.repo_index)
+
+
+class ManagedWorkspaceApplicationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_new_task_uses_managed_worktree_and_preserves_source(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            _init_git_source(root)
+            source_before = _tree_digest(root)
+            application = _configured_application(root)
+
+            task = await application.foreground_tasks.start("edit note.py")
+            task_root = Path(task.contract.authorization.workspace_root)
+
+            self.assertNotEqual(task_root, root)
+            self.assertIn("managed-workspaces", str(task_root))
+            self.assertEqual(_tree_digest(root), source_before)
+            self.assertEqual(application.workspace_root_for(task.id), task_root)
+            self.assertEqual(application.runtime_root_for(task.id), task_root)
+            self.assertEqual(application.verification_root_for(task.id), task_root)
+            await application.aclose()
+
+    async def test_non_git_source_stays_available_without_checkpoints(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            (root / "note.py").write_text("print('hi')\n", encoding="utf-8")
+            application = _configured_application(root)
+
+            task = await application.foreground_tasks.start("inspect")
+
+            self.assertEqual(
+                Path(task.contract.authorization.workspace_root), root
+            )
+            with self.assertRaises(RuntimeError):
+                await application.tui.checkpoints.list(task.id)
+            await application.aclose()
 
 
 class ModeSwitchIntegrationTests(unittest.IsolatedAsyncioTestCase):
@@ -507,6 +544,64 @@ def _task_dispatcher(root: Path, runtime: object) -> RootActionDispatcher:
         ApprovalBroker(),
         runtime=runtime,  # type: ignore[arg-type]
         verification=PythonVerificationAdapter(root),
+    )
+
+
+def _configured_application(root: Path):
+    state = root.parent / f"{root.name}-state"
+    state.mkdir()
+    runtime = load_runtime_config(env={
+        "CHAOS_CONFIG": str(root / "missing.toml"),
+        "CHAOS_API": "responses",
+        "CHAOS_BASE_URL": "https://api.example.test",
+        "CHAOS_MODEL": "test",
+        "CHAOS_API_KEY_ENV": "KEY",
+        "CHAOS_APPROVAL_MODE": "auto",
+    })
+    mode_env = {
+        f"CHAOS_MODE_{mode.value.upper()}_PROFILE": runtime.profile
+        for mode in agent_modes.AgentMode
+    }
+    patches = (
+        patch("code_agent_win.app._model_client", side_effect=lambda _: object()),
+        patch("code_agent_win.app._session_path", return_value=state / "sessions.sqlite3"),
+        patch("code_agent_win.app.load_runtime_config", return_value=runtime),
+        patch.dict("os.environ", mode_env),
+    )
+    stack = contextlib.ExitStack()
+    for item in patches:
+        stack.enter_context(item)
+    application = create_application(root)
+    application._test_stack = stack
+    return application
+
+
+def _init_git_source(root: Path) -> None:
+    (root / "note.py").write_text("print('source')\n", encoding="utf-8")
+    _git(root, "init")
+    _git(root, "config", "user.email", "test@example.test")
+    _git(root, "config", "user.name", "Test")
+    _git(root, "add", "note.py")
+    _git(root, "commit", "-m", "initial")
+    (root / "note.py").write_text("print('dirty')\n", encoding="utf-8")
+
+
+def _tree_digest(root: Path) -> str:
+    digest = hashlib.sha256()
+    for path in sorted(root.rglob("*")):
+        if path.is_file() and ".git" not in path.parts:
+            digest.update(path.relative_to(root).as_posix().encode("utf-8"))
+            digest.update(path.read_bytes())
+    return digest.hexdigest()
+
+
+def _git(root: Path, *arguments: str) -> None:
+    subprocess.run(
+        ("git", *arguments),
+        cwd=root,
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
 
 

@@ -43,10 +43,12 @@ from code_agent_win.runtime_extensions import SkillApprovalAdapter, ThreadRuntim
 from code_agent_win.subagents import RestrictedDispatcher
 from code_agent_win.tool_support import discover_git_workspace
 from code_agent_win.ui_composition import compose_ui
+from code_agent_win.workspace_runtime import ManagedWorkspaceRuntime
 from code_agent_win.workspace_context import workspace_uses_repo_map
 
 
 _model_client = model_client
+__all__ = ("RootActionDispatcher", "create_application")
 
 
 def create_application(
@@ -90,6 +92,12 @@ def create_application(
     }
 
     sessions = SQLiteSessionRepository(_session_path())
+    workspace_runtime = ManagedWorkspaceRuntime(sessions, _workspace_storage_path())
+    source_services = workspace_runtime.services_for_root(root)
+    guard = source_services.guard
+    files = source_services.files
+    git = source_services.git
+    repo_index = source_services.repo_index
     approvals = ApprovalBroker()
     skills = SkillController(root, sessions, SkillApprovalAdapter(approvals))
     thread_binding = ThreadRuntimeBinding()
@@ -105,6 +113,7 @@ def create_application(
         sessions=sessions,
         thread_binding=thread_binding,
         skills=skills,
+        workspace_runtime=workspace_runtime,
     )
 
     def invalidate_workspace_context(paths: tuple[str, ...]) -> None:
@@ -120,15 +129,13 @@ def create_application(
         interaction_broker,
     ) = compose_host(
         root=root,
-        guard=guard,
-        files=files,
-        git=git,
+        services=source_services,
+        workspace_runtime=workspace_runtime,
         runtime_config=runtime_config,
         modes=modes,
         sessions=sessions,
         approvals=approvals,
         thread_binding=thread_binding,
-        invalidate_cache=invalidate_workspace_context,
     )
 
     def child_engine(agent: AgentDefinition) -> tuple[AgentEngine, object]:
@@ -310,6 +317,8 @@ def create_application(
         skills=skills,
         mcp=mcp,
         git=git,
+        checkpoints=workspace_runtime.checkpoint_control(),
+        workspace_runtime=workspace_runtime,
         plugin_errors=plugin_errors,
         tui_ref=tui_ref,
     )
@@ -325,6 +334,7 @@ def create_application(
         subagents,
         repo_index,
         workflows,
+        workspace_runtime,
     )
     application_ref.append(application)
     return application
@@ -339,3 +349,7 @@ def _session_path() -> Path:
     if not current.exists() and legacy.exists():
         migrate_legacy_session_database(legacy, current)
     return current
+
+
+def _workspace_storage_path() -> Path:
+    return _session_path().parent / "managed-workspaces"

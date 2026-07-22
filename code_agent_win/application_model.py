@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from code_agent.context.repo_index import RepoIndexService
 from code_agent.interfaces.controller import AgentController
@@ -27,6 +28,18 @@ class Application:
     subagents: SubagentRuntime | None = None
     repo_index: RepoIndexService | None = None
     workflows: WorkflowService | None = None
+    workspace_runtime: object | None = None
+
+    def workspace_root_for(self, task_id: str) -> Path:
+        if self.workspace_runtime is not None:
+            return self.workspace_runtime.root_for_task(task_id)
+        raise RuntimeError("workspace runtime is unavailable")
+
+    def runtime_root_for(self, task_id: str) -> Path:
+        return self.workspace_root_for(task_id)
+
+    def verification_root_for(self, task_id: str) -> Path:
+        return self.workspace_root_for(task_id)
 
     async def aclose(self) -> None:
         if self.subagents is not None:

@@ -7,35 +7,34 @@ from dataclasses import replace
 from code_agent.interfaces.capability_view import ModePermissionView
 from code_agent.interfaces.terminal_display import DisplayKind
 from code_agent.interfaces.windows_tui import WindowsTerminalApp
-from code_agent.interfaces.task_controller import ForegroundTaskController
-from code_agent.workflows.observations import TaskCreatedObservation
-from code_agent.core.events import EventKind
-from code_agent.core.models import ActionResult
-from code_agent.core.cancellation import CancellationToken
-from code_agent.verification.evidence import EvidenceOutcome
-from code_agent.workflows.models import WorkflowNodeStatus
-from code_agent.workflows.observations import (
-    DeliveryObservation,
-    EvidenceInvalidatedObservation,
-    VerificationObservation,
-    RecoveryObservation,
-)
 from code_agent.interfaces.mode_control import ModeSummary
-from code_agent.orchestration.models import AgentMode, ModeSnapshot
+from code_agent.orchestration.models import ModeSnapshot
 from code_agent.orchestration.plugin_extensions import PluginModeCatalog
 
 
 class ModeAwareWindowsTerminalApp(WindowsTerminalApp):
-    def __init__(self, *args: object, capability: ModePermissionView, plugin_errors: tuple[str, ...] = (), **kwargs: object) -> None:
+    def __init__(
+        self,
+        *args: object,
+        capability: ModePermissionView,
+        plugin_errors: tuple[str, ...] = (),
+        recover_pending: object | None = None,
+        **kwargs: object,
+    ) -> None:
         super().__init__(*args, **kwargs)
         self._capability = capability
         self._plugin_errors = plugin_errors
         self._announced = False
+        self._recover_pending = recover_pending
+        self._recovered = False
 
     def update_capability(self, capability: ModePermissionView) -> None:
         self._capability = capability
 
     async def run(self, *, thread_id: str | None = None) -> None:
+        if not self._recovered and self._recover_pending is not None:
+            await self._recover_pending()
+            self._recovered = True
         if not self._announced:
             for line in self._capability.lines():
                 self._append(DisplayKind.METADATA, line)
@@ -56,6 +55,32 @@ class GitDiffAdapter:
         if self._git is None:
             return ""
         return await asyncio.to_thread(self._git.diff, paths)
+
+
+class TaskScopedGitDiffAdapter:
+    def __init__(
+        self,
+        runtime: object,
+        active_task_id: object,
+        fallback: GitDiffAdapter,
+    ) -> None:
+        self._runtime = runtime
+        self._active_task_id = active_task_id
+        self._fallback = fallback
+
+    async def read_diff(self, paths: tuple[str, ...] = ()) -> str:
+        task_id = self._active_task_id()
+        if task_id is None:
+            return await self._fallback.read_diff(paths)
+        try:
+            services = self._runtime.services_for_root(
+                self._runtime.root_for_task(task_id)
+            )
+        except KeyError:
+            return await self._fallback.read_diff(paths)
+        if services.git is None:
+            return ""
+        return await asyncio.to_thread(services.git.diff, paths)
 
 
 class PluginModeControl:
@@ -123,145 +148,8 @@ class PluginModeControl:
             raise
         self._current = self._summary(contributed)
         return self._current
-
     @staticmethod
     def _summary(mode: object) -> ModeSummary:
         return ModeSummary(
             mode.identifier, mode.base.model, mode.reasoning_effort.value
         )
-
-
-class IntegratedForegroundTaskController(ForegroundTaskController):
-    def __init__(
-        self,
-        *args: object,
-        subagents: object,
-        workflows: object,
-        plugin_events: object | None = None,
-        **kwargs: object,
-    ) -> None:
-        super().__init__(*args, **kwargs)
-        self._subagents = subagents
-        self.workflows = workflows
-        self._plugin_events = plugin_events
-
-    async def start(self, prompt: str):
-        task = await super().start(prompt)
-        await self.workflows.observe(
-            TaskCreatedObservation(task.id, task.thread_id, prompt)
-        )
-        if self._plugin_events is not None:
-            await self._plugin_events.observe(
-                "task_created",
-                task.id,
-                {"task_id": task.id, "thread_id": task.thread_id},
-                CancellationToken(),
-            )
-        return task
-
-    async def reconcile_stale_tasks(self) -> tuple[str, ...]:
-        reconciled = await super().reconcile_stale_tasks()
-        for task_id in reconciled:
-            if await self._sessions.load_workflow_for_task(task_id) is not None:
-                await self.workflows.observe(
-                    RecoveryObservation(task_id, frozenset())
-                )
-        return reconciled
-
-    async def events(self, task_id: str, prompt: str | None = None):
-        token = self._subagents.activate(task_id)
-        plugin_token = CancellationToken()
-        try:
-            async for event in super().events(task_id, prompt):
-                await self._observe_workflow_event(task_id, event)
-                if self._plugin_events is not None:
-                    await self._plugin_events.observe(
-                        _plugin_event_kind(event),
-                        task_id,
-                        _plugin_event_fields(event),
-                        plugin_token,
-                    )
-                yield event
-        finally:
-            plugin_token.cancel("task event stream closed")
-            await self._subagents.release(task_id)
-            self._subagents.reset(token)
-
-    async def _observe_workflow_event(self, task_id: str, event: object) -> None:
-        if event.kind is EventKind.ACTION_COMPLETED:
-            raw = event.payload.get("result")
-            if not isinstance(raw, dict):
-                return
-            result = ActionResult.from_dict(raw)
-            if result.name == "run_verification":
-                evidence = await self._sessions.list_verification_evidence(
-                    task_id
-                )
-                if not evidence:
-                    return
-                latest = evidence[-1]
-                await self.workflows.observe(
-                    VerificationObservation(
-                        task_id,
-                        f"verification:{latest.identifier}",
-                        latest.outcome is EvidenceOutcome.PASS,
-                        (latest.identifier,),
-                    )
-                )
-            elif (
-                result.name in {"write_file", "replace_text"}
-                and not result.is_error
-            ):
-                snapshot = await self._sessions.load_workflow_for_task(task_id)
-                if snapshot is not None:
-                    for node in snapshot.nodes:
-                        if (
-                            node.kind == "verification"
-                            and node.status is WorkflowNodeStatus.COMPLETED
-                        ):
-                            await self.workflows.observe(
-                                EvidenceInvalidatedObservation(
-                                    task_id, node.id
-                                )
-                            )
-        elif (
-            event.kind is EventKind.TASK_STATUS_CHANGED
-            and event.payload.get("status") == "completed"
-        ):
-            await self.workflows.observe(
-                DeliveryObservation(
-                    task_id,
-                    f"delivery:{task_id}",
-                    WorkflowNodeStatus.COMPLETED,
-                )
-            )
-
-
-def _plugin_event_fields(event: object) -> dict[str, object]:
-    allowed = {
-        "status",
-        "name",
-        "turn",
-        "task_id",
-        "thread_id",
-        "request_id",
-    }
-    return {
-        key: value
-        for key, value in event.payload.items()
-        if key in allowed
-        and (
-            isinstance(value, (str, int, bool, float))
-            or value is None
-        )
-    }
-
-
-def _plugin_event_kind(event: object) -> str:
-    if event.kind is EventKind.TASK_STATUS_CHANGED:
-        status = event.payload.get("status")
-        if isinstance(status, str):
-            return f"task_{status}"
-    if event.kind is EventKind.COMPLETED:
-        return "run_completed"
-    return event.kind.value

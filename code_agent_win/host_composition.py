@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Mapping
 from pathlib import Path
 
 from code_agent.interfaces.interaction import InteractionBroker
@@ -9,12 +9,8 @@ from code_agent.mcp.registry import McpController, McpRegistry
 from code_agent.mcp.stdio_manager import StdioMcpManager
 from code_agent.orchestration.models import AgentDefinition, AgentMode, ModeSnapshot
 from code_agent.policy.engine import ActionPolicy, PolicyConfig
-from code_agent.runtime.local import WindowsLocalRuntime
 from code_agent.thread_intelligence.authorization import ThreadAuthorization
 from code_agent.thread_intelligence.tools import ThreadIntelligenceTools
-from code_agent.verification.local_adapter import LocalVerificationAdapter
-from code_agent.workspace.edits import WorkspaceEditor
-from code_agent_win.action_dispatcher import RootActionDispatcher
 from code_agent_win.child_runner import EngineChildRunner
 from code_agent_win.plugin_runtime import (
     PluginToolBridge,
@@ -22,22 +18,25 @@ from code_agent_win.plugin_runtime import (
     plugin_event_risks,
 )
 from code_agent_win.runtime_support import host_risks
-from code_agent_win.subagents import RestrictedDispatcher, SubagentRuntime
+from code_agent_win.subagents import SubagentRuntime
 from code_agent_win.tools import tool_definitions
+from code_agent_win.workspace_runtime import (
+    ManagedWorkspaceRuntime,
+    TaskScopedDispatcher,
+    WorkspaceServices,
+)
 
 
 def compose_host(
     *,
     root: Path,
-    guard: object,
-    files: object,
-    git: object,
+    services: WorkspaceServices,
+    workspace_runtime: ManagedWorkspaceRuntime,
     runtime_config: object,
     modes: object,
     sessions: object,
     approvals: object,
     thread_binding: object,
-    invalidate_cache: Callable[[Sequence[str]], None],
 ) -> tuple[object, McpController, object, tuple[str, ...], PluginToolBridge, InteractionBroker]:
     risks: dict[str, str] = {
         "delegate_agent": "write",
@@ -58,7 +57,7 @@ def compose_host(
         modes,
         host_actions=tuple(
             tool.name
-            for tool in tool_definitions(include_git=git is not None)
+            for tool in tool_definitions(include_git=services.git is not None)
         )
         + ("search_threads", "read_thread"),
         host_risks=host_risks(),
@@ -67,9 +66,9 @@ def compose_host(
     plugin_bridge = PluginToolBridge(plugin_host)
     risks.update(plugin_bridge.risk_map())
     risks.update(plugin_event_risks(plugin_host))
-    dispatcher = RootActionDispatcher(
-        files,
-        WorkspaceEditor(guard),
+    dispatcher = TaskScopedDispatcher(
+        workspace_runtime,
+        services,
         ActionPolicy(
             PolicyConfig(
                 runtime_config.approval_mode,
@@ -78,16 +77,12 @@ def compose_host(
             )
         ),
         approvals,
-        git=git,
-        runtime=WindowsLocalRuntime(root),
-        verification=LocalVerificationAdapter(root),
         mcp=mcp,
         plugins=plugin_bridge,
         threads=ThreadIntelligenceTools(
             sessions, ThreadAuthorization(sessions)
         ),
         caller_thread=thread_binding.current,
-        invalidate_cache=invalidate_cache,
     )
     return (
         dispatcher,
@@ -102,7 +97,7 @@ def compose_host(
 def compose_subagents(
     *,
     child_engine: Callable[[AgentDefinition], tuple[object, object]],
-    dispatcher: RootActionDispatcher,
+    dispatcher: object,
     sessions: object,
     thread_binding: object,
     modes: object,
