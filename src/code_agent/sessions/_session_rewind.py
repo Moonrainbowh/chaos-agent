@@ -18,8 +18,13 @@ from ._checkpoint_fork import (
 from ._codec import encode_datetime, encode_task, utc_now
 from ._rewinds import _require_operation, _require_operation_row
 from ._workspace_codec import cursor_from_row, operation_from_row, require_uuid
-from .errors import SessionCorruptionError
-from .workspace_models import RewindMode, RewindOperationRecord, RewindOperationStatus
+from .errors import SessionCorruptionError, SessionNotFound
+from .workspace_models import (
+    RewindMode,
+    RewindOperationRecord,
+    RewindOperationStatus,
+    WorkspaceLineageStatus,
+)
 
 
 _SESSION_MODES = {RewindMode.SESSION, RewindMode.CODE_AND_SESSION}
@@ -207,9 +212,36 @@ def _require_same_completion(
     source_task_id: str,
     replacement_task_id: str,
 ) -> RewindOperationRecord:
+    if operation.mode not in _SESSION_MODES:
+        raise ValueError("atomic completion requires a session rewind mode")
     if operation.replacement_task_id != replacement_task_id:
         raise ValueError("completed session rewind replacement does not match")
     source_row, _, _ = _fork_source(connection, operation.source_checkpoint_id)
-    if source_row["id"] != source_task_id:
+    source = _source_task(source_row)
+    if source.id != source_task_id:
         raise ValueError("completed session rewind source does not match")
+    if source_row["workspace_lineage_id"] != operation.lineage_id:
+        raise SessionCorruptionError("completed rewind source lineage is inconsistent")
+    if source.status is not TaskStatus.SUPERSEDED:
+        raise ValueError("completed rewind source is not superseded")
+    replacement = connection.execute(
+        "SELECT workspace_lineage_id, status FROM tasks WHERE id = ?",
+        (replacement_task_id,),
+    ).fetchone()
+    if replacement is None:
+        raise SessionNotFound("completed rewind replacement task is missing")
+    if replacement["workspace_lineage_id"] != operation.lineage_id:
+        raise ValueError("completed rewind replacement lineage does not match")
+    if replacement["status"] != TaskStatus.PAUSED.value:
+        raise ValueError("completed rewind replacement is not paused")
+    lineage = connection.execute(
+        "SELECT owner_task_id, status FROM workspace_lineages WHERE id = ?",
+        (operation.lineage_id,),
+    ).fetchone()
+    if lineage is None:
+        raise SessionCorruptionError("completed rewind lineage is missing")
+    if lineage["status"] != WorkspaceLineageStatus.ACTIVE.value:
+        raise ValueError("completed rewind lineage is not active")
+    if lineage["owner_task_id"] != replacement_task_id:
+        raise ValueError("completed rewind replacement no longer owns the lineage")
     return operation

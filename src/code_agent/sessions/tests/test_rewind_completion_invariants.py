@@ -34,7 +34,9 @@ class RewindCompletionInvariantTests(unittest.IsolatedAsyncioTestCase):
     def tearDown(self) -> None:
         self.temporary.cleanup()
 
-    async def prepare(self) -> tuple[str, str, str, str, RewindOperationRecord]:
+    async def prepare(
+        self, mode: RewindMode = RewindMode.SESSION
+    ) -> tuple[str, str, str, str, RewindOperationRecord]:
         thread_id = await self.repository.create_thread()
         source_task = await self.repository.create_task(
             thread_id,
@@ -66,7 +68,7 @@ class RewindCompletionInvariantTests(unittest.IsolatedAsyncioTestCase):
             lineage.id,
             source,
             rollback,
-            RewindMode.SESSION,
+            mode,
             "b" * 64,
         )
         await self.repository.begin_rewind(operation)
@@ -79,30 +81,22 @@ class RewindCompletionInvariantTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(pending[0].id, operation_id)
         self.assertEqual(pending[0].status, RewindOperationStatus.PENDING)
 
-    async def test_session_completion_requires_distinct_owned_quiescent_replacement(self) -> None:
-        source, replacement, lineage, _, operation = await self.prepare()
+    async def test_generic_completion_rejects_legacy_session_bypass(self) -> None:
+        for mode in (RewindMode.SESSION, RewindMode.CODE_AND_SESSION):
+            with self.subTest(mode=mode):
+                source, replacement, lineage, _, operation = await self.prepare(mode)
+                await self.repository.transition_task(source, TaskStatus.RUNNING)
+                await self.repository.transition_task(source, TaskStatus.PAUSED)
+                await self.repository.transfer_lineage_owner(
+                    lineage, source, replacement
+                )
+                await self.repository.transition_task(replacement, TaskStatus.RUNNING)
+                await self.repository.transition_task(replacement, TaskStatus.PAUSED)
 
-        with self.assertRaises(ValueError):
-            await self.repository.complete_rewind(operation.id, source)
-        await self.assert_pending(lineage, operation.id)
+                with self.assertRaisesRegex(ValueError, "atomic"):
+                    await self.repository.complete_rewind(operation.id, replacement)
 
-        with self.assertRaises(ValueError):
-            await self.repository.complete_rewind(operation.id, replacement)
-        await self.assert_pending(lineage, operation.id)
-
-        await self.repository.transition_task(source, TaskStatus.RUNNING)
-        await self.repository.transition_task(source, TaskStatus.PAUSED)
-        await self.repository.transfer_lineage_owner(lineage, source, replacement)
-        await self.repository.transition_task(replacement, TaskStatus.RUNNING)
-        with self.assertRaises(ValueError):
-            await self.repository.complete_rewind(operation.id, replacement)
-        await self.assert_pending(lineage, operation.id)
-
-        await self.repository.transition_task(replacement, TaskStatus.PAUSED)
-        completed = await self.repository.complete_rewind(operation.id, replacement)
-        repeated = await self.repository.complete_rewind(operation.id, replacement)
-        self.assertEqual(completed, repeated)
-        self.assertEqual(completed.status, RewindOperationStatus.COMPLETED)
+                await self.assert_pending(lineage, operation.id)
 
 
 if __name__ == "__main__":

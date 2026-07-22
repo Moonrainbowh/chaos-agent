@@ -74,10 +74,47 @@ class AtomicSessionRewindTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual((await repository.load_task(source.id)).status, TaskStatus.SUPERSEDED)
             self.assertEqual((await repository.load_task(replacement_id)).status, TaskStatus.PAUSED)
             self.assertEqual((await repository.load_lineage(lineage.id)).owner_task_id, replacement_id)
+            with self.assertRaisesRegex(ValueError, "atomic"):
+                await repository.complete_rewind(operation.id, replacement_id)
             with self.assertRaises(ValueError):
                 await repository.complete_session_rewind(
                     operation.id, uuid.uuid4().hex, replacement_id
                 )
+
+    async def test_idempotent_retry_rejects_drifted_atomic_facts(self):
+        drifts = {
+            "source_status": "UPDATE tasks SET status = 'paused' WHERE id = ?",
+            "replacement_missing": "DELETE FROM tasks WHERE id = ?",
+            "replacement_lineage": "UPDATE tasks SET workspace_lineage_id = NULL WHERE id = ?",
+            "replacement_status": "UPDATE tasks SET status = 'running' WHERE id = ?",
+            "owner": "UPDATE workspace_lineages SET owner_task_id = ? WHERE id = ?",
+            "lineage_status": "UPDATE workspace_lineages SET status = 'recovery_required' WHERE id = ?",
+        }
+        for label, statement in drifts.items():
+            with self.subTest(fact=label), tempfile.TemporaryDirectory() as temporary:
+                database = Path(temporary) / "sessions.sqlite3"
+                repository = SQLiteSessionRepository(database)
+                source, lineage, operation = await prepare(repository)
+                replacement_id = uuid.uuid4().hex
+                await repository.complete_session_rewind(
+                    operation.id, source.id, replacement_id
+                )
+                arguments = {
+                    "source_status": (source.id,),
+                    "owner": (source.id, lineage.id),
+                    "lineage_status": (lineage.id,),
+                }.get(label, (replacement_id,))
+                connection = sqlite3.connect(database)
+                try:
+                    connection.execute(statement, arguments)
+                    connection.commit()
+                finally:
+                    connection.close()
+
+                with self.assertRaises((ValueError, SessionNotFound)):
+                    await repository.complete_session_rewind(
+                        operation.id, source.id, replacement_id
+                    )
 
     async def test_every_session_rewind_write_window_rolls_back_to_pending(self):
         triggers = {
