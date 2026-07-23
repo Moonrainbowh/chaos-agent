@@ -161,45 +161,56 @@ def command_picker_items(
     result = []
     values = parent.actions if parent is not None else specs
     for spec in values:
-        if parent is None and spec.actions:
-            missing = tuple(value for value in spec.requires if value not in available)
-            for action in spec.actions:
-                result.append(
-                    PickerItem(
-                        f"{spec.name}:{action.name}",
-                        f"/{spec.name} {action.name}",
-                        PickerSource.COMMAND,
-                        action.description,
-                        (*spec.aliases, *action.aliases),
-                        enabled=not missing,
-                        disabled_reason=("requires " + ", ".join(missing)) if missing else None,
-                        completion=(
-                            f"/{spec.name} {action.name}"
-                            + (" " if action.usage else "")
-                        ),
-                    )
-                )
-            continue
-        requirements = (
-            *getattr(parent, "requires", ()),
-            *getattr(spec, "requires", ()),
-        )
-        missing = tuple(dict.fromkeys(value for value in requirements if value not in available))
-        prefix = f"/{parent.name} " if parent is not None else "/"
-        has_next = bool(spec.usage or (parent is None and spec.actions))
-        result.append(
-            PickerItem(
-                (parent.name + ":" if parent is not None else "") + spec.name,
-                prefix + spec.name,
-                PickerSource.COMMAND,
-                spec.description,
-                tuple(spec.aliases),
-                enabled=not missing,
-                disabled_reason=("requires " + ", ".join(missing)) if missing else None,
-                completion=prefix + spec.name + (" " if has_next else ""),
-            )
-        )
+        if parent is None and spec.actions and spec.name in {"模式", "权限"}:
+            result.extend(_expanded_command_items(spec, available))
+        else:
+            result.append(_command_picker_item(spec, available, parent))
     return tuple(result)
+
+
+def _expanded_command_items(
+    spec: object, available: set[str]
+) -> tuple[PickerItem, ...]:
+    missing = tuple(value for value in spec.requires if value not in available)
+    reason = ("requires " + ", ".join(missing)) if missing else None
+    return tuple(
+        PickerItem(
+            f"{spec.name}:{action.name}",
+            f"/{spec.name} {action.name}",
+            _command_source(action, spec),
+            action.description,
+            (*spec.aliases, *action.aliases),
+            enabled=not missing,
+            disabled_reason=reason,
+            completion=f"/{spec.name} {action.name}" + (" " if action.usage else ""),
+        )
+        for action in spec.actions
+    )
+
+
+def _command_picker_item(
+    spec: object, available: set[str], parent: object | None
+) -> PickerItem:
+    requirements = (
+        *getattr(parent, "requires", ()),
+        *getattr(spec, "requires", ()),
+    )
+    missing = tuple(
+        dict.fromkeys(value for value in requirements if value not in available)
+    )
+    prefix = f"/{parent.name} " if parent is not None else "/"
+    has_next = bool(spec.usage or (parent is None and spec.actions))
+    needs_space = has_next and (parent is None or spec.usage.startswith("<"))
+    return PickerItem(
+        (parent.name + ":" if parent is not None else "") + spec.name,
+        prefix + spec.name,
+        _command_source(spec, parent),
+        spec.description,
+        tuple(spec.aliases),
+        enabled=not missing,
+        disabled_reason=("requires " + ", ".join(missing)) if missing else None,
+        completion=prefix + spec.name + (" " if needs_space else ""),
+    )
 
 
 def skill_picker_items(
@@ -238,6 +249,17 @@ def mcp_picker_items(
             )
         )
     return tuple(result)
+
+
+def _command_source(value: object, parent: object | None) -> PickerSource:
+    if (
+        getattr(value, "source", "host") == "plugin"
+        or getattr(parent, "source", "host") == "plugin"
+        or getattr(value, "name", None) == "插件"
+        or getattr(parent, "name", None) == "插件"
+    ):
+        return PickerSource.PLUGIN
+    return PickerSource.COMMAND
 
 
 def _unique(items: Iterable[PickerItem]) -> tuple[PickerItem, ...]:

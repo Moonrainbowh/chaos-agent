@@ -35,4 +35,4 @@
 - `RewindRepositoryMixin`: 以 CAS 开始、完成或失败 Rewind，并按 lineage/时间查询待恢复操作 | SQLite I/O | 状态机幂等；跨 lineage checkpoint、非法 completion 与 recovery-required 后续写入失败闭合
 - `CheckpointForkRepositoryMixin`、`AtomicSessionRewindRepositoryMixin`: 从 checkpoint 非破坏性分叉游标前事实与累计预算；以单事务创建 paused replacement、转交 owner、SUPERSEDE 旧任务并完成 operation | SQLite I/O | session/combined 禁止 generic completion；任一写入故障整体回滚为 pending，completed 幂等重试复核 source/replacement/owner/lineage/status 事实
 - `save_task_contract_revision`、`begin_verification_run`、`append_verification_evidence`、`finalize_task`: 保存 append-only 验证账本并原子完成 | SQLite I/O | 必须复核最新 generation、revision 与全部 required evidence
-- `SessionDatabase`、`migrate_legacy_session_database`、稳定 JSON codecs: 执行 v1-v15 migration、schema/index/FK 校验、旧库复制与记录编解码 | SQLite/JSON I/O | 未来版本、缺表/索引、损坏数据失败闭合；旧库始终保留
+- `SessionDatabase`、`migrate_legacy_session_database`、稳定 JSON codecs: 执行 v1-v17 migration、schema/index/FK 校验、旧库复制与记录编解码 | SQLite/JSON I/O | 修复旧 checkpoint 游标列遗漏；未来版本、缺表/索引、损坏数据失败闭合；旧库始终保留

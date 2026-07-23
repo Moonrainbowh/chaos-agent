@@ -59,19 +59,21 @@ class FakeContextBuilder:
 
     async def build(
         self,
-        thread_id: str,
-        messages: Sequence[Message],
-        user_input: str,
-        tools: Sequence[ToolDefinition],
-        task_state: TaskState,
-        cancellation: CancellationToken,
+        request: ContextRequest,
     ) -> ContextBundle:
-        history = tuple(messages)
+        history = request.messages
         self.calls.append(
-            (history, user_input, tuple(tools), task_state, thread_id, cancellation)
+            (
+                history,
+                request.user_input,
+                request.tools,
+                request.task_state,
+                request.thread_id,
+                request.cancellation,
+            )
         )
-        if user_input:
-            history += (Message(role="user", content=user_input),)
+        if request.user_input:
+            history += (Message(role="user", content=request.user_input),)
         return ContextBundle(
             system_prompt="system",
             messages=history,

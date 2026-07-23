@@ -7,6 +7,7 @@ from code_agent.orchestration.modes import ModeRegistry
 from code_agent.orchestration.models import ReasoningEffort
 
 from .models import PluginManifest, PluginRisk
+from .status import PluginHostStatus, PluginReloadState, PluginStatus
 
 
 _RISK_ORDER = {
@@ -83,8 +84,6 @@ class PluginRegistryBuilder:
                 errors.append(f"{manifest.identifier}: duplicate plugin id")
                 continue
             seen_plugins.add(manifest.identifier)
-            if not manifest.enabled:
-                continue
             if manifest.namespace in namespaces:
                 errors.append(f"{manifest.identifier}: namespace conflict")
                 continue
@@ -158,9 +157,12 @@ class PluginHost:
     """Stage snapshots at task boundaries while making revocation immediate."""
 
     def __init__(self, snapshot: ContributionSnapshot = ContributionSnapshot()) -> None:
+        if not isinstance(snapshot, ContributionSnapshot):
+            raise TypeError("snapshot must be ContributionSnapshot")
         self._current = snapshot
         self._staged: ContributionSnapshot | None = None
-        self._revoked: set[str] = set()
+        self._explicitly_disabled: set[str] = set()
+        self._revoked: set[str] = _disabled_plugins(snapshot)
         self._generation = 0
 
     def stage(self, snapshot: ContributionSnapshot) -> None:
@@ -173,16 +175,65 @@ class PluginHost:
             return False
         self._current = self._staged
         self._staged = None
-        self._revoked.intersection_update(
-            manifest.identifier for manifest in self._current.manifests
-        )
+        self._revoked = self._explicitly_disabled | _disabled_plugins(self._current)
         self._generation += 1
         return True
 
-    def revoke(self, plugin_id: str) -> bool:
-        known = any(item.identifier == plugin_id for item in self._current.manifests)
+    def list(self) -> tuple[PluginStatus, ...]:
+        return _plugin_statuses(self._current, self._revoked)
+
+    def status(self, plugin_id: str | None = None) -> tuple[PluginStatus, ...]:
+        values = self.list()
+        if plugin_id is None:
+            return values
+        _require_plugin_id(plugin_id)
+        selected = tuple(item for item in values if item.plugin_id == plugin_id)
+        if not selected:
+            raise KeyError("plugin is not loaded")
+        return selected
+
+    def state(self) -> PluginHostStatus:
+        staged = (
+            ()
+            if self._staged is None
+            else _plugin_statuses(
+                self._staged, self._explicitly_disabled | _disabled_plugins(self._staged)
+            )
+        )
+        return PluginHostStatus(
+            self._generation, self.reload_state, self.list(), staged
+        )
+
+    @property
+    def reload_state(self) -> PluginReloadState:
+        return (
+            PluginReloadState.IDLE
+            if self._staged is None
+            else PluginReloadState.STAGED
+        )
+
+    def disable(self, plugin_id: str) -> PluginStatus:
+        manifest = self._loaded_manifest(plugin_id)
+        self._explicitly_disabled.add(plugin_id)
         self._revoked.add(plugin_id)
-        return known
+        self._generation += 1
+        return _plugin_status(manifest, enabled=False)
+
+    def revoke(self, plugin_id: str) -> bool:
+        try:
+            self.disable(plugin_id)
+        except KeyError:
+            return False
+        return True
+
+    def enable(self, plugin_id: str) -> PluginStatus:
+        manifest = self._loaded_manifest(plugin_id)
+        if not manifest.trusted:
+            raise PermissionError("only a loaded trusted plugin can be enabled")
+        self._explicitly_disabled.discard(plugin_id)
+        self._revoked.discard(plugin_id)
+        self._generation += 1
+        return _plugin_status(manifest, enabled=True)
 
     def contributions(self, kind: str | None = None) -> tuple[RegisteredContribution, ...]:
         values = self._current.active(frozenset(self._revoked))
@@ -197,10 +248,7 @@ class PluginHost:
         return self._generation
 
     def manifest_digest(self, plugin_id: str) -> str:
-        for manifest in self._current.manifests:
-            if manifest.identifier == plugin_id:
-                return manifest.digest
-        raise KeyError("plugin is not active")
+        return self._loaded_manifest(plugin_id).digest
 
     def is_active(self, plugin_id: str, digest: str, generation: int) -> bool:
         if generation != self._generation or plugin_id in self._revoked:
@@ -209,3 +257,42 @@ class PluginHost:
             manifest.identifier == plugin_id and manifest.digest == digest
             for manifest in self._current.manifests
         )
+
+    def _loaded_manifest(self, plugin_id: str) -> PluginManifest:
+        _require_plugin_id(plugin_id)
+        for manifest in self._current.manifests:
+            if manifest.identifier == plugin_id:
+                return manifest
+        raise KeyError("plugin is not loaded")
+
+
+def _plugin_statuses(
+    snapshot: ContributionSnapshot, revoked: set[str]
+) -> tuple[PluginStatus, ...]:
+    return tuple(
+        _plugin_status(manifest, enabled=manifest.identifier not in revoked)
+        for manifest in sorted(snapshot.manifests, key=lambda item: item.identifier)
+    )
+
+
+def _disabled_plugins(snapshot: ContributionSnapshot) -> set[str]:
+    return {item.identifier for item in snapshot.manifests if not item.enabled}
+
+
+def _plugin_status(manifest: PluginManifest, *, enabled: bool) -> PluginStatus:
+    return PluginStatus(
+        manifest.identifier,
+        manifest.namespace,
+        manifest.version,
+        manifest.digest,
+        manifest.source,
+        manifest.trusted,
+        enabled,
+    )
+
+
+def _require_plugin_id(plugin_id: str) -> None:
+    if not isinstance(plugin_id, str):
+        raise TypeError("plugin_id must be text")
+    if not plugin_id.strip():
+        raise ValueError("plugin_id must not be blank")

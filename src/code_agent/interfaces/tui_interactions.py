@@ -6,9 +6,8 @@ from .diff_view import DiffController, GitDiffSource
 from .picker import (
     PickerState,
     command_picker_items,
-    mcp_picker_items,
-    skill_picker_items,
 )
+from .extension_picker import dynamic_picker_items, picker_context
 from .terminal_display import DisplayKind
 from .steering_view import SteeringQueueView, SteeringStage
 from code_agent.core.events import EventKind
@@ -51,14 +50,14 @@ class TuiInteractions:
         if rewind is not None:
             return rewind
         services = available_services(app)
-        dynamic = _dynamic_items(app)
+        dynamic = dynamic_picker_items(app)
         if dynamic is not None:
             items, query = dynamic
             self.picker.set_items(items)
             self.picker.update_query(query)
             return self.picker.rows(app._columns())
-        parent, query = _picker_context(app.input.text)
         registry = getattr(app, "command_registry", REGISTRY)
+        parent, query = picker_context(app.input.text, registry)
         self.picker.set_items(command_picker_items(registry.all(), services, parent=parent))
         self.picker.update_query(query)
         return self.picker.rows(app._columns()) if app.input.text.startswith("/") else ()
@@ -212,50 +211,6 @@ class TuiInteractions:
         self.interaction_choice = 0
 
 
-def _picker_context(text: str) -> tuple[object | None, str]:
-    if not text.startswith("/"):
-        return None, ""
-    return None, text[1:]
-
-
-def _dynamic_items(
-    app: object,
-) -> tuple[tuple[object, ...], str] | None:
-    text = app.input.text
-    parts = text.split(" ")
-    if len(parts) < 3:
-        return None
-    command, action = parts[0].casefold(), parts[1].casefold()
-    query = " ".join(parts[2:])
-    if command in {"/技能", "/skill", "/skills"} and action in {
-        "信息",
-        "info",
-        "启用",
-        "enable",
-        "禁用",
-        "disable",
-        "来源",
-        "source",
-    }:
-        return skill_picker_items(app.skills, parts[1]), query
-    if command == "/mcp" and action in {
-        "status",
-        "状态",
-        "tools",
-        "工具",
-        "enable",
-        "启用",
-        "disable",
-        "禁用",
-        "restart",
-        "重启",
-        "diagnose",
-        "诊断",
-    }:
-        return mcp_picker_items(app.mcp, parts[1]), query
-    return None
-
-
 def _is_complete_command(
     text: str, services: set[str], registry: object = REGISTRY
 ) -> bool:
@@ -269,9 +224,10 @@ def _is_complete_command(
                 action is not None
                 and len(arguments) == 1
                 and action.usage
-                and not text[-1].isspace()
             ):
-                return False
+                if action.usage.startswith("<"):
+                    return False
+                return not text[-1].isspace()
         return True
     if text[-1].isspace() and not spec.actions:
         return True

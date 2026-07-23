@@ -6,7 +6,10 @@ REQUIRED_COLUMNS = {
     "messages": {"sequence", "thread_id", "payload", "created_at"},
     "events": {"sequence", "thread_id", "payload", "created_at"},
     "goals": {"id", "thread_id", "objective", "status", "metadata", "created_at", "updated_at"},
-    "checkpoints": {"id", "thread_id", "label", "metadata", "created_at"},
+    "checkpoints": {
+        "id", "thread_id", "label", "metadata", "created_at",
+        "message_sequence", "event_sequence",
+    },
     "task_budgets": {
         "thread_id", "model_name", "max_agent_rounds", "max_tool_calls",
         "max_tool_calls_per_round", "max_total_tokens", "model_turns", "tool_calls",

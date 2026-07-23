@@ -13,10 +13,16 @@ from code_agent.mcp.registry import (
 
 class Manager:
     def __init__(self) -> None:
+        self.started: list[McpServer] = []
+        self.active: set[str] = set()
         self.cancelled: list[str] = []
         self.closed: list[str] = []
 
     async def start(self, server: McpServer) -> tuple[McpTool, ...]:
+        if not server.enabled or not server.approved:
+            raise PermissionError("MCP server is not approved and enabled")
+        self.started.append(server)
+        self.active.add(server.name)
         return (
             McpTool("search", "Search", {"type": "object"}, McpRisk.READ),
         )
@@ -26,12 +32,13 @@ class Manager:
 
     async def close(self, name: str) -> None:
         self.closed.append(name)
+        self.active.discard(name)
 
     async def aclose(self) -> None:
         return None
 
     def health(self, name: str) -> object:
-        return {"server": name, "healthy": name not in self.closed}
+        return {"server": name, "healthy": name in self.active}
 
 
 class McpSnapshotTests(unittest.IsolatedAsyncioTestCase):
@@ -44,7 +51,7 @@ class McpSnapshotTests(unittest.IsolatedAsyncioTestCase):
                     McpServer(
                         "docs",
                         "python",
-                        enabled=True,
+                        enabled=False,
                         approved=True,
                         tool_risks={"search": McpRisk.READ},
                     ),
@@ -55,10 +62,15 @@ class McpSnapshotTests(unittest.IsolatedAsyncioTestCase):
         )
 
         await controller.enable("docs")
+        self.assertTrue(controller.status("docs")[0].enabled)
+        self.assertEqual(manager.active, {"docs"})
         self.assertEqual(risks["delegate_agent"], "write")
         self.assertEqual(risks["mcp.docs.search"], "read")
 
         await controller.disable("docs")
+        self.assertFalse(controller.status("docs")[0].enabled)
+        self.assertEqual(controller.definitions(), ())
+        self.assertEqual(manager.active, set())
         self.assertEqual(risks, {"delegate_agent": "write"})
 
     async def test_generation_changes_only_after_published_lifecycle_state(self) -> None:
@@ -69,7 +81,7 @@ class McpSnapshotTests(unittest.IsolatedAsyncioTestCase):
                     McpServer(
                         "docs",
                         "python",
-                        enabled=True,
+                        enabled=False,
                         approved=True,
                         tool_risks={"search": McpRisk.READ},
                     ),
@@ -86,12 +98,52 @@ class McpSnapshotTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(initial.tools, ())
         self.assertEqual(enabled.generation, initial.generation + 1)
+        self.assertTrue(enabled.servers[0].enabled)
         self.assertEqual(enabled.tools[0].name, "mcp.docs.search")
         self.assertEqual(disabled.generation, enabled.generation + 1)
+        self.assertFalse(disabled.servers[0].enabled)
         self.assertEqual(disabled.tools, ())
+        self.assertTrue(manager.started[0].enabled)
         self.assertEqual(manager.cancelled, ["docs"])
         self.assertEqual(manager.closed, ["docs"])
+        self.assertEqual(manager.active, set())
         self.assertEqual(controller.diagnose("docs")["server"], "docs")
+
+    async def test_restart_republishes_enabled_state_and_live_tools(self) -> None:
+        manager = Manager()
+        controller = McpController(
+            McpRegistry(
+                (
+                    McpServer(
+                        "docs",
+                        "python",
+                        enabled=False,
+                        approved=True,
+                        tool_risks={"search": McpRisk.READ},
+                    ),
+                )
+            ),
+            manager,
+        )
+        await controller.enable("docs")
+        before = controller.snapshot()
+
+        tools = await controller.restart("docs")
+        restarted = controller.snapshot()
+
+        self.assertEqual(tuple(tool.name for tool in tools), ("search",))
+        self.assertTrue(restarted.servers[0].enabled)
+        self.assertEqual(
+            tuple(tool.name for tool in restarted.tools), ("mcp.docs.search",)
+        )
+        self.assertEqual(restarted.generation, before.generation + 2)
+        self.assertEqual(manager.active, {"docs"})
+        self.assertEqual(
+            [(server.name, server.enabled) for server in manager.started],
+            [("docs", True), ("docs", True)],
+        )
+        self.assertEqual(manager.cancelled, ["docs"])
+        self.assertEqual(manager.closed, ["docs"])
 
 
 if __name__ == "__main__":

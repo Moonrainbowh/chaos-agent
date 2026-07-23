@@ -85,15 +85,19 @@ class RewindRecovery:
         for operation in await self.sessions.pending_rewinds():
             if operation.status is not RewindOperationStatus.PENDING:
                 continue
+            task_id = await self._task_for_checkpoint(
+                operation.source_checkpoint_id
+            )
+            await self.quiesce(task_id)
             async with self.locks.for_lineage(operation.lineage_id):
-                results.append(await self._recover_one(operation))
+                results.append(await self._recover_one(operation, task_id))
         return tuple(results)
 
-    async def _recover_one(self, operation: RewindOperationRecord) -> RewindResult:
-        task_id = await self._task_for_checkpoint(operation.source_checkpoint_id)
+    async def _recover_one(
+        self, operation: RewindOperationRecord, task_id: str
+    ) -> RewindResult:
         paths: tuple[str, ...] = ()
         try:
-            await self.quiesce(task_id)
             lineage = await self.sessions.load_lineage(operation.lineage_id)
             if lineage.owner_task_id != task_id:
                 raise RewindError("pending rewind changed lineage owner")

@@ -108,13 +108,13 @@ class RewindCoordinator:
             raise TypeError("preview must be a RewindPreview")
         if confirmed is not True:
             raise RewindConfirmationRequired("rewind requires confirmation")
+        await self.quiesce(preview.task_id)
         async with self.locks.for_lineage(preview.lineage_id):
             if self._issued.pop(preview.operation_id, None) != preview:
                 raise RewindConflict("preview was not issued or was tampered")
             return await self._execute_locked(preview)
 
     async def _execute_locked(self, preview: RewindPreview) -> RewindResult:
-        await self.quiesce(preview.task_id)
         await self._context(
             preview.task_id, preview.checkpoint_id, preview.lineage_id,
             require_clear=True,

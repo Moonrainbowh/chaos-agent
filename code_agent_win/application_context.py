@@ -1,20 +1,17 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
-from code_agent.context.builder import WorkspaceContextBuilder
-from code_agent.context.compaction import DeterministicCompactor
+from code_agent.context.budget import PromptBudget
 from code_agent.context.models import ContextConfig
 from code_agent.context.repo_map import RepoMapBuilder
 from code_agent.context.rules import RuleLoader
+from code_agent.core.context_request import ContextRequest
 from code_agent.core.engine import AgentEngine
 from code_agent.core.limits import EngineLimits
 from code_agent.orchestration.models import ModeSnapshot
 from code_agent.providers.config import ModelProfile
-from code_agent.thread_intelligence.compaction import SemanticCompactor
-from code_agent.thread_intelligence.context_builder import (
-    ThreadAwareContextBuilder,
-)
 from code_agent.verification.task_service import (
     LedgerTaskVerificationService,
 )
@@ -84,6 +81,7 @@ class RuntimeContextFactory:
             root,
             root,
             prompt,
+            prompt_budget=_profile_prompt_budget(profile),
             repo_map_enabled=self._repo_map_enabled,
         )
         rules = RuleLoader(guard, files, config)
@@ -93,8 +91,22 @@ class RuntimeContextFactory:
             index=repo_index,
             view_cache=self._repo_view_cache,
         )
+        context_limit, target_tokens, summary_tokens, model_token_budget = (
+            _semantic_limits(config, profile)
+        )
         semantic = self._context_runtime_factory(
-            config, rules, repo_map, self._skills, self._sessions
+            config,
+            rules,
+            repo_map,
+            self._skills,
+            self._sessions,
+            summarizer=ModelSemanticSummarizer(
+                client, profile.provider.model, self._sessions
+            ),
+            context_limit=context_limit,
+            target_tokens=target_tokens,
+            summary_tokens=summary_tokens,
+            model_token_budget=model_token_budget,
         )
         return BoundSkillContextBuilder(
             semantic, self._thread_binding, self._skills
@@ -107,6 +119,40 @@ class RuntimeContextFactory:
         return services.guard, services.files, services.repo_index
 
 
+def _profile_prompt_budget(profile: ModelProfile) -> PromptBudget:
+    base = PromptBudget()
+    prompt_tokens = min(base.max_prompt_tokens, profile.context_window)
+    safety_tokens = min(base.safety_tokens, prompt_tokens // 10)
+    message_room = max(1, prompt_tokens - safety_tokens)
+    max_messages = min(base.max_message_tokens, message_room)
+    return replace(
+        base,
+        max_prompt_tokens=prompt_tokens,
+        max_message_tokens=max_messages,
+        min_message_tokens=min(base.min_message_tokens, max_messages),
+        safety_tokens=safety_tokens,
+    )
+
+
+def _semantic_limits(
+    config: ContextConfig, profile: ModelProfile
+) -> tuple[int, int, int, int]:
+    context_limit = min(
+        config.prompt_budget.max_message_tokens,
+        profile.context_window,
+    )
+    target_tokens = min(
+        context_limit,
+        max(1, profile.context_window - profile.max_output_tokens),
+        max(1, config.prompt_budget.max_message_tokens * 3 // 4),
+    )
+    summary_tokens = min(
+        1_024, profile.max_output_tokens, profile.context_window
+    )
+    model_token_budget = min(8_192, profile.context_window)
+    return context_limit, target_tokens, summary_tokens, model_token_budget
+
+
 class _ThreadRootContextBuilder:
     def __init__(
         self,
@@ -117,18 +163,20 @@ class _ThreadRootContextBuilder:
     ) -> None:
         self._factory = factory
         self._mode, self._client, self._profile = mode, client, profile
-        self._inner = factory._build(mode, client, profile, factory._root)._inner
+        default = factory._build(mode, client, profile, factory._root)
+        self._builders = {factory._root: default}
+        self._inner = default._inner
 
     async def build(
         self,
-        thread_id: object,
+        thread_id: str | ContextRequest,
         messages: object = None,
         user_input: str | None = None,
         tools: object = None,
         task_state: object = None,
         cancellation: object = None,
     ) -> object:
-        if hasattr(thread_id, "thread_id"):
+        if isinstance(thread_id, ContextRequest):
             request = thread_id
             active_thread_id = request.thread_id
         else:
@@ -138,9 +186,13 @@ class _ThreadRootContextBuilder:
         if root is None:
             await self._factory._workspace_runtime.hydrate_bindings()
             root = self._factory._workspace_runtime.root_for_thread(active_thread_id)
-        builder = self._factory._build(
-            self._mode, self._client, self._profile, root or self._factory._root
-        )
+        active_root = root or self._factory._root
+        builder = self._builders.get(active_root)
+        if builder is None:
+            builder = self._factory._build(
+                self._mode, self._client, self._profile, active_root
+            )
+            self._builders[active_root] = builder
         if request is not None:
             return await builder.build(request)
         return await builder.build(

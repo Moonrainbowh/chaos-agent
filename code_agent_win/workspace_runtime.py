@@ -31,6 +31,7 @@ from code_agent_win.action_dispatcher import RootActionDispatcher
 from code_agent_win.tool_support import discover_git_workspace
 from code_agent_win.workspace_checkpoint_runtime import (
     CheckpointRouter,
+    StableQuiescer,
     checkpoint_control,
 )
 
@@ -68,6 +69,7 @@ class ManagedWorkspaceRuntime:
         self._task_roots: dict[str, Path] = {}
         self._prepared: dict[str, tuple[str, str]] = {}
         self._verification_invalidator = _noop_invalidate_verification
+        self._quiescer = StableQuiescer()
         self._startup_complete = False
 
     async def prepare_task(self, source_root: Path, task_id: str) -> TaskWorkspace:
@@ -161,6 +163,19 @@ class ManagedWorkspaceRuntime:
     def checkpoint_control(self) -> CheckpointControl:
         return CheckpointRouter(self)
 
+    def set_quiescer(self, callback: object) -> None:
+        self._quiescer.bind(callback)
+
+    async def quiesce_task(self, task_id: str) -> None:
+        await self._quiescer(task_id)
+
+    async def checkpoint_available(self, task_id: str) -> bool:
+        try:
+            lineage = await self._sessions.load_lineage_for_task(task_id)
+        except SessionNotFound:
+            return False
+        return self.services_for_root(Path(lineage.worktree_root)).checkpoints is not None
+
     def set_verification_invalidator(self, callback: object) -> None:
         self._verification_invalidator = callback
 
@@ -192,6 +207,7 @@ class ManagedWorkspaceRuntime:
             self._locks,
             service,
             self.storage_root / "snapshots",
+            self.quiesce_task,
             self._verification_invalidator,
         )
 
@@ -280,7 +296,5 @@ def _invalidate(service: WorkspaceServices, paths: Sequence[str]) -> None:
     service.files.invalidate_inventory()
 
 
-async def _noop_invalidate_verification(
-    task_id: str, replacement_task_id: str | None
-) -> None:
+async def _noop_invalidate_verification(task_id: str, replacement_task_id: str | None) -> None:
     return None

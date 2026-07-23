@@ -2,16 +2,17 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Callable
+from inspect import isawaitable
 from pathlib import Path
 
-from code_agent.core.models import ToolDefinition
+from code_agent.core.models import ActionRequest, ToolDefinition
 from code_agent.orchestration.modes import ModeRegistry
 from code_agent.plugins.manifest import ManifestError, PluginTrustStore, load_manifest
 from code_agent.plugins.models import PluginRisk
 from code_agent.plugins.registry import PluginHost, PluginRegistryBuilder
 from code_agent.plugins.commands import PluginCommandCatalog
 from code_agent.core.cancellation import CancellationToken
-from code_agent.core.models import ActionRequest
 from code_agent.interfaces.approval import ApprovalRequest
 from code_agent.policy.models import DecisionOutcome
 from code_agent.plugins.events import (
@@ -37,28 +38,80 @@ class PluginToolBridge:
         )
 
     def targets(self) -> dict[str, str]:
-        return {
-            item.qualified_id: item.value.target
-            for item in self._host.contributions("tool")
-        }
+        return {item.qualified_id: item.value.target for item in self._host.contributions("tool")}
 
     def risk_map(self) -> dict[str, str]:
-        return {
-            item.qualified_id: item.value.risk.value
-            for item in self._host.contributions("tool")
-        }
+        return {item.qualified_id: item.value.risk.value for item in self._host.contributions("tool")}
 
 
 class PluginCommandController:
     """Map declarative plugin commands to bounded Host-owned controllers."""
-
-    def __init__(self, host: PluginHost) -> None:
+    def __init__(
+        self,
+        host: PluginHost,
+        *,
+        discover: Callable[[], tuple[object, object]] | None = None,
+        on_change: Callable[[], object] | None = None,
+    ) -> None:
         self._host = host
         self._catalog = PluginCommandCatalog(host)
         self._app: object | None = None
+        self._discover, self._on_change = discover, on_change
+        self._errors: tuple[str, ...] = ()
 
     def attach(self, app: object) -> None:
         self._app = app
+
+    @property
+    def errors(self) -> tuple[str, ...]: return self._errors
+
+    def list(self) -> object: return self._host.list()
+    def status(self, plugin_id: str | None = None) -> object: return self._host.status(plugin_id)
+
+    async def enable(self, plugin_id: str) -> object:
+        if self._task_active(): raise RuntimeError("plugin enable is available only when idle")
+        result = self._host.enable(plugin_id)
+        await self._notify_change()
+        return result
+
+    async def disable(self, plugin_id: str) -> object:
+        if self._task_active(): raise RuntimeError("plugin disable is available only when idle")
+        result = self._host.disable(plugin_id)
+        await self._notify_change()
+        return result
+
+    async def reload(self) -> object:
+        if self._discover is None:
+            raise RuntimeError("plugin discovery is unavailable")
+        try:
+            snapshot, errors = self._discover()
+            self._host.stage(snapshot)
+            applied = self._host.apply(task_active=self._task_active())
+            self._errors = _bounded_errors(errors)
+        except Exception as error:
+            self._errors = (f"discover:{type(error).__name__}",)
+            raise RuntimeError("plugin reload failed") from None
+        if applied: await self._notify_change()
+        return "Plugin reload applied" if applied else "Plugin reload staged"
+
+    async def apply_staged(self, *, idle: bool = False) -> bool:
+        applied = self._host.apply(task_active=not idle and self._task_active())
+        if applied: await self._notify_change()
+        return applied
+
+    def _task_active(self) -> bool:
+        task = None if self._app is None else getattr(self._app, "_run_task", None)
+        return task is not None and not task.done()
+
+    async def _notify_change(self) -> None:
+        if self._on_change is None:
+            return
+        try:
+            result = self._on_change()
+            if isawaitable(result): await result
+        except Exception as error:
+            self._errors = (*self._errors, f"on_change:{type(error).__name__}")[-32:]
+            raise RuntimeError("plugin control refresh failed") from None
 
     async def execute_command(
         self, qualified_id: str, arguments: tuple[str, ...]
@@ -189,9 +242,8 @@ def load_plugins(
         try:
             manifest = load_manifest(path, trust, host_api="1")
             manifests.append(manifest)
-            if not manifest.enabled:
-                state = "disabled" if manifest.trusted else "untrusted"
-                errors.append(f"{manifest.identifier}: inactive ({state})")
+            if not manifest.enabled and not manifest.trusted:
+                errors.append(f"{manifest.identifier}: inactive (untrusted)")
         except (OSError, ManifestError) as error:
             errors.append(f"{path}: {type(error).__name__}")
     builder = PluginRegistryBuilder(
@@ -240,3 +292,8 @@ def _read_trust_store() -> dict[str, str]:
 def _local_data_root() -> Path:
     base = os.getenv("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
     return Path(base) / "chaos-agent"
+
+
+def _bounded_errors(values: object) -> tuple[str, ...]:
+    values = (values,) if isinstance(values, (str, bytes)) else values
+    return tuple(str(value)[:256] for value in tuple(values)[:32])

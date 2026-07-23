@@ -17,6 +17,7 @@ from code_agent.thread_intelligence.compaction import (
 from code_agent.thread_intelligence.deterministic_summary import (
     DeterministicSummaryService,
 )
+from code_agent.thread_intelligence.context_builder import ThreadAwareContextBuilder
 from code_agent.thread_intelligence.models import semantic_checkpoint_payload
 
 
@@ -70,11 +71,42 @@ def build_context_runtime(
     config: ContextConfig,
     rules: RuleLoader,
     repo_map: RepoMapBuilder,
-    skills: SkillActivation,
+    skills: SkillActivation | object,
     sessions: object,
-) -> SkillContextBuilder:
-    """Compose local context compaction with Host checkpoint persistence."""
+    *,
+    summarizer: object | None = None,
+    context_limit: int | None = None,
+    target_tokens: int | None = None,
+    summary_tokens: int = 1_024,
+    model_token_budget: int = 8_192,
+) -> object:
+    """Compose production thread intelligence or the legacy local pipeline."""
     deterministic = DeterministicCompactor(config)
+    if summarizer is not None:
+        if context_limit is None or target_tokens is None:
+            raise TypeError("production context limits are required")
+        semantic = SemanticCompactor(  # type: ignore[arg-type]
+            summarizer,
+            deterministic,
+            summary_tokens=summary_tokens,
+            model_token_budget=model_token_budget,
+        )
+        workspace = WorkspaceContextBuilder(
+            config,
+            rules,
+            repo_map,
+            deterministic,
+        )
+        return ThreadAwareContextBuilder(
+            sessions,
+            semantic,
+            workspace,
+            context_limit=context_limit,
+            target_tokens=target_tokens,
+        )
+    if context_limit is not None or target_tokens is not None:
+        raise TypeError("summarizer is required for production context limits")
+
     semantic = SemanticCompactor(DeterministicSummaryService(), deterministic)
     persisting = PersistingAnchoredCompactor(semantic, sessions)
     workspace = WorkspaceContextBuilder(

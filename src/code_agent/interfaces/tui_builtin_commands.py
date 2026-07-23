@@ -8,6 +8,7 @@ from .terminal_display import DisplayKind
 from .terminal_state import TerminalState
 from .tui_commands import TuiCommand, TuiCommandKind
 from .tui_mcp_commands import handle_mcp_command
+from .tui_plugin_commands import handle_plugin_command
 from .tui_skill_commands import handle_skill_command
 
 
@@ -30,6 +31,8 @@ async def handle_builtin_command(app: Any, command: TuiCommand) -> bool | None:
         return await handle_skill_command(app, command.instruction)
     elif command.kind is TuiCommandKind.MCP:
         return await handle_mcp_command(app, command.instruction)
+    elif command.kind is TuiCommandKind.PLUGIN_CONTROL:
+        return await handle_plugin_command(app, command.instruction)
     elif command.kind is TuiCommandKind.CHECKPOINT:
         return await handle_checkpoint_command(
             app, command.action, command.instruction

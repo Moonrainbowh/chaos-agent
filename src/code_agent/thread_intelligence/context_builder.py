@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Sequence
+from dataclasses import replace
 from typing import Protocol
 
 from code_agent.context.tokens import estimate_tokens
@@ -60,25 +61,10 @@ class ThreadAwareContextBuilder:
         task_state: TaskState | None = None,
         cancellation: CancellationToken | None = None,
     ) -> ContextBundle:
-        if isinstance(thread_id, ContextRequest):
-            request = thread_id
-        else:
-            if messages is None or user_input is None or tools is None:
-                raise TypeError("legacy context arguments are incomplete")
-            if task_state is None or cancellation is None:
-                raise TypeError("task_state and cancellation are required")
-            request = ContextRequest(
-                thread_id=thread_id,
-                revision=1,
-                messages=tuple(messages),
-                user_input=user_input,
-                tools=tuple(tools),
-                task_state=task_state,
-                cancellation=cancellation,
-            )
+        request = _resolve_request(
+            thread_id, messages, user_input, tools, task_state, cancellation
+        )
         thread_id = request.thread_id
-        tools = request.tools
-        task_state = request.task_state
         cancellation = request.cancellation
         cancellation.raise_if_cancelled()
         records = await self._store.load_message_records(thread_id)
@@ -103,14 +89,33 @@ class ThreadAwareContextBuilder:
             except Exception:
                 selected = durable
         cancellation.raise_if_cancelled()
-        return await self._inner.build(
-            thread_id,
-            selected,
-            "",
-            tools,
-            task_state,
-            cancellation,
-        )
+        delegated = replace(request, messages=tuple(selected), user_input="")
+        return await self._inner.build(delegated)
+
+
+def _resolve_request(
+    thread_id: str | ContextRequest,
+    messages: Sequence[Message] | None,
+    user_input: str | None,
+    tools: Sequence[ToolDefinition] | None,
+    task_state: TaskState | None,
+    cancellation: CancellationToken | None,
+) -> ContextRequest:
+    if isinstance(thread_id, ContextRequest):
+        return thread_id
+    if messages is None or user_input is None or tools is None:
+        raise TypeError("legacy context arguments are incomplete")
+    if task_state is None or cancellation is None:
+        raise TypeError("task_state and cancellation are required")
+    return ContextRequest(
+        thread_id=thread_id,
+        revision=1,
+        messages=tuple(messages),
+        user_input=user_input,
+        tools=tuple(tools),
+        task_state=task_state,
+        cancellation=cancellation,
+    )
 
 
 def _message_tokens(messages: Sequence[Message]) -> int:

@@ -33,7 +33,10 @@ def render_bounded_source_summary(
     lines = [_CHECKPOINT_HEADER]
     for source in sources:
         message = source.message
-        fields = [f"- role={message.role}"]
+        fields = [
+            f"- source={source.anchor.stable_id}",
+            f"role={message.role}",
+        ]
         if message.role == "assistant" and message.tool_calls:
             fields.append(
                 "action=" + ",".join(call.name for call in message.tool_calls)

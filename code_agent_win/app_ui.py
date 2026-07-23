@@ -7,9 +7,6 @@ from dataclasses import replace
 from code_agent.interfaces.capability_view import ModePermissionView
 from code_agent.interfaces.rewind_models import RewindPreviewSource
 from code_agent.interfaces.terminal_display import DisplayKind
-from code_agent.interfaces.command_availability import available_services
-from code_agent.interfaces.tui_commands import ParseOutcome, TuiCommandKind, parse_tui_command
-from code_agent.interfaces.tui_rewind_commands import handle_rewind_command
 from code_agent.interfaces.windows_tui import WindowsTerminalApp
 from code_agent.interfaces.mode_control import ModeSummary
 from code_agent.orchestration.models import ModeSnapshot
@@ -49,24 +46,6 @@ class ModeAwareWindowsTerminalApp(WindowsTerminalApp):
     def update_capability(self, capability: ModePermissionView) -> None:
         self._capability = capability
 
-    async def submit(self, text: str) -> bool:
-        if (
-            isinstance(text, str)
-            and text.lstrip().startswith("/rewind")
-            and self.rewind is not None
-        ):
-            parsed = parse_tui_command(
-                text,
-                set(available_services(self)) | {"rewind", "checkpoints"},
-                self.command_registry,
-            )
-            if parsed.is_command:
-                return await self._handle_command(parsed)
-            if parsed.error:
-                self._append(DisplayKind.ERROR, parsed.error)
-                return False
-        return await super().submit(text)
-
     async def run(self, *, thread_id: str | None = None) -> None:
         if not self._recovered and self._startup is not None:
             await self._startup()
@@ -84,20 +63,6 @@ class ModeAwareWindowsTerminalApp(WindowsTerminalApp):
                 )
             self._announced = True
         await super().run(thread_id=thread_id)
-
-    async def _handle_command(self, outcome: ParseOutcome) -> bool:
-        command = outcome.command
-        assert command is not None
-        if command.kind is TuiCommandKind.REWIND:
-            assert self.rewind is not None
-            result = await handle_rewind_command(
-                self.rewind,
-                self.current_thread_id or self.state.thread_id,
-                command.instruction,
-            )
-            self._append(result.display_kind, result.text)
-            return result.handled
-        return await super()._handle_command(outcome)
 
 
 class GitDiffAdapter:
@@ -150,6 +115,8 @@ class PluginModeControl:
         self._identifiers, self._apply = identifiers, apply
         self._current: ModeSummary | None = None
         self._plugin_digests = plugin_digests
+        self._current_digest: str | None = None
+        self._current_base_mode: str | None = None
 
     @property
     def current(self) -> ModeSummary:
@@ -162,10 +129,21 @@ class PluginModeControl:
         )
         return self._base.list() + plugin
 
+    async def refresh(self, identifiers: tuple[str, ...]) -> None:
+        refreshed = tuple(dict.fromkeys(identifiers))
+        if any(not isinstance(item, str) or "." not in item for item in refreshed):
+            raise ValueError("plugin mode ids must be namespaced")
+        if self._current is not None:
+            if self._current_base_mode is None:
+                raise RuntimeError("plugin mode base is unavailable")
+            await self._base.use(self._current_base_mode, idle=True)
+            self._clear_plugin_projection()
+        self._identifiers = refreshed
+
     async def use(self, name: str, *, idle: bool) -> ModeSummary:
         if "." not in name:
             result = await self._base.use(name, idle=idle)
-            self._current = None
+            self._clear_plugin_projection()
             return result
         if not idle:
             raise RuntimeError("mode switching is available only when idle")
@@ -200,8 +178,19 @@ class PluginModeControl:
         except Exception:
             self._plugin_digests.discard(digest)
             raise
+        if self._current_digest is not None and self._current_digest != digest:
+            self._plugin_digests.discard(self._current_digest)
+        self._current_digest = digest
+        self._current_base_mode = contributed.base.definition.mode.value
         self._current = self._summary(contributed)
         return self._current
+
+    def _clear_plugin_projection(self) -> None:
+        if self._current_digest is not None:
+            self._plugin_digests.discard(self._current_digest)
+        self._current_digest = None
+        self._current_base_mode = None
+        self._current = None
     @staticmethod
     def _summary(mode: object) -> ModeSummary:
         return ModeSummary(

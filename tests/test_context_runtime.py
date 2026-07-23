@@ -36,6 +36,7 @@ from code_agent_win.context_runtime import (
     PersistingAnchoredCompactor,
     build_context_runtime,
 )
+from code_agent_win.runtime_extensions import ModelSemanticSummarizer
 
 
 def _checkpoint(thread_id: str = "thread-a") -> SemanticCheckpoint:
@@ -208,11 +209,15 @@ class ContextRuntimeFactoryTests(unittest.TestCase):
                 "CHAOS_BASE_URL": "https://api.example.test", "CHAOS_MODEL": "test",
                 "CHAOS_API_KEY_ENV": "KEY",
             })
-            calls: list[tuple[object, ...]] = []
+            calls: list[
+                tuple[tuple[object, ...], dict[str, object]]
+            ] = []
 
-            def recording_factory(*args: object) -> object:
-                calls.append(args)
-                return build_context_runtime(*args)
+            def recording_factory(
+                *args: object, **kwargs: object
+            ) -> object:
+                calls.append((args, kwargs))
+                return build_context_runtime(*args, **kwargs)  # type: ignore[arg-type]
 
             with patch.dict("os.environ", {
                 "USERPROFILE": str(container / "profile"),
@@ -228,7 +233,10 @@ class ContextRuntimeFactoryTests(unittest.TestCase):
                     application = create_application(root)
 
         self.assertGreaterEqual(len(calls), 1)
-        self.assertIs(calls[0][-1], application.tui.sessions)
+        args, kwargs = calls[0]
+        self.assertIs(args[4], application.tui.sessions)
+        self.assertIsInstance(kwargs["summarizer"], ModelSemanticSummarizer)
+        self.assertGreater(kwargs["context_limit"], kwargs["target_tokens"])
         self.assertIsNotNone(application.controller)
 
 

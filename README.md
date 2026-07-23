@@ -141,6 +141,13 @@ Commands and modes are always namespaced. Plugin events can only emit bounded
 typed action proposals or `notify`/`confirm`/`input`/`select` requests owned by
 the Host UI; action proposals pass both the declared plugin risk and mapped
 Host action policy.
+Use `/插件 list|status|enable|disable|reload` for the live plugin inventory.
+Trusted manifests marked disabled on disk remain visible and can be enabled
+explicitly; untrusted manifests stay isolated.
+Enable and disable are idle-boundary operations. Reload discovered during an
+active foreground task is staged and applied when that task settles; a
+successful refresh updates commands, modes, tools, restricted dispatchers, and
+policy risks together.
 
 ## Safety Defaults
 
@@ -182,25 +189,22 @@ target, risk, and reason, default to `No`, and require `Enter` or `Esc`.
 `/diff` prefers a fresh diff from the injected read-only Git adapter and renders
 file statistics plus bounded unified diff lines.
 
-### Checkpoint Rewind Previews
+### Checkpoint And Rewind
 
-`/rewind list [cursor]` returns a bounded page of checkpoint candidates.
-`/rewind preview <checkpoint-id> <conversation|code|both>` renders one
-read-only facet selection. Candidate message-bound and code-anchor flags are
-discovery hints, not promises that the corresponding preview facet is
-available.
+`/checkpoint list` shows usable workspace checkpoints;
+`/checkpoint create [label]` captures one manually. Managed Git tasks also
+capture real workspace snapshots automatically at task creation and settled
+lifecycle boundaries.
+Before capture or restore, the runtime cancels the foreground execution tree
+and waits for subagents and in-flight event handling to release the workspace.
 
-The code facet is available only for complete mutation-capture coverage after
-the runtime validates every exact inverse snapshot and preimage, adjacent
-per-path continuity, and the current workspace tip. A writer whose exact file
-effects are unknown records a durable `GAP` before execution and invalidates
-code rewind for that coverage. The preview reports preservation of pre-existing
-user bytes only after the earliest exact baseline and the complete validation
-chain pass.
-
-`/rewind` is preview-only. It exposes no apply or restore action, performs no
-`git reset` or `git checkout`, does not request approval, and does not call a
-provider or typed tool.
+`/rewind [checkpoint-id]` opens the canonical keyboard flow: choose a
+checkpoint when needed, select code, session, or the combined mode, inspect the
+bounded preview, and explicitly confirm execution. Rewind first records a recoverable
+`pre-rewind` checkpoint, restores tracked and eligible untracked files from the
+content-addressed snapshot, verifies the resulting inventory digest, and then
+applies the requested session rewind. Checkpoints created by the older
+metadata-only path remain stored but are omitted from this executable picker.
 
 Tasks persist lifecycle state, checkpoints, and cumulative budgets. Closing the
 terminal, sleep, hibernate, shutdown, or reboot does not keep work running;
@@ -215,7 +219,8 @@ background continuation, OS sandbox, automatic commit, or push.
 
 ## Context Budgets And Local Diagnostics
 
-Each model context has a deterministic 20,000-token configured ceiling. The
+Each model context has a deterministic ceiling of up to 20,000 tokens, further
+capped by the selected model profile's context window. The
 default allocations are 3,000 shared by the system prompt and rendered project rules, 1,500 for tool
 schemas, 1,000 for structured task state, up to 2,000 for the repository map,
 up to 12,000 for messages, and a 500-token safety reserve. The repository map
@@ -223,6 +228,10 @@ shrinks before message history, which retains at least 2,000 tokens. A project
 rule set that exceeds its 3,000-token allocation fails locally with a typed
 rule-limit error before any provider request is made; rules are never silently
 truncated.
+
+Semantic compaction also budgets provider input before the request, reserving
+space for its output and protocol overhead. If that budget cannot be satisfied,
+it fails locally without provider I/O and falls back to deterministic summaries.
 
 Repository-map scans use a process-local, 5,000-entry LRU cache keyed by file
 size and nanosecond modification time. It is cleared on process restart and a

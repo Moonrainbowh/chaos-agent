@@ -11,6 +11,7 @@ class CommandAction:
     aliases: tuple[str, ...]
     description: str
     usage: str = ""
+    source: str = "host"
 
 
 @dataclass(frozen=True)
@@ -121,6 +122,21 @@ _SPECS = (
             CommandAction("diagnose", ("诊断",), "诊断 MCP server", "<server>"),
         ),
     ),
+    CommandSpec(
+        "插件",
+        ("plugin", "plugins"),
+        "能力",
+        "管理声明式 Plugins",
+        "<action>",
+        requires=("plugins",),
+        actions=(
+            CommandAction("list", ("列表",), "列出 Plugins"),
+            CommandAction("status", ("状态",), "显示 Plugin 状态", "[plugin-id]"),
+            CommandAction("enable", ("启用",), "启用 Plugin", "<plugin-id>"),
+            CommandAction("disable", ("禁用",), "禁用 Plugin", "<plugin-id>"),
+            CommandAction("reload", ("重载",), "重新发现 Plugins"),
+        ),
+    ),
 )
 
 
@@ -179,7 +195,9 @@ class CommandRegistry:
                 specs.append(spec)
                 continue
             additions = tuple(
-                CommandAction(identifier, (), "插件提供的受限模式")
+                CommandAction(
+                    identifier, (), "插件提供的受限模式", source="plugin"
+                )
                 for identifier in checked
             )
             specs.append(replace(spec, actions=spec.actions + additions))

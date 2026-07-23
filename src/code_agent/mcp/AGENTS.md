@@ -14,4 +14,4 @@
 - `McpRegistry`: 列出配置状态并生成受限 server/tool 命名空间 | 维护服务状态 | 未配置、未批准或未映射工具显式拒绝
 - `McpSdkAdapter`、`StdioMcpManager`: 隔离 SDK 并管理 stdio 服务生命周期 | 子进程/协议 I/O | 所有超时和取消有界且可关闭
 - `McpPolicyBridge`: 将 MCP 调用转换为 typed action request | 调用 ActionPolicy | 未映射风险默认拒绝
-- `McpSnapshot`、`McpController.snapshot`、`diagnose`：发布 generation-bound server/tool 目录与脱敏健康状态 | 读取运行状态 | enable 握手成功后发布，disable 先撤下工具再取消关闭；共享风险表只更新 MCP 自己拥有的 namespace
+- `McpSnapshot`、`McpController.snapshot`、`diagnose`：发布 generation-bound server/tool 目录与脱敏健康状态 | 读取运行状态 | enable 以候选启用态完成握手后原子发布 `enabled=True`，disable 先发布 `enabled=False` 并撤下工具再取消关闭；共享风险表只更新 MCP 自己拥有的 namespace

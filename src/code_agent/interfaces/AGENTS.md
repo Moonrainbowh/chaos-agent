@@ -32,7 +32,7 @@
 - `Esc` 暂停并创建 checkpoint，关闭 TUI 中断并创建 checkpoint，显式停止转为失败；运行中的普通输入作为 steering，不额外暴露重复命令。
 - 负责在单栏转录中呈现 evidence-backed completion、partial/unverified 差异、当前未满足条件及 `/证据`、`/evidence` 查询；不自行判定验证成功。
 - 负责：在输入区上方提供键盘可操作的上下文 Picker；命令、会话、模式/模型、Skills、MCP 和插件贡献共用选择、过滤、补全、禁用原因与错误恢复语义。
-- 负责：提供 `/流程`、`/技能` 与 `/mcp` 控制面；所有动作只委托注入 Controller，运行中变更遵守下一任务或安全边界。
+- 负责：提供 `/流程`、`/技能`、`/mcp` 与 `/插件` 控制面；所有动作只委托注入 Controller，运行中变更遵守下一任务或安全边界。
 - 负责：明确分开展示 Agent 模式与访问权限，并显示模式对应的实际模型、Oracle、成本/延迟定位和下一任务生效边界。
 - 负责：运行中普通提交仍作为同一前台任务的 steering，在转录和状态尾部显示 queued、steered、dequeued、applied 及队列数量；强制中断与安全边界注入保持独立语义，状态只依据内核持久事件更新。
 - 负责：以类型化状态快照呈现 running、verifying、paused、waiting decision、approval、partial 和 completed，不得把非空闲状态统一显示为“就绪”。
@@ -78,7 +78,7 @@
 - `tui_lifecycle`：以确定性帧判定管理最高 30fps 动画、审批/交互监听与关闭清理 | 异步任务/终端重绘 | 关闭先请求 token 取消并完整等待持久 interrupt/checkpoint，再有界等待 runner，把残留草稿本地固化一次
 - `ApprovalBroker`、`load_thread_history`: 提供可取消审批和已保存会话读取 | 异步/SQLite 读取 | 不伪造会话摘要
 - `PickerState`、`PickerItem`：统一命令、会话、模式、Skill、MCP 和插件候选的过滤、键盘选择、补全和禁用原因 | 进程内状态 | `Esc` 取消，不执行候选动作。
-- `skill_picker_items`、`mcp_picker_items`：把 Controller snapshot 转换为共享 Picker 候选和完整命令补全 | 无副作用 | 不把 Skill 正文放入候选，未批准 MCP server 显示禁用原因
+- `skill_picker_items`、`mcp_picker_items`、`plugin_picker_items`：把 Controller snapshot 转换为共享 Picker 候选和完整命令补全 | 无副作用 | 不把 Skill/Plugin 正文放入候选，未批准 MCP server 显示禁用原因
 - `SteeringQueueView`：投影 queued、steered、dequeued、applied 及队列数量 | 进程内状态 | 只依据持久 `TURN_STARTED`、`CONTEXT_BUILT` 边界推进消费和应用状态。
 - `HostInteraction`、`InteractionBroker`、`plugin_interaction`：统一 Host 与插件的 `notify`、`confirm`、`input`、`select` 请求及可取消结果 | 异步状态 | 插件请求转换为 Host 所有的交互，不接受预填用户答案。
 - `PluginInteractionAdapter.notify`、`interact`：把 generation-bound PluginProposal 分流为直接 Host 显示或共享 InteractionBroker 请求 | 显示/异步等待 | notify 不等待答案，其余交互可取消且默认不自答
@@ -90,4 +90,4 @@
 - `AgentRunStatusProjection.observe(view)`：将子 Agent 状态变化投影为去重、有界的生命周期行 | 进程内状态 | 只消费 Orchestration 快照，不从工具名称猜测状态。
 - `WorkflowView.render`、`detail`、`evidence`：把持久 WorkflowSnapshot 渲染为追加式 DAG、节点详情和 Evidence 引用 | 无副作用 | 过滤和窄屏有界，所有不可信文本先经 `safe_text`
 - `handle_workflow_command(app, instruction)`：从注入的只读 Workflow store 渲染流程、节点详情或证据 | 只读服务调用/追加显示 | 不从 edge 推导授权或执行状态转换
-- `handle_skill_command`、`handle_mcp_command`：把 `/技能` 与 `/mcp` 的注册 action 委托给注入 Controller | Controller I/O 与追加显示 | 不读取完整 Skill 文本、不直接启动进程或绕过 MCP policy
+- `handle_skill_command`、`handle_mcp_command`、`handle_plugin_command`：把 `/技能`、`/mcp` 与 `/插件` 的注册 action 委托给注入 Controller | Controller I/O 与追加显示 | 不读取完整扩展正文、不直接启动进程或绕过 Host policy

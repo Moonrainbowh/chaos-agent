@@ -30,15 +30,7 @@ class ModelClient(Protocol):
 
 
 class ContextBuilder(Protocol):
-    async def build(
-        self,
-        thread_id: str,
-        messages: Sequence[Message],
-        user_input: str,
-        tools: Sequence[ToolDefinition],
-        task_state: TaskState,
-        cancellation: CancellationToken,
-    ) -> ContextBundle: ...
+    async def build(self, request: ContextRequest) -> ContextBundle: ...
 
 
 class ActionDispatcher(Protocol):

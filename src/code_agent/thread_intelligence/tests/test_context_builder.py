@@ -7,6 +7,7 @@ from pathlib import Path
 from code_agent.context.compaction import DeterministicCompactor
 from code_agent.context.models import ContextConfig
 from code_agent.core.cancellation import CancellationToken
+from code_agent.core.context_request import ContextRequest
 from code_agent.core.models import ContextBundle, Message, Usage
 from code_agent.core.task_state import TaskState
 from code_agent.sessions.repository import SQLiteSessionRepository
@@ -21,16 +22,29 @@ class Summarizer:
 
 
 class RecordingContext:
-    async def build(
-        self,
-        thread_id: str,
-        messages: object,
-        user_input: str,
-        tools: object,
-        task_state: TaskState,
-        cancellation: CancellationToken,
-    ) -> ContextBundle:
-        return ContextBundle(system_prompt="system", messages=messages)
+    def __init__(self) -> None:
+        self.requests: list[ContextRequest] = []
+
+    async def build(self, request: ContextRequest) -> ContextBundle:
+        self.requests.append(request)
+        return ContextBundle(system_prompt="system", messages=request.messages)
+
+
+def _context_builder(
+    repository: SQLiteSessionRepository,
+    config: ContextConfig,
+    inner: RecordingContext,
+    *,
+    context_limit: int,
+) -> ThreadAwareContextBuilder:
+    fallback = DeterministicCompactor(config)
+    return ThreadAwareContextBuilder(
+        repository,
+        SemanticCompactor(Summarizer(), fallback, keep_recent=2),
+        inner,
+        context_limit=context_limit,
+        target_tokens=1_000,
+    )
 
 
 class ThreadAwareContextBuilderTests(unittest.IsolatedAsyncioTestCase):
@@ -49,13 +63,8 @@ class ThreadAwareContextBuilderTests(unittest.IsolatedAsyncioTestCase):
             config = ContextConfig(
                 workspace_root=root, cwd=root, system_prompt="system"
             )
-            fallback = DeterministicCompactor(config)
-            builder = ThreadAwareContextBuilder(
-                repository,
-                SemanticCompactor(Summarizer(), fallback, keep_recent=2),
-                RecordingContext(),
-                context_limit=10,
-                target_tokens=1_000,
+            builder = _context_builder(
+                repository, config, RecordingContext(), context_limit=10
             )
             cancellation = CancellationToken()
 
@@ -73,6 +82,55 @@ class ThreadAwareContextBuilderTests(unittest.IsolatedAsyncioTestCase):
             checkpoints = await repository.load_semantic_checkpoints(thread_id)
             self.assertEqual(len(checkpoints), 1)
             self.assertEqual(checkpoints[0].source_start.sequence, 1)
+
+    async def test_structured_request_metadata_is_preserved_for_inner_context(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = SQLiteSessionRepository(root / "sessions.sqlite3")
+            thread_id = await repository.create_thread()
+            durable = Message("user", "persisted request")
+            await repository.append_message(thread_id, durable)
+            config = ContextConfig(
+                workspace_root=root, cwd=root, system_prompt="system"
+            )
+            inner = RecordingContext()
+            builder = _context_builder(
+                repository, config, inner, context_limit=10_000
+            )
+            cancellation = CancellationToken()
+            request = ContextRequest(
+                thread_id=thread_id,
+                revision=7,
+                messages=(Message("user", "caller supplied stale content"),),
+                user_input="duplicate input",
+                tools=(),
+                task_state=TaskState.empty(),
+                cancellation=cancellation,
+                mode_snapshot={"mode": "plan"},
+                permission_snapshot={"network": False},
+                budget_lease={"model_turns": 3, "max_model_turns": 8},
+            )
+
+            bundle = await builder.build(request)
+
+            self.assertEqual(len(inner.requests), 1)
+            delegated = inner.requests[0]
+            self.assertEqual(delegated.thread_id, thread_id)
+            self.assertEqual(delegated.revision, 7)
+            self.assertEqual(dict(delegated.mode_snapshot), {"mode": "plan"})
+            self.assertEqual(
+                dict(delegated.permission_snapshot), {"network": False}
+            )
+            self.assertEqual(
+                dict(delegated.budget_lease),
+                {"model_turns": 3, "max_model_turns": 8},
+            )
+            self.assertIs(delegated.cancellation, cancellation)
+            self.assertEqual(delegated.user_input, "")
+            self.assertEqual(delegated.messages, (durable,))
+            self.assertEqual(bundle.messages, (durable,))
 
 
 if __name__ == "__main__":

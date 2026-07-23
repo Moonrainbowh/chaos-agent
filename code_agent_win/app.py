@@ -3,23 +3,13 @@ from __future__ import annotations
 import os
 from dataclasses import replace
 from pathlib import Path
-from urllib.parse import urlsplit
 
 from code_agent.config.loader import load_runtime_config
 from code_agent.context.repo_index import RepoIndexService
 from code_agent.context.repo_map import RepoMapViewCache
 from code_agent.context.repo_scan import RepoFileScanner
-from code_agent.core.engine import AgentEngine
 from code_agent.interfaces.approval import ApprovalBroker
-from code_agent.interfaces.capability_view import ModePermissionView, PermissionSummary
-from code_agent.interfaces.controller import AgentController
-from code_agent.interfaces.mode_control import ModeControl
-from code_agent.interfaces.permission_control import PermissionControl
-from code_agent.orchestration.models import AgentDefinition, AgentMode, ModeSnapshot
-from code_agent.orchestration.plugin_extensions import PluginModeCatalog
-from code_agent.providers.config import ModelProfile
-from code_agent.providers.runtime_manager import ProviderRuntime, ProviderRuntimeManager
-from code_agent.policy.engine import ActionPolicy
+from code_agent.orchestration.models import AgentMode
 from code_agent.policy.models import ApprovalMode
 from code_agent.sessions.legacy_migration import migrate_legacy_session_database
 from code_agent.sessions.repository import SQLiteSessionRepository
@@ -29,22 +19,17 @@ from code_agent.workspace.ignore import IgnoreRules
 from code_agent.workspace.paths import WorkspacePathGuard
 from code_agent.workspace.edits import WorkspaceEditor
 
-from code_agent_win.application_context import RuntimeContextFactory, engine_for
+from code_agent_win.application_context import RuntimeContextFactory
 from code_agent_win.application_model import Application
 from code_agent_win.context_runtime import build_context_runtime
 from code_agent_win.action_dispatcher import RootActionDispatcher
-from code_agent_win.host_composition import compose_host, compose_subagents
-from code_agent_win.agent_modes import (
-    build_mode_registry,
-    freeze_mode,
-    main_tools_for_mode,
-)
-from code_agent_win.app_ui import ModeAwareWindowsTerminalApp, PluginModeControl
+from code_agent_win.host_composition import compose_host
+from code_agent_win.agent_modes import build_mode_registry, freeze_mode
 from code_agent_win.runtime_support import model_client, replace_model
 from code_agent_win.runtime_extensions import SkillApprovalAdapter, ThreadRuntimeBinding
 from code_agent_win.rewind_runtime import RewindRuntime
 from code_agent_win.rewind_sessions import build_rewind_write_side
-from code_agent_win.subagents import RestrictedDispatcher
+from code_agent_win.runtime_controls import compose_runtime_controls
 from code_agent_win.tool_support import discover_git_workspace
 from code_agent_win.ui_composition import compose_ui
 from code_agent_win.workspace_runtime import ManagedWorkspaceRuntime
@@ -62,308 +47,203 @@ def create_application(
     profile_name: str | None = None,
     mode_name: str | None = None,
 ) -> Application:
-    if profile_name is not None and (not isinstance(profile_name, str) or not profile_name.strip()):
-        raise ValueError("profile_name must be non-blank text")
-    root = (workspace_root or Path.cwd()).resolve()
-    runtime_config = load_runtime_config(cli_profile=profile_name)
-    unrestricted = runtime_config.approval_mode is ApprovalMode.UNRESTRICTED
-    guard = WorkspacePathGuard(
-        root,
-        allow_sensitive=runtime_config.allow_sensitive_paths or unrestricted,
-        allow_outside=runtime_config.approval_mode in {
-            ApprovalMode.UNRESTRICTED,
-            ApprovalMode.FULL_LOCAL,
-        },
-    )
-    files = WorkspaceFiles(guard, IgnoreRules.from_workspace(root))
-    git = discover_git_workspace(root)
-    repo_scanner = RepoFileScanner(files)
-    repo_index = RepoIndexService(files, scan_file=repo_scanner.scan)
-    repo_view_cache = RepoMapViewCache()
-    repo_map_enabled = workspace_uses_repo_map(root, git_available=git is not None)
-    configured_profiles = {profile.name: profile for profile in runtime_config.profiles}
-    modes, _ = build_mode_registry(configured_profiles, runtime_config.profile)
-    snapshot = freeze_mode(modes, configured_profiles, mode_name)
-    initial_name = snapshot.definition.profile_id
-    initial = configured_profiles[initial_name]
-    if model_name is not None:
-        initial = replace_model(initial, model_name)
-        configured_profiles[initial_name] = initial
-        snapshot = freeze_mode(modes, configured_profiles, snapshot.definition.mode.value)
-    mode_snapshots = {
-        mode: modes.freeze(mode, configured_profiles)
-        for mode in AgentMode
-    }
+    return _ApplicationComposer(
+        workspace_root,
+        model_name=model_name,
+        profile_name=profile_name,
+        mode_name=mode_name,
+    ).build()
 
-    session_path = _session_path()
-    session_path.parent.mkdir(parents=True, exist_ok=True)
-    product_state_root = _product_state_root()
-    product_state_root.mkdir(parents=True, exist_ok=True)
-    sessions = SQLiteSessionRepository(session_path)
-    workspace_runtime = ManagedWorkspaceRuntime(sessions, _workspace_storage_path())
-    source_services = workspace_runtime.services_for_root(root)
-    guard = source_services.guard
-    files = source_services.files
-    git = source_services.git
-    repo_index = source_services.repo_index
-    approvals = ApprovalBroker()
-    rewind_write = build_rewind_write_side(
-        guard,
-        WorkspaceEditor(guard),
-        product_state_root,
-        session_path,
-        has_git=git is not None,
-    )
-    sessions = rewind_write.coordinated
-    workspace_runtime._sessions = sessions
-    rewind = RewindRuntime(
-        rewind_write.base,
-        rewind_write.snapshots,
-        rewind_write.capture.editor,
-    )
-    skills = SkillController(root, sessions, SkillApprovalAdapter(approvals))
-    thread_binding = ThreadRuntimeBinding()
 
-    context_for = RuntimeContextFactory(
-        root,
-        git_available=git is not None,
-        repo_map_enabled=repo_map_enabled,
-        guard=guard,
-        files=files,
-        repo_index=repo_index,
-        repo_view_cache=repo_view_cache,
-        sessions=sessions,
-        thread_binding=thread_binding,
-        skills=skills,
-        workspace_runtime=workspace_runtime,
-        context_runtime_factory=build_context_runtime,
-    )
-
-    def invalidate_workspace_context(paths: tuple[str, ...]) -> None:
-        repo_index.invalidate(paths)
-        files.invalidate_inventory()
-
-    (
-        dispatcher,
-        mcp,
-        plugin_host,
-        plugin_errors,
-        plugin_bridge,
-        interaction_broker,
-    ) = compose_host(
-        root=root,
-        services=source_services,
-        workspace_runtime=workspace_runtime,
-        runtime_config=runtime_config,
-        modes=modes,
-        sessions=sessions,
-        approvals=approvals,
-        thread_binding=thread_binding,
-        capture=rewind_write.capture,
-    )
-
-    def child_engine(agent: AgentDefinition) -> tuple[AgentEngine, object]:
-        profile = configured_profiles[agent.mode.definition.profile_id]
-        client = _model_client(profile.provider)
-        restricted = RestrictedDispatcher(dispatcher, agent.effective_tools)
-        engine = engine_for(
-            client,
-            profile,
-            context_for(agent.mode, client, profile),
-            restricted,
-            sessions,
-            root,
-            agent.mode,
+class _ApplicationComposer:
+    def __init__(
+        self,
+        workspace_root: Path | None,
+        *,
+        model_name: str | None,
+        profile_name: str | None,
+        mode_name: str | None,
+    ) -> None:
+        if profile_name is not None and (not isinstance(profile_name, str) or not profile_name.strip()):
+            raise ValueError("profile_name must be non-blank text")
+        self.root = (workspace_root or Path.cwd()).resolve()
+        self.runtime_config = load_runtime_config(cli_profile=profile_name)
+        unrestricted = self.runtime_config.approval_mode is ApprovalMode.UNRESTRICTED
+        guard = WorkspacePathGuard(
+            self.root,
+            allow_sensitive=self.runtime_config.allow_sensitive_paths or unrestricted,
+            allow_outside=self.runtime_config.approval_mode in {
+                ApprovalMode.UNRESTRICTED,
+                ApprovalMode.FULL_LOCAL,
+            },
         )
-        return engine, client
-
-    subagents, plugin_names, mcp_names, plugin_mode_digests = (
-        compose_subagents(
-            child_engine=child_engine,
-            dispatcher=dispatcher,
-            sessions=sessions,
-            thread_binding=thread_binding,
-            modes=modes,
-            profiles=configured_profiles,
-            plugin_host=plugin_host,
-            mode_snapshots=mode_snapshots,
+        files = WorkspaceFiles(guard, IgnoreRules.from_workspace(self.root))
+        git = discover_git_workspace(self.root)
+        scanner = RepoFileScanner(files)
+        self.repo_index = RepoIndexService(files, scan_file=scanner.scan)
+        self.repo_view_cache = RepoMapViewCache()
+        self.repo_map_enabled = workspace_uses_repo_map(
+            self.root, git_available=git is not None
         )
-    )
+        self.profiles = {item.name: item for item in self.runtime_config.profiles}
+        self.modes, _ = build_mode_registry(self.profiles, self.runtime_config.profile)
+        self.snapshot = freeze_mode(self.modes, self.profiles, mode_name)
+        initial_name = self.snapshot.definition.profile_id
+        self.initial = self.profiles[initial_name]
+        if model_name is not None:
+            self.initial = replace_model(self.initial, model_name)
+            self.profiles[initial_name] = self.initial
+            selected_mode = self.snapshot.definition.mode.value
+            self.snapshot = freeze_mode(self.modes, self.profiles, selected_mode)
+        self.mode_snapshots = {
+            mode: self.modes.freeze(mode, self.profiles) for mode in AgentMode
+        }
 
-    def main_dispatcher_for(selected: ModeSnapshot) -> RestrictedDispatcher:
-        main_tools = (
-            selected.definition.tool_names
-            if selected.digest in plugin_mode_digests
-            else main_tools_for_mode(
-                selected.definition.tool_names, plugin_names
-            )
-            + mcp_names
+    def build(self) -> Application:
+        self._configure_workspace()
+        self._configure_rewind()
+        self._configure_context()
+        self._configure_host()
+        self._configure_controls()
+        self._configure_ui()
+        return self._finish()
+
+    def _configure_workspace(self) -> None:
+        self.session_path = _session_path()
+        self.session_path.parent.mkdir(parents=True, exist_ok=True)
+        self.product_state_root = _product_state_root()
+        self.product_state_root.mkdir(parents=True, exist_ok=True)
+        self.sessions = SQLiteSessionRepository(self.session_path)
+        self.workspace_runtime = ManagedWorkspaceRuntime(
+            self.sessions, _workspace_storage_path()
         )
-        return RestrictedDispatcher(dispatcher, main_tools)
+        self.services = self.workspace_runtime.services_for_root(self.root)
+        self.guard = self.services.guard
+        self.files = self.services.files
+        self.git = self.services.git
+        self.repo_index = self.services.repo_index
+        self.approvals = ApprovalBroker()
 
-    main_dispatcher = main_dispatcher_for(snapshot)
-    model = _model_client(initial.provider)
-    initial_runner = engine_for(
-        model,
-        initial,
-        context_for(snapshot, model, initial),
-        main_dispatcher,
-        sessions,
-        root,
-        snapshot,
-    )
-    controller = AgentController(initial_runner)
+    def _configure_rewind(self) -> None:
+        self.rewind_write = build_rewind_write_side(
+            self.guard,
+            WorkspaceEditor(self.guard),
+            self.product_state_root,
+            self.session_path,
+            has_git=self.git is not None,
+        )
+        self.sessions = self.rewind_write.coordinated
+        self.workspace_runtime._sessions = self.sessions
+        self.rewind = RewindRuntime(
+            self.rewind_write.base,
+            self.rewind_write.snapshots,
+            self.rewind_write.capture.editor,
+        )
+        self.skills = SkillController(
+            self.root, self.sessions, SkillApprovalAdapter(self.approvals)
+        )
+        self.thread_binding = ThreadRuntimeBinding()
 
-    active_snapshot = snapshot
-    build_snapshot = snapshot
-    active_permission = runtime_config.approval_mode
-
-    def permission_summary(mode: ApprovalMode) -> PermissionSummary:
-        return PermissionSummary(
-            mode,
-            str(root),
-            mode is ApprovalMode.UNRESTRICTED,
-            mode is not ApprovalMode.PLAN,
+    def _configure_context(self) -> None:
+        self.context_for = RuntimeContextFactory(
+            self.root,
+            git_available=self.git is not None,
+            repo_map_enabled=self.repo_map_enabled,
+            guard=self.guard,
+            files=self.files,
+            repo_index=self.repo_index,
+            repo_view_cache=self.repo_view_cache,
+            sessions=self.sessions,
+            thread_binding=self.thread_binding,
+            skills=self.skills,
+            workspace_runtime=self.workspace_runtime,
+            context_runtime_factory=build_context_runtime,
         )
 
-    async def build_runtime(profile: ModelProfile) -> ProviderRuntime:
-        client = _model_client(profile.provider)
-        runner = engine_for(
-            client,
-            profile,
-            context_for(build_snapshot, client, profile),
-            main_dispatcher_for(build_snapshot),
-            sessions,
-            root,
-            build_snapshot,
-        )
-        return ProviderRuntime(profile, client, runner)
-
-    manager = ProviderRuntimeManager(
-        configured_profiles,
-        ProviderRuntime(initial, model, initial_runner),
-        build_runtime,
-        controller.replace_runner,
-    )
-
-    application_ref: list[Application] = []
-    tui_ref: list[ModeAwareWindowsTerminalApp] = []
-
-    async def apply_mode(selected: ModeSnapshot) -> None:
-        nonlocal active_snapshot, build_snapshot
-        previous = active_snapshot
-        build_snapshot = selected
-        try:
-            await manager.switch(selected.definition.profile_id, idle=True)
-        except Exception:
-            build_snapshot = previous
-            raise
-        active_snapshot = selected
-        if application_ref:
-            application_ref[0].mode = selected
-        if tui_ref:
-            tui_ref[0].update_capability(
-                ModePermissionView(
-                    selected,
-                    permission_summary(active_permission),
-                    applies_next_task=True,
-                )
-            )
-
-    base_mode_control = ModeControl(
-        mode_snapshots,
-        snapshot.definition.mode,
-        apply_mode,
-    )
-    plugin_mode_ids = tuple(
-        item.qualified_id
-        for item in plugin_host.contributions("mode")
-    )
-    mode_control = PluginModeControl(
-        base_mode_control,
-        PluginModeCatalog(plugin_host, mode_snapshots),
-        plugin_mode_ids,
-        apply_mode,
-        plugin_mode_digests,
-    )
-
-    async def apply_permission(selected: ApprovalMode) -> None:
-        nonlocal active_permission
-        dispatcher.policy = ActionPolicy(
-            replace(dispatcher.policy.config, approval_mode=selected)
-        )
-        active_permission = selected
-        if tui_ref:
-            tui_ref[0].update_capability(
-                ModePermissionView(
-                    active_snapshot,
-                    permission_summary(selected),
-                    applies_next_task=True,
-                )
-            )
-
-    permission_control = PermissionControl(
-        active_permission,
-        apply_permission,
-    )
-
-    def profile_facts() -> tuple[str, str, str, str]:
-        profile = manager.current.profile
-        return (
-            profile.name,
-            profile.provider.model,
-            profile.provider.api.value,
-            urlsplit(profile.provider.base_url).hostname or "unknown",
+    def _configure_host(self) -> None:
+        (
+            self.dispatcher,
+            self.mcp,
+            self.plugin_host,
+            self.plugin_errors,
+            self.plugin_bridge,
+            self.interaction_broker,
+            self.plugin_discover,
+            self.plugin_bindings,
+        ) = compose_host(
+            root=self.root,
+            services=self.services,
+            workspace_runtime=self.workspace_runtime,
+            runtime_config=self.runtime_config,
+            modes=self.modes,
+            sessions=self.sessions,
+            approvals=self.approvals,
+            thread_binding=self.thread_binding,
+            capture=self.rewind_write.capture,
         )
 
-    async def resolve_profile(name: str) -> None:
-        if name != active_snapshot.definition.profile_id:
-            raise RuntimeError("recorded task mode profile is unavailable")
-        if manager.current.profile.name != name:
-            await manager.switch(name, idle=True)
+    def _configure_controls(self) -> None:
+        self.application_ref: list[Application] = []
+        self.tui_ref: list[object] = []
+        self.controls = compose_runtime_controls(
+            root=self.root, snapshot=self.snapshot,
+            mode_snapshots=self.mode_snapshots, profiles=self.profiles,
+            modes=self.modes, initial=self.initial,
+            client_factory=lambda provider: _model_client(provider),
+            context_for=self.context_for, dispatcher=self.dispatcher,
+            sessions=self.sessions, thread_binding=self.thread_binding,
+            plugin_host=self.plugin_host, plugin_bridge=self.plugin_bridge,
+            plugin_bindings=self.plugin_bindings,
+            approval_mode=self.runtime_config.approval_mode,
+            application_ref=self.application_ref, tui_ref=self.tui_ref,
+        )
 
-    foreground, tui, workflows = compose_ui(
-        controller=controller,
-        approvals=approvals,
-        sessions=sessions,
-        root=root,
-        profile_supplier=profile_facts,
-        profile_resolver=resolve_profile,
-        subagents=subagents,
-        snapshot=snapshot,
-        approval_mode=runtime_config.approval_mode,
-        mode_control=mode_control,
-        permission_control=permission_control,
-        plugin_mode_ids=plugin_mode_ids,
-        plugin_host=plugin_host,
-        dispatcher=dispatcher,
-        interaction_broker=interaction_broker,
-        skills=skills,
-        mcp=mcp,
-        git=git,
-        checkpoints=workspace_runtime.checkpoint_control(),
-        rewind=rewind,
-        workspace_runtime=workspace_runtime,
-        plugin_errors=plugin_errors,
-        tui_ref=tui_ref,
-    )
-    application = Application(
-        controller=controller,
-        foreground_tasks=foreground,
-        tui=tui,
-        dispatcher=dispatcher,
-        model=manager,
-        mcp=mcp,
-        mode=snapshot,
-        plugins=plugin_host,
-        subagents=subagents,
-        rewind=rewind,
-        repo_index=repo_index,
-        workflows=workflows,
-        workspace_runtime=workspace_runtime,
-    )
-    application_ref.append(application)
-    return application
+    def _configure_ui(self) -> None:
+        self.foreground, self.tui, self.workflows = compose_ui(
+            controller=self.controls.controller,
+            approvals=self.approvals,
+            sessions=self.sessions,
+            root=self.root,
+            profile_supplier=self.controls.profile_facts,
+            profile_resolver=self.controls.profile_resolver,
+            subagents=self.controls.subagents,
+            snapshot=self.snapshot,
+            approval_mode=self.runtime_config.approval_mode,
+            mode_control=self.controls.mode_control,
+            permission_control=self.controls.permission_control,
+            plugin_host=self.plugin_host,
+            dispatcher=self.dispatcher,
+            interaction_broker=self.interaction_broker,
+            skills=self.skills,
+            mcp=self.mcp,
+            git=self.git,
+            checkpoints=self.workspace_runtime.checkpoint_control(),
+            rewind=self.rewind,
+            workspace_runtime=self.workspace_runtime,
+            plugin_errors=self.plugin_errors,
+            plugin_discover=self.plugin_discover,
+            on_plugin_change=self.plugin_bindings.refresh,
+            tui_ref=self.tui_ref,
+        )
+
+    def _finish(self) -> Application:
+        application = Application(
+            controller=self.controls.controller,
+            foreground_tasks=self.foreground,
+            tui=self.tui,
+            dispatcher=self.dispatcher,
+            model=self.controls.manager,
+            mcp=self.mcp,
+            mode=self.snapshot,
+            plugins=self.plugin_host,
+            subagents=self.controls.subagents,
+            rewind=self.rewind,
+            repo_index=self.repo_index,
+            workflows=self.workflows,
+            workspace_runtime=self.workspace_runtime,
+        )
+        self.application_ref.append(application)
+        return application
 
 
 def _session_path() -> Path:

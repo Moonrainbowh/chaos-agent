@@ -24,12 +24,12 @@
 ## Units
 - `load_manifest(path, trust_store, ...): PluginManifest`：读取有界 JSON manifest，校验 schema、兼容版本、digest、信任和激活状态 | 文件读取 | 拒绝符号链接、未知动态代码字段和 digest 漂移。
 - `manifest_digest(raw): str`：对去除自声明 digest 的规范 JSON 计算 SHA-256 | 无副作用 | 用于信任绑定和变更审计。
-- `PluginRegistryBuilder.build(manifests): ContributionSnapshot`：校验并隔离工具、命令、模式、自定义 Agent 与事件贡献 | 无副作用 | 内建 namespace/ID 不可覆盖，风险、工具和推理强度只能保持或收紧。
-- `PluginHost.stage(snapshot)`、`PluginHost.apply(task_active)`：在任务边界原子替换不可变贡献快照 | 进程内状态 | 活动任务期间不热替换。
-- `PluginHost.revoke(plugin_id): bool`：立即阻止已撤销插件产生新的贡献调用 | 进程内状态 | 不等待下一任务边界。
+- `PluginRegistryBuilder.build(manifests): ContributionSnapshot`：校验并隔离工具、命令、模式、自定义 Agent 与事件贡献，同时保留可信 disabled manifest 的非活动目录 | 无副作用 | 内建 namespace/ID 不可覆盖，风险、工具和推理强度只能保持或收紧；disabled 项不发布贡献但可由 Host 显式启用。
+- `PluginHost.state/status/list`、`stage/apply`：发布 generation-bound 启用状态与 staged reload 投影，并在任务边界原子替换不可变贡献快照 | 进程内状态 | 活动任务期间只 stage，不热替换；成功 apply 推进 generation。
+- `PluginHost.disable/revoke/enable`：立即撤下已载入插件或重新启用当前可信快照 | 进程内状态 | 每次成功启停推进 generation；未载入或不可信快照不得 enable，reload 不自动复活显式停用项。
 - `EventProjection`：保存脱敏、不可变的 Core 事件投影 | 无副作用 | 禁止密钥、原始 reasoning 和原始工具输出字段。
 - `DeclarativeEventRouter.route(event, ...): tuple[PluginProposal, ...]`：把事件订阅映射为有界 Host UI 或 typed Action 提案 | 无副作用 | 限制递归深度和提案数量，不执行提案或伪造事件。
 - `UiRequest`：声明 Host 渲染的 `notify`、`confirm`、`input`、`select` 交互 | 无副作用 | 插件不能写 ANSI、接管输入或提供用户答案。
 - `PluginCommandCatalog.resolve(qualified_id, arguments)`：生成绑定 plugin digest 与 snapshot generation 的 namespaced Host invocation | 无副作用 | 撤销或重载后旧 invocation 失效
-- `PluginHost.generation`、`is_active(plugin_id, digest, generation)`：验证贡献仍属于当前不可变 snapshot | 进程内状态 | apply 增加 generation，revoke 立即失效
+- `PluginHost.generation`、`is_active(plugin_id, digest, generation)`：验证贡献仍属于当前不可变 snapshot | 进程内状态 | apply/enable/disable 增加 generation，旧命令和事件提案在重新启用后仍保持失效
 - `PluginEventRuntime.handle`、`execute`：把仍处于当前 snapshot 的事件提案分流到 Host notify、交互或中央 Action executor | Host I/O | 取消向上传播，异常只返回稳定类别，旧 proposal 失败闭合

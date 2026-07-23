@@ -35,12 +35,34 @@ _READ_ONLY_ROLES = {
     AgentRole.SEARCH,
     AgentRole.LIBRARIAN,
 }
+_WRITE_TOOLS = frozenset({"write_file", "replace_text", "run_verification", "run_command"})
+_READ_ONLY_TOOLS = frozenset(
+    {"read_file", "list_files", "search_text", "git_status", "git_diff", "search_threads", "read_thread"}
+)
 
 
 class RestrictedDispatcher:
     def __init__(self, inner: object, allowed_tools: Sequence[str]) -> None:
         self._inner = inner
-        self._allowed = frozenset(allowed_tools) - {"delegate_agent"}
+        self._allowed = self._validated(allowed_tools)
+
+    def replace_allowed(self, allowed_tools: Sequence[str]) -> None:
+        self._allowed = self._validated(allowed_tools)
+
+    def update_allowed(self, *, add: Sequence[str] = (), remove: Sequence[str] = ()) -> None:
+        self._allowed = (self._allowed | self._validated(add)) - self._validated(remove)
+
+    @staticmethod
+    def _validated(values: Sequence[str]) -> frozenset[str]:
+        if isinstance(values, (str, bytes)):
+            raise TypeError("allowed tools must be a sequence of names")
+        checked = tuple(values)
+        for value in checked:
+            if not isinstance(value, str):
+                raise TypeError("allowed tool names must be text")
+            if not value.strip():
+                raise ValueError("allowed tool names must not be blank")
+        return frozenset(checked) - {"delegate_agent"}
 
     def tools(self) -> tuple[ToolDefinition, ...]:
         return tuple(tool for tool in self._inner.tools() if tool.name in self._allowed)
@@ -86,6 +108,13 @@ class SubagentTool:
     async def dispatch(
         self, request: ActionRequest, cancellation: CancellationToken
     ) -> ActionResult:
+        agent, role = self._resolve_agent(request)
+        result = await self._supervisor.run(self._child_request(request, agent))
+        return _action_result(request, role, result)
+
+    def _resolve_agent(
+        self, request: ActionRequest
+    ) -> tuple[AgentDefinition, AgentRole]:
         arguments = request.arguments
         role_value = arguments.get("role")
         agent_id = arguments.get("agent_id")
@@ -108,32 +137,10 @@ class SubagentTool:
             agent.may_write
             if agent_id is not None
             else role is AgentRole.SUBAGENT
-            and any(
-                name
-                in {
-                    "write_file",
-                    "replace_text",
-                    "run_verification",
-                    "run_command",
-                }
-                for name in allowed
-            )
+            and any(name in _WRITE_TOOLS for name in allowed)
         )
         if role in _READ_ONLY_ROLES:
-            allowed = tuple(
-                name
-                for name in allowed
-                if name
-                in {
-                    "read_file",
-                    "list_files",
-                    "search_text",
-                    "git_status",
-                    "git_diff",
-                    "search_threads",
-                    "read_thread",
-                }
-            )
+            allowed = tuple(name for name in allowed if name in _READ_ONLY_TOOLS)
         if agent_id is None:
             agent = AgentDefinition(
                 f"{role.value}-{request.id[:16]}",
@@ -143,7 +150,13 @@ class SubagentTool:
                 tuple(allowed),
                 may_write=may_write,
             )
-        child = ChildRunRequest(
+        return agent, role
+
+    def _child_request(
+        self, request: ActionRequest, agent: AgentDefinition
+    ) -> ChildRunRequest:
+        arguments = request.arguments
+        return ChildRunRequest(
             self._parent_run_id or request.id,
             str(arguments["objective"]),
             agent,
@@ -152,26 +165,31 @@ class SubagentTool:
             int(arguments.get("tool_budget", 16)),
             int(arguments.get("active_seconds", 300)),
         )
-        result = await self._supervisor.run(child)
-        return ActionResult(
-            request.id,
-            request.name,
-            {
-                "advisory": True,
-                "run_id": result.run_id,
-                "role": role.value,
-                "status": result.status.value,
-                "summary": result.summary,
-                "usage": {
-                    "tokens": result.usage.total_tokens,
-                    "tool_calls": result.usage.tool_calls,
-                    "active_seconds": result.usage.active_seconds,
-                },
-                "references": [reference.identifier for reference in result.references],
-                "error": result.error,
-            },
-            is_error=result.status is not RunStatus.COMPLETED,
-        )
+
+
+def _action_result(
+    request: ActionRequest, role: AgentRole, result: ChildRunResult
+) -> ActionResult:
+    output = {
+        "advisory": True,
+        "run_id": result.run_id,
+        "role": role.value,
+        "status": result.status.value,
+        "summary": result.summary,
+        "usage": {
+            "tokens": result.usage.total_tokens,
+            "tool_calls": result.usage.tool_calls,
+            "active_seconds": result.usage.active_seconds,
+        },
+        "references": [reference.identifier for reference in result.references],
+        "error": result.error,
+    }
+    return ActionResult(
+        request.id,
+        request.name,
+        output,
+        is_error=result.status is not RunStatus.COMPLETED,
+    )
 
 
 def _instructions(role: AgentRole) -> str:

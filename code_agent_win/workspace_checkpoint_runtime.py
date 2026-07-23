@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 from pathlib import Path
 from typing import Mapping, Sequence
 
 from code_agent.checkpoints.rewind import RewindCoordinator
 from code_agent.checkpoints.service import CheckpointService
 from code_agent.interfaces.checkpoint_control import CheckpointControl
+from code_agent.sessions.errors import SessionCorruptionError, SessionNotFound
 from code_agent.workspace.edits import WorkspaceEditor, build_restore_snapshot
 from code_agent.workspace.git import GitWorkspace
 from code_agent.workspace.inventory import WorkspaceInventory
@@ -14,24 +16,44 @@ from code_agent.workspace.paths import WorkspacePathGuard
 from code_agent.workspace.snapshot_store import ContentAddressedSnapshotStore
 
 
+class StableQuiescer:
+    def __init__(self) -> None:
+        self._callback: object | None = None
+
+    def bind(self, callback: object) -> None:
+        if not callable(callback):
+            raise TypeError("workspace quiescer must be callable")
+        self._callback = callback
+
+    async def __call__(self, task_id: str) -> None:
+        callback = self._callback
+        if callback is None:
+            raise RuntimeError("workspace quiescer is not bound")
+        result = callback(task_id)
+        if not inspect.isawaitable(result):
+            raise TypeError("workspace quiescer must return an awaitable")
+        await result
+
+
 def checkpoint_control(
     sessions: object,
     locks: object,
     service: object,
     store_root: Path,
+    quiesce: object,
     invalidate_verification: object,
 ) -> CheckpointControl:
     workspace = _CheckpointWorkspace(
         service.root, service.guard, service.git, store_root
     )
     checkpoints = _ListedCheckpointService(
-        sessions, workspace, _noop_quiesce, locks
+        sessions, workspace, quiesce, locks
     )
     rewind = RewindCoordinator(
         sessions,
         workspace,
         checkpoints,
-        _noop_quiesce,
+        quiesce,
         invalidate_cache=lambda paths: _invalidate(service, paths),
         invalidate_verification=invalidate_verification,
     )
@@ -110,13 +132,17 @@ class _CheckpointWorkspace:
 class _ListedCheckpointService(CheckpointService):
     async def list(self, task_id: str):
         task = await self.sessions.load_task(task_id)
-        return await self.sessions.list_checkpoints(task.thread_id)
+        records = await self.sessions.list_checkpoints(task.thread_id)
+        listed = []
+        for record in records:
+            try:
+                await self.sessions.load_checkpoint_cursor(record.id)
+            except (SessionNotFound, SessionCorruptionError):
+                continue
+            listed.append(record)
+        return tuple(listed)
 
 
 def _invalidate(service: object, paths: Sequence[str]) -> None:
     service.repo_index.invalidate(paths)
     service.files.invalidate_inventory()
-
-
-async def _noop_quiesce(task_id: str) -> None:
-    return None

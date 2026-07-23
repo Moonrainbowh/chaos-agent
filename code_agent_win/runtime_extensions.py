@@ -5,13 +5,30 @@ from contextvars import ContextVar, Token
 from dataclasses import replace
 
 from code_agent.core.cancellation import CancellationToken
+from code_agent.core.context_request import ContextRequest
 from code_agent.core.models import Message, ModelEventKind, ToolDefinition, Usage
+from code_agent.core.task_state import TaskState
+from code_agent.context.tokens import estimate_tokens
 from code_agent.interfaces.approval import ApprovalBroker, ApprovalRequest
 from code_agent.skills.controller import SkillController
+from code_agent.thread_intelligence.deterministic_summary import (
+    render_bounded_source_summary,
+)
 from code_agent.thread_intelligence.models import (
     SummaryRequest,
     SummaryResponse,
 )
+
+
+_SUMMARY_SYSTEM = (
+    "You create compact semantic checkpoints for an ongoing coding task."
+)
+_SUMMARY_INSTRUCTION = (
+    "Summarize the following task history faithfully. Preserve decisions, "
+    "constraints, unresolved work, evidence references, and stable source "
+    "IDs. Do not add facts.\n\n"
+)
+_SUMMARY_PROTOCOL_RESERVE = 32
 
 
 class ThreadRuntimeBinding:
@@ -73,26 +90,41 @@ class BoundSkillContextBuilder:
 
     async def build(
         self,
-        thread_id: str,
-        messages: Sequence[Message],
-        user_input: str,
-        tools: Sequence[ToolDefinition],
-        task_state: object,
-        cancellation: CancellationToken,
+        thread_id: str | ContextRequest,
+        messages: Sequence[Message] | None = None,
+        user_input: str | None = None,
+        tools: Sequence[ToolDefinition] | None = None,
+        task_state: TaskState | None = None,
+        cancellation: CancellationToken | None = None,
     ) -> object:
+        if isinstance(thread_id, ContextRequest):
+            if any(
+                value is not None
+                for value in (messages, user_input, tools, task_state, cancellation)
+            ):
+                raise TypeError("ContextRequest cannot be combined with legacy arguments")
+            request = thread_id
+        else:
+            if messages is None or user_input is None or tools is None:
+                raise TypeError("legacy context arguments are incomplete")
+            if task_state is None or cancellation is None:
+                raise TypeError("task_state and cancellation are required")
+            request = ContextRequest(
+                thread_id=thread_id,
+                revision=1,
+                messages=tuple(messages),
+                user_input=user_input,
+                tools=tuple(tools),
+                task_state=task_state,
+                cancellation=cancellation,
+            )
+        thread_id = request.thread_id
         self._binding.bind(thread_id)
         if thread_id not in self._restored:
             await self._skills.restore(thread_id)
             self._restored.add(thread_id)
         activation = self._skills.activation(thread_id)
-        bundle = await self._semantic.build(
-            thread_id,
-            messages,
-            user_input,
-            tools,
-            task_state,
-            cancellation,
-        )
+        bundle = await self._semantic.build(request)
         content = activation.render()
         return replace(
             bundle,
@@ -114,25 +146,22 @@ class ModelSemanticSummarizer:
     async def summarize(
         self, request: SummaryRequest, cancellation: CancellationToken
     ) -> SummaryResponse:
+        if not isinstance(request, SummaryRequest):
+            raise TypeError("request must be a SummaryRequest")
+        if not isinstance(cancellation, CancellationToken):
+            raise TypeError("cancellation must be a CancellationToken")
         cancellation.raise_if_cancelled()
-        source = "\n".join(
-            f"[{item.anchor.stable_id}] {item.message.role}: {item.message.content}"
-            for item in request.sources
-        )
+        source = _bounded_summary_source(request)
         messages = (
             Message(
                 role="user",
-                content=(
-                    "Summarize the following task history faithfully. Preserve "
-                    "decisions, constraints, unresolved work, evidence references, "
-                    "and stable source IDs. Do not add facts.\n\n" + source
-                ),
+                content=_SUMMARY_INSTRUCTION + source,
             ),
         )
         text: list[str] = []
         usage = Usage()
         async for event in self._model.stream(
-            "You create compact semantic checkpoints for an ongoing coding task.",
+            _SUMMARY_SYSTEM,
             messages,
             (),
         ):
@@ -155,3 +184,17 @@ class ModelSemanticSummarizer:
         if task is not None:
             await self._sessions.consume_task_usage(task.id, usage)
         return SummaryResponse(summary, self._model_name, usage)
+
+
+def _bounded_summary_source(request: SummaryRequest) -> str:
+    fixed = (
+        estimate_tokens(_SUMMARY_SYSTEM)
+        + estimate_tokens(_SUMMARY_INSTRUCTION)
+        + _SUMMARY_PROTOCOL_RESERVE
+    )
+    source_tokens = (
+        request.max_total_tokens - request.max_output_tokens - fixed
+    )
+    if source_tokens <= 0:
+        raise RuntimeError("semantic summary input budget is unavailable")
+    return render_bounded_source_summary(request.sources, source_tokens)

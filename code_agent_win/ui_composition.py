@@ -1,17 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
+from inspect import isawaitable
 from pathlib import Path
 
-from code_agent.interfaces.capability_view import (
-    ModePermissionView,
-    PermissionSummary,
-)
-from code_agent.interfaces.command_registry import REGISTRY
-from code_agent.interfaces.interaction import PluginInteractionAdapter
-from code_agent.interfaces.terminal_display import DisplayKind
+from code_agent.interfaces.command_registry import CommandRegistry, REGISTRY
 from code_agent.orchestration.models import RunStatus
-from code_agent.policy.models import ApprovalMode
 from code_agent.plugins.commands import PluginCommandCatalog
 from code_agent.workflows.models import WorkflowNodeStatus
 from code_agent.workflows.observations import (
@@ -19,15 +14,10 @@ from code_agent.workflows.observations import (
     EvidenceInvalidatedObservation,
 )
 from code_agent.workflows.service import WorkflowService
-from code_agent_win.app_ui import (
-    GitDiffAdapter,
-    ModeAwareWindowsTerminalApp,
-    TaskScopedGitDiffAdapter,
-)
-from code_agent_win.foreground_tasks import IntegratedForegroundTaskController
-from code_agent_win.plugin_runtime import (
-    PluginCommandController,
-    PluginEventCoordinator,
+from code_agent_win.app_ui import ModeAwareWindowsTerminalApp
+from code_agent_win.ui_runtime_composition import (
+    UiComposition,
+    compose_ui_runtime,
 )
 
 
@@ -44,7 +34,6 @@ def compose_ui(
     approval_mode: object,
     mode_control: object,
     permission_control: object,
-    plugin_mode_ids: tuple[str, ...],
     plugin_host: object,
     dispatcher: object,
     interaction_broker: object,
@@ -55,88 +44,47 @@ def compose_ui(
     rewind: object | None,
     workspace_runtime: object,
     plugin_errors: tuple[str, ...],
+    plugin_discover: Callable[[], tuple[object, object]],
+    on_plugin_change: Callable[[], object],
     tui_ref: list[ModeAwareWindowsTerminalApp],
 ) -> tuple[object, ModeAwareWindowsTerminalApp, WorkflowService]:
-    pending_notifications: list[object] = []
+    parts = UiComposition(
+        controller, approvals, sessions, root, profile_supplier,
+        profile_resolver, subagents, snapshot, approval_mode, mode_control,
+        permission_control, plugin_host, dispatcher, interaction_broker, skills,
+        mcp, git, checkpoints, rewind, workspace_runtime, plugin_errors,
+        plugin_discover, on_plugin_change, tui_ref, plugin_command_registry,
+        refresh_plugin_surfaces, _current_diff_task, _subscribe_child_workflows,
+        _invalidate_workflow_verification,
+    )
+    return compose_ui_runtime(parts)
 
-    def display_plugin_notification(interaction: object) -> None:
-        if tui_ref:
-            tui_ref[0]._append(DisplayKind.METADATA, interaction.prompt)
-        else:
-            pending_notifications.append(interaction)
 
-    plugin_events = PluginEventCoordinator(
-        plugin_host,
-        PluginInteractionAdapter(
-            interaction_broker, display_plugin_notification
-        ),
-        dispatcher,
+def plugin_command_registry(plugin_host: object) -> CommandRegistry:
+    identifiers = tuple(
+        item.qualified_id for item in plugin_host.contributions("mode")
     )
-    workflows = WorkflowService(sessions)
-    workspace_runtime.set_verification_invalidator(
-        lambda task_id, replacement: _invalidate_workflow_verification(
-            sessions, workflows, task_id, replacement
-        )
+    return REGISTRY.with_plugin_modes(identifiers).with_plugin_commands(
+        PluginCommandCatalog(plugin_host).list()
     )
-    foreground = IntegratedForegroundTaskController(
-        controller,
-        sessions,
-        root,
-        profile_supplier=profile_supplier,
-        profile_resolver=profile_resolver,
-        subagents=subagents,
-        workflows=workflows,
-        plugin_events=plugin_events,
-        workspace_runtime=workspace_runtime,
+
+
+async def refresh_plugin_surfaces(
+    plugin_host: object,
+    mode_control: object,
+    tui: object,
+    on_plugin_change: Callable[[], object],
+) -> None:
+    """Synchronize live host contributions across policy and TUI surfaces."""
+
+    changed = on_plugin_change()
+    if isawaitable(changed):
+        await changed
+    identifiers = tuple(
+        item.qualified_id for item in plugin_host.contributions("mode")
     )
-    command_registry = REGISTRY.with_plugin_modes(
-        plugin_mode_ids
-    ).with_plugin_commands(PluginCommandCatalog(plugin_host).list())
-    plugin_commands = PluginCommandController(plugin_host)
-    tui = ModeAwareWindowsTerminalApp(
-        controller,
-        approvals,
-        sessions=sessions,
-        evidence=sessions,
-        history=sessions,
-        tasks=foreground,
-        modes=mode_control,
-        permissions=permission_control,
-        skills=skills,
-        mcp=mcp,
-        workflows=sessions,
-        command_registry=command_registry,
-        checkpoints=checkpoints,
-        rewind=rewind,
-        plugins=plugin_commands,
-        interaction_broker=interaction_broker,
-        diff_source=TaskScopedGitDiffAdapter(
-            workspace_runtime,
-            lambda: _current_diff_task(tui_ref),
-            GitDiffAdapter(git),
-        ),
-        capability=ModePermissionView(
-            snapshot,
-            PermissionSummary(
-                approval_mode,
-                str(root),
-                approval_mode is ApprovalMode.UNRESTRICTED,
-                approval_mode is not ApprovalMode.PLAN,
-            ),
-        ),
-        recover_pending=workspace_runtime.recover_pending,
-        startup=workspace_runtime.startup,
-        plugin_errors=plugin_errors,
-    )
-    tui_ref.append(tui)
-    for notification in pending_notifications:
-        display_plugin_notification(notification)
-    plugin_commands.attach(tui)
-    subagents.subscribe(
-        lambda view: tui.interactions.observe_agent(tui, view)
-    )
-    _subscribe_child_workflows(subagents, workflows)
-    return foreground, tui, workflows
+    tui.command_registry = plugin_command_registry(plugin_host)
+    await mode_control.refresh(identifiers)
 
 
 def _current_diff_task(tui_ref: list[ModeAwareWindowsTerminalApp]) -> str | None:

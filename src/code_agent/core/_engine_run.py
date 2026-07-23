@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from inspect import signature
 from typing import AsyncIterator, Optional
 
 from .cancellation import CancellationError, CancellationToken
@@ -52,6 +53,35 @@ def _validate_run_arguments(user_input: str, thread_id: Optional[str]) -> None:
         not isinstance(thread_id, str) or not thread_id.strip()
     ):
         raise ValueError("thread_id must be a non-blank string or None")
+
+
+async def _invoke_context_builder(
+    builder: object, request: ContextRequest
+) -> ContextBundle:
+    build = getattr(builder, "build", None)
+    if not callable(build):
+        raise TypeError("context builder must provide build")
+    try:
+        build_signature = signature(build)
+    except (TypeError, ValueError):
+        accepts_request = True
+    else:
+        try:
+            build_signature.bind(request)
+        except TypeError:
+            accepts_request = False
+        else:
+            accepts_request = True
+    if accepts_request:
+        return await build(request)
+    return await build(
+        request.thread_id,
+        request.messages,
+        request.user_input,
+        request.tools,
+        request.task_state,
+        request.cancellation,
+    )
 
 
 class AgentEngineRunMixin:
@@ -118,17 +148,7 @@ class AgentEngineRunMixin:
                 permission_snapshot=self._context_permission_snapshot,
                 budget_lease=budget_lease(state.budget),
             )
-            try:
-                bundle = await self._context.build(request)
-            except TypeError:
-                bundle = await self._context.build(
-                    request.thread_id,
-                    request.messages,
-                    request.user_input,
-                    request.tools,
-                    request.task_state,
-                    request.cancellation,
-                )
+            bundle = await _invoke_context_builder(self._context, request)
             if not isinstance(bundle, ContextBundle):
                 raise TypeError("context builder returned an invalid bundle")
             return bundle

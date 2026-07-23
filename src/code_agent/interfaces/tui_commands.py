@@ -21,7 +21,7 @@ _DEFAULT_SERVICES = {
 
 
 class TuiCommandKind(str, Enum):
-    HELP = "help"; STATUS = "status"; CLEAR = "clear"; EXIT = "exit"; NEW = "new"; SESSIONS = "sessions"; RESTORE = "restore"; TASKS = "tasks"; ACCEPT = "accept"; DIFF = "diff"; EVIDENCE = "evidence"; CHECKPOINT = "checkpoint"; REWIND = "rewind"; MODE = "mode"; PERMISSION = "permission"; WORKFLOW = "workflow"; SKILL = "skill"; MCP = "mcp"; PLUGIN = "plugin"
+    HELP = "help"; STATUS = "status"; CLEAR = "clear"; EXIT = "exit"; NEW = "new"; SESSIONS = "sessions"; RESTORE = "restore"; TASKS = "tasks"; ACCEPT = "accept"; DIFF = "diff"; EVIDENCE = "evidence"; CHECKPOINT = "checkpoint"; REWIND = "rewind"; MODE = "mode"; PERMISSION = "permission"; WORKFLOW = "workflow"; SKILL = "skill"; MCP = "mcp"; PLUGIN_CONTROL = "plugin_control"; PLUGIN = "plugin"
 
 
 @dataclass(frozen=True)
@@ -71,7 +71,7 @@ def parse_tui_command(
         if len(arguments) == 1 and action.usage.startswith("<"):
             return ParseOutcome(error="command action argument is required")
         normalized_action = action.name
-    kinds = {"帮助": "help", "状态": "status", "清屏": "clear", "退出": "exit", "新建": "new", "会话": "sessions", "恢复": "restore", "任务": "tasks", "接受": "accept", "差异": "diff", "证据": "evidence", "检查点": "checkpoint", "回退": "rewind", "模式": "mode", "权限": "permission", "流程": "workflow", "技能": "skill", "mcp": "mcp"}
+    kinds = {"帮助": "help", "状态": "status", "清屏": "clear", "退出": "exit", "新建": "new", "会话": "sessions", "恢复": "restore", "任务": "tasks", "接受": "accept", "差异": "diff", "证据": "evidence", "检查点": "checkpoint", "回退": "rewind", "模式": "mode", "权限": "permission", "流程": "workflow", "技能": "skill", "mcp": "mcp", "插件": "plugin_control"}
     kind = TuiCommandKind.PLUGIN if spec.source == "plugin" else TuiCommandKind(kinds[spec.name])
     value = " ".join(arguments) or None
-    return ParseOutcome(TuiCommand(kind, value if kind is TuiCommandKind.ACCEPT else None, value if kind in {TuiCommandKind.HELP, TuiCommandKind.RESTORE, TuiCommandKind.EVIDENCE, TuiCommandKind.CHECKPOINT, TuiCommandKind.REWIND, TuiCommandKind.MODE, TuiCommandKind.PERMISSION, TuiCommandKind.WORKFLOW, TuiCommandKind.SKILL, TuiCommandKind.MCP, TuiCommandKind.PLUGIN} else None, spec.name if kind is TuiCommandKind.PLUGIN else None, normalized_action))
+    return ParseOutcome(TuiCommand(kind, value if kind is TuiCommandKind.ACCEPT else None, value if kind in {TuiCommandKind.HELP, TuiCommandKind.RESTORE, TuiCommandKind.EVIDENCE, TuiCommandKind.CHECKPOINT, TuiCommandKind.REWIND, TuiCommandKind.MODE, TuiCommandKind.PERMISSION, TuiCommandKind.WORKFLOW, TuiCommandKind.SKILL, TuiCommandKind.MCP, TuiCommandKind.PLUGIN_CONTROL, TuiCommandKind.PLUGIN} else None, spec.name if kind is TuiCommandKind.PLUGIN else None, normalized_action))

@@ -124,8 +124,9 @@ class McpController:
 
     async def enable(self, name: str) -> tuple[McpTool, ...]:
         server = self._registry.status(name)[0]
-        tools = await self._manager.start(server)
-        updated = replace(server, tools=tools)
+        starting = replace(server, enabled=True, tools=())
+        tools = await self._manager.start(starting)
+        updated = replace(starting, tools=tools)
         self._registry = McpRegistry(tuple(updated if item.name == name else item for item in self._registry.list()))
         self._generation += 1
         self._sync_risks()
@@ -133,14 +134,16 @@ class McpController:
 
     async def disable(self, name: str) -> None:
         server = self._registry.status(name)[0]
-        updated = replace(server, tools=())
+        updated = replace(server, enabled=False, tools=())
         self._registry = McpRegistry(tuple(updated if item.name == name else item for item in self._registry.list()))
         self._generation += 1
         self._sync_risks()
         cancel = getattr(self._manager, "cancel", None)
-        if callable(cancel):
-            await cancel(name)
-        await self._manager.close(name)
+        try:
+            if callable(cancel):
+                await cancel(name)
+        finally:
+            await self._manager.close(name)
 
     async def call(self, namespace: str, arguments: Mapping[str, object]) -> object:
         prefix, server, tool = namespace.split(".", 2)

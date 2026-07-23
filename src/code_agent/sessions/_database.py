@@ -18,7 +18,7 @@ from ._schema_structure import validate_schema_structure
 from ._schema_validation import REQUIRED_COLUMNS
 
 
-SCHEMA_VERSION = 16
+SCHEMA_VERSION = 17
 _BUSY_TIMEOUT_MS = 5_000
 _SQLITE_CORRUPT = 11
 _SQLITE_NOTADB = 26
@@ -120,6 +120,7 @@ _MIGRATIONS: dict[int, tuple[str, ...]] = {
         "UPDATE workspace_lineage_usage SET repeated_failures = COALESCE((SELECT b.repeated_failures FROM workspace_lineages l JOIN tasks t ON t.id = l.owner_task_id AND t.workspace_lineage_id = l.id JOIN task_budgets b ON b.thread_id = t.thread_id WHERE l.id = workspace_lineage_usage.lineage_id), 0), last_failure_signature = (SELECT b.last_failure_signature FROM workspace_lineages l JOIN tasks t ON t.id = l.owner_task_id AND t.workspace_lineage_id = l.id JOIN task_budgets b ON b.thread_id = t.thread_id WHERE l.id = workspace_lineage_usage.lineage_id)",
     ),
     16: REWIND_MIGRATION,
+    17: (),
 }
 
 
@@ -189,6 +190,8 @@ class SessionDatabase:
             for target in range(current + 1, SCHEMA_VERSION + 1):
                 for statement in _MIGRATIONS[target]:
                     connection.execute(statement)
+                if target == 17:
+                    _add_checkpoint_sequence_columns(connection)
                 connection.execute(f"PRAGMA user_version = {target}")
             connection.execute("COMMIT")
         except sqlite3.DatabaseError as error:
@@ -256,3 +259,14 @@ def _database_error(error: sqlite3.DatabaseError) -> SessionError:
     ):
         return SessionCorruptionError("SQLite database is corrupt")
     return SessionStorageError("SQLite session operation failed")
+
+
+def _add_checkpoint_sequence_columns(connection: sqlite3.Connection) -> None:
+    """Repair legacy v2/v3 checkpoint tables that omitted cursor columns."""
+    columns = {
+        row[1] for row in connection.execute("PRAGMA table_info(checkpoints)")
+    }
+    if "message_sequence" not in columns:
+        connection.execute("ALTER TABLE checkpoints ADD COLUMN message_sequence INTEGER")
+    if "event_sequence" not in columns:
+        connection.execute("ALTER TABLE checkpoints ADD COLUMN event_sequence INTEGER")

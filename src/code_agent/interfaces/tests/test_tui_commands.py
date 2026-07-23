@@ -26,6 +26,10 @@ class TuiCommandTests(unittest.TestCase):
             parse_tui_command("/mcp restart docs").command.kind,
             TuiCommandKind.MCP,
         )
+        self.assertEqual(
+            parse_tui_command("/plugin enable reviewer").command.kind,
+            TuiCommandKind.PLUGIN_CONTROL,
+        )
         self.assertFalse(parse_tui_command("/does-not-exist").is_command)
         self.assertEqual(parse_tui_command("/does-not-exist").error, "unknown or unavailable slash command")
 
@@ -42,7 +46,7 @@ class TuiCommandTests(unittest.TestCase):
     def test_every_registered_name_and_alias_resolves_to_its_own_command(self) -> None:
         services = {
             "sessions", "history", "tasks", "evidence", "modes", "permissions", "workflows",
-            "skills", "mcp",
+            "skills", "mcp", "plugins",
         }
 
         for expected in REGISTRY.available(services):
@@ -95,7 +99,7 @@ class TuiCommandTests(unittest.TestCase):
                 "帮助", "状态", "清屏", "退出",
                 "新建", "会话", "恢复",
                 "任务", "接受",
-                "差异", "证据", "检查点", "回退", "模式", "权限", "流程", "技能", "mcp",
+                "差异", "证据", "检查点", "回退", "模式", "权限", "流程", "技能", "mcp", "插件",
             ),
         )
 
@@ -141,4 +145,25 @@ class TuiCommandTests(unittest.TestCase):
         self.assertEqual(
             parse_tui_command("/技能 unknown").error,
             "unknown slash command action",
+        )
+
+    def test_plugin_control_actions_and_aliases_are_registered(self) -> None:
+        plugin = REGISTRY.resolve("plugin")
+
+        self.assertEqual(plugin.name, "插件")
+        self.assertEqual(
+            tuple(action.name for action in plugin.actions),
+            ("list", "status", "enable", "disable", "reload"),
+        )
+        self.assertEqual(
+            parse_tui_command("/插件 状态 reviewer").command.action,
+            "status",
+        )
+        self.assertEqual(
+            parse_tui_command("/plugins disable reviewer").command.kind,
+            TuiCommandKind.PLUGIN_CONTROL,
+        )
+        self.assertEqual(
+            parse_tui_command("/plugin enable").error,
+            "command action argument is required",
         )

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import inspect
 import os
 from pathlib import Path
 
 from code_agent.core.cancellation import CancellationToken
 from code_agent.core.events import EventKind
+from code_agent.core.limits import EngineLimits
 from code_agent.core.models import ActionResult
 from code_agent.core.task import TaskAuthorization, TaskContract, TaskStatus
 from code_agent.interfaces.task_controller import ForegroundTaskController
@@ -20,6 +22,7 @@ from code_agent.workflows.observations import (
 )
 from code_agent.sessions.errors import SessionNotFound
 
+from code_agent_win.foreground_checkpoint_lifecycle import ForegroundCheckpointLifecycle
 from code_agent_win.tool_support import discover_git_workspace
 
 
@@ -31,6 +34,7 @@ class IntegratedForegroundTaskController(ForegroundTaskController):
         workflows: object,
         plugin_events: object | None = None,
         workspace_runtime: object | None = None,
+        checkpoints: object | None = None,
         **kwargs: object,
     ) -> None:
         super().__init__(*args, **kwargs)
@@ -38,6 +42,14 @@ class IntegratedForegroundTaskController(ForegroundTaskController):
         self.workflows = workflows
         self._plugin_events = plugin_events
         self._workspace_runtime = workspace_runtime
+        self._settled_callbacks: list[object] = []
+        if checkpoints is None and workspace_runtime is not None:
+            checkpoints = workspace_runtime.checkpoint_control()
+        self._checkpoint_lifecycle = ForegroundCheckpointLifecycle(
+            self, self._sessions, checkpoints, workspace_runtime
+        )
+        if workspace_runtime is not None:
+            workspace_runtime.set_quiescer(self.quiesce)
 
     async def start(self, prompt: str):
         task = await self._create_managed_task(prompt)
@@ -62,13 +74,37 @@ class IntegratedForegroundTaskController(ForegroundTaskController):
         task = await self._sessions.create_task(
             thread_id, self._contract(prompt, root)
         )
-        await self._bind_workspace(thread_id, task.id, root, workspace)
-        await self._sessions.create_checkpoint(
-            thread_id,
-            "task-created",
-            {"task_id": task.id, "status": task.status.value},
-        )
+        try:
+            engine = self._controller._engine
+            await self._sessions.get_or_create_task_budget(
+                thread_id,
+                getattr(engine, "_model_name", task.contract.model or "configured-model"),
+                getattr(engine, "_limits", EngineLimits()),
+            )
+            await self._bind_workspace(thread_id, task.id, root, workspace)
+            await self._checkpoint_lifecycle.capture(
+                task.id,
+                "task-created",
+                {"task_id": task.id, "status": task.status.value},
+                0,
+            )
+        except BaseException:
+            await self._interrupt_failed_creation(task.id)
+            raise
         return task
+
+    async def _interrupt_failed_creation(self, task_id: str) -> None:
+        try:
+            task = await self._sessions.load_task(task_id)
+            if task.status is TaskStatus.CREATED:
+                await self._sessions.transition_task(
+                    task_id,
+                    TaskStatus.INTERRUPTED,
+                    "task creation failed before initial checkpoint",
+                )
+        except Exception:
+            # Preserve the setup failure; startup reconciliation can retry cleanup.
+            return
 
     async def _has_active_source_task(self) -> bool:
         for task in await self._sessions.list_tasks():
@@ -130,10 +166,35 @@ class IntegratedForegroundTaskController(ForegroundTaskController):
                 )
         return reconciled
 
+    async def quiesce(self, task_id: str) -> None:
+        await self._checkpoint_lifecycle.quiesce(task_id)
+
+    def subscribe_settled(self, callback: object) -> None:
+        if not callable(callback):
+            raise TypeError("settled callback must be callable")
+        self._settled_callbacks.append(callback)
+
+    async def pause(
+        self, task_id: str, reason: str = "user requested pause"
+    ) -> None:
+        await self._checkpoint_lifecycle.pause(task_id, reason)
+
+    async def interrupt(self, task_id: str, reason: str = "TUI closed") -> None:
+        await self._checkpoint_lifecycle.interrupt(task_id, reason)
+
+    async def accept_partial(
+        self,
+        task_id: str,
+        reason: str = "user accepted partial delivery",
+    ):
+        return await self._checkpoint_lifecycle.accept_partial(task_id, reason)
+
     async def events(self, task_id: str, prompt: str | None = None):
-        token = self._subagents.activate(task_id)
+        serial = self._checkpoint_lifecycle.begin_run(task_id)
+        token = None
         plugin_token = CancellationToken()
         try:
+            token = self._subagents.activate(task_id)
             async for event in super().events(task_id, prompt):
                 await self._observe_workflow_event(task_id, event)
                 if self._plugin_events is not None:
@@ -146,8 +207,31 @@ class IntegratedForegroundTaskController(ForegroundTaskController):
                 yield event
         finally:
             plugin_token.cancel("task event stream closed")
-            await self._subagents.release(task_id)
-            self._subagents.reset(token)
+            try:
+                try:
+                    if token is not None:
+                        await self._subagents.release(task_id)
+                finally:
+                    if token is not None:
+                        self._subagents.reset(token)
+                    self._checkpoint_lifecycle.settle_run(task_id, serial)
+            finally:
+                try:
+                    await self._checkpoint_lifecycle.capture_settled(task_id, serial)
+                finally:
+                    try:
+                        await self._notify_settled()
+                    finally:
+                        self._checkpoint_lifecycle.finalize_run(task_id, serial)
+
+    async def _notify_settled(self) -> None:
+        for callback in tuple(self._settled_callbacks):
+            try:
+                result = callback()
+                if inspect.isawaitable(result):
+                    await result
+            except Exception:
+                continue
 
     async def _observe_workflow_event(self, task_id: str, event: object) -> None:
         if event.kind is EventKind.ACTION_COMPLETED:
@@ -223,9 +307,7 @@ def _plugin_event_kind(event: object) -> str:
 
 
 def _active_task(task: object) -> bool:
-    if task.status not in {TaskStatus.CREATED, TaskStatus.RUNNING}:
-        return False
-    return True
+    return task.status in {TaskStatus.CREATED, TaskStatus.RUNNING}
 
 
 def _same_path(left: Path, right: Path) -> bool:
