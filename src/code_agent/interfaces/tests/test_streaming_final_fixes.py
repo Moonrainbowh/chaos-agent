@@ -291,6 +291,28 @@ class StreamingLifecycleTests(unittest.IsolatedAsyncioTestCase):
             arguments.update(changed)
             self.assertTrue(needs_animation_frame(**arguments)[0])
 
+        for status in (
+            "building_context",
+            "waiting_model",
+            "reasoning",
+            "streaming_response",
+            "preparing_action",
+        ):
+            with self.subTest(status=status):
+                self.assertEqual(
+                    needs_animation_frame(
+                        dirty=False,
+                        drawn_size=(80, 24),
+                        current_size=(80, 24),
+                        drawn_revision=4,
+                        current_revision=4,
+                        status=status,
+                        now=11.0,
+                        spinner_deadline=11.0,
+                    ),
+                    (True, True),
+                )
+
 
 if __name__ == "__main__":
     unittest.main()

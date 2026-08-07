@@ -18,6 +18,11 @@ def available_services(app: Any) -> set[str]:
             "skills",
             "mcp",
             "plugins",
+            "attachments",
         )
-        if getattr(app, name, None) is not None
+        if (
+            getattr(app, "attachment_draft", None) is not None
+            if name == "attachments"
+            else getattr(app, name, None) is not None
+        )
     }

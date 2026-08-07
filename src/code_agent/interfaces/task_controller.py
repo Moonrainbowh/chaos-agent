@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import os
 import uuid
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from pathlib import Path
 
 import psutil
 
 from code_agent.core.cancellation import CancellationError, CancellationToken
+from code_agent.core.attachments import AttachmentRef, freeze_attachments
 from code_agent.core.events import AgentEvent, EventKind
 from code_agent.core.task import TaskAuthorization, TaskContract, TaskRecord, TaskStatus
 from code_agent.core.models import Message
@@ -42,7 +43,13 @@ class ForegroundTaskController:
     async def list(self, *, include_terminal: bool = False) -> tuple[TaskRecord, ...]:
         return await self._sessions.list_tasks(include_terminal=include_terminal)
 
-    async def events(self, task_id: str, prompt: str | None = None) -> AsyncIterator[AgentEvent]:
+    async def events(
+        self,
+        task_id: str,
+        prompt: str | None = None,
+        *,
+        attachments: Sequence[AttachmentRef] = (),
+    ) -> AsyncIterator[AgentEvent]:
         task = await self._sessions.load_task(task_id)
         if task.contract.profile_id and self._profile_resolver:
             try: await self._profile_resolver(task.contract.profile_id)
@@ -67,7 +74,13 @@ class ForegroundTaskController:
         self._tokens[task.id] = token
         instruction = prompt or task.contract.objective
         try:
-            async for event in self._controller.ask(instruction, thread_id=task.thread_id, cancellation=token, task=task):
+            async for event in self._controller.ask(
+                instruction,
+                thread_id=task.thread_id,
+                cancellation=token,
+                task=task,
+                attachments=attachments,
+            ):
                 yield event
         except CancellationError:
             return
@@ -123,16 +136,36 @@ class ForegroundTaskController:
                 {"task_id": interrupted.id, "status": interrupted.status.value, "reason": reason},
             )
 
-    async def resume(self, task_id: str, instruction: str = "continue safely") -> AsyncIterator[AgentEvent]:
-        async for event in self.events(task_id, instruction):
+    async def resume(
+        self,
+        task_id: str,
+        instruction: str = "continue safely",
+        *,
+        attachments: Sequence[AttachmentRef] = (),
+    ) -> AsyncIterator[AgentEvent]:
+        async for event in self.events(task_id, instruction, attachments=attachments):
             yield event
 
-    async def steer(self, task_id: str, instruction: str) -> None:
-        if not isinstance(instruction, str) or not instruction.strip() or len(instruction) > 1024:
-            raise ValueError("instruction must be bounded non-blank text")
-        task = await self._sessions.load_task(task_id)
-        await self._sessions.append_message(task.thread_id, Message(role="user", content=instruction))
-        await self._sessions.record_task_control(task_id, instruction)
+    async def steer(
+        self,
+        task_id: str,
+        instruction: str,
+        *,
+        attachments: Sequence[AttachmentRef] = (),
+    ) -> None:
+        checked = freeze_attachments(tuple(attachments))
+        if (
+            not isinstance(instruction, str)
+            or len(instruction) > 1024
+            or (not instruction.strip() and not checked)
+        ):
+            raise ValueError("instruction or attachments must be bounded input")
+        control = instruction if instruction.strip() else "apply attached user input"
+        await self._sessions.record_task_steering(
+            task_id,
+            Message(role="user", content=instruction, attachments=checked),
+            control,
+        )
 
     async def reconcile_stale_tasks(self) -> tuple[str, ...]:
         reconcile = getattr(self._sessions, "reconcile_stale_tasks", None)

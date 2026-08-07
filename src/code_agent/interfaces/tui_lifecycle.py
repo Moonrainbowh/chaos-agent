@@ -13,6 +13,16 @@ from .checkpoint_tui import close_rewind_flow
 _FRAME_INTERVAL = 1 / 30
 _SPINNER_INTERVAL = 0.1
 _CLOSE_GRACE_SECONDS = 0.1
+_ANIMATED_STATUSES = frozenset(
+    {
+        "running",
+        "building_context",
+        "waiting_model",
+        "reasoning",
+        "streaming_response",
+        "preparing_action",
+    }
+)
 
 
 def start_animation(app: object) -> None:
@@ -56,7 +66,7 @@ def needs_animation_frame(
     status: str, now: float, spinner_deadline: float,
 ) -> tuple[bool, bool]:
     """Decide one animation tick without sleeping or reading global state."""
-    spinner_due = status == "running" and now >= spinner_deadline
+    spinner_due = status in _ANIMATED_STATUSES and now >= spinner_deadline
     changed = drawn_size != current_size or drawn_revision != current_revision
     return dirty or changed or spinner_due, spinner_due
 

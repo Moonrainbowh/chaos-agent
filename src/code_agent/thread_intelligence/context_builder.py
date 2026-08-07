@@ -5,7 +5,7 @@ from collections.abc import Sequence
 from dataclasses import replace
 from typing import Protocol
 
-from code_agent.context.tokens import estimate_tokens
+from code_agent.context.attachment_budget import attachment_metadata, message_tokens
 from code_agent.core.cancellation import CancellationToken
 from code_agent.core.context_request import ContextRequest
 from code_agent.core.models import ContextBundle, Message, ToolDefinition
@@ -89,7 +89,9 @@ class ThreadAwareContextBuilder:
             except Exception:
                 selected = durable
         cancellation.raise_if_cancelled()
-        delegated = replace(request, messages=tuple(selected), user_input="")
+        delegated = replace(
+            request, messages=tuple(selected), user_input="", attachments=()
+        )
         return await self._inner.build(delegated)
 
 
@@ -119,7 +121,7 @@ def _resolve_request(
 
 
 def _message_tokens(messages: Sequence[Message]) -> int:
-    return sum(estimate_tokens(message.content) + 4 for message in messages)
+    return sum(message_tokens(message) for message in messages)
 
 
 def _index_entries(
@@ -130,10 +132,10 @@ def _index_entries(
     source_entries = tuple(
         ThreadEntry(
             anchor_message(record.thread_id, record.sequence, record.message).anchor,
-            record.message.content,
+            _indexable_message(record.message),
         )
         for record in records
-        if record.message.content.strip()
+        if record.message.content.strip() or record.message.attachments
     )
     digest = hashlib.sha256(summary.encode("utf-8")).hexdigest()
     checkpoint_anchor = SourceAnchor(
@@ -144,3 +146,13 @@ def _index_entries(
         digest,
     )
     return source_entries + (ThreadEntry(checkpoint_anchor, summary),)
+
+
+def _indexable_message(message: Message) -> str:
+    metadata = "; ".join(
+        attachment_metadata(item) for item in message.attachments
+    )
+    sections = [message.content.strip()]
+    if metadata:
+        sections.append(f"Attachments: {metadata}")
+    return "\n".join(section for section in sections if section)

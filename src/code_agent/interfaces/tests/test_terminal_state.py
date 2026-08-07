@@ -18,6 +18,7 @@ from code_agent.core.models import (  # noqa: E402
     Message,
     ModelEvent,
     ModelEventKind,
+    ToolCall,
 )
 from code_agent.interfaces.history import RestoredThread  # noqa: E402
 from code_agent.interfaces.terminal_display import DisplayKind  # noqa: E402
@@ -94,7 +95,7 @@ class TerminalStateTests(unittest.TestCase):
         state.apply(AgentEvent(EventKind.MODEL_STARTED, {}))
         self.assertEqual(state.status, "waiting_model")
         state.apply(_text_delta("first token"))
-        self.assertEqual(state.status, "running")
+        self.assertEqual(state.status, "streaming_response")
 
     def test_action_request_takes_precedence_over_waiting_for_model(self) -> None:
         state = TerminalState()
@@ -115,7 +116,7 @@ class TerminalStateTests(unittest.TestCase):
         )
 
         self.assertEqual(state.status, "running")
-        self.assertEqual(state.active_action, "read_file")
+        self.assertEqual(state.active_action, "Read file src/a.py")
         self.assertFalse(state.has_draft)
         self.assertFalse(any(entry.kind is DisplayKind.PARTIAL_AGENT for entry in state.entries))
 
@@ -239,17 +240,55 @@ class TerminalStateTests(unittest.TestCase):
         state.apply(AgentEvent(EventKind.ACTION_COMPLETED, {"result": ActionResult("call-1", "read_file", {}).to_dict()}))
 
         self.assertEqual(state.entries[-1].kind, DisplayKind.TOOL)
-        self.assertEqual(state.entries[-1].text, "read_file")
+        self.assertEqual(state.entries[-1].text, "Read file")
 
     def test_action_summary_keeps_only_request_facts(self) -> None:
         state = TerminalState()
         state.apply(AgentEvent(EventKind.ACTION_REQUESTED, {"request": {"id": "call-1", "name": "read_file", "arguments": {"path": "src/a.py", "secret": "nope"}}}))
         state.apply(AgentEvent(EventKind.ACTION_COMPLETED, {"result": ActionResult("call-1", "read_file", {"content": "unbounded"}, metadata={"lines": 7, "duration_ms": 12}).to_dict()}))
 
-        self.assertIn("path: src/a.py", state.entries[-1].text)
+        self.assertIn("Read file src/a.py", state.entries[-1].text)
         self.assertIn("lines: 7", state.entries[-1].text)
         self.assertNotIn("unbounded", state.entries[-1].text)
         self.assertNotIn("nope", state.entries[-1].text)
+
+    def test_list_files_summary_has_target_count_duration_and_bounded_preview(self) -> None:
+        state = TerminalState()
+        state.apply(AgentEvent(EventKind.ACTION_REQUESTED, {"request": {
+            "id": "call-1",
+            "name": "list_files",
+            "arguments": {"root": "."},
+        }}))
+        state.apply(AgentEvent(EventKind.ACTION_COMPLETED, {"result": ActionResult(
+            "call-1",
+            "list_files",
+            {"files": [f"src/file-{index}.py" for index in range(8)]},
+            metadata={"count": 500, "truncated": True, "duration_ms": 48_906},
+        ).to_dict()}))
+
+        summary = state.entries[-1].text
+        self.assertIn("List files in .", summary)
+        self.assertIn("500+ files", summary)
+        self.assertIn("48.9s", summary)
+        self.assertIn("src/file-0.py", summary)
+        self.assertIn("… 3 more returned", summary)
+        self.assertNotIn("src/file-5.py", summary)
+
+    def test_reasoning_and_tool_call_streams_expose_lifecycle_not_private_text(self) -> None:
+        state = TerminalState()
+        state.apply(AgentEvent(EventKind.MODEL_EVENT, {"event": ModelEvent(
+            ModelEventKind.REASONING_DELTA,
+            text="private reasoning",
+        ).to_dict()}))
+        self.assertEqual(state.status, "reasoning")
+        self.assertNotIn("private reasoning", state.draft_answer)
+
+        state.apply(AgentEvent(EventKind.MODEL_EVENT, {"event": ModelEvent(
+            ModelEventKind.TOOL_CALL,
+            tool_call=ToolCall("call-1", "list_files", {"root": "."}),
+        ).to_dict()}))
+        self.assertEqual(state.status, "preparing_action")
+        self.assertEqual(state.active_action, "List files in .")
 
     def test_reasoning_delta_is_not_retained_or_rendered(self) -> None:
         state = TerminalState()

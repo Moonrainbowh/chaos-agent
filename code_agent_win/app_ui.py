@@ -5,6 +5,8 @@ import hashlib
 from dataclasses import replace
 
 from code_agent.interfaces.capability_view import ModePermissionView
+from code_agent.interfaces._diff_parser import DiffScope
+from code_agent.interfaces.diff_view import DiffSourceDocument
 from code_agent.interfaces.rewind_models import RewindPreviewSource
 from code_agent.interfaces.terminal_display import DisplayKind
 from code_agent.interfaces.windows_tui import WindowsTerminalApp
@@ -69,10 +71,13 @@ class GitDiffAdapter:
     def __init__(self, git: object | None) -> None:
         self._git = git
 
-    async def read_diff(self, paths: tuple[str, ...] = ()) -> str:
+    async def read_diff(
+        self, paths: tuple[str, ...] = ()
+    ) -> tuple[DiffSourceDocument, ...]:
         if self._git is None:
-            return ""
-        return await asyncio.to_thread(self._git.diff, paths)
+            return ()
+        snapshot = await asyncio.to_thread(self._git.diff_snapshot, paths)
+        return _diff_documents(snapshot)
 
 
 class TaskScopedGitDiffAdapter:
@@ -86,7 +91,9 @@ class TaskScopedGitDiffAdapter:
         self._active_task_id = active_task_id
         self._fallback = fallback
 
-    async def read_diff(self, paths: tuple[str, ...] = ()) -> str:
+    async def read_diff(
+        self, paths: tuple[str, ...] = ()
+    ) -> tuple[DiffSourceDocument, ...]:
         task_id = self._active_task_id()
         if task_id is None:
             return await self._fallback.read_diff(paths)
@@ -98,8 +105,21 @@ class TaskScopedGitDiffAdapter:
         except KeyError:
             return await self._fallback.read_diff(paths)
         if services.git is None:
-            return ""
-        return await asyncio.to_thread(services.git.diff, paths)
+            return ()
+        snapshot = await asyncio.to_thread(services.git.diff_snapshot, paths)
+        return _diff_documents(snapshot)
+
+
+def _diff_documents(snapshot: object) -> tuple[DiffSourceDocument, ...]:
+    return tuple(
+        DiffSourceDocument(scope, getattr(snapshot, name), True)
+        for scope, name in (
+            (DiffScope.STAGED, "staged"),
+            (DiffScope.UNSTAGED, "unstaged"),
+            (DiffScope.UNTRACKED, "untracked"),
+        )
+        if getattr(snapshot, name)
+    )
 
 
 class PluginModeControl:

@@ -26,6 +26,7 @@ from code_agent_win.subagents import SubagentRuntime, SubagentTool
 from code_agent_win.tool_support import command_action_result, git_error_result
 from code_agent_win.tools import powershell_compatibility_error, tool_definitions, validate_tool_arguments
 from code_agent.thread_intelligence.tools import ThreadIntelligenceTools
+from code_agent_win.action_support import list_action_result, with_action_duration
 from code_agent_win.thread_actions import execute_thread_action
 
 
@@ -137,8 +138,10 @@ class RootActionDispatcher:
             )
             if plugin_gap:
                 await record_unknown_gap(self.capture, context, translated, cancellation)
-            result = await self._execute(
-                translated, cancellation, context, gap_recorded=plugin_gap
+            result = await with_action_duration(
+                self._execute(
+                    translated, cancellation, context, gap_recorded=plugin_gap
+                )
             )
             if translated is request:
                 return result
@@ -226,7 +229,7 @@ class RootActionDispatcher:
             root = arguments.get("root")
             if root is not None and not isinstance(root, str):
                 raise ValueError("root must be text")
-            return _ok(request, {"files": list(await asyncio.to_thread(self.files.list_files, root))})
+            return await list_action_result(request, self.files, self.git, root)
         if request.name == "search_text":
             matches = await asyncio.to_thread(
                 self.files.search,
@@ -303,7 +306,7 @@ def _text(arguments: Mapping[str, object], name: str) -> str:
 
 
 def _ok(request: ActionRequest, output: Mapping[str, object],
-        metadata: Mapping[str, str] | None = None) -> ActionResult:
+        metadata: Mapping[str, object] | None = None) -> ActionResult:
     return ActionResult(request.id, request.name, dict(output), metadata=metadata or {})
 
 

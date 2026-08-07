@@ -23,7 +23,7 @@
 - `SubjectSnapshot`、`snapshot_subject(...)`: 为改动文件和关键 manifest 生成有界、确定性的 subject hash | 读取受 guard 保护的工作区文件 | 不判断业务正确性或扫描工作区外路径
 - `WorkspaceError`、`WorkspacePathGuard(root)`：表达失败并执行路径规范化、containment 与敏感策略 | fail-closed 检查路径元数据 | `allow_outside` 仅供已批准 dispatcher；链接/reparse 与受保护元数据始终拒绝
 - `IgnoreRules.from_workspace(root): IgnoreRules`：加载内置忽略项和根 `.gitignore` 的常用规则子集 | 读取根 `.gitignore` | 支持顺序反选，不是完整 Git parser
-- `WorkspaceFiles.list_files/read_text/search(...)`、`invalidate_inventory()`：有界枚举、读取和搜索可访问文件，并短期复用根 inventory | 读取工作区文件 | 扫描、大小、结果与全局 deadline 超限显式失败，不返回伪完整结果
+- `WorkspaceFiles.list_files/list_known_files/read_text/search(...)`、`invalidate_inventory()`：有界枚举、过滤已知候选、读取和搜索可访问文件，并将省略 root、`.` 和工作区绝对根统一复用短期根 inventory | 读取工作区文件 | 候选仍逐项经过 guard、存在性和 ignore 校验；扫描、大小、结果与全局 deadline 超限显式失败，不返回伪完整结果
 - `WorkspaceEditor`: 有界读取现有文件，生成写入/单次替换 Diff 并校验哈希后原子应用 | 单文件同目录临时写入与替换
 - `WorkspaceSnapshot`、`build_restore_snapshot(...)`: 复制字节、补充 tombstone 并按依赖恢复文件/目录拓扑 | 首次写前以共享 entry/deadline 预算迭代扫描路径、blob、容量、权限和冲突内容，深度优先删除并安全重建父目录，替换后复验稳定身份、大小与内容 hash；失败清理仅删除可由 fd/entry 身份共同证明的 owned temp，且不遮蔽 primary error | 不删除 ignored、敏感或未纳入 tombstone 的目录内容；不承诺多文件事务原子性
 - `BlobRef`、`SnapshotManifestEntry`、`SnapshotManifest`、`MaterializedSnapshot`: 表达排序且可确定摘要的持久快照清单、tombstone、blob 引用与 mode 映射 | 无副作用 | store 只落 blob，不写会被用户工作区 snapshot 捕获的旁路 manifest

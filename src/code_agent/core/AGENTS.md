@@ -2,6 +2,9 @@
 以有界、可取消的事件循环协调模型、上下文和工具动作，形成与界面无关的编码 Agent 内核。
 
 ## 边界
+- 负责：以不可变、可序列化的附件引用扩展 user Message，并让 Engine 在首回合、恢复和 steering 中持久化完整用户输入；引用只含内容摘要、类型、大小和安全显示元数据。
+- 负责：附件仅允许出现在 user Message；空文本但有附件是有效输入，空文本且无附件仍失败闭合。
+- 不负责：读取附件 blob、解析图片、选择 Provider 多模态 schema，或把原绝对路径/base64 放入事件与会话消息。
 - 负责：提供终态 `SUPERSEDED`，阻止被 Rewind 替代的旧任务再次执行。
 - 负责：回合状态机、工具调用编排、停止条件、错误回送、事件发布和验证结果闭环。
 - 负责：对同一持久任务累计模型回合和工具调用，并执行每回合工具限制。
@@ -26,8 +29,9 @@
 - `TaskVerificationService.suggest_verification(...)`: 在没有当前测试 evidence 时返回一个受信的 typed verifier tool call | 具体 recipe 由实现选择 | 不能包含 shell、argv 或安装参数；系统调用仍须持久化配对的 assistant tool-call 消息
 - `AgentEngineCompletionMixin._resolve_task_completion(...)`: 将模型停调用后的 assessment 交给持久验证门 | 调用抽象验证与 sessions 协议 | 只有 sessions 原子 finalize 可产生 `COMPLETED`
 - `decide_verification_transition(...)`: 将 assessment 与 verifier outcome 映射为 `VERIFYING`、修复、等待或完成 | 无副作用 | 所有状态先持久化再由集成层发布
-- `Message`、`ToolCall`: 表达对话内容与模型工具调用 | 无副作用 | 输入在构造时校验并冻结
-- `ContextRequest`: 以不可变快照携带单次上下文构建的 thread、revision、输入、控制与纯数值预算 | 无副作用 | JSON 快照深复制并冻结
+- `AttachmentRef`: 表达不含路径/blob/base64 的内容摘要、类型、大小、显示名和可选图片尺寸 | 无副作用 | 摘要、MIME、容量和显示名在构造时校验
+- `Message`、`ToolCall`: 表达对话内容、用户附件引用与模型工具调用 | 无副作用 | 输入在构造时校验并冻结；附件仅允许 user role
+- `ContextRequest`: 以不可变快照携带单次上下文构建的 thread、revision、输入、附件、控制与纯数值预算 | 无副作用 | JSON 快照深复制并冻结
 - `ActionRequest`、`ActionResult`、`ToolDefinition`: 定义动作请求、结果与工具元数据 | 无副作用 | 仅承载 JSON 兼容数据
 - `ActionLineage`: 冻结父动作传给 child engine 的 owner、task 与 parent request | 无副作用 | 不携带 child 自身 origin/request
 - `ActionExecutionContext`: 冻结单次实际 dispatcher 调用的 owner/origin/task/request/parent request | 无副作用 | 所有存在的标识均为有界非空文本

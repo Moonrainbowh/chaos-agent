@@ -5,14 +5,31 @@ import sys
 from collections.abc import Sequence
 
 from .app import create_application
+from code_agent.interfaces.attachment_input import DEFAULT_ATTACHMENT_PROMPT
 from code_agent.interfaces.commands import CommandKind, execute_command, parse_command
+
+
+_ATTACHMENT_COMMANDS = frozenset(
+    {
+        CommandKind.TUI,
+        CommandKind.ASK,
+        CommandKind.RESUME,
+        CommandKind.RUN_JSON,
+        CommandKind.TASK_RESUME,
+    }
+)
 
 
 async def run(arguments: Sequence[str]) -> int:
     try:
-        mode_name, remaining = _split_mode_option(arguments)
+        attachment_paths, without_attachments = _split_attachment_options(arguments)
+        mode_name, remaining = _split_mode_option(without_attachments)
         profile_name, model_name, command_arguments = _split_global_options(remaining)
+        command_arguments = _default_attachment_prompt(
+            command_arguments, bool(attachment_paths)
+        )
         command = parse_command(command_arguments)
+        _require_attachment_consumer(command.kind, attachment_paths)
     except (TypeError, ValueError) as error:
         print(f"usage error: {error}", file=sys.stderr)
         return 2
@@ -23,12 +40,24 @@ async def run(arguments: Sequence[str]) -> int:
         )
         await application.startup()
         application.dispatcher.interactive = command.kind is CommandKind.TUI
+        attachments = ()
+        if attachment_paths:
+            if command.kind is CommandKind.TUI:
+                await application.tui.attachment_draft.add_paths(attachment_paths)
+            else:
+                attachments = await asyncio.to_thread(
+                    application.attachment_ingestor.ingest_paths,
+                    attachment_paths,
+                    explicit_external=True,
+                )
+                application.tui.attachment_draft.validate(attachments)
         return await execute_command(
             command,
             application.controller,
             application.tui,
             sys.stdout.write,
             application.foreground_tasks,
+            attachments=attachments if command.kind is not CommandKind.TUI else (),
         )
     except Exception as error:
         print(f"agent error: {type(error).__name__}", file=sys.stderr)
@@ -75,6 +104,49 @@ def _split_mode_option(arguments: Sequence[str]) -> tuple[str | None, tuple[str,
             raise ValueError("--mode must be low, medium, high, or ultra")
         index += 2
     return selected, tuple(result)
+
+
+def _split_attachment_options(
+    arguments: Sequence[str],
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    values = tuple(arguments)
+    if not all(isinstance(value, str) for value in values):
+        raise TypeError("command arguments must be text")
+    paths: list[str] = []
+    remaining: list[str] = []
+    index = 0
+    while index < len(values):
+        if values[index] != "--attach":
+            remaining.append(values[index])
+            index += 1
+            continue
+        if index + 1 >= len(values) or not values[index + 1].strip():
+            raise ValueError("--attach requires one non-blank path")
+        paths.append(values[index + 1])
+        index += 2
+    return tuple(paths), tuple(remaining)
+
+
+def _default_attachment_prompt(
+    arguments: Sequence[str], has_attachments: bool
+) -> tuple[str, ...]:
+    values = tuple(arguments)
+    if not has_attachments:
+        return values
+    if values == ("ask",):
+        return (*values, DEFAULT_ATTACHMENT_PROMPT)
+    if values == ("run", "--json"):
+        return (*values, DEFAULT_ATTACHMENT_PROMPT)
+    if len(values) == 2 and values[0] == "resume":
+        return (*values, DEFAULT_ATTACHMENT_PROMPT)
+    return values
+
+
+def _require_attachment_consumer(
+    kind: CommandKind, paths: Sequence[str]
+) -> None:
+    if paths and kind not in _ATTACHMENT_COMMANDS:
+        raise ValueError(f"--attach is not supported by {kind.value}")
 
 
 if __name__ == "__main__":

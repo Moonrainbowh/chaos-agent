@@ -47,6 +47,7 @@ def compose_ui(
     plugin_discover: Callable[[], tuple[object, object]],
     on_plugin_change: Callable[[], object],
     tui_ref: list[ModeAwareWindowsTerminalApp],
+    attachment_draft: object | None = None,
 ) -> tuple[object, ModeAwareWindowsTerminalApp, WorkflowService]:
     parts = UiComposition(
         controller, approvals, sessions, root, profile_supplier,
@@ -55,7 +56,7 @@ def compose_ui(
         mcp, git, checkpoints, rewind, workspace_runtime, plugin_errors,
         plugin_discover, on_plugin_change, tui_ref, plugin_command_registry,
         refresh_plugin_surfaces, _current_diff_task, _subscribe_child_workflows,
-        _invalidate_workflow_verification,
+        _invalidate_workflow_verification, attachment_draft,
     )
     return compose_ui_runtime(parts)
 

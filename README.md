@@ -43,6 +43,8 @@ model = "gpt-4.1-mini"
 api_key = "replace-with-your-key"
 context_window = 128000
 max_output_tokens = 16384
+# Declare image only when this exact model/profile accepts image input.
+input_modalities = ["text", "image"]
 
 [agent]
 approval_mode = "unrestricted"
@@ -91,6 +93,7 @@ Use `CHAOS_API_KEY_ENV` when the key variable is not `OPENAI_API_KEY`.
 ```powershell
 chaos-agent
 chaos-agent ask "inspect this repository" --model fast
+chaos-agent ask "explain this screenshot" --attach "C:\Screenshots\error.png"
 chaos-agent --profile fast ask "inspect this repository"
 chaos-agent --mode high ask "review this repository and run the relevant tests"
 chaos-agent ask "inspect this repository and explain the test layout"
@@ -162,6 +165,24 @@ policy risks together.
 
 Sessions are stored at `%LOCALAPPDATA%\chaos-agent\sessions.sqlite3` by default. When that target is absent and the legacy `%LOCALAPPDATA%\code-agent\sessions.sqlite3` exists, Chaos Agent uses SQLite backup into a temporary target, checks integrity and key counts, then atomically publishes the copy while retaining the legacy database.
 
+## Replay Evaluation
+
+The fixed replay corpus contains 40 versioned scenarios: 12 single-feature bug
+repairs, 10 cross-file contract repairs, 10 idempotent recovery tasks, and 8
+safety or read-only completion decisions. Repair fixtures contain genuinely
+failing public checks plus hidden verifier checks; source-equivalent fixes are
+accepted, while edited tests, extra files, stale evidence, replayed effects,
+and model-authored success claims are rejected.
+
+Each scenario runs from a disposable workspace. Baseline hidden-verifier clones
+are removed before the executor starts, final verification uses a frozen
+snapshot, and reports share one canonical scenario record and corpus
+fingerprint. Missing SDKs, verifier timeouts, cleanup failures, and incomplete
+trusted traces are reported as infrastructure or grading failures rather than
+success. Live runs must use `ProcessScenarioExecutor` with a Host-trusted event
+adapter; connecting its envelope directly to raw model output is unsupported
+and intentionally fails closed when trusted trace evidence is absent.
+
 ## Foreground Tasks
 
 Engineering requests in the Windows TUI run as durable foreground tasks. A task
@@ -186,8 +207,22 @@ Running-task guidance is shown as `queued`, `steered`, `dequeued`, and
 `CONTEXT_BUILT` events prove that Core consumed the control and rebuilt model
 context. Approval prompts remain visible above the composer, show action,
 target, risk, and reason, default to `No`, and require `Enter` or `Esc`.
-`/diff` prefers a fresh diff from the injected read-only Git adapter and renders
-file statistics plus bounded unified diff lines.
+Use `/attach <path>`, `/attach clipboard`, `/attach list`,
+`/attach remove <index-or-digest>`, and `/attach clear` to manage the pending
+attachment draft. When the clipboard contains a bitmap or one or more image
+files copied from Explorer, `Ctrl+V` stages the whole image batch without
+submitting (up to eight attachments total); ordinary text remains a normal
+bracketed paste. A screenshot bitmap is one image, while browser HTML containing
+several images is not split into separate attachments. Dropping complete
+image/text file paths into Windows Terminal also stages them without submitting.
+The draft stores only content-addressed references in messages; unsupported
+image profiles fail before network I/O and retain the full draft.
+
+`/diff` opens a point-in-time keyboard viewer over staged, unstaged, and
+untracked changes. `↑`/`↓` and Page keys move lines, `←`/`→` switch files,
+`[`/`]` move hunks, `/` filters paths, `c` adds a line comment, `r` refreshes, and `s`
+sends all comments through the normal task/steering path. `Esc` or `Ctrl+C`
+requires confirmation before unsent comments are discarded.
 
 ### Checkpoint And Rewind
 

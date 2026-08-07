@@ -14,10 +14,7 @@ from code_agent.core.task import TaskAuthorization
 from code_agent.interfaces.checkpoint_control import CheckpointControl
 from code_agent.policy.engine import ActionPolicy, PolicyConfig
 from code_agent.runtime.local import WindowsLocalRuntime
-from code_agent.sessions.workspace_models import (
-    RewindOperationStatus,
-    WorkspaceLineageRecord,
-)
+from code_agent.sessions.workspace_models import RewindOperationStatus, WorkspaceLineageRecord
 from code_agent.sessions.errors import SessionNotFound
 from code_agent.verification.local_adapter import LocalVerificationAdapter
 from code_agent.workspace.edits import WorkspaceEditor
@@ -145,6 +142,11 @@ class ManagedWorkspaceRuntime:
             self._services[key] = self._build_services(resolved)
         return self._services[key]
 
+    def close(self) -> None:
+        for service in tuple(self._services.values()):
+            service.repo_index.close()
+        self._services.clear()
+
     async def recover_pending(self) -> tuple[object, ...]:
         results: list[object] = []
         for operation in await self._sessions.pending_rewinds():
@@ -181,12 +183,10 @@ class ManagedWorkspaceRuntime:
 
     async def _seed_source_changes(self, source_root: Path, target_root: Path) -> None:
         paths = await asyncio.to_thread(GitWorkspace(source_root).snapshot_paths)
-        snapshot = await asyncio.to_thread(
-            WorkspaceEditor(WorkspacePathGuard(source_root)).snapshot, paths
-        )
-        await asyncio.to_thread(
-            WorkspaceEditor(WorkspacePathGuard(target_root)).restore, snapshot
-        )
+        editor = WorkspaceEditor(WorkspacePathGuard(source_root))
+        snapshot = await asyncio.to_thread(editor.snapshot, paths)
+        target = WorkspaceEditor(WorkspacePathGuard(target_root))
+        await asyncio.to_thread(target.restore, snapshot)
 
     def _build_services(self, root: Path) -> WorkspaceServices:
         guard = WorkspacePathGuard(root)
@@ -255,11 +255,9 @@ class TaskScopedDispatcher:
         )
 
     def _authorized_root(self, authorization: TaskAuthorization | None) -> Path:
-        return (
-            self._source.root
-            if authorization is None
-            else Path(authorization.workspace_root).resolve()
-        )
+        if authorization is None:
+            return self._source.root
+        return Path(authorization.workspace_root).resolve()
 
     def _dispatcher(self, service: WorkspaceServices) -> RootActionDispatcher:
         dispatcher = RootActionDispatcher(

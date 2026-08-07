@@ -11,6 +11,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from code_agent.core.events import AgentEvent, EventKind  # noqa: E402
+from code_agent.core.attachments import AttachmentRef  # noqa: E402
 from code_agent.interfaces.controller import AgentController  # noqa: E402
 from code_agent.interfaces.tests._support import FakeEngine  # noqa: E402
 
@@ -49,6 +50,18 @@ class AgentControllerTests(unittest.IsolatedAsyncioTestCase):
         lines = [line async for line in controller.run_json("inspect")]
 
         self.assertEqual(lines, [json.dumps(event.to_dict(), sort_keys=True, separators=(",", ":"))])
+
+    async def test_attachments_are_forwarded_without_changing_plain_text_calls(self) -> None:
+        attachment = AttachmentRef("a" * 64, "text/plain", 4, "note.txt")
+        engine = FakeEngine(())
+        controller = AgentController(engine)
+
+        _ = [
+            event
+            async for event in controller.ask("inspect", attachments=(attachment,))
+        ]
+
+        self.assertEqual(engine.attachments, (attachment,))
 
 
 if __name__ == "__main__":

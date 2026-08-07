@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from typing import Sequence
 
 from code_agent.core.models import Message
 
 from .models import CompactionResult, ContextConfig
-from .tokens import estimate_tokens, truncate_to_tokens
+from .attachment_budget import message_tokens
+from ._compaction_render import _last_resort, _summary, _truncate_message
+from .errors import ContextBudgetError
 
 
 @dataclass(frozen=True)
@@ -30,91 +31,138 @@ class DeterministicCompactor:
         messages: Sequence[Message],
         token_budget: int | None = None,
     ) -> CompactionResult:
-        checked = tuple(messages)
-        if not all(isinstance(message, Message) for message in checked):
-            raise TypeError("messages must contain only Message values")
-        budget = self.config.message_tokens if token_budget is None else token_budget
-        if isinstance(budget, bool) or not isinstance(budget, int):
-            raise TypeError("token_budget must be an integer")
-        if budget <= 0:
-            raise ValueError("token_budget must be positive")
-
+        checked, budget = _validated_input(
+            messages, self.config.message_tokens, token_budget
+        )
         original_cost = _messages_cost(checked)
         if original_cost <= budget:
             return CompactionResult(checked, 0, original_cost)
-
-        blocks = _message_blocks(checked)
-        selected = _select_recent_blocks(
-            blocks, checked, self.config.recent_messages
+        return _compact_over_budget(
+            checked, budget, self.config.recent_messages
         )
-        latest_user = _latest_user_index(checked)
-        protected = _block_containing(blocks, latest_user)
-        if protected is None and selected:
-            protected = max(selected)
-        block_messages = {index: block.messages for index, block in enumerate(blocks)}
 
-        while True:
-            retained = _flatten_selected(block_messages, selected)
-            removed = _removed_indices(blocks, selected, len(checked))
-            reserve = 1 if removed and budget >= 2 else 0
-            if _messages_cost(retained) + reserve <= budget:
-                break
-            removable = sorted(selected - ({protected} if protected is not None else set()))
-            if not removable:
-                break
-            selected.remove(removable[0])
 
-        retained = _flatten_selected(block_messages, selected)
-        removed = _removed_indices(blocks, selected, len(checked))
-        reserve = 1 if removed and budget >= 2 else 0
-        if _messages_cost(retained) + reserve > budget:
-            if protected is not None and protected in selected and latest_user is not None:
-                source = checked[latest_user]
-                truncated = _truncate_message(source, budget - reserve)
-                retained = (truncated,) if truncated is not None else (
-                    Message(role="user", content=""),
-                )
-                selected = {protected}
-            else:
-                retained = ()
-                selected.clear()
-            removed = _removed_indices(blocks, selected, len(checked))
+def _validated_input(
+    messages: Sequence[Message],
+    default_budget: int,
+    supplied_budget: int | None,
+) -> tuple[tuple[Message, ...], int]:
+    checked = tuple(messages)
+    if not all(isinstance(message, Message) for message in checked):
+        raise TypeError("messages must contain only Message values")
+    budget = default_budget if supplied_budget is None else supplied_budget
+    if isinstance(budget, bool) or not isinstance(budget, int):
+        raise TypeError("token_budget must be an integer")
+    if budget <= 0:
+        raise ValueError("token_budget must be positive")
+    return checked, budget
 
-        checkpoint: Message | None = None
-        summary: str | None = None
-        remaining = budget - _messages_cost(retained)
-        if removed and remaining >= 1:
-            summary = _summary(checked, removed, max(0, remaining - 1))
-            checkpoint = Message(role="developer", content=summary)
 
-        compacted = ((checkpoint,) if checkpoint is not None else ()) + retained
+def _compact_over_budget(
+    checked: tuple[Message, ...], budget: int, recent_messages: int
+) -> CompactionResult:
+    blocks = _message_blocks(checked)
+    selected = _select_recent_blocks(blocks, checked, recent_messages)
+    latest_user = _latest_user_index(checked)
+    _ensure_latest_attachment_budget(checked, latest_user, budget)
+    protected = _block_containing(blocks, latest_user)
+    if protected is None and selected:
+        protected = max(selected)
+    block_messages = {
+        index: block.messages for index, block in enumerate(blocks)
+    }
+    _drop_old_blocks(
+        blocks, block_messages, selected, protected, len(checked), budget
+    )
+    retained, removed = _fit_retained(
+        checked, blocks, block_messages, selected, protected, latest_user, budget
+    )
+    compacted, summary = _prepend_summary(checked, retained, removed, budget)
+    estimated = _messages_cost(compacted)
+    if estimated > budget:
+        compacted, summary = _last_resort(
+            compacted, checked, latest_user, budget
+        )
         estimated = _messages_cost(compacted)
-        if estimated > budget:
-            compacted, summary = _last_resort(compacted, checked, latest_user, budget)
-            estimated = _messages_cost(compacted)
-        return CompactionResult(
-            compacted,
-            len(removed),
-            estimated,
-            summary,
+    return CompactionResult(compacted, len(removed), estimated, summary)
+
+
+def _ensure_latest_attachment_budget(
+    messages: tuple[Message, ...], latest_user: int | None, budget: int
+) -> None:
+    if latest_user is None or not messages[latest_user].attachments:
+        return
+    metadata_only = Message(
+        role="user", attachments=messages[latest_user].attachments
+    )
+    if _message_cost(metadata_only) > budget:
+        raise ContextBudgetError(
+            "latest user attachments exceed the message token budget"
         )
+
+
+def _drop_old_blocks(
+    blocks: tuple[_MessageBlock, ...],
+    block_messages: dict[int, tuple[Message, ...]],
+    selected: set[int],
+    protected: int | None,
+    message_count: int,
+    budget: int,
+) -> None:
+    while True:
+        retained = _flatten_selected(block_messages, selected)
+        removed = _removed_indices(blocks, selected, message_count)
+        reserve = 1 if removed and budget >= 2 else 0
+        if _messages_cost(retained) + reserve <= budget:
+            return
+        protected_set = {protected} if protected is not None else set()
+        removable = sorted(selected - protected_set)
+        if not removable:
+            return
+        selected.remove(removable[0])
+
+
+def _fit_retained(
+    messages: tuple[Message, ...],
+    blocks: tuple[_MessageBlock, ...],
+    block_messages: dict[int, tuple[Message, ...]],
+    selected: set[int],
+    protected: int | None,
+    latest_user: int | None,
+    budget: int,
+) -> tuple[tuple[Message, ...], tuple[int, ...]]:
+    retained = _flatten_selected(block_messages, selected)
+    removed = _removed_indices(blocks, selected, len(messages))
+    reserve = 1 if removed and budget >= 2 else 0
+    if _messages_cost(retained) + reserve <= budget:
+        return retained, removed
+    if protected is not None and protected in selected and latest_user is not None:
+        truncated = _truncate_message(messages[latest_user], budget - reserve)
+        retained = (
+            (truncated,) if truncated is not None else (Message("user"),)
+        )
+        selected.intersection_update({protected})
+    else:
+        retained = ()
+        selected.clear()
+    return retained, _removed_indices(blocks, selected, len(messages))
+
+
+def _prepend_summary(
+    messages: tuple[Message, ...],
+    retained: tuple[Message, ...],
+    removed: tuple[int, ...],
+    budget: int,
+) -> tuple[tuple[Message, ...], str | None]:
+    remaining = budget - _messages_cost(retained)
+    if not removed or remaining < 1:
+        return retained, None
+    summary = _summary(messages, removed, max(0, remaining - 1))
+    return (Message(role="developer", content=summary),) + retained, summary
 
 
 def _message_cost(message: Message) -> int:
-    cost = 1 + estimate_tokens(message.content)
-    if message.name:
-        cost += estimate_tokens(message.name)
-    if message.tool_call_id:
-        cost += estimate_tokens(message.tool_call_id)
-    for call in message.tool_calls:
-        encoded = json.dumps(
-            call.to_dict(),
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-        )
-        cost += 1 + estimate_tokens(encoded)
-    return cost
+    return message_tokens(message)
 
 
 def _messages_cost(messages: Sequence[Message]) -> int:
@@ -208,61 +256,3 @@ def _removed_indices(
         for message_index in blocks[block_index].indices
     }
     return tuple(index for index in range(message_count) if index not in retained)
-
-
-def _truncate_message(message: Message, budget: int) -> Message | None:
-    if budget < 1:
-        return None
-    empty = Message(
-        role=message.role,
-        content="",
-        name=message.name,
-        tool_calls=message.tool_calls,
-        tool_call_id=message.tool_call_id,
-    )
-    base = _message_cost(empty)
-    if base > budget:
-        return None
-    return Message(
-        role=message.role,
-        content=truncate_to_tokens(message.content, budget - base),
-        name=message.name,
-        tool_calls=message.tool_calls,
-        tool_call_id=message.tool_call_id,
-    )
-
-
-def _summary(
-    messages: Sequence[Message], removed: Sequence[int], content_budget: int
-) -> str:
-    if content_budget == 0:
-        return ""
-    lines = ["Conversation checkpoint:"]
-    for index in removed:
-        message = messages[index]
-        actions = ",".join(call.name for call in message.tool_calls)
-        if not actions and message.role == "tool":
-            actions = message.name or message.tool_call_id or "tool"
-        label = message.role + (f" action={actions}" if actions else "")
-        content = " ".join(message.content.split())
-        snippet = truncate_to_tokens(content, 12)
-        lines.append(f"- {label}: {snippet}" if snippet else f"- {label}")
-    return truncate_to_tokens("\n".join(lines), content_budget)
-
-
-def _last_resort(
-    compacted: Sequence[Message],
-    original: Sequence[Message],
-    latest_user: int | None,
-    budget: int,
-) -> tuple[tuple[Message, ...], str | None]:
-    if latest_user is not None:
-        message = _truncate_message(original[latest_user], budget)
-        if message is not None:
-            return (message,), None
-    for message in reversed(compacted):
-        if message.role != "tool":
-            truncated = _truncate_message(message, budget)
-            if truncated is not None:
-                return (truncated,), None
-    return (), None

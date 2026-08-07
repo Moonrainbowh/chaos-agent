@@ -52,6 +52,7 @@ class UiComposition:
     current_diff_task: Callable[[list[ModeAwareWindowsTerminalApp]], str | None]
     workflow_subscriber: Callable[[object, WorkflowService], None]
     verification_invalidator: Callable[..., object]
+    attachment_draft: object | None = None
 
 
 def compose_ui_runtime(
@@ -164,6 +165,7 @@ class _UiComposer:
             recover_pending=parts.workspace_runtime.recover_pending,
             startup=parts.workspace_runtime.startup,
             plugin_errors=parts.plugin_errors,
+            attachment_draft=parts.attachment_draft,
         )
 
     def _finish(self) -> None:

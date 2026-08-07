@@ -17,11 +17,12 @@ _DEFAULT_SERVICES = {
     "skills",
     "mcp",
     "plugins",
+    "attachments",
 }
 
 
 class TuiCommandKind(str, Enum):
-    HELP = "help"; STATUS = "status"; CLEAR = "clear"; EXIT = "exit"; NEW = "new"; SESSIONS = "sessions"; RESTORE = "restore"; TASKS = "tasks"; ACCEPT = "accept"; DIFF = "diff"; EVIDENCE = "evidence"; CHECKPOINT = "checkpoint"; REWIND = "rewind"; MODE = "mode"; PERMISSION = "permission"; WORKFLOW = "workflow"; SKILL = "skill"; MCP = "mcp"; PLUGIN_CONTROL = "plugin_control"; PLUGIN = "plugin"
+    HELP = "help"; STATUS = "status"; CLEAR = "clear"; EXIT = "exit"; NEW = "new"; SESSIONS = "sessions"; RESTORE = "restore"; TASKS = "tasks"; ACCEPT = "accept"; DIFF = "diff"; ATTACHMENT = "attachment"; EVIDENCE = "evidence"; CHECKPOINT = "checkpoint"; REWIND = "rewind"; MODE = "mode"; PERMISSION = "permission"; WORKFLOW = "workflow"; SKILL = "skill"; MCP = "mcp"; PLUGIN_CONTROL = "plugin_control"; PLUGIN = "plugin"
 
 
 @dataclass(frozen=True)
@@ -50,12 +51,17 @@ def parse_tui_command(
     effective = _DEFAULT_SERVICES if services is None else services
     raw_body = text[1:].lstrip()
     head = raw_body.split(maxsplit=1)[0] if raw_body else ""
-    rewind_spec = registry.resolve(head)
-    if rewind_spec is not None and rewind_spec.name == "回溯":
-        if not set(rewind_spec.requires).issubset(effective):
+    raw_spec = registry.resolve(head)
+    if raw_spec is not None and raw_spec.name in {"回退", "附件"}:
+        if not set(raw_spec.requires).issubset(effective):
             return ParseOutcome(error="unknown or unavailable slash command")
         instruction = raw_body[len(head):].lstrip() or None
-        return ParseOutcome(TuiCommand(TuiCommandKind.REWIND, instruction=instruction))
+        kind = (
+            TuiCommandKind.REWIND
+            if raw_spec.name == "回退"
+            else TuiCommandKind.ATTACHMENT
+        )
+        return ParseOutcome(TuiCommand(kind, instruction=instruction))
     spec, arguments, error = registry.parse(text, effective)
     if error: return ParseOutcome(error=error)
     assert spec is not None
@@ -71,7 +77,7 @@ def parse_tui_command(
         if len(arguments) == 1 and action.usage.startswith("<"):
             return ParseOutcome(error="command action argument is required")
         normalized_action = action.name
-    kinds = {"帮助": "help", "状态": "status", "清屏": "clear", "退出": "exit", "新建": "new", "会话": "sessions", "恢复": "restore", "任务": "tasks", "接受": "accept", "差异": "diff", "证据": "evidence", "检查点": "checkpoint", "回退": "rewind", "模式": "mode", "权限": "permission", "流程": "workflow", "技能": "skill", "mcp": "mcp", "插件": "plugin_control"}
+    kinds = {"帮助": "help", "状态": "status", "清屏": "clear", "退出": "exit", "新建": "new", "会话": "sessions", "恢复": "restore", "任务": "tasks", "接受": "accept", "差异": "diff", "附件": "attachment", "证据": "evidence", "检查点": "checkpoint", "回退": "rewind", "模式": "mode", "权限": "permission", "流程": "workflow", "技能": "skill", "mcp": "mcp", "插件": "plugin_control"}
     kind = TuiCommandKind.PLUGIN if spec.source == "plugin" else TuiCommandKind(kinds[spec.name])
     value = " ".join(arguments) or None
-    return ParseOutcome(TuiCommand(kind, value if kind is TuiCommandKind.ACCEPT else None, value if kind in {TuiCommandKind.HELP, TuiCommandKind.RESTORE, TuiCommandKind.EVIDENCE, TuiCommandKind.CHECKPOINT, TuiCommandKind.REWIND, TuiCommandKind.MODE, TuiCommandKind.PERMISSION, TuiCommandKind.WORKFLOW, TuiCommandKind.SKILL, TuiCommandKind.MCP, TuiCommandKind.PLUGIN_CONTROL, TuiCommandKind.PLUGIN} else None, spec.name if kind is TuiCommandKind.PLUGIN else None, normalized_action))
+    return ParseOutcome(TuiCommand(kind, value if kind is TuiCommandKind.ACCEPT else None, value if kind in {TuiCommandKind.HELP, TuiCommandKind.RESTORE, TuiCommandKind.ATTACHMENT, TuiCommandKind.EVIDENCE, TuiCommandKind.CHECKPOINT, TuiCommandKind.REWIND, TuiCommandKind.MODE, TuiCommandKind.PERMISSION, TuiCommandKind.WORKFLOW, TuiCommandKind.SKILL, TuiCommandKind.MCP, TuiCommandKind.PLUGIN_CONTROL, TuiCommandKind.PLUGIN} else None, spec.name if kind is TuiCommandKind.PLUGIN else None, normalized_action))

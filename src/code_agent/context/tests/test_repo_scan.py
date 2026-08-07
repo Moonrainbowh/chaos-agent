@@ -94,6 +94,28 @@ class RepoFileScannerTests(unittest.TestCase):
         self.assertNotEqual(first.signature, second.signature)
         self.assertEqual(second.symbols[0].name, "second_with_a_longer_name")
 
+    def test_text_body_is_available_for_bounded_lexical_indexing(self) -> None:
+        self.write("AGENTS.md", "危险命令执行前进行权限校验。\n")
+        (self.root / "binary.bin").write_bytes(b"\0not text")
+
+        text = self.scanner.scan("AGENTS.md")
+        binary = self.scanner.scan("binary.bin")
+
+        self.assertIn("权限校验", text.search_text)
+        self.assertEqual(binary.search_text, "")
+
+    def test_long_search_body_keeps_the_real_file_tail(self) -> None:
+        self.write(
+            "large.txt",
+            "HEAD_MARKER\n" + ("middle\n" * 4_000) + "TAIL_MARKER\n",
+        )
+
+        facts = self.scanner.scan("large.txt")
+
+        self.assertLessEqual(len(facts.search_text), 16_000)
+        self.assertIn("HEAD_MARKER", facts.search_text)
+        self.assertIn("TAIL_MARKER", facts.search_text)
+
 
 if __name__ == "__main__":
     unittest.main()

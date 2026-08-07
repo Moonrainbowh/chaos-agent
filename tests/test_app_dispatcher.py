@@ -73,6 +73,30 @@ class RootActionDispatcherTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(result.is_error)
         self.assertEqual(result.output["text"], "before\n")
 
+    async def test_list_files_is_bounded_and_reports_display_metadata(self) -> None:
+        discovered = tuple(f"src/file-{index}.py" for index in range(201))
+        with patch.object(
+            self.dispatcher.files,
+            "list_files",
+            return_value=discovered,
+        ) as listing:
+            result = await self.dispatcher.dispatch(
+                ActionRequest("list-bounded", "list_files", {"root": "."}),
+                CancellationToken(),
+            )
+
+        listing.assert_called_once_with(
+            ".",
+            max_entries=201,
+            max_scanned_entries=200_000,
+        )
+        self.assertFalse(result.is_error)
+        self.assertEqual(len(result.output["files"]), 200)
+        self.assertTrue(result.output["truncated"])
+        self.assertEqual(result.metadata["count"], 200)
+        self.assertTrue(result.metadata["truncated"])
+        self.assertIn("duration_ms", result.metadata)
+
     async def test_legacy_mcp_without_risk_api_runs_when_capture_is_disabled(self) -> None:
         class Mcp:
             def definitions(self):

@@ -2,6 +2,9 @@
 在完整保留原始会话的前提下，为超长线程提供可重建的语义压缩、检索、引用和 `read_thread` 上下文。
 
 ## 边界
+- 负责：索引和语义压缩仅消费附件引用的安全摘要；message digest 覆盖引用元数据，summarizer 不解析或读取附件 blob。
+- 负责：从 durable Message 重建首回合时保持附件引用且清除重复的 transient user input。
+- 不负责：附件摄取、blob 解析、Provider 多模态映射或从附件内容生成搜索索引。
 - 负责：接收 Context Engine 的预算压力，在默认 90% 阈值附近对已闭合的旧消息区间生成有界语义 checkpoint。
 - 负责：保留最近原文、最新用户意图及完整工具调用/结果配对；系统规则、任务契约、任务事实和 evidence 继续由原有可信通道单独渲染。
 - 负责：为摘要保存源消息范围、稳定 ID、digest、生成模型、用量和版本，使摘要可追溯、可丢弃并可重建。
@@ -19,8 +22,8 @@
 
 ## Units
 - `ThreadAuthorization.authorized_threads(caller_thread_id)`、`ensure_can_read(...)`：只从持久化两级 thread tree 计算读取范围 | 读取关系存储 | 根可读直接子、子只可读父，兄弟和无关 thread 拒绝
-- `anchor_message(thread_id, sequence, message): AnchoredMessage`：为原始消息生成稳定来源锚点和内容 digest | 无副作用 | 原消息变化会使 digest 失效。
-- `DeterministicSummaryService.summarize(request, cancellation): SummaryResponse` / `render_bounded_source_summary(sources, max_tokens): str`：按来源顺序和稳定 ID 生成有界且不可信的确定性摘要或 provider 输入投影 | 无 provider 或网络副作用 | 调用 provider 前先扣除输出与协议余量；仅渲染公开消息内容与工具 action 名称，不读取独立隐藏推理字段。
+- `anchor_message(thread_id, sequence, message): AnchoredMessage`：为原始消息及其附件引用元数据生成稳定来源锚点和内容 digest | 无副作用 | 原消息或附件引用变化会使 digest 失效。
+- `DeterministicSummaryService.summarize(request, cancellation): SummaryResponse` / `render_bounded_source_summary(sources, max_tokens): str`：按来源顺序和稳定 ID 生成有界且不可信的确定性摘要或 provider 输入投影 | 无 provider 或网络副作用 | 仅渲染公开消息、工具 action 与附件安全元数据，不读取附件 blob 或独立隐藏推理字段。
 - `SemanticCheckpoint.create(sources, response): SemanticCheckpoint`：固化摘要来源范围、模型、用量、版本和范围 digest | 无副作用 | checkpoint 始终是不可信派生上下文。
 - `SemanticCompactor.compact(...): SemanticCompactionResult`：在上下文压力达到阈值时压缩闭合旧区间并保留最近原文 | 调用注入的摘要服务 | 取消向上传播，失败、超时、孤立工具消息或预算超限时使用确定性回退。
 - `ThreadAwareContextBuilder.build(...)`: 从 Sessions 稳定消息记录协调语义压缩并以结构化请求委托现有 ContextBuilder | 摘要调用与 SQLite I/O | 发布失败使用原始消息；委托时保留 revision、控制快照与预算租约

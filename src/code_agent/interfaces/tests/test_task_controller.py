@@ -5,10 +5,12 @@ import unittest
 from collections.abc import AsyncIterator
 from pathlib import Path
 
+from code_agent.core.attachments import AttachmentRef
 from code_agent.core.events import AgentEvent
 from code_agent.interfaces.controller import AgentController
 from code_agent.interfaces.task_controller import ForegroundTaskController
 from code_agent.sessions.repository import SQLiteSessionRepository
+from code_agent.sessions.errors import SessionStorageError
 from code_agent.core.task import TaskStatus
 
 
@@ -21,6 +23,68 @@ class _IdleRunner:
 
 
 class ForegroundTaskControllerTests(unittest.IsolatedAsyncioTestCase):
+    async def test_attachment_steering_persists_only_safe_message_reference(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = SQLiteSessionRepository(root / "sessions.sqlite3")
+            controller = ForegroundTaskController(
+                AgentController(_IdleRunner()), repository, root
+            )
+            task = await controller.start("inspect the screenshot")
+            attachment = AttachmentRef(
+                "a" * 64,
+                "image/png",
+                12,
+                "screen.png",
+                2,
+                3,
+            )
+
+            await controller.steer(task.id, "", attachments=(attachment,))
+
+            messages = await repository.load_messages(task.thread_id)
+            self.assertEqual(messages[-1].attachments, (attachment,))
+            self.assertEqual(messages[-1].content, "")
+
+    async def test_failed_steering_transaction_leaves_no_orphan_or_duplicate(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = SQLiteSessionRepository(root / "sessions.sqlite3")
+            controller = ForegroundTaskController(
+                AgentController(_IdleRunner()), repository, root
+            )
+            task = await controller.start("inspect")
+            attachment = AttachmentRef(
+                "b" * 64, "image/png", 12, "screen.png", 2, 3
+            )
+
+            await repository._database.write(
+                lambda connection: connection.execute(
+                    "CREATE TRIGGER fail_steering BEFORE INSERT ON task_controls "
+                    "BEGIN SELECT RAISE(ABORT, 'forced failure'); END"
+                )
+            )
+            with self.assertRaises(SessionStorageError):
+                await controller.steer(task.id, "", attachments=(attachment,))
+
+            self.assertEqual(await repository.load_messages(task.thread_id), ())
+            self.assertEqual(await repository.consume_task_controls(task.id), ())
+            await repository._database.write(
+                lambda connection: connection.execute(
+                    "DROP TRIGGER fail_steering"
+                )
+            )
+
+            await controller.steer(task.id, "", attachments=(attachment,))
+
+            messages = await repository.load_messages(task.thread_id)
+            self.assertEqual(len(messages), 1)
+            self.assertEqual(messages[0].attachments, (attachment,))
+            self.assertEqual(
+                await repository.consume_task_controls(task.id),
+                ("apply attached user input",),
+            )
+
     async def test_interrupted_task_does_not_block_a_new_foreground_task(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

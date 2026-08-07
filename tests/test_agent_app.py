@@ -1,19 +1,52 @@
 from __future__ import annotations
 
 import tempfile
+import threading
 import unittest
 from io import StringIO
 from pathlib import Path
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, Mock, patch
 
 from code_agent.config.loader import load_runtime_config
 from code_agent.context.repo_index import RepoIndexService
+from code_agent.core.attachments import AttachmentRef
+from code_agent.interfaces.attachment_input import DEFAULT_ATTACHMENT_PROMPT
+from code_agent.interfaces.commands import CommandKind
 from code_agent.orchestration.models import AgentDefinition, AgentRole
 from code_agent_win import agent_modes
 from code_agent_win.app import Application, create_application
-from code_agent_win.cli import _split_global_options, _split_mode_option, run
+from code_agent_win.cli import (
+    _split_attachment_options,
+    _split_global_options,
+    _split_mode_option,
+    run,
+)
 from code_agent_win.rewind_sessions import CoordinatedSessionRepository
 from tests.agent_app_test_support import _configured_application
+
+
+class _CliIngestor:
+    def ingest_paths(self, *_: object, **__: object):
+        self.thread = threading.get_ident()
+        return (AttachmentRef("a" * 64, "text/plain", 4, "note.txt"),)
+
+
+class _CliApplication:
+    def __init__(self) -> None:
+        self.attachment_ingestor = _CliIngestor()
+        self.tui = SimpleNamespace(
+            attachment_draft=SimpleNamespace(validate=lambda _: None)
+        )
+        self.dispatcher = SimpleNamespace(interactive=True)
+        self.controller = object()
+        self.foreground_tasks = object()
+
+    async def startup(self) -> None:
+        return None
+
+    async def aclose(self) -> None:
+        return None
 
 
 class ApplicationLifecycleTests(unittest.IsolatedAsyncioTestCase):
@@ -27,20 +60,48 @@ class ApplicationLifecycleTests(unittest.IsolatedAsyncioTestCase):
             async def aclose(self) -> None:
                 calls.append(self.name)
 
+        class Closer:
+            def close(self) -> None:
+                calls.append("workspace")
+
         subagents = AsyncCloser("subagents")
         model = AsyncCloser("model")
         mcp = AsyncCloser("mcp")
         application = Application(
             controller=object(), foreground_tasks=object(), tui=object(),
             dispatcher=object(), model=model, mcp=mcp, subagents=subagents,
+            workspace_runtime=Closer(),
         )
 
         await application.aclose()
+        await application.aclose()
 
-        self.assertEqual(calls, ["subagents", "model", "mcp"])
+        self.assertEqual(calls, ["subagents", "model", "mcp", "workspace"])
         self.assertEqual({name: calls.count(name) for name in calls}, {
-            "subagents": 1, "model": 1, "mcp": 1,
+            "subagents": 1, "model": 1, "mcp": 1, "workspace": 1,
         })
+
+    async def test_aclose_releases_all_resources_after_first_error(self) -> None:
+        subagents = SimpleNamespace(
+            aclose=AsyncMock(side_effect=RuntimeError("subagent close failed"))
+        )
+        model = SimpleNamespace(aclose=AsyncMock())
+        mcp = SimpleNamespace(aclose=AsyncMock())
+        workspace_close = Mock()
+        application = Application(
+            controller=object(), foreground_tasks=object(), tui=object(),
+            dispatcher=object(), model=model, mcp=mcp, subagents=subagents,
+            workspace_runtime=SimpleNamespace(close=workspace_close),
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "subagent close failed"):
+            await application.aclose()
+
+        model.aclose.assert_awaited_once()
+        mcp.aclose.assert_awaited_once()
+        workspace_close.assert_called_once()
+        await application.aclose()
+        workspace_close.assert_called_once()
 
 
 class CliFailureTests(unittest.IsolatedAsyncioTestCase):
@@ -65,6 +126,12 @@ class CliFailureTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ValueError):
             _split_mode_option(("--mode", "unbounded", "ask", "inspect"))
 
+        paths, remaining = _split_attachment_options(
+            ("ask", "inspect", "--attach", r"C:\shots\error.png")
+        )
+        self.assertEqual(paths, (r"C:\shots\error.png",))
+        self.assertEqual(remaining, ("ask", "inspect"))
+
     async def test_cli_reports_safe_error_without_a_traceback(self) -> None:
         stderr = StringIO()
 
@@ -78,6 +145,50 @@ class CliFailureTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(status, 1)
         self.assertIn("RuntimeError", stderr.getvalue())
         self.assertNotIn("secret detail", stderr.getvalue())
+
+    async def test_attachment_only_commands_use_default_prompt_off_thread(self) -> None:
+        cases = (
+            (("ask", "--attach", "C:\\note.txt"), CommandKind.ASK, None),
+            (
+                ("run", "--json", "--attach", "C:\\note.txt"),
+                CommandKind.RUN_JSON,
+                None,
+            ),
+            (
+                ("resume", "thread-1", "--attach", "C:\\note.txt"),
+                CommandKind.RESUME,
+                "thread-1",
+            ),
+        )
+        for arguments, kind, thread_id in cases:
+            with self.subTest(kind=kind):
+                application = _CliApplication()
+                execute = AsyncMock(return_value=0)
+                caller = threading.get_ident()
+                with patch(
+                    "code_agent_win.cli.create_application",
+                    return_value=application,
+                ), patch("code_agent_win.cli.execute_command", execute):
+                    self.assertEqual(await run(arguments), 0)
+
+                command = execute.await_args.args[0]
+                self.assertEqual(command.kind, kind)
+                self.assertEqual(command.prompt, DEFAULT_ATTACHMENT_PROMPT)
+                self.assertEqual(command.thread_id, thread_id)
+                self.assertNotEqual(application.attachment_ingestor.thread, caller)
+                self.assertEqual(len(execute.await_args.kwargs["attachments"]), 1)
+
+    async def test_attachment_is_rejected_before_unsupported_command_ingestion(self) -> None:
+        stderr = StringIO()
+        with patch("code_agent_win.cli.create_application") as create:
+            with patch("sys.stderr", stderr):
+                status = await run(
+                    ("task", "list", "--attach", r"C:\workspace\note.txt")
+                )
+
+        self.assertEqual(status, 2)
+        create.assert_not_called()
+        self.assertIn("not supported", stderr.getvalue())
 
 
 class ApplicationConstructionTests(unittest.TestCase):

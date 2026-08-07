@@ -131,6 +131,20 @@ class WorkspaceQuiescerTests(unittest.IsolatedAsyncioTestCase):
         workspace.inventory.assert_not_awaited()
 
 
+class WorkspaceRuntimeLifecycleTests(unittest.TestCase):
+    def test_close_releases_each_materialized_repo_index(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            runtime = ManagedWorkspaceRuntime(object(), root / "state")
+            services = runtime.services_for_root(root)
+
+            runtime.close()
+            runtime.close()
+
+            self.assertFalse(services.repo_index._search_index.available)
+            self.assertEqual(runtime._services, {})
+
+
 class ForegroundBarrierTests(unittest.IsolatedAsyncioTestCase):
     async def test_failed_initial_checkpoint_does_not_leave_active_task(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

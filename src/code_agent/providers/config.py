@@ -5,6 +5,7 @@ import os
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Iterable
 from urllib.parse import unquote, urlsplit
 
 from .errors import ProviderConfigError
@@ -14,6 +15,26 @@ class ApiProtocol(str, Enum):
     RESPONSES = "responses"
     CHAT_COMPLETIONS = "chat_completions"
     ANTHROPIC_MESSAGES = "anthropic_messages"
+
+
+class InputModality(str, Enum):
+    TEXT = "text"
+    IMAGE = "image"
+
+
+def freeze_input_modalities(
+    values: Iterable[InputModality],
+) -> frozenset[InputModality]:
+    if isinstance(values, (str, bytes)):
+        raise ProviderConfigError("input_modalities must be a modality collection")
+    modalities = frozenset(values)
+    if not modalities or any(
+        not isinstance(item, InputModality) for item in modalities
+    ):
+        raise ProviderConfigError("input_modalities contains an unsupported value")
+    if InputModality.TEXT not in modalities:
+        raise ProviderConfigError("input_modalities must include text")
+    return modalities
 
 
 class ConfiguredApiKey:
@@ -176,6 +197,9 @@ class ModelProfile:
     max_agent_rounds: int = 50
     max_tool_calls: int = 128
     max_tool_calls_per_round: int = 50
+    input_modalities: frozenset[InputModality] = field(
+        default_factory=lambda: frozenset({InputModality.TEXT})
+    )
 
     def __post_init__(self) -> None:
         if not isinstance(self.name, str) or not self.name.strip():
@@ -193,6 +217,11 @@ class ModelProfile:
                 _require_positive_int(getattr(self, name), name)
             except ProviderConfigError:
                 raise
+        object.__setattr__(
+            self,
+            "input_modalities",
+            freeze_input_modalities(self.input_modalities),
+        )
 
 
 class ModelProfileResolver:

@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from .command_availability import available_services
 from .command_registry import REGISTRY
+from code_agent.core.attachments import AttachmentRef
+from .diff_interaction import DiffInteraction
 from .diff_view import DiffController, GitDiffSource
+from .tui_diff_commands import handle_diff_key, show_diff
 from .picker import (
     PickerState,
     command_picker_items,
@@ -24,12 +27,13 @@ class TuiInteractions:
     def __init__(self, diff_source: GitDiffSource | None = None) -> None:
         self.picker = PickerState(limit=6)
         self.diff = DiffController(diff_source)
+        self.diff_interaction = DiffInteraction()
         self.approval_choice = 0
         self.interaction_choice = 0
         self.steering = SteeringQueueView()
         self.agent_status = AgentRunStatusProjection()
 
-    def rows(self, app: object) -> tuple[str, ...]:
+    def rows(self, app: object, *, max_rows: int = 14) -> tuple[str, ...]:
         approval = app._pending_approval
         if approval is not None:
             target = approval.target or approval.name
@@ -49,6 +53,8 @@ class TuiInteractions:
         rewind = rewind_rows(app)
         if rewind is not None:
             return rewind
+        if self.diff_interaction.active:
+            return self.diff_interaction.rows(app._columns(), max_rows=max_rows)
         services = available_services(app)
         dynamic = dynamic_picker_items(app)
         if dynamic is not None:
@@ -60,12 +66,26 @@ class TuiInteractions:
         parent, query = picker_context(app.input.text, registry)
         self.picker.set_items(command_picker_items(registry.all(), services, parent=parent))
         self.picker.update_query(query)
-        return self.picker.rows(app._columns()) if app.input.text.startswith("/") else ()
+        if app.input.text.startswith("/"):
+            return self.picker.rows(app._columns())
+        draft = getattr(app, "attachment_draft", None)
+        return draft.rows() if draft is not None and draft.items else ()
 
-    async def steer(self, app: object, task_id: str, instruction: str) -> None:
+    async def steer(
+        self,
+        app: object,
+        task_id: str,
+        instruction: str,
+        attachments: tuple[AttachmentRef, ...] = (),
+    ) -> None:
         item = self.steering.queue(instruction)
         app._append(DisplayKind.METADATA, f"queued · queue {self.steering.pending_count}")
-        await app.tasks.steer(task_id, instruction)
+        if attachments:
+            await app.tasks.steer(
+                task_id, instruction, attachments=attachments
+            )
+        else:
+            await app.tasks.steer(task_id, instruction)
         self.steering.transition(item.identifier, SteeringStage.STEERED)
         app._append(DisplayKind.METADATA, f"steered · queue {self.steering.pending_count}")
 
@@ -101,6 +121,8 @@ class TuiInteractions:
             return await self._handle_interaction_key(app, interaction, key)
         if await handle_rewind_key(app, key):
             return True
+        if self.diff_interaction.active:
+            return await self._handle_diff_key(app, key)
         return await self._handle_picker_key(app, key)
 
     async def _handle_approval_key(self, app: object, key: str) -> bool:
@@ -182,11 +204,10 @@ class TuiInteractions:
         return False
 
     async def show_diff(self, app: object) -> None:
-        view = await self.diff.load(DiffScope.WORKING_TREE, app.state.diff)
-        for entry in view.render():
-            app.state.entries.append(entry)
-            app.state.transcript.append(entry.text)
-        app._flush_pending_entries()
+        await show_diff(self, app)
+
+    async def _handle_diff_key(self, app: object, key: str) -> bool:
+        return await handle_diff_key(self, app, key)
 
     async def _resolve_approval(self, app: object, approved: bool) -> None:
         request = app._pending_approval

@@ -208,8 +208,19 @@ class InputBufferTests(unittest.TestCase):
         self.assertEqual(BRACKETED_PASTE_ENABLE, "\x1b[?2004h")
         self.assertEqual(BRACKETED_PASTE_DISABLE, "\x1b[?2004l")
 
-
 class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
+    async def test_blank_submit_without_attachments_is_a_quiet_noop(self) -> None:
+        output: list[str] = []
+        app = WindowsTerminalApp(
+            AgentController(FakeEngine(())),
+            ApprovalBroker(),
+            write=output.append,
+        )
+
+        self.assertFalse(await app.submit(""))
+        self.assertEqual(app.state.entries, [])
+        self.assertEqual(output, [])
+
     async def test_palette_executes_leaf_and_lists_modes_at_the_root(self) -> None:
         app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker(), write=lambda _: None)
         app.input.replace("/状态")

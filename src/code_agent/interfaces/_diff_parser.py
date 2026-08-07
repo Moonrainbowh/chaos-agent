@@ -25,6 +25,8 @@ class DiffLineKind(str, Enum):
 class DiffLine:
     kind: DiffLineKind
     text: str
+    old_line: int | None = None
+    new_line: int | None = None
 
 
 @dataclass(frozen=True)
@@ -79,6 +81,8 @@ class _ParseState:
     git_header: bool = False
     old_remaining: int | None = None
     new_remaining: int | None = None
+    old_cursor: int | None = None
+    new_cursor: int | None = None
     valid: bool = True
 
     @property
@@ -96,6 +100,7 @@ class _ParseState:
         self.lines = []
         self.git_header = False
         self.old_remaining = self.new_remaining = None
+        self.old_cursor = self.new_cursor = None
         self.valid = True
 
     def start_git(self, value: str) -> None:
@@ -124,16 +129,21 @@ class _ParseState:
         self.new_path = path
 
     def append_line(self, raw: str) -> None:
-        self.lines.append(DiffLine(_line_kind(raw), raw))
         if not raw.startswith("@@"):
+            self.lines.append(DiffLine(_line_kind(raw), raw))
             return
         match = _HUNK_HEADER.match(raw)
         if match is None:
             self.valid = False
             self.old_remaining = self.new_remaining = None
             return
-        self.old_remaining = int(match.group(1) or "1")
-        self.new_remaining = int(match.group(2) or "1")
+        self.old_cursor = int(match.group(1))
+        self.new_cursor = int(match.group(3))
+        self.old_remaining = int(match.group(2) or "1")
+        self.new_remaining = int(match.group(4) or "1")
+        self.lines.append(
+            DiffLine(DiffLineKind.HUNK, raw, self.old_cursor, self.new_cursor)
+        )
         self._finish_hunk_if_complete()
 
     def consume_hunk(self, raw: str) -> None:
@@ -144,13 +154,29 @@ class _ParseState:
             self.valid = False
             self.old_remaining = self.new_remaining = None
             return
-        self.lines.append(DiffLine(_line_kind(raw), raw))
         assert self.old_remaining is not None and self.new_remaining is not None
+        assert self.old_cursor is not None and self.new_cursor is not None
         if raw.startswith("-"):
+            self.lines.append(DiffLine(DiffLineKind.REMOVE, raw, self.old_cursor))
+            self.old_cursor += 1
             self.old_remaining -= 1
         elif raw.startswith("+"):
+            self.lines.append(
+                DiffLine(DiffLineKind.ADD, raw, None, self.new_cursor)
+            )
+            self.new_cursor += 1
             self.new_remaining -= 1
         else:
+            self.lines.append(
+                DiffLine(
+                    DiffLineKind.CONTEXT,
+                    raw,
+                    self.old_cursor,
+                    self.new_cursor,
+                )
+            )
+            self.old_cursor += 1
+            self.new_cursor += 1
             self.old_remaining -= 1
             self.new_remaining -= 1
         if self.old_remaining < 0 or self.new_remaining < 0:
@@ -165,7 +191,7 @@ class _ParseState:
 
 
 _HUNK_HEADER = re.compile(
-    r"^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@(?: .*)?$"
+    r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(?: .*)?$"
 )
 
 

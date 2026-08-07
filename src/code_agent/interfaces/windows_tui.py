@@ -6,18 +6,18 @@ import shutil
 import time
 from collections.abc import Callable, Sequence
 from typing import Optional, Protocol
-
+from code_agent.core.attachments import AttachmentRef
 from code_agent.core.cancellation import CancellationError, CancellationToken
 from code_agent.core.events import EventKind
 from .controller import AgentController
+from .attachment_input import AttachmentDraft, PreparedInput, has_submission_input, prepare_input
 from .command_registry import CommandRegistry, REGISTRY
 from .history import ThreadHistoryReader, load_thread_history
 from .input_buffer import InputBuffer
 from .input_events import ExitGuard
 from .terminal_display import DisplayKind, text_entry
 from .terminal_renderer import ColorMode, Theme, render_entries
-from .terminal_io import BRACKETED_PASTE_DISABLE, BRACKETED_PASTE_ENABLE, read_key, stdout_write
-from .terminal_io import render_terminal as render_terminal
+from .terminal_io import BRACKETED_PASTE_DISABLE, BRACKETED_PASTE_ENABLE, read_key, render_terminal as render_terminal, stdout_write
 from .terminal_status import status_context, status_presentation
 from .terminal_tail import LiveTailGeometry, clear_live_tail, render_live_tail_frame
 from .terminal_state import ApprovalBroker, ApprovalRequest, TerminalState
@@ -29,7 +29,7 @@ from code_agent.mcp.registry import McpRegistry
 from .task_controller import ForegroundTaskController
 from .tui_commands import ParseOutcome, parse_tui_command
 from .i18n import catalog_for, select_runtime_language
-from .tui_input import apply_paste, handle_interrupt
+from .tui_input import apply_clipboard_images, apply_paste, handle_interrupt
 from .command_availability import available_services
 from .tui_interactions import TuiInteractions
 from .diff_view import GitDiffSource
@@ -53,7 +53,7 @@ class EvidenceReader(Protocol):
 class WindowsTerminalApp:
     """Append-only Windows Terminal interaction without alternate-screen control."""
 
-    def __init__(self, controller: AgentController, approvals: ApprovalBroker, *, sessions: Optional[SessionBrowser] = None, evidence: Optional[EvidenceReader] = None, tasks: ForegroundTaskController | None = None, history: Optional[ThreadHistoryReader] = None, profiles: ProfileControl | None = None, modes: ModeControl | None = None, permissions: PermissionControl | None = None, skills: SkillActivation | None = None, mcp: McpRegistry | None = None, workflows: object | None = None, plugins: object | None = None, checkpoints: CheckpointControl | None = None, interaction_broker: InteractionBroker | None = None, command_registry: CommandRegistry = REGISTRY, diff_source: GitDiffSource | None = None, write: Optional[Callable[[str], object]] = None) -> None:
+    def __init__(self, controller: AgentController, approvals: ApprovalBroker, *, sessions: Optional[SessionBrowser] = None, evidence: Optional[EvidenceReader] = None, tasks: ForegroundTaskController | None = None, history: Optional[ThreadHistoryReader] = None, profiles: ProfileControl | None = None, modes: ModeControl | None = None, permissions: PermissionControl | None = None, skills: SkillActivation | None = None, mcp: McpRegistry | None = None, workflows: object | None = None, plugins: object | None = None, checkpoints: CheckpointControl | None = None, interaction_broker: InteractionBroker | None = None, command_registry: CommandRegistry = REGISTRY, diff_source: GitDiffSource | None = None, attachment_draft: AttachmentDraft | None = None, write: Optional[Callable[[str], object]] = None) -> None:
         self.controller, self.approvals = controller, approvals
         self.sessions, self.evidence, self.tasks, self.history, self.profiles, self.modes, self.permissions, self.skills, self.mcp, self.workflows, self.plugins, self.checkpoints, self.command_registry, self._write = sessions, evidence, tasks, history, profiles, modes, permissions, skills, mcp, workflows, plugins, checkpoints, command_registry, write or stdout_write
         self.state = TerminalState(); self.input = InputBuffer(); self.current_thread_id: str | None = None
@@ -66,6 +66,7 @@ class WindowsTerminalApp:
         self._interaction_done = asyncio.Event()
         self._interaction_task: asyncio.Task[None] | None = None
         self.interactions = TuiInteractions(diff_source)
+        self.attachment_draft = attachment_draft
         self.active_task_id: str | None = None; self.running = False; self._run_task: asyncio.Task[None] | None = None
         self._animation_task: asyncio.Task[None] | None = None; self._spinner_index = 0; self._redraw_dirty = True
         self._token: CancellationToken | None = None; self._approval_task: asyncio.Task[None] | None = None
@@ -87,38 +88,70 @@ class WindowsTerminalApp:
         try:
             while self.running: await self.handle_key(await asyncio.to_thread(read_key))
         finally: self._write(BRACKETED_PASTE_DISABLE); await close_tasks(self)
-    async def submit(self, text: str) -> bool:
+    async def submit(
+        self,
+        text: str,
+        *,
+        attachments: Sequence[AttachmentRef] | None = None,
+    ) -> bool:
         if not isinstance(text, str): raise TypeError("text must be a string")
-        if not text.strip(): return False
+        if not has_submission_input(self.attachment_draft, text, attachments):
+            return False
         if self._pending_approval is not None:
             self._append(DisplayKind.ERROR, "approval decision is pending")
             return False
-        parsed = parse_tui_command(text, available_services(self), self.command_registry)
-        if parsed.is_command: return await self._handle_command(parsed)
-        if parsed.error: self._append(DisplayKind.ERROR, parsed.error); return False
-        self._append(DisplayKind.USER, text)
+        if text.strip():
+            parsed = parse_tui_command(text, available_services(self), self.command_registry)
+            if parsed.is_command: return await self._handle_command(parsed)
+            if parsed.error: self._append(DisplayKind.ERROR, parsed.error); return False
+        try:
+            prepared = prepare_input(self.attachment_draft, text, attachments)
+        except (RuntimeError, ValueError) as error:
+            self._append(DisplayKind.ERROR, str(error)); self.redraw(); return False
+        self._append(DisplayKind.USER, prepared.display)
         if self.tasks and self.active_task_id and self._run_task and not self._run_task.done():
-            await self.interactions.steer(self, self.active_task_id, text)
-            self.redraw()
-            return True
+            return await self._submit_steering(prepared)
         self._token = CancellationToken()
+        self._run_started_at = time.monotonic()
         if self.tasks:
             if self.active_task_id:
                 task_id = self.active_task_id
             else:
-                try: record = await self.tasks.start(text)
+                try: record = await self.tasks.start(prepared.prompt)
                 except RuntimeError as error: self._append(DisplayKind.ERROR, str(error)); self.redraw(); return False
                 task_id = record.id; self.active_task_id = task_id
-            self.state.begin_run(); self._run_started_at = time.monotonic()
-            self._run_task = asyncio.create_task(self._consume_task(task_id, text))
-        else: self._run_task = asyncio.create_task(self._consume(text, self._token))
-        self._start_animation()
-        self.redraw(); return True
+            self.state.begin_run()
+            self._run_task = asyncio.create_task(
+                self._consume_task(
+                    task_id, prepared.prompt, prepared.attachments, prepared
+                )
+            )
+        else:
+            self._run_task = asyncio.create_task(
+                self._consume(
+                    prepared.prompt, self._token, prepared.attachments, prepared
+                )
+            )
+        self._start_animation(); self.redraw(); return True
+    async def _submit_steering(self, prepared: PreparedInput) -> bool:
+        try:
+            await self.interactions.steer(
+                self, self.active_task_id, prepared.prompt, prepared.attachments
+            )
+        except Exception as error:
+            self._append(
+                DisplayKind.ERROR,
+                f"steering submit failed ({type(error).__name__})",
+            )
+            self.redraw()
+            return False
+        self._acknowledge_submission(EventKind.MESSAGE_ADDED, prepared)
+        self.redraw()
+        return True
     async def wait_idle(self) -> None:
         if self._run_task: await self._run_task
         await stop_animation(self)
-    async def wait_checkpoint_idle(self) -> None:
-        await wait_rewind_task(self)
+    async def wait_checkpoint_idle(self) -> None: await wait_rewind_task(self)
     async def close_checkpoint_flow(self) -> None:
         await close_rewind_flow(self)
     async def handle_key(self, key: str) -> None:
@@ -129,7 +162,8 @@ class WindowsTerminalApp:
         elif key == "\x1b" and self.tasks and self.active_task_id:
             await self.tasks.pause(self.active_task_id, "user requested pause")
         elif key.startswith("\x1b[200~") and key.endswith("\x1b[201~"):
-            apply_paste(self, key[6:-6])
+            await apply_paste(self, key[6:-6])
+        elif key == "\x16": await apply_clipboard_images(self)
         elif key == "\x15": self.input.clear()
         elif key == "\r": await self.submit(self.input.submit())
         elif key == "\n": self.input.insert_line_break()
@@ -145,7 +179,7 @@ class WindowsTerminalApp:
         self.redraw()
     def redraw(self) -> None:
         now = time.monotonic(); size = shutil.get_terminal_size((100, 30))
-        palette = self.interactions.rows(self)
+        palette = self.interactions.rows(self, max_rows=max(0, size.lines - 4))
         status, icon, status_color = status_presentation(self.state.status, self.state.execution_summary, self.state.active_action, self.catalog.language, self.theme, self._spinner_index)
         if self.interactions.steering.pending_count: status += " · " + self.interactions.steering.status_line()
         frame = render_live_tail_frame(
@@ -177,22 +211,48 @@ class WindowsTerminalApp:
         height = shutil.get_terminal_size((100, 30)).lines
         self._write(clear_live_tail(self._tail_geometry, terminal_height=height) + render_entries(restored.entries, 100, theme=self.theme, color=self.color) + "\n\r")
         self._tail_geometry = None; self._flushed_entries = len(restored.entries); return True
-    async def _consume(self, text: str, token: CancellationToken) -> None:
+    async def _consume(
+        self,
+        text: str,
+        token: CancellationToken,
+        attachments: tuple[AttachmentRef, ...] = (),
+        submitted: PreparedInput | None = None,
+    ) -> None:
         try:
-            async for event in self.controller.ask(text, thread_id=self.current_thread_id, cancellation=token):
+            async for event in self.controller.ask(
+                text,
+                thread_id=self.current_thread_id,
+                cancellation=token,
+                attachments=attachments,
+            ):
                 self.state.apply(event)
+                submitted = self._acknowledge_submission(event.kind, submitted)
                 if event.kind is not EventKind.MODEL_EVENT:
                     self._flush_pending_entries()
                 if self.state.thread_id: self.current_thread_id = self.state.thread_id
                 self._request_redraw(immediate=event.kind is not EventKind.MODEL_EVENT)
         except CancellationError:
             self.state.status = "paused"
-    async def _consume_task(self, task_id: str, text: str) -> None:
+        except Exception as error:
+            self._append(DisplayKind.ERROR, type(error).__name__)
+    async def _consume_task(
+        self,
+        task_id: str,
+        text: str,
+        attachments: tuple[AttachmentRef, ...] = (),
+        submitted: PreparedInput | None = None,
+    ) -> None:
         if not self.tasks: return
         terminal = False
         try:
-            async for event in self.tasks.events(task_id, text):
+            stream = (
+                self.tasks.events(task_id, text, attachments=attachments)
+                if attachments
+                else self.tasks.events(task_id, text)
+            )
+            async for event in stream:
                 self.state.apply(event)
+                submitted = self._acknowledge_submission(event.kind, submitted)
                 if self.state.thread_id:
                     self.current_thread_id = self.state.thread_id
                 self.interactions.observe_event(self, event.kind)
@@ -234,3 +294,7 @@ class WindowsTerminalApp:
         if immediate: self.redraw()
     def _start_animation(self) -> None:
         start_animation(self)
+    def _acknowledge_submission(self, kind: EventKind, submitted: PreparedInput | None) -> PreparedInput | None:
+        if kind is EventKind.MESSAGE_ADDED and submitted is not None and submitted.from_draft and self.attachment_draft is not None:
+            self.attachment_draft.commit(submitted.attachments)
+        return None if kind is EventKind.MESSAGE_ADDED else submitted

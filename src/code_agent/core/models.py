@@ -5,6 +5,7 @@ from enum import Enum
 from typing import Mapping, Optional, Sequence, Tuple, cast
 
 from ._action_models import ActionRequest, ActionResult, ToolDefinition
+from .attachments import AttachmentRef, freeze_attachments
 from ._json import (
     JSONValue,
     freeze_mapping,
@@ -110,6 +111,7 @@ class Message:
     name: Optional[str] = None
     tool_calls: Tuple[ToolCall, ...] = field(default_factory=tuple)
     tool_call_id: Optional[str] = None
+    attachments: Tuple[AttachmentRef, ...] = field(default_factory=tuple)
 
     def __post_init__(self) -> None:
         if not isinstance(self.role, str):
@@ -126,6 +128,10 @@ class Message:
         if not all(isinstance(call, ToolCall) for call in calls):
             raise TypeError("tool_calls must contain only ToolCall values")
         object.__setattr__(self, "tool_calls", calls)
+        attachments = freeze_attachments(self.attachments)
+        if attachments and self.role != "user":
+            raise ValueError("attachments are allowed only on user messages")
+        object.__setattr__(self, "attachments", attachments)
 
     def to_dict(self) -> dict[str, JSONValue]:
         result: dict[str, JSONValue] = {
@@ -138,17 +144,23 @@ class Message:
             result["tool_calls"] = [call.to_dict() for call in self.tool_calls]
         if self.tool_call_id is not None:
             result["tool_call_id"] = self.tool_call_id
+        if self.attachments:
+            result["attachments"] = [item.to_dict() for item in self.attachments]
         return result
 
     @classmethod
     def from_dict(cls, data: Mapping[str, object]) -> Message:
         calls = cast(Sequence[Mapping[str, object]], data.get("tool_calls", ()))
+        attachments = cast(
+            Sequence[Mapping[str, object]], data.get("attachments", ())
+        )
         return cls(
             role=cast(str, data["role"]),
             content=cast(str, data.get("content", "")),
             name=cast(Optional[str], data.get("name")),
             tool_calls=tuple(ToolCall.from_dict(call) for call in calls),
             tool_call_id=cast(Optional[str], data.get("tool_call_id")),
+            attachments=tuple(AttachmentRef.from_dict(item) for item in attachments),
         )
 
 

@@ -16,6 +16,7 @@ from .errors import (
     WorkspaceError,
 )
 from ._file_walk import iter_workspace_files
+from ._known_files import known_workspace_files
 from ._text_search import (
     MAX_SEARCH_PATTERN_LENGTH,
     SearchMatch,
@@ -90,7 +91,7 @@ class WorkspaceFiles:
         scan_limit = _scan_limit(max_entries, max_scanned_entries)
 
         del sorted  # The underlying iterator is ordered for both modes.
-        if root is not None:
+        if root is not None and self.guard.resolve(root) != self.guard.root:
             return tuple(islice(self._iter_external_files(root, scan_limit), max_entries))
         key = (max_entries, scan_limit)
         with self._inventory_lock:
@@ -140,6 +141,13 @@ class WorkspaceFiles:
         finally:
             self._inventory_lock.release()
 
+    def list_known_files(
+        self, candidates: Sequence[str], *, max_entries: int, max_scanned_entries: int,
+    ) -> tuple[str, ...]:
+        return known_workspace_files(
+            candidates, self.guard, self.ignore, max_entries=max_entries,
+            max_scanned_entries=max_scanned_entries,
+        )
     def read_text(
         self,
         path: str | os.PathLike[str],

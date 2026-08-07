@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from pathlib import Path
-from threading import Lock, RLock
+from threading import RLock
 
 from code_agent.workspace.errors import WorkspaceError
 from code_agent.workspace.files import WorkspaceFiles
@@ -11,7 +10,13 @@ from code_agent.workspace.files import WorkspaceFiles
 from .cache import FileSignature
 from .errors import RepoMapError
 from .models import RepoEntry
-from .repo_scan import ImportRef, RepoFileFacts, RepoFileScanner
+from .repo_scan import RepoFileFacts, RepoFileScanner
+from .repo_search import RepoLexicalRanks, SQLiteRepoSearch
+from .repo_search_documents import bound_search_facts
+from .repo_snapshot import publish_entries, strip_search_text
+
+
+_MAX_SEARCH_BODY_BYTES = 16_000_000
 
 
 @dataclass(frozen=True)
@@ -43,6 +48,7 @@ class RepoIndexService:
         *,
         max_files: int = 5_000,
         scan_file: Callable[[str], RepoFileFacts] | None = None,
+        search_index: SQLiteRepoSearch | None = None,
     ) -> None:
         if not isinstance(files, WorkspaceFiles):
             raise TypeError("files must be WorkspaceFiles")
@@ -52,11 +58,20 @@ class RepoIndexService:
             raise ValueError("max_files must be positive")
         if scan_file is not None and not callable(scan_file):
             raise TypeError("scan_file must be callable")
+        if search_index is not None and not isinstance(
+            search_index, SQLiteRepoSearch
+        ):
+            raise TypeError("search_index must be a SQLiteRepoSearch")
         self.files = files
         self.max_files = max_files
+        self._max_search_body_bytes = (
+            _MAX_SEARCH_BODY_BYTES // max_files
+        )
         self._scan_file = scan_file or RepoFileScanner(files).scan
         self._state_lock = RLock()
-        self._update_lock = Lock()
+        self._update_lock = RLock()
+        self._search_index = search_index or SQLiteRepoSearch()
+        self._view_identity = object()
         self._records: dict[str, RepoFileFacts] = {}
         self._snapshot = RepoIndexSnapshot(0)
         self._initialized = False
@@ -91,16 +106,36 @@ class RepoIndexService:
                         self._reconcile_requested or reconcile
                     )
                 raise
+            self._search_index.sync(current, updated)
+            indexed = strip_search_text(updated)
             with self._state_lock:
-                changed = not self._initialized or updated != self._records
+                changed = not self._initialized or indexed != self._records
                 if changed:
                     generation = self._snapshot.generation + 1
-                    self._records = updated
-                    self._snapshot = _publish_snapshot(
-                        generation, updated
+                    self._records = indexed
+                    self._snapshot = RepoIndexSnapshot(
+                        generation,
+                        publish_entries(indexed),
                     )
                 self._initialized = True
                 return self._snapshot
+
+    def query_for_turn(
+        self,
+        query: str,
+        *,
+        limit: int = 64,
+    ) -> tuple[RepoIndexSnapshot, RepoLexicalRanks]:
+        """Refresh and query one generation while holding the update boundary."""
+        if not isinstance(query, str):
+            raise TypeError("query must be text")
+        if isinstance(limit, bool) or not isinstance(limit, int):
+            raise TypeError("limit must be an integer")
+        if limit <= 0:
+            raise ValueError("limit must be positive")
+        with self._update_lock:
+            snapshot = self.snapshot_for_turn()
+            return snapshot, self._search_index.rank(query, limit=limit)
 
     def invalidate(self, paths: Sequence[str]) -> None:
         """Queue exact paths, or request one bounded reconciliation when empty."""
@@ -122,6 +157,16 @@ class RepoIndexService:
         """Return the last published generation without refreshing it."""
         with self._state_lock:
             return self._snapshot
+
+    @property
+    def view_identity(self) -> object:
+        """Return a cache token that cannot be reused during its lifetime."""
+        return self._view_identity
+
+    def close(self) -> None:
+        """Release the owned in-memory lexical index."""
+        with self._update_lock:
+            self._search_index.close()
 
     def _scan_all(self) -> dict[str, RepoFileFacts]:
         try:
@@ -202,7 +247,10 @@ class RepoIndexService:
             raise TypeError("scan_file must return RepoFileFacts")
         if facts.path != path:
             raise ValueError("scan_file returned facts for a different path")
-        return facts
+        return bound_search_facts(
+            facts,
+            self._max_search_body_bytes,
+        )
 
     def _current_signature(self, path: str) -> FileSignature | None:
         try:
@@ -234,66 +282,3 @@ class RepoIndexService:
         )
         retained = ordered[: self.max_files]
         return {path: records[path] for path in retained}
-
-
-def _publish_snapshot(
-    generation: int, records: dict[str, RepoFileFacts]
-) -> RepoIndexSnapshot:
-    module_index = _module_index(records)
-    entries = tuple(
-        RepoEntry(
-            path,
-            records[path].symbols,
-            _resolve_imports(path, records[path].imports, module_index),
-            records[path].size_bytes,
-        )
-        for path in sorted(records, key=lambda item: (item.casefold(), item))
-    )
-    return RepoIndexSnapshot(generation, entries)
-
-
-def _module_index(records: dict[str, RepoFileFacts]) -> dict[str, str]:
-    index: dict[str, str] = {}
-    for path in records:
-        if not path.endswith(".py"):
-            continue
-        module = path[:-3].replace("/", ".")
-        if module.endswith(".__init__"):
-            module = module[: -len(".__init__")]
-        if module:
-            index.setdefault(module, path)
-    return index
-
-
-def _resolve_imports(
-    path: str,
-    refs: Sequence[ImportRef],
-    index: dict[str, str],
-) -> tuple[str, ...]:
-    current = path[:-3].replace("/", ".")
-    package = (
-        current[: -len(".__init__")]
-        if current.endswith(".__init__")
-        else current.rpartition(".")[0]
-    )
-    dependencies: set[str] = set()
-    for ref in refs:
-        if ref.level:
-            parts = package.split(".") if package else []
-            climb = ref.level - 1
-            if climb > len(parts):
-                continue
-            prefix = parts[: len(parts) - climb]
-            base = ".".join(
-                (*prefix, *filter(None, ref.module.split(".")))
-            )
-        else:
-            base = ref.module
-        candidates = [
-            f"{base}.{name}".strip(".") for name in ref.names
-        ]
-        candidates.append(base)
-        for candidate in candidates:
-            if candidate in index and index[candidate] != path:
-                dependencies.add(index[candidate])
-    return tuple(sorted(dependencies))

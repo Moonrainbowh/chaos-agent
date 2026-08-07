@@ -145,7 +145,10 @@ class AgentEngineRunTests(unittest.IsolatedAsyncioTestCase):
                 Message(role="assistant", content="Hello world"),
             ],
         )
-        self.assertEqual(context.calls[0][:2], ((), "Say hello"))
+        self.assertEqual(
+            context.calls[0][:2],
+            ((Message(role="user", content="Say hello"),), ""),
+        )
         self.assertEqual(context.calls[0][3].__class__.__name__, "TaskState")
         self.assertEqual(model.calls[0][1], (Message(role="user", content="Say hello"),))
         self.assertEqual(events[-1].kind, EventKind.COMPLETED)
@@ -173,7 +176,13 @@ class AgentEngineRunTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(sessions.created, 1)
         self.assertEqual(
             context.calls[0][:2],
-            ((Message(role="user", content="old"),), "new"),
+            (
+                (
+                    Message(role="user", content="old"),
+                    Message(role="user", content="new"),
+                ),
+                "",
+            ),
         )
         self.assertEqual(
             sessions.messages[thread_id],

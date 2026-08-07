@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import AsyncIterator, Mapping, Sequence
+from collections.abc import AsyncIterator, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Optional
 
@@ -18,8 +18,10 @@ from code_agent.core.models import (
 )
 
 from ._limits import ArgumentBuffer, ToolBudget
-from .config import ApiProtocol, ProviderConfig
+from .attachments import AttachmentResolver, ProviderAttachmentEncoder
+from .config import ApiProtocol, InputModality, ProviderConfig
 from .errors import ProviderConfigError, ProviderProtocolError
+from ._request_payload import chat_payload
 from .transport import ProviderTransport, Sleep
 
 
@@ -30,10 +32,12 @@ class _PendingCall:
     name: str = ""
 
 
-def _message_payload(message: Message) -> dict[str, object]:
+def _message_payload(
+    message: Message, encoder: ProviderAttachmentEncoder
+) -> dict[str, object]:
     result: dict[str, object] = {
         "role": message.role,
-        "content": message.content,
+        "content": encoder.chat(message),
     }
     if message.name is not None:
         result["name"] = message.name
@@ -69,7 +73,9 @@ def _tool_payload(tool: ToolDefinition) -> dict[str, object]:
 
 
 def _request_messages(
-    system_prompt: str, messages: Sequence[Message]
+    system_prompt: str,
+    messages: Sequence[Message],
+    encoder: ProviderAttachmentEncoder,
 ) -> list[dict[str, object]]:
     system_parts = [system_prompt] if system_prompt else []
     request_messages: list[dict[str, object]] = []
@@ -78,10 +84,17 @@ def _request_messages(
             if message.content:
                 system_parts.append(message.content)
             continue
-        request_messages.append(_message_payload(message))
+        request_messages.append(_message_payload(message, encoder))
     if system_parts:
         request_messages.insert(0, {"role": "system", "content": "\n\n".join(system_parts)})
     return request_messages
+
+
+def _late_usage(value: Mapping[str, object]) -> ModelEvent:
+    choices = value.get("choices", [])
+    if choices or value.get("usage") is None:
+        raise ProviderProtocolError("Chat delta received after finish")
+    return _usage_event(value["usage"])
 
 
 def _load_event(data: str) -> Mapping[str, object]:
@@ -118,42 +131,36 @@ class OpenAIChatClient:
         self,
         config: ProviderConfig,
         *,
+        attachment_resolver: AttachmentResolver | None = None,
+        input_modalities: Iterable[InputModality] = (InputModality.TEXT,),
         http_client: Optional[httpx.AsyncClient] = None,
         sleep: Sleep = asyncio.sleep,
     ) -> None:
         if config.api is not ApiProtocol.CHAT_COMPLETIONS:
             raise ProviderConfigError("OpenAIChatClient requires chat_completions API")
         self._config = config
+        self._attachments = ProviderAttachmentEncoder(
+            attachment_resolver, input_modalities
+        )
         self._transport = ProviderTransport(config, client=http_client, sleep=sleep)
 
     async def aclose(self) -> None:
         await self._transport.aclose()
 
     async def stream(
-        self,
-        system_prompt: str,
-        messages: Sequence[Message],
+        self, system_prompt: str, messages: Sequence[Message],
         tools: Sequence[ToolDefinition],
     ) -> AsyncIterator[ModelEvent]:
-        request_messages = _request_messages(system_prompt, messages)
-        payload: dict[str, object] = {
-            "model": self._config.model,
-            "stream": True,
-            "stream_options": {"include_usage": True},
-            "messages": request_messages,
-        }
-        if tools:
-            payload["tools"] = [_tool_payload(tool) for tool in tools]
-
-        calls: dict[int, _PendingCall] = {}
-        tool_budget = ToolBudget(
-            self._config.max_tool_calls, self._config.max_tool_argument_bytes
+        payload = chat_payload(
+            self._config, _request_messages(system_prompt, messages, self._attachments),
+            [_tool_payload(tool) for tool in tools],
         )
+        calls: dict[int, _PendingCall] = {}
+        tool_budget = ToolBudget(self._config.max_tool_calls, self._config.max_tool_argument_bytes)
         seen_call_ids: set[str] = set()
         finish_seen = False
         async for sse_event in self._transport.stream_sse(
-            self._config.chat_completions_path, payload
-        ):
+            self._config.chat_completions_path, payload):
             if sse_event.event == "error":
                 raise ProviderProtocolError("Chat provider returned an error event")
             if sse_event.data.strip() == "[DONE]":
@@ -166,9 +173,7 @@ class OpenAIChatClient:
             if not isinstance(choices, list):
                 raise ProviderProtocolError("Chat choices must be a JSON array")
             if finish_seen:
-                if choices or value.get("usage") is None:
-                    raise ProviderProtocolError("Chat delta received after finish")
-                yield _usage_event(value["usage"])
+                yield _late_usage(value)
                 continue
             for choice in choices:
                 if finish_seen:
@@ -186,7 +191,6 @@ class OpenAIChatClient:
                         yield event
             if "usage" in value and value["usage"] is not None:
                 yield _usage_event(value["usage"])
-
         if finish_seen:
             for event in self._finish_calls(calls, seen_call_ids):
                 yield event

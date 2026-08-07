@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
 authors = [{name = "lack"}]
-dependencies = ["httpx>=0.28,<0.29", "mcp>=1.0,<2", "psutil>=5.9", "regex>=2024.0", "tomli>=2.0,<3"]
+dependencies = ["httpx>=0.28,<0.29", "mcp>=1.0,<2", "Pillow>=10,<12", "psutil>=5.9", "regex>=2024.0", "tomli>=2.0,<3"]
 
 [project.scripts]
 chaos-agent = "code_agent_win.cli:main"

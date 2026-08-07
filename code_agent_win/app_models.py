@@ -29,6 +29,8 @@ class Application:
     subagents: SubagentRuntime | None = None
     rewind: RewindRuntime | None = None
     repo_index: Any = None
+    attachment_store: Any = None
+    attachment_ingestor: Any = None
 
     async def aclose(self) -> None:
         if self.subagents is not None:
@@ -64,6 +66,8 @@ class FactoryHost:
     dispatcher: Any
     sessions: Any
     rewind_write: Any
+    attachment_store: Any = None
+    attachment_ingestor: Any = None
 
 
 @dataclass

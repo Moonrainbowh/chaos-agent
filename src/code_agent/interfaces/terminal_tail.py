@@ -105,7 +105,9 @@ def _normal_frame(
     input_budget = min(len(rows), height - 3)
     rows, cursor_row = _visible_input_rows(rows, cursor_row, input_budget)
     remaining = height - len(rows) - 3
-    palette_items = tuple(safe_text(item).replace("\n", " ") for item in palette)[:min(5, remaining)]
+    palette_items = tuple(safe_text(item).replace("\n", " ") for item in palette)[
+        : min(14, remaining)
+    ]
     remaining -= len(palette_items)
     draft_lines = _render_draft(draft, width, max(0, remaining - 1), color)
     lines = _render_palette(palette_items, width, color) + draft_lines

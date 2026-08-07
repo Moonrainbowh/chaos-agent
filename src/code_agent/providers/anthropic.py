@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import AsyncIterator, Mapping, Sequence
+from collections.abc import AsyncIterator, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Optional
 
@@ -18,13 +18,16 @@ from code_agent.core.models import (
 )
 
 from ._limits import ArgumentBuffer, ToolBudget, ensure_utf8_limit
-from .config import ApiProtocol, ProviderConfig
+from .attachments import AttachmentResolver, ProviderAttachmentEncoder
+from .config import ApiProtocol, InputModality, ProviderConfig
 from .errors import ProviderConfigError, ProviderProtocolError
+from ._request_payload import anthropic_payload
 from .transport import ProviderTransport, Sleep
 
-
 def _request_messages(
-    system_prompt: str, messages: Sequence[Message]
+    system_prompt: str,
+    messages: Sequence[Message],
+    encoder: ProviderAttachmentEncoder,
 ) -> tuple[str, list[dict[str, object]]]:
     system_parts = [system_prompt] if system_prompt else []
     result: list[dict[str, object]] = []
@@ -50,9 +53,12 @@ def _request_messages(
             )
             continue
         if message.tool_calls:
-            blocks: list[dict[str, object]] = []
-            if message.content:
-                blocks.append({"type": "text", "text": message.content})
+            encoded = encoder.anthropic(message)
+            blocks = (
+                list(encoded)
+                if isinstance(encoded, list)
+                else ([{"type": "text", "text": encoded}] if encoded else [])
+            )
             blocks.extend(
                 {
                     "type": "tool_use",
@@ -64,7 +70,9 @@ def _request_messages(
             )
             result.append({"role": message.role, "content": blocks})
         else:
-            result.append({"role": message.role, "content": message.content})
+            result.append(
+                {"role": message.role, "content": encoder.anthropic(message)}
+            )
     return "\n\n".join(system_parts), result
 
 
@@ -148,45 +156,36 @@ class AnthropicClient:
         self,
         config: ProviderConfig,
         *,
+        attachment_resolver: AttachmentResolver | None = None,
+        input_modalities: Iterable[InputModality] = (InputModality.TEXT,),
         http_client: Optional[httpx.AsyncClient] = None,
         sleep: Sleep = asyncio.sleep,
     ) -> None:
         if config.api is not ApiProtocol.ANTHROPIC_MESSAGES:
             raise ProviderConfigError("AnthropicClient requires anthropic_messages API")
         self._config = config
+        self._attachments = ProviderAttachmentEncoder(
+            attachment_resolver, input_modalities
+        )
         self._transport = ProviderTransport(config, client=http_client, sleep=sleep)
 
     async def aclose(self) -> None:
         await self._transport.aclose()
 
-    async def stream(
-        self,
-        system_prompt: str,
-        messages: Sequence[Message],
+    async def stream(self, system_prompt: str, messages: Sequence[Message],
         tools: Sequence[ToolDefinition],
     ) -> AsyncIterator[ModelEvent]:
-        system, request_messages = _request_messages(system_prompt, messages)
-        payload: dict[str, object] = {
-            "model": self._config.model,
-            "max_tokens": 4096,
-            "stream": True,
-            "system": system,
-            "messages": request_messages,
-        }
-        if tools:
-            payload["tools"] = [_request_tool(tool) for tool in tools]
-        pending: dict[int, _PendingTool] = {}
-        tool_budget = ToolBudget(
-            self._config.max_tool_calls, self._config.max_tool_argument_bytes
+        system, request_messages = _request_messages(system_prompt, messages, self._attachments)
+        payload = anthropic_payload(
+            self._config, system, request_messages,
+            [_request_tool(tool) for tool in tools],
         )
+        pending: dict[int, _PendingTool] = {}
+        tool_budget = ToolBudget(self._config.max_tool_calls, self._config.max_tool_argument_bytes)
         usage = _UsageState()
-
         async for sse in self._transport.stream_sse(
-            self._config.anthropic_messages_path,
-            payload,
-            {"anthropic-version": "2023-06-01"},
-            auth_header="x-api-key",
-            auth_scheme=None,
+            self._config.anthropic_messages_path, payload,
+            {"anthropic-version": "2023-06-01"}, auth_header="x-api-key", auth_scheme=None,
         ):
             value = _load_event(sse.data)
             event_type = value.get("type", sse.event)
@@ -223,7 +222,6 @@ class AnthropicClient:
                 yield ModelEvent(kind=ModelEventKind.COMPLETED)
                 return
         raise ProviderProtocolError("Anthropic stream ended without message_stop")
-
     @classmethod
     def _start_block(
         cls,

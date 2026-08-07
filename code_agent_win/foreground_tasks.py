@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import inspect
-import os
+from collections.abc import Sequence
 from pathlib import Path
 
+from code_agent.core.attachments import AttachmentRef
 from code_agent.core.cancellation import CancellationToken
 from code_agent.core.events import EventKind
 from code_agent.core.limits import EngineLimits
@@ -21,8 +22,13 @@ from code_agent.workflows.observations import (
     VerificationObservation,
 )
 from code_agent.sessions.errors import SessionNotFound
-
 from code_agent_win.foreground_checkpoint_lifecycle import ForegroundCheckpointLifecycle
+from code_agent_win.foreground_task_support import (
+    active_task,
+    plugin_event_fields,
+    plugin_event_kind,
+    same_path,
+)
 from code_agent_win.tool_support import discover_git_workspace
 
 
@@ -108,10 +114,10 @@ class IntegratedForegroundTaskController(ForegroundTaskController):
 
     async def _has_active_source_task(self) -> bool:
         for task in await self._sessions.list_tasks():
-            if not _active_task(task):
+            if not active_task(task):
                 continue
             source = await self._task_source_root(task)
-            if _same_path(source, Path(self._root)):
+            if same_path(source, Path(self._root)):
                 return True
         return False
 
@@ -189,19 +195,27 @@ class IntegratedForegroundTaskController(ForegroundTaskController):
     ):
         return await self._checkpoint_lifecycle.accept_partial(task_id, reason)
 
-    async def events(self, task_id: str, prompt: str | None = None):
+    async def events(
+        self,
+        task_id: str,
+        prompt: str | None = None,
+        *,
+        attachments: Sequence[AttachmentRef] = (),
+    ):
         serial = self._checkpoint_lifecycle.begin_run(task_id)
         token = None
         plugin_token = CancellationToken()
         try:
             token = self._subagents.activate(task_id)
-            async for event in super().events(task_id, prompt):
+            async for event in super().events(
+                task_id, prompt, attachments=attachments
+            ):
                 await self._observe_workflow_event(task_id, event)
                 if self._plugin_events is not None:
                     await self._plugin_events.observe(
-                        _plugin_event_kind(event),
+                        plugin_event_kind(event),
                         task_id,
-                        _plugin_event_fields(event),
+                        plugin_event_fields(event),
                         plugin_token,
                     )
                 yield event
@@ -284,33 +298,3 @@ class IntegratedForegroundTaskController(ForegroundTaskController):
                 await self.workflows.observe(
                     EvidenceInvalidatedObservation(task_id, node.id)
                 )
-
-
-def _plugin_event_fields(event: object) -> dict[str, object]:
-    allowed = {"status", "name", "turn", "task_id", "thread_id", "request_id"}
-    return {
-        key: value
-        for key, value in event.payload.items()
-        if key in allowed
-        and (isinstance(value, (str, int, bool, float)) or value is None)
-    }
-
-
-def _plugin_event_kind(event: object) -> str:
-    if event.kind is EventKind.TASK_STATUS_CHANGED:
-        status = event.payload.get("status")
-        if isinstance(status, str):
-            return f"task_{status}"
-    if event.kind is EventKind.COMPLETED:
-        return "run_completed"
-    return event.kind.value
-
-
-def _active_task(task: object) -> bool:
-    return task.status in {TaskStatus.CREATED, TaskStatus.RUNNING}
-
-
-def _same_path(left: Path, right: Path) -> bool:
-    return os.path.normcase(str(left.resolve())) == os.path.normcase(
-        str(right.resolve())
-    )

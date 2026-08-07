@@ -8,12 +8,23 @@ def status_presentation(
     status: str, summary: str, action: str | None, language: Language, theme: Theme, spinner_index: int
 ) -> tuple[str, str, str | None]:
     symbols = theme is Theme.SYMBOL
-    if status in {"building_context", "waiting_model"}:
+    if status in {
+        "building_context",
+        "waiting_model",
+        "reasoning",
+        "streaming_response",
+        "preparing_action",
+    }:
         labels = {
             "building_context": ("正在准备工作区", "preparing workspace"),
             "waiting_model": ("正在等待模型", "waiting for model"),
+            "reasoning": ("正在分析", "analyzing"),
+            "streaming_response": ("正在生成回复", "streaming response"),
+            "preparing_action": ("正在准备工具", "preparing tool"),
         }
         zh, en = labels[status]
+        if status == "preparing_action" and action:
+            zh, en = f"正在准备 · {action}", f"Preparing · {action}"
         spinner = "◐◓◑◒" if symbols else "|/-\\"
         return (
             zh if language is Language.ZH_CN else en,

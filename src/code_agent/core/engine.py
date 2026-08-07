@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import AsyncIterator, Mapping, Optional
+from typing import AsyncIterator, Mapping, Optional, Sequence
 
 from ._json import JSONValue, freeze_mapping
 from ._engine_run import AgentEngineRunMixin, _TurnState, _validate_run_arguments
@@ -14,6 +14,7 @@ from .errors import AgentEngineError, ContextBuildError, EngineLimitError, Model
 from .events import AgentEvent, EventKind
 from .limits import EngineLimits, add_usage
 from .models import ContextBundle, ModelEventKind, ToolCall, Usage
+from .attachments import AttachmentRef
 from .protocols import ActionDispatcher, ContextBuilder, ModelClient, SessionRepository
 from .task import TaskRecord, TaskStatus
 from .task_supervisor import SupervisionKind
@@ -62,14 +63,19 @@ class AgentEngine(
         thread_id: Optional[str] = None,
         cancellation: Optional[CancellationToken] = None,
         task: TaskRecord | None = None,
+        attachments: Sequence[AttachmentRef] = (),
     ) -> AsyncIterator[AgentEvent]:
         """Run one user request and stream events after durable persistence."""
-        _validate_run_arguments(user_input, thread_id)
+        checked_attachments = _validate_run_arguments(
+            user_input, thread_id, tuple(attachments)
+        )
         state, started = await self._start_run(thread_id, cancellation, task)
         yield started
 
         try:
-            added, user_message = await self._prepare_request(state, user_input)
+            added, user_message = await self._prepare_request(
+                state, user_input, checked_attachments
+            )
             yield added
 
             state.messages = state.prior_messages + (user_message,)

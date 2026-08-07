@@ -1,18 +1,67 @@
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
+
+from code_agent.providers.attachments import AttachmentResolver
 from code_agent.plugins.models import PluginRisk
 from code_agent.providers.anthropic import AnthropicClient
-from code_agent.providers.config import ApiProtocol, ModelProfile, ProviderConfig
+from code_agent.providers.config import (
+    ApiProtocol,
+    InputModality,
+    ModelProfile,
+    ProviderConfig,
+)
 from code_agent.providers.openai_chat import OpenAIChatClient
 from code_agent.providers.openai_responses import OpenAIResponsesClient
 
 
-def model_client(config: ProviderConfig) -> object:
+def model_client(
+    config: ProviderConfig,
+    *,
+    attachment_resolver: AttachmentResolver | None = None,
+    input_modalities: frozenset[InputModality] = frozenset(
+        {InputModality.TEXT}
+    ),
+) -> object:
+    options = {
+        "attachment_resolver": attachment_resolver,
+        "input_modalities": input_modalities,
+    }
     if config.api is ApiProtocol.RESPONSES:
-        return OpenAIResponsesClient(config)
+        return OpenAIResponsesClient(config, **options)
     if config.api is ApiProtocol.CHAT_COMPLETIONS:
-        return OpenAIChatClient(config)
-    return AnthropicClient(config)
+        return OpenAIChatClient(config, **options)
+    return AnthropicClient(config, **options)
+
+
+def profile_model_factory(
+    factory: Callable[[object], object],
+    profiles: Mapping[str, ModelProfile],
+    attachment_resolver: AttachmentResolver | None,
+) -> Callable[[object], object]:
+    """Bind profile capabilities while preserving one-argument test factories."""
+    by_provider: dict[int, ModelProfile] = {}
+    for profile in profiles.values():
+        identity = id(profile.provider)
+        previous = by_provider.setdefault(identity, profile)
+        if previous.input_modalities != profile.input_modalities:
+            raise ValueError(
+                "shared provider configuration has conflicting input modalities"
+            )
+
+    def create(provider: object) -> object:
+        if factory is not model_client:
+            return factory(provider)
+        profile = by_provider.get(id(provider))
+        if profile is None:
+            raise ValueError("provider configuration is not bound to a profile")
+        return model_client(
+            profile.provider,
+            attachment_resolver=attachment_resolver,
+            input_modalities=profile.input_modalities,
+        )
+
+    return create
 
 
 def replace_model(profile: ModelProfile, model: str) -> ModelProfile:
@@ -41,6 +90,7 @@ def replace_model(profile: ModelProfile, model: str) -> ModelProfile:
         profile.max_agent_rounds,
         profile.max_tool_calls,
         profile.max_tool_calls_per_round,
+        profile.input_modalities,
     )
 
 

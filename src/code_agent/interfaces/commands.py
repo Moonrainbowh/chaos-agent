@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
 
+from code_agent.core.attachments import AttachmentRef
 from code_agent.core.events import AgentEvent
 from .controller import AgentController
 from .terminal_renderer import ColorMode, Theme, render_entries
@@ -68,6 +69,8 @@ async def execute_command(
     tui: WindowsTerminalApp,
     write: Callable[[str], object],
     tasks: ForegroundTaskController | None = None,
+    *,
+    attachments: Sequence[AttachmentRef] = (),
 ) -> int:
     """Execute parsed command behavior using dependencies supplied at integration."""
     if command.kind is CommandKind.TUI:
@@ -83,17 +86,28 @@ async def execute_command(
         if tasks is None:
             raise ValueError("task controls are unavailable")
         await _write_rendered_events(
-            tasks.resume(command.thread_id or "", _required_prompt(command)), write
+            tasks.resume(
+                command.thread_id or "",
+                _required_prompt(command),
+                attachments=attachments,
+            ),
+            write,
         )
         return 0
     if command.kind is CommandKind.RUN_JSON:
-        async for line in controller.run_json(_required_prompt(command)):
+        async for line in controller.run_json(
+            _required_prompt(command), attachments=attachments
+        ):
             write(line + "\n")
         return 0
     events = (
-        controller.resume(command.thread_id or "", _required_prompt(command))
+        controller.resume(
+            command.thread_id or "",
+            _required_prompt(command),
+            attachments=attachments,
+        )
         if command.kind is CommandKind.RESUME
-        else controller.ask(_required_prompt(command))
+        else controller.ask(_required_prompt(command), attachments=attachments)
     )
     await _write_rendered_events(events, write)
     return 0

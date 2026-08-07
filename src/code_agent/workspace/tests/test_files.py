@@ -77,6 +77,28 @@ class ListFilesTests(WorkspaceFilesTestCase):
         self.assertEqual(second, first)
         self.assertEqual(iter_files.call_count, 1)
 
+    def test_dot_root_reuses_the_guarded_workspace_inventory(self) -> None:
+        (self.root / "a.py").write_text("a", encoding="utf-8")
+        (self.root / ".chaos-agent").mkdir()
+        (self.root / ".chaos-agent" / "private.txt").write_text(
+            "private", encoding="utf-8"
+        )
+        files = self.files()
+
+        with patch.object(
+            files, "_iter_files", wraps=files._iter_files
+        ) as iter_files:
+            first = files.list_files(
+                ".", max_entries=10, max_scanned_entries=100
+            )
+            second = files.list_files(
+                max_entries=10, max_scanned_entries=100
+            )
+
+        self.assertEqual(first, ("a.py",))
+        self.assertEqual(second, first)
+        self.assertEqual(iter_files.call_count, 1)
+
     def test_inventory_invalidation_refreshes_a_cached_root_listing(self) -> None:
         (self.root / "src").mkdir()
         (self.root / "src" / "a.py").write_text("a", encoding="utf-8")

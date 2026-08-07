@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
-import re
 from dataclasses import dataclass
 from math import ceil
 from typing import Sequence
@@ -22,23 +20,15 @@ from .rules import RuleLoader
 from .semantic import SemanticCompactor, compact_with_cancellation
 from .tokens import estimate_tokens
 from .task_state import render_task_state
-
-
-_GREETING = frozenset(
-    {
-        "hi",
-        "hello",
-        "hey",
-        "你好",
-        "您好",
-        "在吗",
-        "谢谢",
-        "早上好",
-        "下午好",
-        "晚上好",
-    }
+from ._builder_support import (
+    _context_bundle,
+    _latest_user_text,
+    _message_tokens,
+    _render_tools,
+    _requires_repo_map,
+    _system_prefix,
+    _touched_files,
 )
-_GREETING_PUNCTUATION = re.compile(r"[\s!！?？,.，。]+")
 
 
 @dataclass(frozen=True)
@@ -159,8 +149,14 @@ class WorkspaceContextBuilder:
     def _prepare_sync(self, request: ContextRequest) -> _BuildPlan:
         request.cancellation.raise_if_cancelled()
         working = request.messages
-        if request.user_input:
-            working += (Message(role="user", content=request.user_input),)
+        if request.user_input or request.attachments:
+            working += (
+                Message(
+                    role="user",
+                    content=request.user_input,
+                    attachments=request.attachments,
+                ),
+            )
         working_tokens = _message_tokens(working)
         rendered_rules = self.rules.render(self.rules.load())
         request.cancellation.raise_if_cancelled()
@@ -243,125 +239,3 @@ class WorkspaceContextBuilder:
             cache_misses,
             semantic,
         )
-
-
-def _context_bundle(
-    config: ContextConfig,
-    system_prompt: str,
-    rendered_tools: str,
-    compacted: CompactionResult,
-    allocation: PromptAllocation,
-    cache_hits: int,
-    cache_misses: int,
-    semantic: SemanticCompactionResult | None,
-) -> ContextBundle:
-    prompt_tokens = (
-        estimate_tokens(system_prompt)
-        + estimate_tokens(rendered_tools)
-        + _message_tokens(compacted.messages)
-    )
-    if prompt_tokens > (
-        config.prompt_budget.max_prompt_tokens - config.prompt_budget.safety_tokens
-    ):
-        raise ContextBudgetError("rendered prompt exceeds its token budget")
-    return ContextBundle(
-        system_prompt=system_prompt,
-        messages=compacted.messages,
-        measurements=_measurements(
-            config, compacted, allocation, cache_hits, cache_misses, semantic
-        ),
-    )
-
-
-def _measurements(
-    config: ContextConfig,
-    compacted: CompactionResult,
-    allocation: PromptAllocation,
-    cache_hits: int,
-    cache_misses: int,
-    semantic: SemanticCompactionResult | None,
-) -> dict[str, int]:
-    return {
-        "prompt_tokens": config.prompt_budget.max_prompt_tokens,
-        "rule_tokens": allocation.rule_tokens,
-        "tool_tokens": allocation.tool_tokens,
-        "task_state_tokens": allocation.task_state_tokens,
-        "repo_map_tokens": allocation.repo_map_tokens,
-        "message_tokens": allocation.message_tokens,
-        "removed_message_count": compacted.removed_count,
-        "cache_hits": cache_hits,
-        "cache_misses": cache_misses,
-        **_semantic_measurements(semantic),
-    }
-
-
-def _semantic_measurements(
-    result: SemanticCompactionResult | None,
-) -> dict[str, int]:
-    checkpoint = result.checkpoint if result is not None else None
-    source_count = (
-        checkpoint.source_end.sequence - checkpoint.source_start.sequence + 1
-        if checkpoint is not None
-        else 0
-    )
-    return {
-        "semantic_triggered": int(result.triggered) if result is not None else 0,
-        "semantic_fallback": int(result.fallback_used) if result is not None else 0,
-        "semantic_source_count": source_count,
-    }
-
-
-def _latest_user_text(messages: Sequence[Message]) -> str:
-    for message in reversed(messages):
-        if message.role == "user":
-            return message.content
-    return ""
-
-
-def _requires_repo_map(query: str) -> bool:
-    normalized = _GREETING_PUNCTUATION.sub("", query).casefold()
-    return normalized not in _GREETING
-
-
-def _touched_files(task_state: TaskState) -> tuple[str, ...]:
-    return tuple(
-        dict.fromkeys(
-            (*task_state.files_changed, *task_state.files_read)
-        )
-    )
-
-
-def _render_tools(tools: Sequence[ToolDefinition]) -> str:
-    return "\n".join(
-        json.dumps(
-            tool.to_dict(), ensure_ascii=False, sort_keys=True, separators=(",", ":")
-        )
-        for tool in tools
-    )
-
-
-def _system_prefix(system_prompt: str, rules: str, task_state: str) -> str:
-    sections = [system_prompt]
-    if rules:
-        sections.append(rules)
-    if task_state:
-        sections.append(task_state)
-    sections.append("Repository map:\n")
-    return "\n\n".join(sections)
-
-
-def _message_tokens(messages: Sequence[Message]) -> int:
-    total = 0
-    for message in messages:
-        total += 1 + estimate_tokens(message.content)
-        if message.name:
-            total += estimate_tokens(message.name)
-        if message.tool_call_id:
-            total += estimate_tokens(message.tool_call_id)
-        for call in message.tool_calls:
-            total += 1 + estimate_tokens(
-                json.dumps(
-                    call.to_dict(), ensure_ascii=False, sort_keys=True, separators=(",", ":")
-                )
-            )
-    return total

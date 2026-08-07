@@ -46,6 +46,14 @@ _SPECS = (
     CommandSpec("任务", ("tasks",), "任务", "列出任务", requires=("tasks",)),
     CommandSpec("接受", ("accept",), "任务", "接受部分交付", "[task-id]", requires=("tasks",)),
     CommandSpec("差异", ("diff",), "工作区", "显示差异"),
+    CommandSpec(
+        "附件",
+        ("attach", "attachments"),
+        "输入",
+        "暂存、查看或移除附件",
+        "[path|clipboard|list|remove <id>|clear]",
+        requires=("attachments",),
+    ),
     CommandSpec("证据", ("evidence",), "工作区", "显示验证证据", "[task-id]", requires=("evidence",)),
     CommandSpec(
         "检查点",

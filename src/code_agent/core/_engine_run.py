@@ -17,6 +17,7 @@ from .models import (
     ToolDefinition,
     Usage,
 )
+from .attachments import AttachmentRef, freeze_attachments
 from .task import TaskRecord
 from .task_supervisor import TaskSupervisor
 
@@ -44,15 +45,21 @@ class _TurnState:
     calls: list[ToolCall] = field(default_factory=list)
 
 
-def _validate_run_arguments(user_input: str, thread_id: Optional[str]) -> None:
+def _validate_run_arguments(
+    user_input: str,
+    thread_id: Optional[str],
+    attachments: tuple[AttachmentRef, ...] = (),
+) -> tuple[AttachmentRef, ...]:
     if not isinstance(user_input, str):
         raise TypeError("user_input must be a string")
-    if not user_input.strip():
-        raise ValueError("user_input must not be blank")
+    checked = freeze_attachments(attachments)
+    if not user_input.strip() and not checked:
+        raise ValueError("user_input and attachments must not both be blank")
     if thread_id is not None and (
         not isinstance(thread_id, str) or not thread_id.strip()
     ):
         raise ValueError("thread_id must be a non-blank string or None")
+    return checked
 
 
 async def _invoke_context_builder(
@@ -110,7 +117,10 @@ class AgentEngineRunMixin:
         return state, started
 
     async def _prepare_request(
-        self, state: _RunState, user_input: str
+        self,
+        state: _RunState,
+        user_input: str,
+        attachments: tuple[AttachmentRef, ...] = (),
     ) -> tuple[AgentEvent, Message]:
         state.token.raise_if_cancelled()
         state.prior_messages = await self._journal.load_messages(state.thread_id)
@@ -119,7 +129,9 @@ class AgentEngineRunMixin:
                 state.task, await self._journal.load_task_state(state.thread_id)
             )
             await self._journal.save_task_state(state.thread_id, prepared)
-        user_message = Message(role="user", content=user_input)
+        user_message = Message(
+            role="user", content=user_input, attachments=attachments
+        )
         await self._journal.append_message(state.thread_id, user_message)
         added = self._journal.message_added(user_message)
         await self._journal.append_event(state.thread_id, added)
@@ -131,9 +143,9 @@ class AgentEngineRunMixin:
         source_messages = (
             await self._journal.load_messages(state.thread_id)
             if state.task is not None
-            else state.prior_messages if turn.number == 1 else state.messages
+            else state.messages
         )
-        source_input = user_input if turn.number == 1 else ""
+        source_input = ""
         try:
             task_state = await self._journal.load_task_state(state.thread_id)
             request = ContextRequest(

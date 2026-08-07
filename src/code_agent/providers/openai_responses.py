@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import AsyncIterator, Mapping, Sequence
+from collections.abc import AsyncIterator, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Optional
 
@@ -11,11 +11,14 @@ import httpx
 from code_agent.core.models import Message, ModelEvent, ModelEventKind, ToolCall, ToolDefinition, Usage
 
 from ._limits import ArgumentBuffer, ToolBudget
-from .config import ApiProtocol, ProviderConfig
+from .attachments import AttachmentResolver, ProviderAttachmentEncoder
+from .config import ApiProtocol, InputModality, ProviderConfig
 from .errors import ProviderConfigError, ProviderProtocolError
+from ._request_payload import responses_payload
 from .transport import ProviderTransport, Sleep
-
-def _request_input(messages: Sequence[Message]) -> list[dict[str, object]]:
+def _request_input(
+    messages: Sequence[Message], encoder: ProviderAttachmentEncoder
+) -> list[dict[str, object]]:
     result: list[dict[str, object]] = []
     for message in messages:
         if message.role == "tool":
@@ -32,7 +35,7 @@ def _request_input(messages: Sequence[Message]) -> list[dict[str, object]]:
         if message.content or not message.tool_calls:
             item: dict[str, object] = {
                 "role": message.role,
-                "content": message.content,
+                "content": encoder.responses(message),
             }
             if message.name is not None:
                 item["name"] = message.name
@@ -47,7 +50,6 @@ def _request_input(messages: Sequence[Message]) -> list[dict[str, object]]:
                 }
             )
     return result
-
 def _request_tool(tool: ToolDefinition) -> dict[str, object]:
     value = tool.to_dict()
     return {
@@ -57,6 +59,7 @@ def _request_tool(tool: ToolDefinition) -> dict[str, object]:
         "parameters": value["parameters"],
     }
 
+
 def _load_event(data: str) -> Mapping[str, object]:
     try:
         value = json.loads(data)
@@ -65,7 +68,6 @@ def _load_event(data: str) -> Mapping[str, object]:
     if not isinstance(value, dict):
         raise ProviderProtocolError("Responses event must be a JSON object")
     return value
-
 
 def _terminal_error(event_type: str, value: Mapping[str, object]) -> ProviderProtocolError:
     response = value.get("response")
@@ -80,7 +82,6 @@ def _terminal_error(event_type: str, value: Mapping[str, object]) -> ProviderPro
                 suffix = f"; {label}={excerpt}"
                 break
     return ProviderProtocolError(f"Responses terminal event: {event_type}{suffix}")
-
 
 @dataclass(eq=False)
 class _CallState:
@@ -175,47 +176,38 @@ def _usage(value: object) -> ModelEvent:
     except (TypeError, ValueError) as error:
         raise ProviderProtocolError("Responses usage has invalid token counts") from error
     return ModelEvent(kind=ModelEventKind.USAGE, usage=usage)
-
 class OpenAIResponsesClient:
     def __init__(
         self,
         config: ProviderConfig,
         *,
+        attachment_resolver: AttachmentResolver | None = None,
+        input_modalities: Iterable[InputModality] = (InputModality.TEXT,),
         http_client: Optional[httpx.AsyncClient] = None,
         sleep: Sleep = asyncio.sleep,
     ) -> None:
         if config.api is not ApiProtocol.RESPONSES:
             raise ProviderConfigError("OpenAIResponsesClient requires responses API")
         self._config = config
+        self._attachments = ProviderAttachmentEncoder(
+            attachment_resolver, input_modalities
+        )
         self._transport = ProviderTransport(config, client=http_client, sleep=sleep)
 
     async def aclose(self) -> None:
         await self._transport.aclose()
 
-    async def stream(
-        self,
-        system_prompt: str,
-        messages: Sequence[Message],
-        tools: Sequence[ToolDefinition],
+    async def stream(self, system_prompt: str, messages: Sequence[Message], tools: Sequence[ToolDefinition],
     ) -> AsyncIterator[ModelEvent]:
-        payload: dict[str, object] = {
-            "model": self._config.model,
-            "stream": True,
-            "instructions": system_prompt,
-            "input": _request_input(messages),
-        }
-        if tools:
-            payload["tools"] = [_request_tool(tool) for tool in tools]
-        calls = _CallRegistry(
-            ToolBudget(
-                self._config.max_tool_calls,
-                self._config.max_tool_argument_bytes,
-            )
+        payload = responses_payload(
+            self._config, system_prompt, _request_input(messages, self._attachments),
+            [_request_tool(tool) for tool in tools],
         )
-
+        calls = _CallRegistry(
+            ToolBudget(self._config.max_tool_calls, self._config.max_tool_argument_bytes)
+        )
         async for sse in self._transport.stream_sse(
-            self._config.responses_path, payload
-        ):
+            self._config.responses_path, payload):
             value = _load_event(sse.data)
             event_type = value.get("type", sse.event)
             if not isinstance(event_type, str):
@@ -226,11 +218,8 @@ class OpenAIResponsesClient:
                 raise _terminal_error(event_type, value)
             if event_type == "response.output_text.delta":
                 yield self._text_delta(value, ModelEventKind.TEXT_DELTA)
-            elif event_type in {
-                "response.reasoning.delta",
-                "response.reasoning_text.delta",
-                "response.reasoning_summary_text.delta",
-            }:
+            elif event_type in {"response.reasoning.delta", "response.reasoning_text.delta",
+                                "response.reasoning_summary_text.delta"}:
                 yield self._text_delta(value, ModelEventKind.REASONING_DELTA)
             elif event_type == "response.output_item.added":
                 self._item_added(value, calls)
@@ -258,7 +247,6 @@ class OpenAIResponsesClient:
                 yield ModelEvent(kind=ModelEventKind.COMPLETED)
                 return
         raise ProviderProtocolError("Responses stream ended without response.completed")
-
     @staticmethod
     def _text_delta(value: Mapping[str, object], kind: ModelEventKind) -> ModelEvent:
         delta = value.get("delta")

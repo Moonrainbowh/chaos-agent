@@ -8,6 +8,17 @@ from .terminal_state import TerminalState
 
 BRACKETED_PASTE_ENABLE = "\x1b[?2004h"
 BRACKETED_PASTE_DISABLE = "\x1b[?2004l"
+_EXTENDED_KEYS = {
+    "K": "left",
+    "M": "right",
+    "G": "home",
+    "O": "end",
+    "H": "up",
+    "P": "down",
+    "S": "delete",
+    "I": "page_up",
+    "Q": "page_down",
+}
 
 
 def read_key() -> str:
@@ -21,7 +32,7 @@ def read_key() -> str:
         return "\x1b"
     if key not in {"\x00", "\xe0"}:
         return key
-    return {"K": "left", "M": "right", "G": "home", "O": "end", "H": "up", "P": "down", "S": "delete"}.get(msvcrt.getwch(), "")
+    return _EXTENDED_KEYS.get(msvcrt.getwch(), "")
 
 
 def _read_bracketed_paste(msvcrt: object) -> str:

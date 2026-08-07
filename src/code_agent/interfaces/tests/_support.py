@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 
+from code_agent.core.attachments import AttachmentRef
 from code_agent.core.cancellation import CancellationToken
 from code_agent.core.events import AgentEvent
 
@@ -17,7 +18,10 @@ class FakeEngine:
         *,
         thread_id: str | None = None,
         cancellation: CancellationToken | None = None,
+        attachments: tuple[AttachmentRef, ...] = (),
+        **_: object,
     ) -> AsyncIterator[AgentEvent]:
         self.calls.append((user_input, thread_id, cancellation))
+        self.attachments = attachments
         for event in self.events:
             yield event

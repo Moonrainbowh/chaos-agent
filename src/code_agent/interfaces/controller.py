@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Sequence
 from typing import Optional, Protocol
 
+from code_agent.core.attachments import AttachmentRef, freeze_attachments
 from code_agent.core.cancellation import CancellationToken
 from code_agent.core.events import AgentEvent
 from code_agent.core.task import TaskRecord
@@ -17,6 +18,7 @@ class AgentRunner(Protocol):
         thread_id: Optional[str] = None,
         cancellation: Optional[CancellationToken] = None,
         task: TaskRecord | None = None,
+        attachments: Sequence[AttachmentRef] = (),
     ) -> AsyncIterator[AgentEvent]: ...
 
 
@@ -41,10 +43,14 @@ class AgentController:
         thread_id: Optional[str] = None,
         cancellation: Optional[CancellationToken] = None,
         task: TaskRecord | None = None,
+        attachments: Sequence[AttachmentRef] = (),
     ) -> AsyncIterator[AgentEvent]:
         kwargs = {"thread_id": thread_id, "cancellation": cancellation}
         if task is not None:
             kwargs["task"] = task
+        checked = freeze_attachments(tuple(attachments))
+        if checked:
+            kwargs["attachments"] = checked
         async for event in self._engine.run(user_input, **kwargs):
             yield event
 
@@ -54,6 +60,7 @@ class AgentController:
         user_input: str,
         *,
         cancellation: Optional[CancellationToken] = None,
+        attachments: Sequence[AttachmentRef] = (),
     ) -> AsyncIterator[AgentEvent]:
         if not isinstance(thread_id, str) or not thread_id.strip():
             raise ValueError("thread_id must be a non-blank string")
@@ -61,6 +68,7 @@ class AgentController:
             user_input,
             thread_id=thread_id,
             cancellation=cancellation,
+            attachments=attachments,
         ):
             yield event
 
@@ -70,11 +78,13 @@ class AgentController:
         *,
         thread_id: Optional[str] = None,
         cancellation: Optional[CancellationToken] = None,
+        attachments: Sequence[AttachmentRef] = (),
     ) -> AsyncIterator[str]:
         async for event in self.ask(
             user_input,
             thread_id=thread_id,
             cancellation=cancellation,
+            attachments=attachments,
         ):
             yield json.dumps(
                 event.to_dict(),

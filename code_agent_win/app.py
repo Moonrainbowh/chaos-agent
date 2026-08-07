@@ -4,6 +4,8 @@ import os
 from dataclasses import replace
 from pathlib import Path
 
+from code_agent.attachments.ingest import AttachmentIngestor
+from code_agent.attachments.store import AttachmentStore
 from code_agent.config.loader import load_runtime_config
 from code_agent.context.repo_index import RepoIndexService
 from code_agent.context.repo_map import RepoMapViewCache
@@ -24,8 +26,13 @@ from code_agent_win.application_model import Application
 from code_agent_win.context_runtime import build_context_runtime
 from code_agent_win.action_dispatcher import RootActionDispatcher
 from code_agent_win.host_composition import compose_host
+from code_agent_win.multimodal_ui import build_attachment_draft
 from code_agent_win.agent_modes import build_mode_registry, freeze_mode
-from code_agent_win.runtime_support import model_client, replace_model
+from code_agent_win.runtime_support import (
+    model_client,
+    profile_model_factory,
+    replace_model,
+)
 from code_agent_win.runtime_extensions import SkillApprovalAdapter, ThreadRuntimeBinding
 from code_agent_win.rewind_runtime import RewindRuntime
 from code_agent_win.rewind_sessions import build_rewind_write_side
@@ -122,6 +129,17 @@ class _ApplicationComposer:
         self.files = self.services.files
         self.git = self.services.git
         self.repo_index = self.services.repo_index
+        self.attachment_store = AttachmentStore(
+            self.product_state_root / "attachments"
+        )
+        self.attachment_ingestor = AttachmentIngestor(
+            self.attachment_store,
+            workspace_guard=self.services.guard,
+            ignore_rules=self.services.files.ignore,
+        )
+        self.model_factory = profile_model_factory(
+            _model_client, self.profiles, self.attachment_store
+        )
         self.approvals = ApprovalBroker()
 
     def _configure_rewind(self) -> None:
@@ -189,7 +207,7 @@ class _ApplicationComposer:
             root=self.root, snapshot=self.snapshot,
             mode_snapshots=self.mode_snapshots, profiles=self.profiles,
             modes=self.modes, initial=self.initial,
-            client_factory=lambda provider: _model_client(provider),
+            client_factory=self.model_factory,
             context_for=self.context_for, dispatcher=self.dispatcher,
             sessions=self.sessions, thread_binding=self.thread_binding,
             plugin_host=self.plugin_host, plugin_bridge=self.plugin_bridge,
@@ -224,6 +242,10 @@ class _ApplicationComposer:
             plugin_discover=self.plugin_discover,
             on_plugin_change=self.plugin_bindings.refresh,
             tui_ref=self.tui_ref,
+            attachment_draft=build_attachment_draft(
+                self.attachment_ingestor,
+                lambda: self.controls.manager.current.profile,
+            ),
         )
 
     def _finish(self) -> Application:
@@ -241,6 +263,8 @@ class _ApplicationComposer:
             repo_index=self.repo_index,
             workflows=self.workflows,
             workspace_runtime=self.workspace_runtime,
+            attachment_store=self.attachment_store,
+            attachment_ingestor=self.attachment_ingestor,
         )
         self.application_ref.append(application)
         return application

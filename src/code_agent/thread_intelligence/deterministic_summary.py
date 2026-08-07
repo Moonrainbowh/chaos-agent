@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 
 from code_agent.context.tokens import truncate_to_tokens
+from code_agent.context.attachment_budget import attachment_metadata
 from code_agent.core.cancellation import CancellationToken
 from code_agent.core.models import Usage
 
@@ -44,6 +45,13 @@ def render_bounded_source_summary(
         collapsed = " ".join(message.content.split())
         snippet = truncate_to_tokens(collapsed, _SOURCE_SNIPPET_TOKENS)
         fields.append(f"content={snippet}")
+        if message.attachments:
+            fields.append(
+                "attachments="
+                + ";".join(
+                    attachment_metadata(item) for item in message.attachments
+                )
+            )
         lines.append(" ".join(fields))
     return truncate_to_tokens("\n".join(lines), max_tokens)
 

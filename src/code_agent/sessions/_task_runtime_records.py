@@ -3,12 +3,12 @@ from __future__ import annotations
 import sqlite3
 
 from code_agent.core.limits import EngineLimits, TaskBudget
-from code_agent.core.models import Usage
+from code_agent.core.models import Message, Usage
 from code_agent.core.task import TaskRecord
 
 from . import _evidence_ledger, _task_budget, _task_execution
-from ._codec import encode_datetime, utc_now
-from ._records import _text
+from ._codec import encode_datetime, encode_message, utc_now
+from ._records import _text, _touch_thread
 from .errors import SessionNotFound
 
 
@@ -75,6 +75,38 @@ class TaskRuntimeRepositoryMixin:
                 "VALUES (?, ?, ?)",
                 (task_id, instruction, timestamp),
             )
+
+        await self._database.write(write)  # type: ignore[attr-defined]
+
+    async def record_task_steering(
+        self, task_id: str, message: Message, instruction: str
+    ) -> None:
+        """Append the user message and its queued control in one transaction."""
+        task_id = _text(task_id, "task_id")
+        if not isinstance(message, Message) or message.role != "user":
+            raise TypeError("steering message must be a user Message")
+        payload = encode_message(message)
+        instruction = _text(instruction, "instruction")
+        timestamp = encode_datetime(utc_now())
+
+        def write(connection: sqlite3.Connection) -> None:
+            row = connection.execute(
+                "SELECT thread_id FROM tasks WHERE id = ?", (task_id,)
+            ).fetchone()
+            if row is None:
+                raise SessionNotFound("task not found")
+            thread_id = row["thread_id"]
+            connection.execute(
+                "INSERT INTO messages(thread_id, payload, created_at) "
+                "VALUES (?, ?, ?)",
+                (thread_id, payload, timestamp),
+            )
+            connection.execute(
+                "INSERT INTO task_controls(task_id, instruction, created_at) "
+                "VALUES (?, ?, ?)",
+                (task_id, instruction, timestamp),
+            )
+            _touch_thread(connection, thread_id, timestamp)
 
         await self._database.write(write)  # type: ignore[attr-defined]
 

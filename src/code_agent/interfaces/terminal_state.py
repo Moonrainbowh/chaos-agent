@@ -7,7 +7,7 @@ from code_agent.core.models import ActionResult, Message, ModelEvent, ModelEvent
 from code_agent.interfaces.history import RestoredThread
 from code_agent.sessions.models import GoalStatus
 from code_agent.interfaces.terminal_display import DisplayKind, DisplayEntry, text_entry
-from code_agent.interfaces.action_summary import action_summary
+from code_agent.interfaces.action_summary import action_activity, action_summary
 from code_agent.interfaces.approval import ApprovalBroker, ApprovalRequest
 from code_agent.interfaces.token_rate import TokenRateTracker
 from code_agent.interfaces.streaming_state import DraftBuffer
@@ -39,11 +39,9 @@ class TerminalState:
     @property
     def draft_answer(self) -> str:
         return self._draft.safe_text
-
     @property
     def has_draft(self) -> bool:
         return self._draft.has_text
-
     @property
     def draft_revision(self) -> int:
         return self._draft.revision
@@ -133,8 +131,9 @@ class TerminalState:
         self._capture_diff(event)
         self._draft.clear()
         self.status = "running"
-        self.active_action = _action_name(event)
         request = event.payload.get("request")
+        arguments = request.get("arguments") if isinstance(request, Mapping) else None
+        self.active_action = action_activity(_action_name(event), arguments)
         if isinstance(request, Mapping) and isinstance(request.get("id"), str):
             self._action_requests[request["id"]] = request
 
@@ -163,9 +162,17 @@ class TerminalState:
         except (KeyError, TypeError, ValueError):
             return
         if model_event.kind is ModelEventKind.TEXT_DELTA and model_event.text:
-            self.status = "running"
+            self.status = "streaming_response"
             self._draft.append(model_event.text)
             self.token_rate.observe_text(model_event.text)
+        elif model_event.kind is ModelEventKind.REASONING_DELTA:
+            self.status = "reasoning"
+        elif model_event.kind is ModelEventKind.TOOL_CALL:
+            self.status = "preparing_action"
+            if model_event.tool_call is not None:
+                self.active_action = action_activity(
+                    model_event.tool_call.name, model_event.tool_call.arguments,
+                )
         elif model_event.kind is ModelEventKind.USAGE and model_event.usage is not None:
             self.token_rate.calibrate(model_event.usage.output_tokens)
 
@@ -205,7 +212,6 @@ class TerminalState:
         if isinstance(diff, str):
             self.diff = diff
 
-
 def _timeline_line(event: AgentEvent) -> str:
     if event.kind is EventKind.ACTION_REQUESTED:
         request = event.payload.get("request")
@@ -223,7 +229,6 @@ def _timeline_line(event: AgentEvent) -> str:
             return "completed " + action_result.name
     return event.kind.value.replace("_", " ")
 
-
 def _action_name(event: AgentEvent) -> str:
     if event.kind is EventKind.ACTION_REQUESTED:
         request = event.payload.get("request")
@@ -231,8 +236,6 @@ def _action_name(event: AgentEvent) -> str:
     result = event.payload.get("result")
     if isinstance(result, Mapping) and isinstance(result.get("name"), str): return result["name"]
     return "action"
-
-
 def _action_result(event: AgentEvent) -> ActionResult | None:
     result = event.payload.get("result")
     if not isinstance(result, Mapping):

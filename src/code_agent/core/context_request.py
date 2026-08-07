@@ -8,6 +8,7 @@ from ._json import JSONValue, freeze_mapping
 from .cancellation import CancellationToken
 from .limits import TaskBudget
 from .models import Message, ToolDefinition
+from .attachments import AttachmentRef, freeze_attachments
 from .task_state import TaskState
 
 
@@ -62,6 +63,7 @@ class ContextRequest:
     context_pressure: float | None = None
     timeout_seconds: float | None = None
     budget_lease: Mapping[str, JSONValue] = field(default_factory=dict)
+    attachments: tuple[AttachmentRef, ...] = field(default_factory=tuple)
 
     def __post_init__(self) -> None:
         if not isinstance(self.thread_id, str):
@@ -90,6 +92,7 @@ class ContextRequest:
         for name in ("mode_snapshot", "permission_snapshot"):
             object.__setattr__(self, name, freeze_mapping(getattr(self, name), name))
         object.__setattr__(self, "budget_lease", _freeze_budget_lease(self.budget_lease))
+        object.__setattr__(self, "attachments", freeze_attachments(self.attachments))
 
     def _validate_limits(self) -> None:
         if self.context_pressure is not None:

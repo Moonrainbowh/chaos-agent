@@ -10,6 +10,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from code_agent.core.events import AgentEvent, EventKind  # noqa: E402
+from code_agent.core.attachments import AttachmentRef  # noqa: E402
 from code_agent.core.models import ModelEvent, ModelEventKind  # noqa: E402
 from code_agent.interfaces.commands import (  # noqa: E402
     CommandKind,
@@ -74,6 +75,21 @@ class CommandExecutionTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("answer", rendered)
         self.assertNotIn("###", rendered)
         self.assertNotIn("**", rendered)
+
+    async def test_ask_forwards_cli_attachment_references(self) -> None:
+        engine = FakeEngine(())
+        attachment = AttachmentRef("a" * 64, "text/plain", 4, "note.txt")
+
+        status = await execute_command(
+            parse_command(("ask", "inspect")),
+            AgentController(engine),
+            object(),  # type: ignore[arg-type]
+            lambda _: None,
+            attachments=(attachment,),
+        )
+
+        self.assertEqual(status, 0)
+        self.assertEqual(engine.attachments, (attachment,))
 
 
 if __name__ == "__main__":

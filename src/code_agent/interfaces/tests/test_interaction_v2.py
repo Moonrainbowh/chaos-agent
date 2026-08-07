@@ -72,7 +72,7 @@ class PickerStateTests(unittest.TestCase):
     def test_exact_command_completions_keep_the_selected_command_name(self) -> None:
         services = {
             "sessions", "history", "tasks", "evidence", "modes", "permissions", "workflows",
-            "skills", "mcp", "checkpoints", "plugins",
+            "skills", "mcp", "checkpoints", "plugins", "attachments",
         }
         items = command_picker_items(REGISTRY.all(), services)
 

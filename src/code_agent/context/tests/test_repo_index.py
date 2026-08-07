@@ -287,6 +287,5 @@ class RepoIndexServiceTests(unittest.TestCase):
         self.assertEqual(snapshots[0].generation, 1)
         self.assertEqual(self.scan_counts, {"a.py": 1, "b.py": 1})
 
-
 if __name__ == "__main__":
     unittest.main()

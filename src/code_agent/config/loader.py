@@ -12,7 +12,7 @@ except ModuleNotFoundError:  # pragma: no cover - exercised on Python 3.10.
     import tomli as tomllib
 
 from code_agent.policy.models import ApprovalMode
-from code_agent.providers.config import ApiProtocol, ConfiguredApiKey, ModelProfile, ProviderConfig
+from code_agent.providers.config import ApiProtocol, ConfiguredApiKey, InputModality, ModelProfile, ProviderConfig
 from code_agent.providers.errors import ProviderConfigError
 from code_agent.mcp.registry import McpRisk, McpServer
 
@@ -80,8 +80,25 @@ def _profiles(document: Mapping[str, Any], env: Mapping[str, str], selected: str
     for name, raw in configured.items():
         if not isinstance(name, str) or not isinstance(raw, dict): raise LocalConfigError("providers must map names to tables")
         current = provider if name == selected else _provider_config(raw, env, allow_environment=False)
-        values.append(ModelProfile(name, current, _required_positive(raw, "context_window"), _required_positive(raw, "max_output_tokens"), _positive(raw.get("max_agent_rounds", 50), "max_agent_rounds"), _positive(raw.get("max_tool_calls", 128), "max_tool_calls"), _positive(raw.get("max_tool_calls_per_round", 50), "max_tool_calls_per_round")))
+        values.append(ModelProfile(name, current, _required_positive(raw, "context_window"), _required_positive(raw, "max_output_tokens"), _positive(raw.get("max_agent_rounds", 50), "max_agent_rounds"), _positive(raw.get("max_tool_calls", 128), "max_tool_calls"), _positive(raw.get("max_tool_calls_per_round", 50), "max_tool_calls_per_round"), _input_modalities(raw)))
     return tuple(values)
+
+
+def _input_modalities(values: Mapping[str, Any]) -> frozenset[InputModality]:
+    raw = values.get("input_modalities", ["text"])
+    if not isinstance(raw, list) or not raw or any(
+        not isinstance(item, str) for item in raw
+    ):
+        raise LocalConfigError("input_modalities must be a non-empty text array")
+    if len(set(raw)) != len(raw):
+        raise LocalConfigError("input_modalities must not contain duplicates")
+    try:
+        modalities = frozenset(InputModality(item) for item in raw)
+    except ValueError:
+        raise LocalConfigError("input_modalities supports only text and image") from None
+    if InputModality.TEXT not in modalities:
+        raise LocalConfigError("input_modalities must include text")
+    return modalities
 
 
 def _positive(value: object, name: str) -> int:

@@ -32,7 +32,9 @@ TOOL_DEFINITIONS: tuple[ToolDefinition, ...] = (
         _object_schema({"path": _nonempty_text_schema()}, ("path",)),
     ),
     ToolDefinition(
-        "list_files", "List visible workspace files.",
+        "list_files",
+        "List up to 200 visible files. Omit root for the workspace root; do not "
+        "repeat the same listing when its prior result is already available.",
         _object_schema({"root": _nonempty_text_schema()}),
     ),
     ToolDefinition(

@@ -7,6 +7,11 @@ from ._diff_parser import DiffLine, DiffLineKind, DiffScope, FileDiff, parse_fil
 from .terminal_display import DisplayEntry, DisplayKind, text_entry
 
 
+MAX_DIFF_COMMENTS = 32
+MAX_DIFF_COMMENT_CHARS = 2_048
+MAX_DIFF_COMMENT_TOTAL_CHARS = 8_192
+
+
 @dataclass(frozen=True)
 class DiffSourceDocument:
     scope: DiffScope
@@ -26,6 +31,27 @@ class DiffComment:
     line_index: int
     text: str
     scope: DiffScope = DiffScope.PER_TURN
+    old_line: int | None = None
+    new_line: int | None = None
+    hunk: str | None = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.path, str):
+            raise TypeError("comment path must be text")
+        if not self.path or len(self.path) > 1_024:
+            raise ValueError("comment path must be bounded non-blank text")
+        if (
+            not isinstance(self.line_index, int)
+            or isinstance(self.line_index, bool)
+            or self.line_index < 0
+        ):
+            raise ValueError("comment line index must be a non-negative integer")
+        if not isinstance(self.text, str):
+            raise TypeError("comment text must be text")
+        if not self.text.strip() or len(self.text) > MAX_DIFF_COMMENT_CHARS:
+            raise ValueError("comment must be bounded non-blank text")
+        if not isinstance(self.scope, DiffScope):
+            raise TypeError("comment scope must be a DiffScope")
 
 
 DiffSourcePayload = str | DiffSourceDocument | Sequence[DiffSourceDocument]
@@ -94,15 +120,37 @@ class DiffView:
             raise ValueError("line_index is outside the selected diff")
         if line_index >= len(current.lines):
             raise ValueError("line_index is outside the selected diff")
-        if not isinstance(text, str) or not text.strip() or len(text) > 2_048:
+        if (
+            not isinstance(text, str)
+            or not text.strip()
+            or len(text) > MAX_DIFF_COMMENT_CHARS
+        ):
             raise ValueError("comment must be bounded non-blank text")
-        comment = DiffComment(current.path, line_index, text, current.scope)
+        if len(self._comments) >= MAX_DIFF_COMMENTS:
+            raise ValueError("diff comment limit reached")
+        if sum(len(item.text) for item in self._comments) + len(text) > MAX_DIFF_COMMENT_TOTAL_CHARS:
+            raise ValueError("diff comment feedback is too large")
+        line = current.lines[line_index]
+        comment = DiffComment(
+            current.path,
+            line_index,
+            text,
+            current.scope,
+            line.old_line,
+            line.new_line,
+            _nearest_hunk(current.lines, line_index),
+        )
         self._comments.append(comment)
         return comment
 
     @property
     def comments(self) -> tuple[DiffComment, ...]:
         return tuple(self._comments)
+
+    def remove_comment(self, comment: DiffComment) -> None:
+        if not self._comments or self._comments[-1] is not comment:
+            raise ValueError("only the newest diff comment can be removed")
+        self._comments.pop()
 
     def render(self, *, max_lines: int = 200) -> tuple[DisplayEntry, ...]:
         if not isinstance(max_lines, int) or isinstance(max_lines, bool) or max_lines < 0:
@@ -218,3 +266,10 @@ def _diff_header(current: FileDiff, stale: bool, selected: int, total: int) -> s
         f"{current.path} · {current.scope.value} · {provenance}{stale_label} · "
         f"+{current.additions} -{current.removals} · file {selected}/{total}"
     )
+
+
+def _nearest_hunk(lines: tuple[DiffLine, ...], line_index: int) -> str | None:
+    for line in reversed(lines[: line_index + 1]):
+        if line.kind is DiffLineKind.HUNK:
+            return line.text[:512]
+    return None

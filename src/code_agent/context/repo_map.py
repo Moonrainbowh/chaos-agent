@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from collections import OrderedDict
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -11,16 +10,18 @@ from code_agent.workspace.files import WorkspaceFiles
 from .cache import RepoMapCache
 from .models import ContextConfig, RepoEntry
 from .repo_index import RepoIndexService, RepoIndexSnapshot
+from .repo_query import bound_repo_query
+from .repo_ranking import rank_repo_entries
 from .repo_scan import RepoFileFacts, RepoFileScanner
+from .repo_search import RepoLexicalRanks
 from .tokens import estimate_tokens, truncate_to_tokens
-
-
-_QUERY_TOKEN = re.compile(r"[\w.-]+", re.UNICODE)
 
 
 @dataclass(frozen=True)
 class _RepoViewKey:
+    index_identity: object
     generation: int
+    backend_key: str
     query: str
     touched_files: tuple[str, ...]
     token_budget: int
@@ -72,6 +73,7 @@ class RepoMapViewBuilder:
         snapshot: RepoIndexSnapshot,
         query: str = "",
         touched_files: Sequence[str] = (),
+        lexical: RepoLexicalRanks | None = None,
     ) -> tuple[RepoEntry, ...]:
         if not isinstance(snapshot, RepoIndexSnapshot):
             raise TypeError("snapshot must be a RepoIndexSnapshot")
@@ -79,7 +81,12 @@ class RepoMapViewBuilder:
             raise TypeError("query must be text")
         if any(not isinstance(path, str) or not path for path in touched_files):
             raise ValueError("touched_files must contain non-empty paths")
-        return _rank(snapshot.entries, query, touched_files)
+        return rank_repo_entries(
+            snapshot.entries,
+            query,
+            touched_files,
+            lexical,
+        )
 
     def render(
         self,
@@ -87,6 +94,7 @@ class RepoMapViewBuilder:
         query: str,
         touched_files: Sequence[str],
         token_budget: int,
+        lexical: RepoLexicalRanks | None = None,
     ) -> str:
         if isinstance(token_budget, bool) or not isinstance(token_budget, int):
             raise TypeError("token_budget must be an integer")
@@ -96,7 +104,7 @@ class RepoMapViewBuilder:
             return ""
         chunks: list[str] = []
         used = 0
-        for entry in self.build(snapshot, query, touched_files):
+        for entry in self.build(snapshot, query, touched_files, lexical):
             chunk = _render_entry(entry)
             separator = "\n" if chunks else ""
             cost = estimate_tokens(separator + chunk)
@@ -158,8 +166,8 @@ class RepoMapBuilder:
     def build(
         self, query: str = "", touched_files: Sequence[str] = ()
     ) -> tuple[RepoEntry, ...]:
-        snapshot = self.index.snapshot_for_turn()
-        return self.view.build(snapshot, query, touched_files)
+        snapshot, lexical = self.index.query_for_turn(query)
+        return self.view.build(snapshot, query, touched_files, lexical)
 
     def render(
         self,
@@ -192,10 +200,12 @@ class RepoMapBuilder:
             raise ValueError("token_budget must not be negative")
         if token_budget == 0:
             return "", 0, 0
-        snapshot = self.index.snapshot_for_turn()
+        snapshot, lexical = self.index.query_for_turn(query)
         key = _RepoViewKey(
+            self.index.view_identity,
             snapshot.generation,
-            _normalize_query(query),
+            lexical.backend_key,
+            bound_repo_query(query),
             _normalize_touched(checked_touched),
             token_budget,
         )
@@ -206,6 +216,7 @@ class RepoMapBuilder:
                 query,
                 checked_touched,
                 token_budget,
+                lexical,
             ),
         )
 
@@ -218,10 +229,6 @@ class RepoMapBuilder:
         return self._file_scanner.scan(path)
 
 
-def _normalize_query(query: str) -> str:
-    return " ".join(query.casefold().split())
-
-
 def _normalize_touched(paths: Sequence[str]) -> tuple[str, ...]:
     return tuple(
         sorted(
@@ -231,49 +238,6 @@ def _normalize_touched(paths: Sequence[str]) -> tuple[str, ...]:
                 .casefold()
                 for path in paths
             }
-        )
-    )
-
-
-def _rank(
-    entries: Sequence[RepoEntry],
-    query: str,
-    touched_files: Sequence[str],
-) -> tuple[RepoEntry, ...]:
-    indegree = {entry.path: 0 for entry in entries}
-    for entry in entries:
-        for dependency in entry.dependencies:
-            if dependency in indegree:
-                indegree[dependency] += 1
-    tokens = tuple(dict.fromkeys(_QUERY_TOKEN.findall(query.casefold())))
-    touched = {
-        path.replace("\\", "/").removeprefix("./").casefold()
-        for path in touched_files
-    }
-
-    def score(entry: RepoEntry) -> int:
-        path = entry.path.casefold()
-        value = indegree[entry.path] * 2
-        if path in touched:
-            value += 100
-        for token in tokens:
-            if token == path:
-                value += 30
-            elif token in path:
-                value += 12
-            for symbol in entry.symbols:
-                name = symbol.name.casefold()
-                value += 35 if token == name else 20 if token in name else 0
-        return value
-
-    return tuple(
-        sorted(
-            entries,
-            key=lambda entry: (
-                -score(entry),
-                entry.path.casefold(),
-                entry.path,
-            ),
         )
     )
 

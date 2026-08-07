@@ -5,6 +5,7 @@ from .evidence_view import format_evidence_summary
 from .i18n import localize_task_status
 from .terminal_display import DisplayKind
 from .terminal_status import status_snapshot
+from .tui_attachment_commands import handle_attachment_command
 from .tui_builtin_commands import handle_builtin_command
 from .tui_commands import ParseOutcome, TuiCommandKind
 from .tui_lifecycle import format_command_help
@@ -19,6 +20,8 @@ async def handle_tui_command(app: object, outcome: ParseOutcome) -> bool:
         return builtin
     if command.kind is TuiCommandKind.DIFF:
         await app.interactions.show_diff(app)
+    elif command.kind is TuiCommandKind.ATTACHMENT:
+        return await handle_attachment_command(app, command.instruction)
     elif command.kind is TuiCommandKind.STATUS:
         _show_status(app)
     elif command.kind is TuiCommandKind.HELP:

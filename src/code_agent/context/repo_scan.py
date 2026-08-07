@@ -13,6 +13,7 @@ from .models import Symbol
 
 
 _MAX_SOURCE_BYTES = 256_000
+_MAX_SEARCH_CHARS = 16_000
 _MAX_LINE_CHARS = 4_000
 _MAX_SYMBOLS = 200
 _PYTHON_SUFFIX = ".py"
@@ -79,6 +80,7 @@ class RepoFileFacts:
     symbols: tuple[Symbol, ...] = field(default_factory=tuple)
     imports: tuple[ImportRef, ...] = field(default_factory=tuple)
     size_bytes: int = 0
+    search_text: str = field(default="", repr=False)
 
     def __post_init__(self) -> None:
         if not isinstance(self.path, str) or not self.path:
@@ -97,6 +99,8 @@ class RepoFileFacts:
             raise TypeError("size_bytes must be an integer")
         if self.size_bytes < 0:
             raise ValueError("size_bytes must not be negative")
+        if not isinstance(self.search_text, str):
+            raise TypeError("search_text must be text")
         object.__setattr__(self, "symbols", symbols)
         object.__setattr__(self, "imports", imports)
 
@@ -119,12 +123,6 @@ class RepoFileScanner:
         relative = self.files.guard.relative(absolute).as_posix()
         signature = FileSignature(metadata.st_size, metadata.st_mtime_ns)
         suffix = PurePosixPath(relative).suffix.casefold()
-        if suffix not in _DECLARATION_SUFFIXES and suffix != _PYTHON_SUFFIX:
-            return RepoFileFacts(
-                relative,
-                signature,
-                size_bytes=metadata.st_size,
-            )
         try:
             document = self.files.read_text(
                 relative, max_bytes=_MAX_SOURCE_BYTES
@@ -135,6 +133,14 @@ class RepoFileScanner:
                 signature,
                 size_bytes=metadata.st_size,
             )
+        search_text = _sample_search_text(document.text)
+        if suffix not in _DECLARATION_SUFFIXES and suffix != _PYTHON_SUFFIX:
+            return RepoFileFacts(
+                relative,
+                signature,
+                size_bytes=metadata.st_size,
+                search_text=search_text,
+            )
         if suffix == _PYTHON_SUFFIX:
             parsed = _parse_python(relative, document.text)
             if parsed is None:
@@ -142,6 +148,7 @@ class RepoFileScanner:
                     relative,
                     signature,
                     size_bytes=metadata.st_size,
+                    search_text=search_text,
                 )
             symbols, imports = parsed
         else:
@@ -153,7 +160,16 @@ class RepoFileScanner:
             symbols,
             imports,
             metadata.st_size,
+            search_text,
         )
+
+
+def _sample_search_text(text: str) -> str:
+    if len(text) <= _MAX_SEARCH_CHARS:
+        return text
+    head_size = _MAX_SEARCH_CHARS * 3 // 4
+    tail_size = _MAX_SEARCH_CHARS - head_size - 1
+    return f"{text[:head_size]}\n{text[-tail_size:]}"
 
 
 class _PythonSymbols(ast.NodeVisitor):

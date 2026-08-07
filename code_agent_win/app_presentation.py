@@ -17,6 +17,7 @@ from code_agent_win.app_ui import (
     ModeAwareWindowsTerminalApp,
 )
 from code_agent_win.rewind_runtime import RewindRuntime
+from code_agent_win.multimodal_ui import build_attachment_draft
 from code_agent_win.subagents import RestrictedDispatcher
 
 
@@ -77,6 +78,10 @@ def build_application_tui(
         skills=host.skills,
         mcp=host.mcp,
         diff_source=GitDiffAdapter(host.git),
+        attachment_draft=build_attachment_draft(
+            host.attachment_ingestor,
+            lambda: execution.manager.current.profile,
+        ),
         capability=capability_view(host, host.mode),
         plugin_errors=host.plugin_errors,
         rewind=rewind,
