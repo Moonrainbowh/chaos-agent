@@ -199,6 +199,9 @@ class RewindCoordinator:
     async def recover_pending(self) -> tuple[RewindResult, ...]:
         return await self.recovery.recover_pending()
 
+    async def recover_operation(self, operation_id: str) -> RewindResult:
+        return await self.recovery.recover_operation(operation_id)
+
     async def _require_digest(self, expected: str) -> None:
         current = await self.workspace.inventory()
         if current.digest != expected:

@@ -7,6 +7,7 @@ from unittest.mock import ANY
 from code_agent.checkpoints.models import (
     RewindConfirmationRequired,
     RewindConflict,
+    RewindError,
     RewindRecoveryRequired,
     RewindUnavailable,
 )
@@ -257,6 +258,30 @@ class RewindCoordinatorTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.workspace.restore_calls, [rollback.id])
         self.assertNotIn("later.py", self.workspace.files)
         self.assertEqual(self.invalidations, [()])
+
+    async def test_single_recovery_reloads_authoritative_intent_under_lock(self) -> None:
+        preview = await self.coordinator.preview(
+            self.sessions.task.id, self.target.id, RewindMode.CODE
+        )
+        rollback = await self.service.capture(self.sessions.task.id, "pre-rewind")
+        operation = await self.sessions.begin_rewind(preview, rollback.id)
+        calls = 0
+
+        async def changed_intent(lineage_id: str | None = None):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                return (operation,)
+            return (
+                replace(operation, rollback_checkpoint_id=identifier()),
+            )
+
+        self.sessions.pending_rewinds = changed_intent  # type: ignore[method-assign]
+
+        with self.assertRaisesRegex(RewindError, "changed"):
+            await self.coordinator.recover_operation(operation.id)
+
+        self.assertEqual(self.workspace.restore_calls, [])
 
 
 if __name__ == "__main__":

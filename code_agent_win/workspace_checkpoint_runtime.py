@@ -42,9 +42,15 @@ def checkpoint_control(
     store_root: Path,
     quiesce: object,
     invalidate_verification: object,
+    *,
+    snapshot_read_fallback_roots: Sequence[Path] = (),
 ) -> CheckpointControl:
     workspace = _CheckpointWorkspace(
-        service.root, service.guard, service.git, store_root
+        service.root,
+        service.guard,
+        service.git,
+        store_root,
+        snapshot_read_fallback_roots,
     )
     checkpoints = _ListedCheckpointService(
         sessions, workspace, quiesce, locks
@@ -101,12 +107,15 @@ class _CheckpointWorkspace:
         guard: WorkspacePathGuard,
         git: GitWorkspace | None,
         store_root: Path,
+        snapshot_read_fallback_roots: Sequence[Path] = (),
     ) -> None:
         if git is None:
             raise RuntimeError("checkpoint workspace requires Git")
         self._root, self._guard, self._git = root, guard, git
         self._editor = WorkspaceEditor(guard)
-        self._store = ContentAddressedSnapshotStore(store_root)
+        self._store = ContentAddressedSnapshotStore(
+            store_root, read_fallback_roots=snapshot_read_fallback_roots
+        )
 
     async def inventory(self) -> WorkspaceInventory:
         return await asyncio.to_thread(
@@ -146,3 +155,9 @@ class _ListedCheckpointService(CheckpointService):
 def _invalidate(service: object, paths: Sequence[str]) -> None:
     service.repo_index.invalidate(paths)
     service.files.invalidate_inventory()
+
+
+async def noop_invalidate_verification(
+    task_id: str, replacement_task_id: str | None
+) -> None:
+    return None

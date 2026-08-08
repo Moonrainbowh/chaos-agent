@@ -30,6 +30,7 @@ from code_agent_win.workspace_checkpoint_runtime import (
     CheckpointRouter,
     StableQuiescer,
     checkpoint_control,
+    noop_invalidate_verification,
 )
 
 
@@ -39,6 +40,7 @@ class ManagedWorkspaceRuntime:
         sessions: object,
         storage_root: Path,
         *,
+        snapshot_read_fallback_roots: Sequence[Path] = (),
         allow_sensitive_paths: bool = False,
     ) -> None:
         if not isinstance(allow_sensitive_paths, bool):
@@ -46,6 +48,7 @@ class ManagedWorkspaceRuntime:
         storage_root.mkdir(parents=True, exist_ok=True)
         self._sessions = sessions
         self.storage_root = storage_root.resolve()
+        self.snapshot_read_fallback_roots = tuple(snapshot_read_fallback_roots)
         self.allow_sensitive_paths = allow_sensitive_paths
         (self.storage_root / "worktrees").mkdir(parents=True, exist_ok=True)
         self._worktrees = WorktreeManager(self.storage_root / "worktrees")
@@ -54,7 +57,7 @@ class ManagedWorkspaceRuntime:
         self._thread_roots: dict[str, Path] = {}
         self._task_roots: dict[str, Path] = {}
         self._prepared: dict[str, tuple[str, str]] = {}
-        self._verification_invalidator = _noop_invalidate_verification
+        self._verification_invalidator = noop_invalidate_verification
         self._quiescer = StableQuiescer()
         self._startup_complete = False
 
@@ -144,11 +147,10 @@ class ManagedWorkspaceRuntime:
             lineage = await self._sessions.load_lineage(operation.lineage_id)
             control = self.services_for_root(Path(lineage.worktree_root)).checkpoints
             if control is not None:
-                async with control._rewind.locks.for_lineage(operation.lineage_id):
-                    result = await control._rewind.recovery._recover_one(operation)
-                    results.append(result)
-                    if result.replacement_task_id is not None:
-                        await self.bind_persisted_task(result.replacement_task_id)
+                result = await control.recover_rewind(operation.id)
+                results.append(result)
+                if result.replacement_task_id is not None:
+                    await self.bind_persisted_task(result.replacement_task_id)
         return tuple(results)
 
     def checkpoint_control(self) -> CheckpointControl:
@@ -210,6 +212,7 @@ class ManagedWorkspaceRuntime:
             self.storage_root / "snapshots",
             self.quiesce_task,
             self._verification_invalidator,
+            snapshot_read_fallback_roots=self.snapshot_read_fallback_roots,
         )
 
 
@@ -293,7 +296,3 @@ class TaskScopedDispatcher:
 def _invalidate(service: WorkspaceServices, paths: Sequence[str]) -> None:
     service.repo_index.invalidate(paths)
     service.files.invalidate_inventory()
-
-
-async def _noop_invalidate_verification(task_id: str, replacement_task_id: str | None) -> None:
-    return None

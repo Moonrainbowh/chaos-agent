@@ -18,7 +18,11 @@ from code_agent.interfaces.checkpoint_control import (
     rewind_result_to_json,
 )
 from code_agent.sessions.models import CheckpointRecord
-from code_agent.sessions.workspace_models import RewindMode, RewindOperationStatus
+from code_agent.sessions.workspace_models import (
+    RewindMode,
+    RewindOperationRecord,
+    RewindOperationStatus,
+)
 from code_agent.interfaces.terminal_display import DisplayKind, display_width
 from code_agent.interfaces.terminal_state import ApprovalBroker
 from code_agent.interfaces.tests._support import FakeEngine
@@ -89,6 +93,12 @@ class FakeRewind:
         self.executed = (value, confirmed)
         return RewindResult(
             OPERATION, TASK, None, RewindOperationStatus.COMPLETED
+        )
+
+    async def recover_operation(self, operation_id: str) -> RewindResult:
+        self.recovered = operation_id
+        return RewindResult(
+            operation_id, TASK, None, RewindOperationStatus.ROLLED_BACK
         )
 
 
@@ -162,6 +172,21 @@ class CheckpointControlTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(hasattr(self.rewind, "executed"))
         result = await self.control.execute_rewind(preview(), confirmed=True)
         self.assertEqual(result.status, RewindOperationStatus.COMPLETED)
+
+    async def test_recover_rewind_delegates_typed_pending_operation(self) -> None:
+        operation = RewindOperationRecord.create(
+            LINEAGE,
+            CHECKPOINT,
+            "7" * 32,
+            RewindMode.CODE,
+            DIGEST,
+            operation_id=OPERATION,
+        )
+
+        result = await self.control.recover_rewind(operation.id)
+
+        self.assertEqual(self.rewind.recovered, operation.id)
+        self.assertEqual(result.status, RewindOperationStatus.ROLLED_BACK)
 
     def test_checkpoint_preview_and_result_payloads_are_json_safe(self) -> None:
         nested = CheckpointRecord(

@@ -36,10 +36,14 @@ from code_agent_win.app import RootActionDispatcher, create_application  # noqa:
 from tests.test_agent_app_full_stack import FakeModel  # noqa: E402
 
 
-def _configured_application(root: Path):
+def _configured_application(
+    root: Path, *, workspace_storage_name: str = "managed-workspaces"
+):
     if not (root / ".git").exists() and not (root / "note.py").exists():
         return _isolated_application(root)
-    return _workspace_application(root)
+    return _workspace_application(
+        root, workspace_storage_name=workspace_storage_name
+    )
 
 
 def _isolated_application(
@@ -76,7 +80,9 @@ def _isolated_application(
         return create_application(workspace), workspace, product
 
 
-def _workspace_application(root: Path):
+def _workspace_application(
+    root: Path, *, workspace_storage_name: str = "managed-workspaces"
+):
     state = root.parent / f"{root.name}-state"
     state.mkdir(exist_ok=True)
     runtime = load_runtime_config(env={
@@ -96,7 +102,7 @@ def _workspace_application(root: Path):
         patch("code_agent_win.app._session_path", return_value=state / "sessions.sqlite3"),
         patch(
             "code_agent_win.app._workspace_storage_path",
-            return_value=state / "managed-workspaces",
+            return_value=state / workspace_storage_name,
         ),
         patch("code_agent_win.app.load_runtime_config", return_value=runtime),
         patch.dict("os.environ", mode_env),

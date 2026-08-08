@@ -123,6 +123,9 @@ class _ApplicationComposer:
         self.workspace_runtime = ManagedWorkspaceRuntime(
             self.sessions,
             _workspace_storage_path(),
+            snapshot_read_fallback_roots=(
+                self.session_path.parent / "managed-workspaces" / "snapshots",
+            ),
             allow_sensitive_paths=self.runtime_config.allow_sensitive_paths,
         )
         self.services = self.workspace_runtime.services_for_root(self.root)

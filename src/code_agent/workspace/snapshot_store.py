@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import os
+import stat
 import time
 from datetime import datetime
 from pathlib import Path
@@ -12,7 +13,7 @@ from ._snapshot_blob_io import (
     BlobIntegrityFailure,
     blob_path as _blob_path,
     publish_blob,
-    read_blob,
+    read_blob_if_present,
 )
 from ._snapshot_gc import GcBudget, collect_orphans, delete_candidates
 from ._snapshot_manifest import (
@@ -50,6 +51,7 @@ class ContentAddressedSnapshotStore:
         self,
         root: PathInput,
         *,
+        read_fallback_roots: Iterable[PathInput] = (),
         max_files: int = DEFAULT_MAX_SNAPSHOT_FILES,
         max_total_bytes: int = DEFAULT_MAX_SNAPSHOT_BYTES,
         max_file_bytes: int = DEFAULT_MAX_SNAPSHOT_FILE_BYTES,
@@ -58,6 +60,13 @@ class ContentAddressedSnapshotStore:
     ) -> None:
         self.root = Path(root).expanduser().resolve(strict=False)
         self.blobs_root = self.root / "blobs"
+        self.read_fallback_roots = _fallback_roots(
+            read_fallback_roots, self.root
+        )
+        self._read_blob_roots = (
+            self.blobs_root,
+            *(item / "blobs" for item in self.read_fallback_roots),
+        )
         self.max_files = _positive_int("max_files", max_files)
         self.max_total_bytes = _nonnegative_int("max_total_bytes", max_total_bytes)
         self.max_file_bytes = _positive_int("max_file_bytes", max_file_bytes)
@@ -135,15 +144,20 @@ class ContentAddressedSnapshotStore:
 
     def _read_manifest_blob(self, entry: SnapshotManifestEntry) -> bytes:
         assert entry.blob_sha256 is not None
-        try:
-            return read_blob(
-                self.blob_path(entry.blob_sha256),
-                entry.blob_sha256,
-                entry.size,
-                f"snapshot blob for {entry.relative_path}",
-            )
-        except BlobIntegrityFailure as error:
-            raise SnapshotIntegrityError(str(error)) from error
+        label = f"snapshot blob for {entry.relative_path}"
+        for root in self._read_blob_roots:
+            path = _blob_path(root, entry.blob_sha256)
+            try:
+                content = read_blob_if_present(
+                    path, entry.blob_sha256, entry.size, label
+                )
+            except BlobIntegrityFailure as error:
+                raise SnapshotIntegrityError(str(error)) from error
+            if content is not None:
+                return content
+        raise SnapshotIntegrityError(
+            f"missing {label}: {self.blob_path(entry.blob_sha256)}"
+        )
 
 
 def _reference_digests(
@@ -157,6 +171,46 @@ def _reference_digests(
         digest = value.sha256 if isinstance(value, BlobRef) else value
         result.add(require_digest(digest))
     return result
+
+
+def _fallback_roots(
+    values: Iterable[PathInput], primary: Path
+) -> tuple[Path, ...]:
+    if isinstance(values, (str, bytes, os.PathLike)):
+        raise TypeError("read_fallback_roots must be an iterable of paths")
+    roots = tuple(
+        root
+        for value in values
+        if (root := _admit_fallback_root(value)) is not None
+    )
+    return tuple(dict.fromkeys(root for root in roots if root != primary))
+
+
+def _admit_fallback_root(value: PathInput) -> Path | None:
+    literal = Path(os.path.abspath(Path(value).expanduser()))
+    blobs = literal / "blobs"
+    current = Path(blobs.anchor)
+    for part in blobs.parts[1:]:
+        current /= part
+        try:
+            metadata = current.lstat()
+        except FileNotFoundError:
+            return None
+        except OSError as error:
+            raise SnapshotIntegrityError(
+                f"cannot inspect snapshot fallback path: {current}"
+            ) from error
+        attributes = getattr(metadata, "st_file_attributes", 0)
+        reparse = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+        if (
+            not stat.S_ISDIR(metadata.st_mode)
+            or stat.S_ISLNK(metadata.st_mode)
+            or bool(attributes & reparse)
+        ):
+            raise SnapshotIntegrityError(
+                f"snapshot fallback path is not a real directory: {current}"
+            )
+    return literal.resolve(strict=True)
 
 
 def _timestamp(value: float | datetime) -> float:

@@ -31,6 +31,8 @@ class RewindPort(Protocol):
         self, preview: RewindPreview, *, confirmed: bool
     ) -> RewindResult: ...
 
+    async def recover_operation(self, operation_id: str) -> RewindResult: ...
+
 
 class CheckpointControl:
     """Expose checkpoint orchestration without leaking concrete services."""
@@ -63,6 +65,9 @@ class CheckpointControl:
         if confirmed is not True:
             raise RewindConfirmationRequired("rewind requires confirmation")
         return await self._rewind.execute(preview, confirmed=True)
+
+    async def recover_rewind(self, operation_id: str) -> RewindResult:
+        return await self._rewind.recover_operation(operation_id)
 
 
 def checkpoint_record_to_json(record: CheckpointRecord) -> dict[str, JSONValue]:

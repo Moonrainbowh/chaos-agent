@@ -50,14 +50,26 @@ def publish_blob(
 
 
 def read_blob(path: Path, digest: str, size: int, label: str) -> bytes:
+    content = read_blob_if_present(path, digest, size, label)
+    if content is None:
+        raise BlobIntegrityFailure(f"missing {label}: {path}")
+    return content
+
+
+def read_blob_if_present(
+    path: Path, digest: str, size: int, label: str
+) -> bytes | None:
+    """Read a verified blob, returning None only when it was initially absent."""
     root = open_store_root(path.parent.parent, create=False)
     if root is None:
-        raise BlobIntegrityFailure(f"missing {label}: {path}")
+        return None
     shard: StoreDirectory | None = None
     try:
         shard = open_shard(root, path.parent.name, create=False)
         if shard is None:
-            raise BlobIntegrityFailure(f"missing {label}: {path}")
+            return None
+        if inspect_regular(shard, path.name, label, missing_ok=True) is None:
+            return None
         return _read_entry(root, shard, path.name, digest, size, label)
     finally:
         close_directory(shard)

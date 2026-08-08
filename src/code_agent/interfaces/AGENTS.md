@@ -67,7 +67,7 @@
 - `parse_command`、`execute_command`: 解析并委托稳定 CLI 语义，文本命令复用可信 Markdown 终端渲染 | 写入调用方输出 | 不直接输出模型 Markdown 控制标记，不直接退出或组合依赖
 - `parse_tui_command(text)`、`filter_palette(input)`: 解析斜杠命令并筛选已接入的候选 | 无副作用 | 精确命令名和别名优先于描述匹配，完整参数原样提交，以结构化错误恢复且不显示未接通、占位或危险命令
 - `handle_tui_command(app, outcome)`：把已解析命令委托给有界的控制面处理器 | 调用注入服务 | 不直接执行工具或绕过策略，分支函数不超过 Unit 粒度上限
-- `CheckpointControl`、Checkpoint/Rewind TUI flow：通过窄协议列出/创建 checkpoint，并以 Picker、三模式有界预览、默认 No 确认和 single-flight 受管任务委托 Rewind | 调用注入 Controller/追加显示 | preview 可取消回收，durable execute 关闭时等待安全完成；不直接访问 Workspace、Git、SQLite 或 Runtime
+- `CheckpointControl`、Checkpoint/Rewind TUI flow：通过窄协议列出/创建 checkpoint，并以 Picker、三模式有界预览、默认 No 确认和 single-flight 受管任务委托 Rewind；启动对账的内部恢复委托只传 operation ID | 调用注入 Controller/追加显示 | preview 可取消回收，durable execute 关闭时等待安全完成；不接受调用方重述的持久 rollback facts，不直接访问 Workspace、Git、SQLite 或 Runtime
 - `CommandRegistry`: 声明命令、别名、参数、依赖、可用性与执行委托 | 无副作用 | 是解析、帮助、调色板和补全的唯一目录
 - `CommandRegistry.with_plugin_commands(descriptors)`：把绑定 digest/generation 的 namespaced plugin command 合并为不可变目录 | 无副作用 | 未命名空间化贡献拒绝，旧目录不被原地修改
 - `CommandRegistry.with_plugin_modes(identifiers)`：把 namespaced plugin mode 合并为模式命令的受限 action | 无副作用 | 不替换四个内置 mode

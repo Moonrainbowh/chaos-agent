@@ -16,4 +16,4 @@
 - `CheckpointService._capture_locked(...)`: 为已持 lineage 锁的 Saga 创建 pre-rewind checkpoint | 与 `capture` 相同 | 不再次取锁或 quiesce，避免重入死锁
 - `RewindCoordinator.preview(...)`: 在 owner/recovery guard 和 lineage 锁内生成有界三模式预览 | 读取 Workspace 与 Sessions | 代码模式要求完整可物化 blob；issued preview 防篡改和重放
 - `RewindCoordinator.execute(...)`: 仅接受字面量 `confirmed is True`，完整 quiesce 与 settled 边界快照后持锁复验 fingerprint，再按模式执行并显式补偿 | 可恢复代码；委托 Sessions 原子完成会话分叉/owner/SUPERSEDED | 统一 `quiesce -> lineage lock` 锁序；begin/mutation 前必须证明 pre-rewind 完整可物化；invalidation 成功后才能发布 completed
-- `RewindRecovery`: 以 `quiesce -> lineage lock` 顺序回滚失败操作并逐 lineage 对账 pending intent | 恢复 rollback checkpoint、先 invalidation 再记录 rolled_back，失败则 recovery_required 并触发 guard | 永不 forward resume 或重放命令
+- `RewindRecovery`: 以 `quiesce -> lineage lock` 顺序回滚失败操作并逐 lineage 对账 pending intent；公开单项恢复只接受 operation ID，并在锁内重新读取权威持久记录 | 恢复 rollback checkpoint、先 invalidation 再记录 rolled_back，失败则 recovery_required 并触发 guard | 不信任调用方提供的 rollback/lineage facts，永不 forward resume 或重放命令

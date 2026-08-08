@@ -85,13 +85,23 @@ class RewindRecovery:
         for operation in await self.sessions.pending_rewinds():
             if operation.status is not RewindOperationStatus.PENDING:
                 continue
-            task_id = await self._task_for_checkpoint(
-                operation.source_checkpoint_id
-            )
-            await self.quiesce(task_id)
-            async with self.locks.for_lineage(operation.lineage_id):
-                results.append(await self._recover_one(operation, task_id))
+            results.append(await self.recover_operation(operation.id))
         return tuple(results)
+
+    async def recover_operation(self, operation_id: str) -> RewindResult:
+        """Recover one persisted pending intent through the public safety path."""
+        if not isinstance(operation_id, str):
+            raise TypeError("operation_id must be text")
+        operation = await self._pending_operation(operation_id)
+        task_id = await self._task_for_checkpoint(operation.source_checkpoint_id)
+        await self.quiesce(task_id)
+        async with self.locks.for_lineage(operation.lineage_id):
+            authoritative = await self._pending_operation(
+                operation_id, operation.lineage_id
+            )
+            if authoritative != operation:
+                raise RewindError("pending rewind changed before recovery")
+            return await self._recover_one(authoritative, task_id)
 
     async def _recover_one(
         self, operation: RewindOperationRecord, task_id: str
@@ -155,6 +165,17 @@ class RewindRecovery:
             if any(checkpoint.id == checkpoint_id for checkpoint in checkpoints):
                 return task.id
         raise RewindError("pending rewind source task is missing")
+
+    async def _pending_operation(
+        self, operation_id: str, lineage_id: str | None = None
+    ) -> RewindOperationRecord:
+        operations = await self.sessions.pending_rewinds(lineage_id)
+        operation = next(
+            (item for item in operations if item.id == operation_id), None
+        )
+        if operation is None or operation.status is not RewindOperationStatus.PENDING:
+            raise RewindError("pending rewind operation is unavailable")
+        return operation
 
     async def invalidate(self, task_id: str, replacement: str | None) -> None:
         await call(self.invalidate_cache, ())
