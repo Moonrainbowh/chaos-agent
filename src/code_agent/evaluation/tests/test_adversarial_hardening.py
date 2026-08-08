@@ -62,7 +62,7 @@ class IsolationAndTrustTests(unittest.IsolatedAsyncioTestCase):
                     await SubprocessVerifier()(workspace, oracle, "baseline")
             with patch(
                 "code_agent.evaluation.paths.is_link_or_reparse",
-                side_effect=lambda path: path == linked_cwd,
+                side_effect=lambda path: path == linked_cwd.resolve(),
             ):
                 with self.assertRaisesRegex(ValueError, "verifier cwd traverses a link"):
                     await SubprocessVerifier()(workspace, oracle, "baseline")
