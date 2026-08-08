@@ -21,7 +21,7 @@
 
 ## Units
 - `SubjectSnapshot`、`snapshot_subject(...)`: 为改动文件和关键 manifest 生成有界、确定性的 subject hash | 读取受 guard 保护的工作区文件 | 不判断业务正确性或扫描工作区外路径
-- `WorkspaceError`、`WorkspacePathGuard(root)`：表达失败并执行路径规范化、containment 与敏感策略 | fail-closed 检查路径元数据 | `allow_outside` 仅供已批准 dispatcher；链接/reparse 与受保护元数据始终拒绝
+- `WorkspaceError`、`WorkspacePathGuard(root)`：表达失败并执行路径规范化、containment 与敏感策略 | 保留 Host 提供的字面根以兼容系统根别名，但解析和逐组件元数据检查统一锚定 canonical root | `allow_outside` 仅供已批准 dispatcher；链接/reparse 与大小写变体的受保护元数据始终拒绝
 - `IgnoreRules.from_workspace(root): IgnoreRules`：加载内置忽略项和根 `.gitignore` 的常用规则子集 | 读取根 `.gitignore` | 内置排除 Git/产品状态、`chaos-agent-workspaces` 与缓存目录；支持顺序反选，不是完整 Git parser
 - `WorkspaceFiles.list_files/list_known_files/read_text/search(...)`、`invalidate_inventory()`：有界枚举、过滤已知候选、读取和搜索可访问文件，并将省略 root、`.` 和工作区绝对根统一复用短期根 inventory | 读取工作区文件 | 候选仍逐项经过 guard、存在性和 ignore 校验；扫描、大小、结果与全局 deadline 超限显式失败，不返回伪完整结果
 - `WorkspaceEditor`: 有界读取现有文件，生成写入/单次替换 Diff 并校验哈希后原子应用 | 单文件同目录临时写入与替换

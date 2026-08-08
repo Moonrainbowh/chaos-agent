@@ -160,10 +160,23 @@ class SnapshotIntegrityTests(unittest.TestCase):
         before = {path.name for path in (self.artifacts / "manifests").iterdir()}
         real_replace = os.replace
 
-        def fail_manifest(source: object, target: object) -> None:
-            if Path(target).parent == self.artifacts / "manifests":
+        def fail_manifest(
+            source: object,
+            target: object,
+            *,
+            src_dir_fd: int | None = None,
+            dst_dir_fd: int | None = None,
+        ) -> None:
+            if str(target).endswith(".json"):
+                self.assertIsNotNone(src_dir_fd)
+                self.assertEqual(dst_dir_fd, src_dir_fd)
                 raise OSError("busy")
-            real_replace(source, target)
+            real_replace(
+                source,
+                target,
+                src_dir_fd=src_dir_fd,
+                dst_dir_fd=dst_dir_fd,
+            )
 
         if os.name == "nt":
             failure = patch(

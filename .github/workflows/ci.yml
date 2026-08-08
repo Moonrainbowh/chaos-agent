@@ -30,6 +30,7 @@ jobs:
     name: ${{ matrix.os }} Python 3.10
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
     steps:

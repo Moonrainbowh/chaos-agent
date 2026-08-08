@@ -221,8 +221,12 @@ class SnapshotErrorClassificationTests(unittest.TestCase):
             with self.subTest(path=path):
                 with self.assertRaises(ValueError):
                     replace(self.handle, paths=(path,))
-        with self.assertRaises(ValueError):
-            replace(self.handle, paths=("File.bin", "file.bin"))
+        with patch(
+            "code_agent.workspace._rewind_snapshot_store.os.path.normcase",
+            side_effect=lambda value: value.casefold(),
+        ):
+            with self.assertRaises(ValueError):
+                replace(self.handle, paths=("File.bin", "file.bin"))
 
     def test_save_type_and_budget_errors_keep_their_types(self) -> None:
         with self.assertRaises(TypeError):

@@ -14,7 +14,7 @@ _MANAGED_STORAGE_NAME = "chaos-agent-workspaces"
 _PROTECTED_ROOTS = frozenset(
     {".git", ".chaos-agent", ".code-agent", _MANAGED_STORAGE_NAME}
 )
-_NORMALIZED_PROTECTED = frozenset(os.path.normcase(name) for name in _PROTECTED_ROOTS)
+_CASEFOLDED_PROTECTED = frozenset(name.casefold() for name in _PROTECTED_ROOTS)
 _ENV_EXEMPT_SUFFIXES = (".example", ".sample", ".template")
 _PRIVATE_KEY_NAMES = frozenset(
     {
@@ -42,6 +42,7 @@ class WorkspacePathGuard:
         root_path = Path(root).expanduser()
         if not root_path.exists() or not root_path.is_dir():
             raise ValueError("workspace root must be an existing directory")
+        self._literal_root = Path(os.path.abspath(root_path))
         self.root = root_path.resolve(strict=True)
         if _is_managed_container_root(self.root):
             raise SensitivePathError(
@@ -69,12 +70,13 @@ class WorkspacePathGuard:
         if not candidate.is_absolute():
             candidate = self.root / candidate
         try:
-            lexical_relative = candidate.relative_to(self.root)
+            lexical_relative = self._relative_to_root_anchor(candidate)
         except ValueError as error:
             if not self.allow_outside:
                 raise PathOutsideWorkspace(f"path escapes workspace: {raw!r}") from error
             lexical_relative = None
         if lexical_relative is not None:
+            candidate = self.root / lexical_relative
             self._reject_link_components(lexical_relative, raw)
         else:
             self._reject_absolute_link_components(candidate, raw)
@@ -115,7 +117,7 @@ class WorkspacePathGuard:
             candidate = self.root / candidate
         absolute = Path(os.path.abspath(candidate))
         try:
-            relative = absolute.relative_to(self.root)
+            relative = self._relative_to_root_anchor(absolute)
         except ValueError as error:
             raise PathOutsideWorkspace(f"path escapes workspace: {raw!r}") from error
         self._reject_link_components(relative.parent, raw)
@@ -124,7 +126,7 @@ class WorkspacePathGuard:
 
     def _check_policy(self, relative: Path) -> None:
         parts = relative.parts
-        if any(os.path.normcase(part) in _NORMALIZED_PROTECTED for part in parts):
+        if any(part.casefold() in _CASEFOLDED_PROTECTED for part in parts):
             raise SensitivePathError(f"protected workspace path: {relative}")
         if not self.allow_sensitive and parts and _is_sensitive_name(parts[-1]):
             raise SensitivePathError(f"sensitive workspace path: {relative}")
@@ -149,6 +151,13 @@ class WorkspacePathGuard:
             current = current / part
             if _is_link_like(current):
                 raise PathOutsideWorkspace(f"linked paths are not allowed: {raw!r}")
+
+    def _relative_to_root_anchor(self, candidate: Path) -> Path:
+        """Accept the canonical root or the exact root spelling supplied by Host."""
+        try:
+            return candidate.relative_to(self.root)
+        except ValueError:
+            return candidate.relative_to(self._literal_root)
 
 
 def _is_sensitive_name(name: str) -> bool:
