@@ -10,7 +10,10 @@ from .errors import PathOutsideWorkspace, SensitivePathError
 
 PathInput = Union[str, os.PathLike[str]]
 
-_PROTECTED_ROOTS = frozenset({".git", ".chaos-agent", ".code-agent"})
+_MANAGED_STORAGE_NAME = "chaos-agent-workspaces"
+_PROTECTED_ROOTS = frozenset(
+    {".git", ".chaos-agent", ".code-agent", _MANAGED_STORAGE_NAME}
+)
 _NORMALIZED_PROTECTED = frozenset(os.path.normcase(name) for name in _PROTECTED_ROOTS)
 _ENV_EXEMPT_SUFFIXES = (".example", ".sample", ".template")
 _PRIVATE_KEY_NAMES = frozenset(
@@ -40,6 +43,10 @@ class WorkspacePathGuard:
         if not root_path.exists() or not root_path.is_dir():
             raise ValueError("workspace root must be an existing directory")
         self.root = root_path.resolve(strict=True)
+        if _is_managed_container_root(self.root):
+            raise SensitivePathError(
+                "managed workspace storage cannot be used as a workspace root"
+            )
         self._root_identity = _directory_identity(self.root)
         self.allow_sensitive = bool(allow_sensitive)
         self.allow_outside = bool(allow_outside)
@@ -151,6 +158,17 @@ def _is_sensitive_name(name: str) -> bool:
     if lowered in _PRIVATE_KEY_NAMES or lowered.endswith(_PRIVATE_KEY_SUFFIXES):
         return True
     return lowered.startswith("ssh_host_") and lowered.endswith("_key")
+
+
+def _is_managed_container_root(path: Path) -> bool:
+    for index, part in enumerate(path.parts):
+        if part.casefold() != _MANAGED_STORAGE_NAME:
+            continue
+        suffix = path.parts[index + 1 :]
+        return not (
+            len(suffix) >= 3 and suffix[0].casefold() == "worktrees"
+        )
+    return False
 
 
 def _is_link_like(path: Path) -> bool:

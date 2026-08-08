@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
+from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -49,7 +50,9 @@ def migrate_legacy_session_database(source: Path, destination: Path) -> LegacyMi
 
 
 def _counts(path: Path) -> tuple[int, int]:
-    with sqlite3.connect(f"file:{path.as_posix()}?mode=ro", uri=True) as connection:
+    with closing(
+        sqlite3.connect(f"file:{path.as_posix()}?mode=ro", uri=True)
+    ) as connection:
         return _counts_connection(connection)
 
 
@@ -59,5 +62,7 @@ def _counts_connection(connection: sqlite3.Connection) -> tuple[int, int]:
 
 
 def _integrity(path: Path) -> str:
-    with sqlite3.connect(f"file:{path.as_posix()}?mode=ro", uri=True) as connection:
+    with closing(
+        sqlite3.connect(f"file:{path.as_posix()}?mode=ro", uri=True)
+    ) as connection:
         return str(connection.execute("PRAGMA integrity_check").fetchone()[0])

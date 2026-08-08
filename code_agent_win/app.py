@@ -75,10 +75,9 @@ class _ApplicationComposer:
             raise ValueError("profile_name must be non-blank text")
         self.root = (workspace_root or Path.cwd()).resolve()
         self.runtime_config = load_runtime_config(cli_profile=profile_name)
-        unrestricted = self.runtime_config.approval_mode is ApprovalMode.UNRESTRICTED
         guard = WorkspacePathGuard(
             self.root,
-            allow_sensitive=self.runtime_config.allow_sensitive_paths or unrestricted,
+            allow_sensitive=self.runtime_config.allow_sensitive_paths,
             allow_outside=self.runtime_config.approval_mode in {
                 ApprovalMode.UNRESTRICTED,
                 ApprovalMode.FULL_LOCAL,
@@ -122,7 +121,9 @@ class _ApplicationComposer:
         self.product_state_root.mkdir(parents=True, exist_ok=True)
         self.sessions = SQLiteSessionRepository(self.session_path)
         self.workspace_runtime = ManagedWorkspaceRuntime(
-            self.sessions, _workspace_storage_path()
+            self.sessions,
+            _workspace_storage_path(),
+            allow_sensitive_paths=self.runtime_config.allow_sensitive_paths,
         )
         self.services = self.workspace_runtime.services_for_root(self.root)
         self.guard = self.services.guard
@@ -288,4 +289,8 @@ def _product_state_root() -> Path:
 
 
 def _workspace_storage_path() -> Path:
-    return _session_path().parent / "managed-workspaces"
+    base = os.getenv("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
+    # Managed worktrees must not live below the protected API configuration
+    # directory. Keeping this sibling path short also leaves room for long
+    # repository-relative filenames on Windows.
+    return Path(base) / "chaos-agent-workspaces"

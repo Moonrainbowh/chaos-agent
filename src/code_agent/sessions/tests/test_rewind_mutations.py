@@ -4,6 +4,7 @@ import sqlite3
 import sys
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 
 
@@ -155,7 +156,7 @@ class RewindMutationTests(unittest.IsolatedAsyncioTestCase):
                     action_name="replace_text",
                 )
             )
-        with sqlite3.connect(self.database) as connection:
+        with closing(sqlite3.connect(self.database)) as connection, connection:
             counts = (
                 connection.execute(
                     "SELECT COUNT(*) FROM workspace_mutations"
@@ -169,7 +170,7 @@ class RewindMutationTests(unittest.IsolatedAsyncioTestCase):
     async def test_failed_path_insert_rolls_back_prepare_and_high_water(self) -> None:
         owner = await self.repository.create_thread()
         coverage = await self.repository.ensure_rewind_coverage(FINGERPRINT)
-        with sqlite3.connect(self.database) as connection:
+        with closing(sqlite3.connect(self.database)) as connection, connection:
             connection.execute(
                 "CREATE TRIGGER reject_second_path BEFORE INSERT "
                 "ON workspace_mutation_paths WHEN NEW.ordinal = 1 "
@@ -184,7 +185,7 @@ class RewindMutationTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(SessionStorageError):
             await self.repository.prepare_rewind_mutation(request)
         after = await self.repository.ensure_rewind_coverage(FINGERPRINT)
-        with sqlite3.connect(self.database) as connection:
+        with closing(sqlite3.connect(self.database)) as connection, connection:
             counts = (
                 connection.execute(
                     "SELECT COUNT(*) FROM workspace_mutations"
@@ -203,7 +204,7 @@ class RewindMutationTests(unittest.IsolatedAsyncioTestCase):
         record = await self.repository.prepare_rewind_mutation(
             prepare(coverage.token, owner, "ordinal-gap", paths=paths)
         )
-        with sqlite3.connect(self.database) as connection:
+        with closing(sqlite3.connect(self.database)) as connection, connection:
             connection.execute(
                 "DELETE FROM workspace_mutation_paths WHERE "
                 "mutation_sequence = ? AND ordinal = 0",
@@ -212,7 +213,7 @@ class RewindMutationTests(unittest.IsolatedAsyncioTestCase):
         connection.close()
         with self.assertRaises(SessionCorruptionError):
             await self.repository.complete_rewind_mutation(record.mutation_id)
-        with sqlite3.connect(self.database) as connection:
+        with closing(sqlite3.connect(self.database)) as connection, connection:
             state = connection.execute(
                 "SELECT m.status, c.mutation_high_water FROM workspace_mutations m "
                 "JOIN workspace_rewind_coverage c USING (workspace_fingerprint)"

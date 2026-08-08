@@ -4,6 +4,7 @@ import sqlite3
 import sys
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 
 
@@ -25,7 +26,7 @@ class SchemaStructureValidationTests(unittest.TestCase):
         self.temporary.cleanup()
 
     def rewrite_table_sql(self, table: str, old: str, new: str) -> None:
-        with sqlite3.connect(self.database) as connection:
+        with closing(sqlite3.connect(self.database)) as connection, connection:
             sql = connection.execute(
                 "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?",
                 (table,),
@@ -45,7 +46,7 @@ class SchemaStructureValidationTests(unittest.TestCase):
             SQLiteSessionRepository(self.database)
 
     def test_same_name_index_with_wrong_columns_is_rejected(self) -> None:
-        with sqlite3.connect(self.database) as connection:
+        with closing(sqlite3.connect(self.database)) as connection, connection:
             connection.execute("DROP INDEX rewind_operations_status_created")
             connection.execute(
                 "CREATE INDEX rewind_operations_status_created "
@@ -54,7 +55,7 @@ class SchemaStructureValidationTests(unittest.TestCase):
         self.assert_reopen_corrupt()
 
     def test_pending_index_must_be_unique_and_have_exact_partial_predicate(self) -> None:
-        with sqlite3.connect(self.database) as connection:
+        with closing(sqlite3.connect(self.database)) as connection, connection:
             connection.execute("DROP INDEX rewind_operations_one_pending")
             connection.execute(
                 "CREATE UNIQUE INDEX rewind_operations_one_pending "

@@ -20,7 +20,7 @@ from .models import (
 
 @dataclass(frozen=True)
 class PolicyConfig:
-    approval_mode: ApprovalMode = ApprovalMode.UNRESTRICTED
+    approval_mode: ApprovalMode = ApprovalMode.AUTO
     allow_network: bool = False
     workspace_root: Optional[Path] = None
     mcp_risks: Mapping[str, str] = field(default_factory=dict)
@@ -73,18 +73,18 @@ class ActionPolicy:
                 "denied because critical-risk actions are never approved",
             )
 
-        if self.config.approval_mode is ApprovalMode.UNRESTRICTED:
-            return self._decision(
-                DecisionOutcome.ALLOW,
-                classified,
-                "allowed by unrestricted mode without approval",
-            )
-
         if Capability.PROTECTED_PATH in classified.capabilities:
             return self._decision(
                 DecisionOutcome.ASK,
                 classified,
                 "approval required for a protected path",
+            )
+
+        if self.config.approval_mode is ApprovalMode.UNRESTRICTED:
+            return self._decision(
+                DecisionOutcome.ALLOW,
+                classified,
+                "allowed by unrestricted mode without approval",
             )
 
         read_only = (

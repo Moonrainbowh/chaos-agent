@@ -67,11 +67,6 @@ async def terminate_process_tree(
                 f"direct root kill failed: {type(error).__name__}: {error}"
             )
 
-    if process.returncode is None and not await _bounded_task_wait(
-        process_wait, _ROOT_WAIT_TIMEOUT_S
-    ):
-        failures.append("root process did not exit before deadline")
-
     if descendants:
         try:
             descendant_failures = await _bounded_to_thread(
@@ -93,6 +88,14 @@ async def terminate_process_tree(
             )
         else:
             failures.extend(descendant_failures)
+
+    # Descendants may inherit the root's stdout/stderr handles. On Windows,
+    # awaiting the root before closing those inherited handles can keep the
+    # asyncio subprocess transport open until the descendants exit.
+    if process.returncode is None and not await _bounded_task_wait(
+        process_wait, _ROOT_WAIT_TIMEOUT_S
+    ):
+        failures.append("root process did not exit before deadline")
 
     if failures:
         raise ProcessTreeTerminationError(process.pid, failures)

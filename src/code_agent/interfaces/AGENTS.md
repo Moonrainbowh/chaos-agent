@@ -92,7 +92,7 @@
 - `AttachmentDraft.add_clipboard_items(...)`、`has_submission_input(...)`、`handle_attachment_command(...)`、`apply_clipboard_images(...)`、`dropped_file_paths(...)`：批量摄取并维护有界附件引用、在 UI 边界把无文本无附件提交静默判为空操作，并把 Windows Terminal 的空 bracketed paste 识别为 `Ctrl+V` 图片手势，同时提供显式命令和完整文件拖放识别 | 调用注入摄取器/进程内状态 | 把草稿剩余数量/字节预算下推至批量摄取器，拒绝批次不得发布孤儿 blob；旧 `add_clipboard()` 单图 API 保持可调用，但不具备预算协议的旧摄取器不得进入新版批量 UI；仅 durable `MESSAGE_ADDED` 确认后按本次 digest 移除草稿，后续新增与失败提交必须保留；非空文本粘贴不得误摄取剪贴板图片
 - `ModePermissionView`：分开展示模式实际模型、Oracle、推理强度、生效边界与访问权限 | 无副作用 | 模式信息绝不解释为授权。
 - `ModeControl.list()`、`use(name, idle)`：列出冻结的四档 mode 并在空闲边界委托运行时切换 | 调用注入的异步重建回调 | 回调成功后才更新当前 mode，活动任务和未知 mode 失败闭合。
-- `PermissionControl.list()`、`use(name, idle)`：列出访问权限并在空闲边界委托中央策略切换 | 调用注入的异步回调 | 默认 `unrestricted`，活动任务和未知权限失败闭合，模式切换不修改权限
+- `PermissionControl.list()`、`use(name, idle)`：列出访问权限并在空闲边界委托中央策略切换 | 调用注入的异步回调 | 默认 `auto`，活动任务和未知权限失败闭合，模式切换不修改权限
 - `TuiInteractions`：把 Picker、可见审批、steering 生命周期和结构化 diff 委托给单栏 TUI | 终端显示/进程内状态 | 审批默认拒绝，`Enter` 明确选择，`Esc` 取消。
 - `AgentRunStatusProjection.observe(view)`：将子 Agent 状态变化投影为去重、有界的生命周期行 | 进程内状态 | 只消费 Orchestration 快照，不从工具名称猜测状态。
 - `WorkflowView.render`、`detail`、`evidence`：把持久 WorkflowSnapshot 渲染为追加式 DAG、节点详情和 Evidence 引用 | 无副作用 | 过滤和窄屏有界，所有不可信文本先经 `safe_text`

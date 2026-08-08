@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
 
@@ -26,6 +25,7 @@ from code_agent.workspace.worktrees import WorktreeManager
 
 from code_agent_win.action_dispatcher import RootActionDispatcher
 from code_agent_win.tool_support import discover_git_workspace
+from code_agent_win.workspace_models import TaskWorkspace, WorkspaceServices
 from code_agent_win.workspace_checkpoint_runtime import (
     CheckpointRouter,
     StableQuiescer,
@@ -33,31 +33,20 @@ from code_agent_win.workspace_checkpoint_runtime import (
 )
 
 
-@dataclass(frozen=True)
-class TaskWorkspace:
-    lineage_id: str
-    source_root: Path
-    worktree_root: Path
-    branch_name: str
-
-
-@dataclass
-class WorkspaceServices:
-    root: Path
-    guard: WorkspacePathGuard
-    files: WorkspaceFiles
-    git: GitWorkspace | None
-    repo_index: RepoIndexService
-    runtime: WindowsLocalRuntime
-    verification: LocalVerificationAdapter
-    checkpoints: CheckpointControl | None = None
-
-
 class ManagedWorkspaceRuntime:
-    def __init__(self, sessions: object, storage_root: Path) -> None:
+    def __init__(
+        self,
+        sessions: object,
+        storage_root: Path,
+        *,
+        allow_sensitive_paths: bool = False,
+    ) -> None:
+        if not isinstance(allow_sensitive_paths, bool):
+            raise TypeError("allow_sensitive_paths must be a bool")
         storage_root.mkdir(parents=True, exist_ok=True)
         self._sessions = sessions
         self.storage_root = storage_root.resolve()
+        self.allow_sensitive_paths = allow_sensitive_paths
         (self.storage_root / "worktrees").mkdir(parents=True, exist_ok=True)
         self._worktrees = WorktreeManager(self.storage_root / "worktrees")
         self._locks = LineageLockPool()
@@ -182,14 +171,26 @@ class ManagedWorkspaceRuntime:
         self._verification_invalidator = callback
 
     async def _seed_source_changes(self, source_root: Path, target_root: Path) -> None:
-        paths = await asyncio.to_thread(GitWorkspace(source_root).snapshot_paths)
-        editor = WorkspaceEditor(WorkspacePathGuard(source_root))
+        paths = await asyncio.to_thread(
+            GitWorkspace(source_root).changed_snapshot_paths
+        )
+        editor = WorkspaceEditor(
+            WorkspacePathGuard(
+                source_root, allow_sensitive=self.allow_sensitive_paths
+            )
+        )
         snapshot = await asyncio.to_thread(editor.snapshot, paths)
-        target = WorkspaceEditor(WorkspacePathGuard(target_root))
+        target = WorkspaceEditor(
+            WorkspacePathGuard(
+                target_root, allow_sensitive=self.allow_sensitive_paths
+            )
+        )
         await asyncio.to_thread(target.restore, snapshot)
 
     def _build_services(self, root: Path) -> WorkspaceServices:
-        guard = WorkspacePathGuard(root)
+        guard = WorkspacePathGuard(
+            root, allow_sensitive=self.allow_sensitive_paths
+        )
         files = WorkspaceFiles(guard, IgnoreRules.from_workspace(root))
         git = discover_git_workspace(root)
         repo_index = RepoIndexService(files, scan_file=RepoFileScanner(files).scan)

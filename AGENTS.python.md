@@ -20,6 +20,7 @@
 - 集成层只组合 Feature 的公开接口，不重写 Feature 行为。
 
 ## 构建与运行
-- 开发：`python -m unittest discover -s tests -p 'test_*.py'`
+- 全量回归：`python scripts/run_tests.py`（动态发现全部 Feature 测试，最后运行根集成测试）
+- 根集成测试：`python -m unittest discover -s tests -p 'test_*.py'`
 - Feature 测试：`python -m unittest discover -s src/code_agent/<feature>/tests -p 'test_*.py'`
 - 打包：`python -m build`

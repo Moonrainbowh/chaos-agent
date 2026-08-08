@@ -152,10 +152,17 @@ class ActionClassifierTests(unittest.TestCase):
         raw = classify_action(request("run_command", command="python -m unittest"))
         verification = classify_action(request("run_verification", kind="pytest", cwd=".", targets=[]))
         protected = classify_action(request("read_file", path=".env"))
+        managed_storage = classify_action(
+            request(
+                "read_file",
+                path="chaos-agent-workspaces/worktrees/another-task/file.py",
+            )
+        )
 
         self.assertIn(Capability.RAW_SHELL, raw.capabilities)
         self.assertIn(Capability.VERIFICATION, verification.capabilities)
         self.assertIn(Capability.PROTECTED_PATH, protected.capabilities)
+        self.assertIn(Capability.PROTECTED_PATH, managed_storage.capabilities)
 
 
 if __name__ == "__main__":

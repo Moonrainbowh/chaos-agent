@@ -4,6 +4,7 @@ import sqlite3
 import sys
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 
 
@@ -272,7 +273,7 @@ class RewindObservationTests(unittest.IsolatedAsyncioTestCase):
             owner, "anchored", rewind_anchor=anchor
         )
         timestamp = "2026-07-17T01:02:03Z"
-        with sqlite3.connect(self.database) as connection:
+        with closing(sqlite3.connect(self.database)) as connection, connection:
             connection.execute(
                 "UPDATE checkpoints SET created_at = ? WHERE thread_id = ?",
                 (timestamp, owner),

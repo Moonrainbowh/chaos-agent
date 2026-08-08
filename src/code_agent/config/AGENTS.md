@@ -17,6 +17,6 @@
 ## Units
 - `default_config_path(env)`、`resolve_config_path(env)`: 解析默认或绝对覆盖配置文件路径 | 无副作用 | 相对 `CHAOS_CONFIG` 拒绝；无新配置时回退旧目录
 - `load_runtime_config(env, cli_profile)`: 读取、验证、选择并合并本地 provider 配置 | 文件 I/O | `CHAOS_*` 优先、`CODE_AGENT_*` 回退；异常不包含文件内容或密钥
-- `RuntimeConfig`: 冻结已选择的 Provider、profile、审批模式、敏感路径开关和配置路径 | 无副作用 | 默认审批模式为 `unrestricted`，可由配置或环境变量显式收紧；密钥状态只能显示脱敏描述
+- `RuntimeConfig`: 冻结已选择的 Provider、profile、审批模式、敏感路径开关和配置路径 | 无副作用 | 默认审批模式为 `auto`，`unrestricted` 必须由配置或环境变量显式选择；密钥状态只能显示脱敏描述
 - `ProfileSummary`: 提供 profile 名、模型、协议、endpoint host、预算和密钥来源类型 | 无副作用 | 不包含密钥、URL 路径或认证头
 - `_input_modalities(values)`: 解析 profile 显式 `text`/`image` 输入能力 | 无副作用 | 默认仅 text，重复、未知和缺少 text 均失败闭合

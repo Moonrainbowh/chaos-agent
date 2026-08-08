@@ -5,6 +5,7 @@ import sqlite3
 import sys
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 
 
@@ -47,7 +48,7 @@ class SessionConcurrencyTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_failed_thread_update_rolls_back_message_insert(self) -> None:
         thread_id = await self.first.create_thread()
-        with sqlite3.connect(self.database) as connection:
+        with closing(sqlite3.connect(self.database)) as connection, connection:
             connection.executescript(
                 """
                 CREATE TRIGGER reject_thread_update

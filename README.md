@@ -25,8 +25,15 @@ For development, install the runtime dependencies and run the test suites:
 
 ```powershell
 python -m pip install -e .
-python -m unittest discover -s src\code_agent\core\tests -p 'test_*.py'
+python scripts\run_tests.py
 ```
+
+The full runner discovers every `src\code_agent\<feature>\tests` directory and
+then runs the root integration suite. Use the Feature-specific `unittest
+discover` command only for a focused edit; release and CI validation use the
+full runner. Windows CI and release validation therefore cannot omit newly
+added Features silently; the portable non-Windows job remains a smaller smoke
+subset.
 
 ## Configure A Provider
 
@@ -47,9 +54,10 @@ max_output_tokens = 16384
 input_modalities = ["text", "image"]
 
 [agent]
-approval_mode = "unrestricted"
-# Optional restrictive alternatives:
+approval_mode = "auto"
+# Optional alternatives:
 # approval_mode = "ask"
+# approval_mode = "unrestricted" # Explicit high-trust mode.
 # allow_sensitive_paths = true
 ```
 
@@ -154,10 +162,12 @@ policy risks together.
 
 ## Safety Defaults
 
-- `CHAOS_APPROVAL_MODE=unrestricted` is the default. Recognized non-critical local actions, including `run_command`, run without TUI approval.
+- `CHAOS_APPROVAL_MODE=auto` is the default. Ordinary typed workspace reads and writes are allowed, while model-provided raw PowerShell requires TUI approval.
 - Use `/权限` (or `/permission`) while idle to select `unrestricted`, `plan`, `ask`, `auto`, `elevated`, or `full-local` for subsequent tasks. The same values are accepted by `[agent].approval_mode` and `CHAOS_APPROVAL_MODE`.
-- `plan` allows workspace reads only. `ask` approves writes and commands interactively. `auto` keeps command approval and asks for outside-workspace access. `elevated` requires approval for external access. `full-local` permits typed external file operations while commands still require approval.
-- `allow_sensitive_paths = true` (or `CHAOS_ALLOW_SENSITIVE_PATHS=true`) is a separate explicit opt-in for `.env` files and private-key names. `.git`, `.code-agent`, and symlink/reparse paths remain protected at every level.
+- `plan` allows workspace reads only. `ask` approves writes and commands interactively. `auto` keeps command approval and asks for outside-workspace access. `elevated` and `full-local` retain their policy-level external-access rules, but production typed file tools still fail closed at the workspace boundary; approved typed external-file access is not implemented yet.
+- `unrestricted` is an explicit high-trust mode: recognized non-critical raw PowerShell and network actions run without per-action approval, and raw PowerShell can reach paths available to the current Windows user. Typed file tools remain workspace-contained, typed actions that explicitly target protected paths still require approval, and critical or unknown actions remain denied.
+- `allow_sensitive_paths = true` (or `CHAOS_ALLOW_SENSITIVE_PATHS=true`) is a separate explicit opt-in for typed workspace file tools to access `.env` files and private-key names. It is not an OS sandbox: approved raw PowerShell, and raw PowerShell in explicit `unrestricted` mode, runs as the current Windows user and can bypass typed file guards. `.git`, `.code-agent`, local API configuration directories, cross-task `chaos-agent-workspaces` access, and symlink/reparse paths remain protected from typed file tools at every level.
+- Configurations that omit `approval_mode` now resolve to `auto`. Set `unrestricted` explicitly only when the legacy high-trust behavior is intended.
 - Unknown and critical actions are denied. Destructive commands and unbounded output are rejected.
 - `delegate_agent` is a normal typed action. It is policy checked before a child starts; child output is explicitly advisory and never counts as verification evidence or parent completion.
 - `run_command` represents model-provided raw PowerShell. It runs without approval only in explicit `unrestricted` mode; critical commands remain denied. Other permission modes retain their approval or denial rules. `run_verification` only accepts a registered kind plus constrained relative paths; the local adapter generates its fixed argv for Python unittest, pytest, compileall, or build.

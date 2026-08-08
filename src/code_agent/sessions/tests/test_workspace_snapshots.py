@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 import uuid
+from contextlib import closing
 from pathlib import Path
 
 
@@ -131,7 +132,7 @@ class WorkspaceSnapshotRepositoryTests(unittest.IsolatedAsyncioTestCase):
         thread_id = await self.repository.create_thread()
         lineage = await self.create_lineage(thread_id)
         snapshot = WorkspaceSnapshotRecord.create(lineage.id, manifest())
-        with sqlite3.connect(self.database) as connection:
+        with closing(sqlite3.connect(self.database)) as connection, connection:
             connection.executescript(
                 """
                 CREATE TRIGGER reject_checkpoint_state
@@ -147,7 +148,7 @@ class WorkspaceSnapshotRepositoryTests(unittest.IsolatedAsyncioTestCase):
                 thread_id, "paused", {}, snapshot, cursor(lineage.id)
             )
 
-        with sqlite3.connect(self.database) as connection:
+        with closing(sqlite3.connect(self.database)) as connection, connection:
             counts = tuple(
                 connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
                 for table in (
@@ -172,7 +173,7 @@ class WorkspaceSnapshotRepositoryTests(unittest.IsolatedAsyncioTestCase):
             WorkspaceSnapshotRecord.create(lineage.id, manifest()),
             cursor(lineage.id),
         )
-        with sqlite3.connect(self.database) as connection:
+        with closing(sqlite3.connect(self.database)) as connection, connection:
             connection.execute(
                 "UPDATE workspace_snapshot_entries SET blob_sha256 = 'broken'"
             )
@@ -183,7 +184,7 @@ class WorkspaceSnapshotRepositoryTests(unittest.IsolatedAsyncioTestCase):
         thread_id = await self.repository.create_thread()
         lineage = await self.create_lineage()
         snapshot = WorkspaceSnapshotRecord.create(lineage.id, manifest())
-        with sqlite3.connect(self.database) as connection:
+        with closing(sqlite3.connect(self.database)) as connection, connection:
             connection.execute("PRAGMA foreign_keys = ON")
             with self.assertRaises(sqlite3.IntegrityError):
                 connection.execute(
@@ -232,7 +233,7 @@ class WorkspaceSnapshotRepositoryTests(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertEqual(len(set(checkpoint_ids)), 2)
-        with sqlite3.connect(self.database) as connection:
+        with closing(sqlite3.connect(self.database)) as connection, connection:
             self.assertEqual(
                 connection.execute("SELECT COUNT(*) FROM workspace_snapshots").fetchone()[0],
                 2,
@@ -248,7 +249,7 @@ class WorkspaceSnapshotRepositoryTests(unittest.IsolatedAsyncioTestCase):
             None,
             cursor(lineage.id, WorkspaceSnapshotStatus.UNAVAILABLE),
         )
-        with sqlite3.connect(self.database) as connection:
+        with closing(sqlite3.connect(self.database)) as connection, connection:
             connection.execute(
                 "UPDATE checkpoint_workspace_state SET goals_payload = '{broken'"
             )

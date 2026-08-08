@@ -52,7 +52,7 @@ class LocalApiConfigTests(unittest.TestCase):
         self.assertEqual(runtime.provider.api.value, "responses")
         self.assertEqual(runtime.provider.model, "chaos-model")
         self.assertEqual(runtime.provider.key_status, "environment (CHAOS_KEY)")
-        self.assertEqual(runtime.approval_mode.value, "unrestricted")
+        self.assertEqual(runtime.approval_mode.value, "auto")
 
     def test_loads_default_provider_with_masked_local_key(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

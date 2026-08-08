@@ -42,17 +42,25 @@ def _configured_application(root: Path):
     return _workspace_application(root)
 
 
-def _isolated_application(container: Path):
+def _isolated_application(
+    container: Path,
+    *,
+    approval_mode: str = "full-local",
+    allow_sensitive_paths: bool = False,
+):
     workspace, product = container / "workspace", container / "state"
     workspace.mkdir()
-    runtime = load_runtime_config(env={
+    config_env = {
         "CHAOS_CONFIG": str(container / "missing.toml"),
         "CHAOS_API": "responses",
         "CHAOS_BASE_URL": "https://api.example.test",
         "CHAOS_MODEL": "test",
         "CHAOS_API_KEY_ENV": "KEY",
-        "CHAOS_APPROVAL_MODE": "full-local",
-    })
+        "CHAOS_APPROVAL_MODE": approval_mode,
+    }
+    if allow_sensitive_paths:
+        config_env["CHAOS_ALLOW_SENSITIVE_PATHS"] = "true"
+    runtime = load_runtime_config(env=config_env)
     patches = (
         patch.dict("os.environ", {
             "USERPROFILE": str(container / "profile"),
@@ -86,6 +94,10 @@ def _workspace_application(root: Path):
     patches = (
         patch("code_agent_win.app._model_client", side_effect=lambda _: object()),
         patch("code_agent_win.app._session_path", return_value=state / "sessions.sqlite3"),
+        patch(
+            "code_agent_win.app._workspace_storage_path",
+            return_value=state / "managed-workspaces",
+        ),
         patch("code_agent_win.app.load_runtime_config", return_value=runtime),
         patch.dict("os.environ", mode_env),
     )

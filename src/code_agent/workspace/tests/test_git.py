@@ -177,6 +177,27 @@ class GitRepositoryTests(GitWorkspaceTestCase):
 
         self.assertEqual(paths, (".gitignore", "tracked.txt", "visible.py"))
 
+    def test_changed_snapshot_paths_exclude_clean_tracked_files(self) -> None:
+        self.initialize_repository()
+        (self.root / "clean.txt").write_bytes(b"clean\n")
+        (self.root / "deleted.txt").write_bytes(b"delete me\n")
+        (self.root / ".gitignore").write_bytes(b"*.tmp\n")
+        run_git(self.root, "add", "clean.txt", "deleted.txt", ".gitignore")
+        run_git(self.root, "commit", "-q", "-m", "add fixtures")
+        (self.root / "tracked.txt").write_bytes(b"changed\n")
+        (self.root / "deleted.txt").unlink()
+        (self.root / "staged.txt").write_bytes(b"staged\n")
+        run_git(self.root, "add", "staged.txt")
+        (self.root / "visible.py").write_bytes(b"new")
+        (self.root / "ignored.tmp").write_bytes(b"cache")
+
+        paths = GitWorkspace(self.root).changed_snapshot_paths()
+
+        self.assertEqual(
+            paths,
+            ("deleted.txt", "staged.txt", "tracked.txt", "visible.py"),
+        )
+
     def test_snapshot_path_decoder_rejects_non_utf8_git_output(self) -> None:
         with self.assertRaisesRegex(GitCommandError, "undecodable path") as raised:
             _decode_path_list(b"valid.py\0\xff.py\0")

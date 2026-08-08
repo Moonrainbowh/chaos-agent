@@ -22,6 +22,6 @@
 - `DirectoryLease(path, guard)`: 在进程创建期间锁定并复验工作目录的最终路径 | 临时持有 Windows 目录句柄 | 不共享 DELETE；进程创建返回后立即释放
 - `capture_process_identity(pid, process_api): ProcessIdentity`: 进程以 `CREATE_SUSPENDED` 创建后立即绑定 psutil Process 对象及其 `create_time` | 查询宿主进程 | 终止阶段不得按 PID 重新绑定
 - `resume_process_identity(identity, process_api): None`: 复核启动身份后恢复挂起进程 | 恢复宿主进程执行 | 必须在 DirectoryLease 释放前同步完成
-- `terminate_process_tree(process, process_wait, root_identity): None`: 冻结并有界终止根进程及后代，先复核启动身份及每个后代的 `create_time` 再发出 kill，并确认无存活身份 | 挂起并终止宿主进程 | 最多跟踪 1024 个身份；身份变化、AccessDenied、deadline 或 survivor 均抛出结构化错误
+- `terminate_process_tree(process, process_wait, root_identity): None`: 冻结并有界终止根进程及后代，先复核启动身份及每个后代的 `create_time` 再发出 kill，并确认无存活身份 | 挂起并终止宿主进程 | 根进程 kill 后须先清理可能继承管道的后代再等待根 transport；最多跟踪 1024 个身份；身份变化、AccessDenied、deadline 或 survivor 均抛出结构化错误
 - `WindowsLocalRuntime.run(spec, cancellation, on_output): CommandResult`: 在净化环境中挂起启动、捕获身份并恢复 Windows 进程，再处理流、deadline、取消、PowerShell/native 退出状态与进程树终止 | 启动和终止宿主进程 | Windows-first；本机执行不是 OS 级沙箱
 - `DockerRuntime.run(spec, cancellation, on_output): CommandResult`: 以固定 bind mount、workdir、`--pull=never` 和默认禁网参数调用已有 Docker 镜像 | 启动 Docker CLI 和容器 | 不检查或拉取镜像；环境值不进入 argv

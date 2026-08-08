@@ -3,8 +3,10 @@ from __future__ import annotations
 import asyncio
 import sys
 from collections.abc import Sequence
+from importlib.metadata import PackageNotFoundError, version as package_version
 
 from .app import create_application
+from code_agent.config.loader import LocalConfigError, default_config_path, resolve_config_path
 from code_agent.interfaces.attachment_input import DEFAULT_ATTACHMENT_PROMPT
 from code_agent.interfaces.commands import CommandKind, execute_command, parse_command
 
@@ -19,12 +21,38 @@ _ATTACHMENT_COMMANDS = frozenset(
     }
 )
 
+_HELP = """Usage: chaos-agent [global options] [command]
+
+Commands:
+  ask <prompt>                 Run one request and print the result
+  resume <thread-id> [prompt]  Resume a saved task or open it in the TUI
+  run --json <prompt>          Stream machine-readable JSON events
+  task list                    List durable tasks
+  task resume <task-id> [text] Resume a durable task
+
+Global options:
+  --profile <name>             Select a configured provider profile
+  --model <name>               Override the selected model
+  --mode <low|medium|high|ultra>
+  --attach <path>              Attach a supported local file
+  -h, --help                   Show this help
+  -V, --version                Show the installed version
+
+Run without a command to open the Windows Terminal UI.
+"""
+
 
 async def run(arguments: Sequence[str]) -> int:
     try:
         attachment_paths, without_attachments = _split_attachment_options(arguments)
         mode_name, remaining = _split_mode_option(without_attachments)
         profile_name, model_name, command_arguments = _split_global_options(remaining)
+        meta_output = _meta_command_output(command_arguments)
+        if meta_output is not None:
+            if attachment_paths:
+                raise ValueError("--attach is not supported by help or version")
+            print(meta_output)
+            return 0
         command_arguments = _default_attachment_prompt(
             command_arguments, bool(attachment_paths)
         )
@@ -59,6 +87,13 @@ async def run(arguments: Sequence[str]) -> int:
             application.foreground_tasks,
             attachments=attachments if command.kind is not CommandKind.TUI else (),
         )
+    except LocalConfigError as error:
+        print(f"configuration error: {error}", file=sys.stderr)
+        print(
+            f"Create {_configuration_path()} or configure CHAOS_* provider environment variables; see README.md.",
+            file=sys.stderr,
+        )
+        return 2
     except Exception as error:
         print(f"agent error: {type(error).__name__}", file=sys.stderr)
         return 1
@@ -69,6 +104,26 @@ async def run(arguments: Sequence[str]) -> int:
 
 def main() -> int:
     return asyncio.run(run(sys.argv[1:]))
+
+
+def _meta_command_output(arguments: Sequence[str]) -> str | None:
+    values = tuple(arguments)
+    if values in {("-h",), ("--help",)}:
+        return _HELP.rstrip()
+    if values in {("-V",), ("--version",)}:
+        try:
+            installed = package_version("chaos-agent")
+        except PackageNotFoundError:
+            installed = "unknown"
+        return f"chaos-agent {installed}"
+    return None
+
+
+def _configuration_path() -> str:
+    try:
+        return str(resolve_config_path())
+    except LocalConfigError:
+        return str(default_config_path())
 
 
 def _split_global_options(arguments: Sequence[str]) -> tuple[str | None, str | None, tuple[str, ...]]:

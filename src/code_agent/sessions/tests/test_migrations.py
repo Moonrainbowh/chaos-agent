@@ -5,6 +5,7 @@ import sqlite3
 import sys
 import tempfile
 import unittest
+from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -55,7 +56,7 @@ def create_v1_database(path: Path) -> None:
 
 def create_v3_database(path: Path) -> None:
     create_v1_database(path)
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection, connection:
         connection.executescript(
             """
             ALTER TABLE threads ADD COLUMN title TEXT;
@@ -71,7 +72,7 @@ def create_v3_database(path: Path) -> None:
 
 
 def advance_v3_database(path: Path, target: int) -> None:
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection, connection:
         for version in range(4, target + 1):
             for statement in _MIGRATIONS[version]:
                 connection.execute(statement)
@@ -112,7 +113,7 @@ class SessionMigrationTests(unittest.IsolatedAsyncioTestCase):
             {"turn": 1},
             datetime(2026, 7, 11, tzinfo=timezone.utc),
         )
-        with sqlite3.connect(self.database) as connection:
+        with closing(sqlite3.connect(self.database)) as connection, connection:
             connection.execute(
                 "INSERT INTO threads VALUES (?, ?, ?)",
                 ("thread-v1", timestamp, timestamp),
@@ -131,7 +132,7 @@ class SessionMigrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(tuple(await repository.load_messages("thread-v1")), (message,))
         self.assertEqual(await repository.load_events("thread-v1"), (event,))
         await repository.create_goal("thread-v1", "migrated goal")
-        with sqlite3.connect(self.database) as connection:
+        with closing(sqlite3.connect(self.database)) as connection, connection:
             version = connection.execute("PRAGMA user_version").fetchone()[0]
         self.assertEqual(version, SCHEMA_VERSION)
 
@@ -140,7 +141,7 @@ class SessionMigrationTests(unittest.IsolatedAsyncioTestCase):
 
         SQLiteSessionRepository(self.database)
 
-        with sqlite3.connect(self.database) as connection:
+        with closing(sqlite3.connect(self.database)) as connection, connection:
             version = connection.execute("PRAGMA user_version").fetchone()[0]
             tables = {
                 row[0]
@@ -154,7 +155,7 @@ class SessionMigrationTests(unittest.IsolatedAsyncioTestCase):
     def test_every_historical_schema_version_migrates_to_current_idempotently(self) -> None:
         for version in range(SCHEMA_VERSION):
             database = Path(self.temporary.name) / f"sessions-v{version}.sqlite3"
-            with sqlite3.connect(database) as connection:
+            with closing(sqlite3.connect(database)) as connection, connection:
                 for target in range(1, version + 1):
                     for statement in _MIGRATIONS[target]:
                         connection.execute(statement)
@@ -163,7 +164,7 @@ class SessionMigrationTests(unittest.IsolatedAsyncioTestCase):
             SQLiteSessionRepository(database)
             SQLiteSessionRepository(database)
 
-            with sqlite3.connect(database) as connection:
+            with closing(sqlite3.connect(database)) as connection, connection:
                 migrated = connection.execute("PRAGMA user_version").fetchone()[0]
                 foreign_keys = {
                     row[2]
@@ -179,7 +180,7 @@ class SessionMigrationTests(unittest.IsolatedAsyncioTestCase):
 
     def test_current_required_indexes_and_columns_are_validated_on_reopen(self) -> None:
         SQLiteSessionRepository(self.database)
-        with sqlite3.connect(self.database) as connection:
+        with closing(sqlite3.connect(self.database)) as connection, connection:
             columns = {
                 row[1]
                 for row in connection.execute("PRAGMA table_info(rewind_operations)")
@@ -205,19 +206,19 @@ class SessionMigrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("lineage_id", cursor_columns)
         self.assertIn("last_failure_signature", usage_columns)
 
-        with sqlite3.connect(self.database) as connection:
+        with closing(sqlite3.connect(self.database)) as connection, connection:
             connection.execute("DROP INDEX rewind_operations_status_created")
         with self.assertRaises(SessionCorruptionError):
             SQLiteSessionRepository(self.database)
 
     def test_future_schema_version_is_rejected_without_mutation(self) -> None:
-        with sqlite3.connect(self.database) as connection:
+        with closing(sqlite3.connect(self.database)) as connection, connection:
             connection.execute("PRAGMA user_version = 999")
 
         with self.assertRaises(SessionMigrationError):
             SQLiteSessionRepository(self.database)
 
-        with sqlite3.connect(self.database) as connection:
+        with closing(sqlite3.connect(self.database)) as connection, connection:
             self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], 999)
 
     def test_random_bytes_are_rejected_without_replacement(self) -> None:
@@ -230,7 +231,7 @@ class SessionMigrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.database.read_bytes(), damaged)
 
     def test_current_version_with_missing_tables_is_rejected(self) -> None:
-        with sqlite3.connect(self.database) as connection:
+        with closing(sqlite3.connect(self.database)) as connection, connection:
             connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
         with self.assertRaises(SessionCorruptionError):
@@ -239,7 +240,7 @@ class SessionMigrationTests(unittest.IsolatedAsyncioTestCase):
     async def test_malformed_record_json_fails_closed(self) -> None:
         repository = SQLiteSessionRepository(self.database)
         thread_id = await repository.create_thread()
-        with sqlite3.connect(self.database) as connection:
+        with closing(sqlite3.connect(self.database)) as connection, connection:
             connection.execute(
                 "INSERT INTO messages(thread_id, payload, created_at) VALUES (?, ?, ?)",
                 (thread_id, "{broken", "2026-07-11T00:00:00Z"),
@@ -251,7 +252,7 @@ class SessionMigrationTests(unittest.IsolatedAsyncioTestCase):
     async def test_malformed_task_state_json_fails_closed(self) -> None:
         repository = SQLiteSessionRepository(self.database)
         thread_id = await repository.create_thread()
-        with sqlite3.connect(self.database) as connection:
+        with closing(sqlite3.connect(self.database)) as connection, connection:
             connection.execute(
                 "INSERT INTO task_states(thread_id, payload, updated_at) VALUES (?, ?, ?)",
                 (thread_id, "{broken", "2026-07-11T00:00:00Z"),
@@ -262,13 +263,13 @@ class SessionMigrationTests(unittest.IsolatedAsyncioTestCase):
 
     def test_failed_migration_rolls_back_schema_and_version(self) -> None:
         create_v1_database(self.database)
-        with sqlite3.connect(self.database) as connection:
+        with closing(sqlite3.connect(self.database)) as connection, connection:
             connection.execute("CREATE VIEW goals AS SELECT 1 AS value")
 
         with self.assertRaises(SessionMigrationError):
             SQLiteSessionRepository(self.database)
 
-        with sqlite3.connect(self.database) as connection:
+        with closing(sqlite3.connect(self.database)) as connection, connection:
             version = connection.execute("PRAGMA user_version").fetchone()[0]
             columns = {
                 row[1] for row in connection.execute("PRAGMA table_info(threads)")
@@ -278,7 +279,7 @@ class SessionMigrationTests(unittest.IsolatedAsyncioTestCase):
 
     def test_legacy_database_copy_is_atomic_and_idempotent(self) -> None:
         create_v1_database(self.database)
-        with sqlite3.connect(self.database) as connection:
+        with closing(sqlite3.connect(self.database)) as connection, connection:
             connection.execute("INSERT INTO threads VALUES ('legacy', '2026-01-01Z', '2026-01-01Z')")
         target = Path(self.temporary.name) / "new" / "sessions.sqlite3"
 

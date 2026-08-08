@@ -82,12 +82,12 @@ _SPECS = (
         CommandAction("ultra", (), "复杂任务编排"),
     )),
     CommandSpec("权限", ("permission", "permissions"), "能力", "切换下一任务的访问权限", "<permission>", requires=("permissions",), actions=(
-        CommandAction("unrestricted", (), "完全访问，非 critical 动作无需审批"),
+        CommandAction("unrestricted", (), "高信任访问，受保护路径仍需审批"),
         CommandAction("plan", (), "仅允许工作区只读操作"),
         CommandAction("ask", (), "写入和命令逐次审批"),
         CommandAction("auto", (), "普通读写自动执行，命令审批"),
-        CommandAction("elevated", (), "工作区外访问逐次审批"),
-        CommandAction("full-local", (), "本地文件完全访问，命令审批"),
+        CommandAction("elevated", (), "外部访问走审批，类型化文件仍限工作区"),
+        CommandAction("full-local", (), "本地高信任策略，类型化文件仍限工作区"),
     )),
     CommandSpec(
         "流程",

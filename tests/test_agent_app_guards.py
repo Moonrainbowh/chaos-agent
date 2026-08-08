@@ -16,6 +16,7 @@ from code_agent.interfaces.controller import AgentController
 from code_agent.interfaces.task_controller import ForegroundTaskController
 from code_agent.sessions.repository import SQLiteSessionRepository
 from code_agent.verification.task_service import LedgerTaskVerificationService
+from code_agent.workspace.errors import SensitivePathError
 from code_agent_win.app import _product_state_root, _session_path
 from tests.agent_app_test_support import (
     FakeModel,
@@ -23,12 +24,41 @@ from tests.agent_app_test_support import (
     _RecordingRuntime,
     _collect_events,
     _configured_application,
+    _isolated_application,
     _task_context,
     _task_dispatcher,
 )
 
 
 class ApplicationGuardTests(unittest.IsolatedAsyncioTestCase):
+    async def test_unrestricted_mode_does_not_implicitly_enable_sensitive_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            application, root, _ = _isolated_application(
+                Path(temporary).resolve(), approval_mode="unrestricted"
+            )
+            try:
+                self.assertFalse(application.dispatcher.editor.guard.allow_sensitive)
+                with self.assertRaises(SensitivePathError):
+                    application.dispatcher.editor.guard.resolve(root / ".env")
+            finally:
+                await application.aclose()
+
+    async def test_sensitive_path_opt_in_reaches_the_production_guard(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            application, root, _ = _isolated_application(
+                Path(temporary).resolve(),
+                approval_mode="unrestricted",
+                allow_sensitive_paths=True,
+            )
+            try:
+                self.assertTrue(application.dispatcher.editor.guard.allow_sensitive)
+                self.assertEqual(
+                    application.dispatcher.editor.guard.resolve(root / ".env"),
+                    root / ".env",
+                )
+            finally:
+                await application.aclose()
+
     async def test_production_guard_rejects_external_path_before_capture(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             application, root, _ = _configured_application(Path(temporary).resolve())

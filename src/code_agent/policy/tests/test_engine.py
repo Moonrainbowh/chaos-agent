@@ -40,7 +40,6 @@ class ActionPolicyModeTests(unittest.TestCase):
             request("run_command", command="python -m unittest"),
             request("run_command", command="pip install requests"),
             request("write_file", path="../outside.py", content="x"),
-            request("read_file", path=".env"),
         ):
             with self.subTest(action=action.name, arguments=action.arguments):
                 self.assertEqual(
@@ -48,8 +47,16 @@ class ActionPolicyModeTests(unittest.TestCase):
                     DecisionOutcome.ALLOW,
                 )
 
-    def test_policy_config_defaults_to_unrestricted(self) -> None:
-        self.assertIs(PolicyConfig().approval_mode, ApprovalMode.UNRESTRICTED)
+    def test_unrestricted_mode_still_requires_protected_path_approval(self) -> None:
+        policy = self.policy(ApprovalMode.UNRESTRICTED)
+
+        decision = policy.evaluate(request("read_file", path=".env"))
+
+        self.assertEqual(decision.outcome, DecisionOutcome.ASK)
+        self.assertIn(Capability.PROTECTED_PATH, decision.capabilities)
+
+    def test_policy_config_defaults_to_auto(self) -> None:
+        self.assertIs(PolicyConfig().approval_mode, ApprovalMode.AUTO)
 
     def test_plan_mode_only_allows_read_only_actions(self) -> None:
         policy = self.policy(ApprovalMode.PLAN)

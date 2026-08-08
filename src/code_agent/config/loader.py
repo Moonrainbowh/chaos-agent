@@ -197,7 +197,12 @@ def _approval_mode(document: Mapping[str, Any], env: Mapping[str, str]) -> Appro
     agent = document.get("agent", {})
     if agent is not None and not isinstance(agent, dict):
         raise LocalConfigError("agent must be a table")
-    value = _environment_value(env, "CHAOS_APPROVAL_MODE", "CODE_AGENT_APPROVAL_MODE", agent.get("approval_mode", "unrestricted"))
+    value = _environment_value(
+        env,
+        "CHAOS_APPROVAL_MODE",
+        "CODE_AGENT_APPROVAL_MODE",
+        agent.get("approval_mode", "auto"),
+    )
     try:
         return ApprovalMode(_text(value, "approval_mode"))
     except ValueError:

@@ -3,6 +3,7 @@ from __future__ import annotations
 import sqlite3
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 
 from code_agent.sessions._database import SCHEMA_VERSION
@@ -24,7 +25,7 @@ class CheckpointCursorMigrationTests(unittest.IsolatedAsyncioTestCase):
             repository = SQLiteSessionRepository(database)
             created = await repository.create_checkpoint("legacy", "current")
 
-            with sqlite3.connect(database) as connection:
+            with closing(sqlite3.connect(database)) as connection, connection:
                 version = connection.execute("PRAGMA user_version").fetchone()[0]
                 columns = {
                     row[1]

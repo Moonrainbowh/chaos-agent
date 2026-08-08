@@ -7,14 +7,41 @@ from unittest.mock import patch
 
 from code_agent.core.limits import EngineLimits
 from code_agent.workspace.errors import WorkspaceError
+from code_agent.workspace.git import GitWorkspace
+from code_agent_win.workspace_runtime import ManagedWorkspaceRuntime
 from tests.agent_app_test_support import (
     _configured_application,
+    _git,
     _init_git_source,
     _tree_digest,
 )
 
 
 class ManagedWorkspaceApplicationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_sensitive_dirty_file_seeds_with_explicit_opt_in(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            source = root / "source"
+            source.mkdir()
+            (source / ".env").write_text("TOKEN=committed\n", encoding="utf-8")
+            _git(source, "init")
+            _git(source, "config", "user.email", "test@example.test")
+            _git(source, "config", "user.name", "Test")
+            _git(source, "add", ".env")
+            _git(source, "commit", "-m", "initial")
+            (source / ".env").write_text("TOKEN=dirty\n", encoding="utf-8")
+            runtime = ManagedWorkspaceRuntime(
+                object(), root / "state", allow_sensitive_paths=True
+            )
+
+            workspace = await runtime.prepare_task(source, "task-1")
+
+            self.assertEqual(
+                (workspace.worktree_root / ".env").read_text(encoding="utf-8"),
+                "TOKEN=dirty\n",
+            )
+            runtime.close()
+
     async def test_new_task_uses_managed_worktree_and_preserves_source(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()
@@ -28,6 +55,10 @@ class ManagedWorkspaceApplicationTests(unittest.IsolatedAsyncioTestCase):
             self.assertNotEqual(task_root, root)
             self.assertIn("managed-workspaces", str(task_root))
             self.assertEqual(_tree_digest(root), source_before)
+            self.assertEqual(
+                GitWorkspace(task_root).status_porcelain(),
+                GitWorkspace(root).status_porcelain(),
+            )
             self.assertEqual(application.workspace_root_for(task.id), task_root)
             self.assertEqual(application.runtime_root_for(task.id), task_root)
             self.assertEqual(application.verification_root_for(task.id), task_root)

@@ -8,14 +8,14 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
-from code_agent.config.loader import load_runtime_config
+from code_agent.config.loader import LocalConfigError, load_runtime_config
 from code_agent.context.repo_index import RepoIndexService
 from code_agent.core.attachments import AttachmentRef
 from code_agent.interfaces.attachment_input import DEFAULT_ATTACHMENT_PROMPT
 from code_agent.interfaces.commands import CommandKind
 from code_agent.orchestration.models import AgentDefinition, AgentRole
 from code_agent_win import agent_modes
-from code_agent_win.app import Application, create_application
+from code_agent_win.app import Application, _workspace_storage_path, create_application
 from code_agent_win.cli import (
     _split_attachment_options,
     _split_global_options,
@@ -24,6 +24,19 @@ from code_agent_win.cli import (
 )
 from code_agent_win.rewind_sessions import CoordinatedSessionRepository
 from tests.agent_app_test_support import _configured_application
+
+
+class ApplicationPathTests(unittest.TestCase):
+    def test_managed_worktrees_are_outside_protected_config_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            local_app_data = Path(temporary).resolve()
+            with patch.dict(
+                "os.environ", {"LOCALAPPDATA": str(local_app_data)}, clear=False
+            ):
+                storage = _workspace_storage_path()
+
+            self.assertEqual(storage, local_app_data / "chaos-agent-workspaces")
+            self.assertNotEqual(storage.parent, local_app_data / "chaos-agent")
 
 
 class _CliIngestor:
@@ -105,6 +118,36 @@ class ApplicationLifecycleTests(unittest.IsolatedAsyncioTestCase):
 
 
 class CliFailureTests(unittest.IsolatedAsyncioTestCase):
+    async def test_help_and_version_do_not_require_provider_configuration(self) -> None:
+        stdout = StringIO()
+
+        with patch("code_agent_win.cli.create_application") as create, patch(
+            "code_agent_win.cli.package_version", return_value="1.2.3"
+        ), patch("sys.stdout", stdout):
+            self.assertEqual(await run(("--help",)), 0)
+            self.assertEqual(await run(("--version",)), 0)
+
+        create.assert_not_called()
+        self.assertIn("Usage: chaos-agent", stdout.getvalue())
+        self.assertIn("chaos-agent 1.2.3", stdout.getvalue())
+
+    async def test_configuration_error_explains_the_next_action(self) -> None:
+        stderr = StringIO()
+
+        with patch(
+            "code_agent_win.cli.create_application",
+            side_effect=LocalConfigError("base_url must be non-empty text"),
+        ), patch("sys.stderr", stderr):
+            status = await run(("task", "list"))
+
+        self.assertEqual(status, 2)
+        self.assertIn(
+            "configuration error: base_url must be non-empty text", stderr.getvalue()
+        )
+        self.assertIn("config.toml", stderr.getvalue())
+        self.assertIn("CHAOS_*", stderr.getvalue())
+        self.assertNotIn("Traceback", stderr.getvalue())
+
     def test_global_options_are_removed_before_command_parsing(self) -> None:
         profile, model, command = _split_global_options(
             ("--profile", "company", "ask", "inspect", "--model", "fast")

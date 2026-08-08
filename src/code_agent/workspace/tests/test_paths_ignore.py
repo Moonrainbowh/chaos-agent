@@ -110,7 +110,12 @@ class WorkspacePathGuardTests(unittest.TestCase):
             root = Path(temporary).resolve()
             guard = WorkspacePathGuard(root)
 
-            protected = (".git/config", ".chaos-agent/state.json", ".code-agent/state.json")
+            protected = (
+                ".git/config",
+                ".chaos-agent/state.json",
+                ".code-agent/state.json",
+                "chaos-agent-workspaces/worktrees/other-task/file.py",
+            )
             sensitive = (".env", ".env.production", "id_rsa", "server.pem")
             for path in protected + sensitive:
                 with self.subTest(path=path):
@@ -125,6 +130,35 @@ class WorkspacePathGuardTests(unittest.TestCase):
             self.assertEqual(permissive.resolve("server.pem"), root / "server.pem")
             with self.assertRaises(SensitivePathError):
                 permissive.resolve(".git/config")
+
+    def test_managed_workspace_root_can_access_its_own_contents(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            managed = (
+                Path(temporary).resolve()
+                / "chaos-agent-workspaces"
+                / "worktrees"
+                / "repository"
+                / "task"
+            )
+            managed.mkdir(parents=True)
+
+            guard = WorkspacePathGuard(managed)
+
+            self.assertEqual(guard.resolve("src/main.py"), managed / "src/main.py")
+
+    def test_managed_workspace_containers_cannot_be_workspace_roots(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            storage = Path(temporary).resolve() / "chaos-agent-workspaces"
+            worktrees = storage / "worktrees"
+            repository = worktrees / "repository"
+            snapshot = storage / "snapshots" / "objects" / "digest"
+            snapshot.mkdir(parents=True)
+            repository.mkdir(parents=True)
+
+            for root in (storage, worktrees, repository, snapshot):
+                with self.subTest(root=root):
+                    with self.assertRaises(SensitivePathError):
+                        WorkspacePathGuard(root)
 
     def test_protects_local_api_config_directory_even_when_it_is_workspace(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -166,7 +200,12 @@ class WorkspacePathGuardTests(unittest.TestCase):
             root = Path(temporary).resolve()
             guard = WorkspacePathGuard(root)
 
-            for path in ("nested/.GiT/config", "deep/pkg/.Chaos-Agent/state.json", "deep/pkg/.CODE-Agent/state.json"):
+            for path in (
+                "nested/.GiT/config",
+                "deep/pkg/.Chaos-Agent/state.json",
+                "deep/pkg/.CODE-Agent/state.json",
+                "deep/Chaos-Agent-Workspaces/worktrees/task/file.py",
+            ):
                 with self.subTest(path=path):
                     with self.assertRaises(SensitivePathError):
                         guard.resolve(path, for_write=True)
@@ -205,7 +244,13 @@ class IgnoreRulesTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             rules = IgnoreRules.from_workspace(Path(temporary))
 
-            for path in (".git/config", ".chaos-agent/log", ".code-agent/log", "a/__pycache__/x.pyc"):
+            for path in (
+                ".git/config",
+                ".chaos-agent/log",
+                ".code-agent/log",
+                "chaos-agent-workspaces/worktrees/task/file.py",
+                "a/__pycache__/x.pyc",
+            ):
                 with self.subTest(path=path):
                     self.assertTrue(rules.is_ignored(path))
 

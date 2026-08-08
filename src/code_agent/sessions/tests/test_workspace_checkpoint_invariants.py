@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 import uuid
+from contextlib import closing
 from pathlib import Path
 
 
@@ -70,7 +71,7 @@ class WorkspaceCheckpointInvariantTests(unittest.IsolatedAsyncioTestCase):
         return CheckpointCursor(lineage_id=lineage_id, snapshot_status=status)
 
     def counts(self) -> tuple[int, int, int, int]:
-        with sqlite3.connect(self.database) as connection:
+        with closing(sqlite3.connect(self.database)) as connection, connection:
             return tuple(
                 connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
                 for table in (
@@ -128,14 +129,14 @@ class WorkspaceCheckpointInvariantTests(unittest.IsolatedAsyncioTestCase):
         await self.assert_publish_rolls_back(unbound_thread, self.cursor(unowned.id))
 
         owner_thread, _, owned = await self.owned_lineage()
-        with sqlite3.connect(self.database) as connection:
+        with closing(sqlite3.connect(self.database)) as connection, connection:
             connection.execute(
                 "UPDATE workspace_lineages SET status = 'recovery_required' WHERE id = ?",
                 (owned.id,),
             )
         await self.assert_publish_rolls_back(owner_thread, self.cursor(owned.id))
 
-        with sqlite3.connect(self.database) as connection:
+        with closing(sqlite3.connect(self.database)) as connection, connection:
             connection.execute(
                 "UPDATE workspace_lineages SET status = 'active' WHERE id = ?", (owned.id,)
             )
@@ -144,7 +145,7 @@ class WorkspaceCheckpointInvariantTests(unittest.IsolatedAsyncioTestCase):
             replacement_thread,
             TaskContract("replacement", TaskAuthorization.local_workspace("C:/managed")),
         )
-        with sqlite3.connect(self.database) as connection:
+        with closing(sqlite3.connect(self.database)) as connection, connection:
             connection.execute(
                 "UPDATE tasks SET workspace_lineage_id = ? WHERE id = ?",
                 (owned.id, replacement.id),

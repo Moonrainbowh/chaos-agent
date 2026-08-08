@@ -19,7 +19,9 @@ _READ_TOOLS = frozenset(
 _WRITE_TOOLS = frozenset(
     {"write_file", "replace_text", "create_checkpoint", "restore_checkpoint"}
 )
-_PROTECTED_PATH_NAMES = frozenset({".env", ".git", ".chaos-agent", ".code-agent"})
+_PROTECTED_PATH_NAMES = frozenset(
+    {".env", ".git", ".chaos-agent", ".code-agent", "chaos-agent-workspaces"}
+)
 _PRIVATE_KEY_NAMES = re.compile(r"(?:^|[_-])(?:id_rsa|id_ecdsa|id_ed25519|private(?:[_-]?key)?)(?:\.[a-z0-9]+)?$", re.IGNORECASE)
 
 _NETWORK_PATTERNS = tuple(

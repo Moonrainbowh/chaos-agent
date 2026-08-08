@@ -4,6 +4,7 @@ import sqlite3
 import sys
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 
 
@@ -37,7 +38,7 @@ STAMP = "2026-07-22T00:00:00+00:00"
 
 def create_legacy_v14(path: Path) -> dict[str, str]:
     identifiers = _identifiers()
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection, connection:
         connection.execute("PRAGMA foreign_keys = ON")
         for version in range(1, 14):
             for statement in _MIGRATIONS[version]:
@@ -169,7 +170,7 @@ class V14CompatibilityTests(unittest.IsolatedAsyncioTestCase):
         ids = create_legacy_v14(self.database)
         SQLiteSessionRepository(self.database)
         _prepare_failure_pair_cases(self.database, ids)
-        with sqlite3.connect(self.database) as connection:
+        with closing(sqlite3.connect(self.database)) as connection, connection:
             connection.execute(_MIGRATIONS[15][-1])
             connection.execute(_MIGRATIONS[15][-1])
 
@@ -182,7 +183,7 @@ class V14CompatibilityTests(unittest.IsolatedAsyncioTestCase):
 def _migration_facts(
     path: Path, ids: dict[str, str]
 ) -> tuple[int, int, str | None, str | None]:
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection, connection:
         version = connection.execute("PRAGMA user_version").fetchone()[0]
         usage = connection.execute(
             "SELECT repeated_failures, last_failure_signature "
@@ -198,7 +199,7 @@ def _migration_facts(
 
 
 def _prepare_failure_pair_cases(path: Path, ids: dict[str, str]) -> None:
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection, connection:
         connection.execute(
             "UPDATE task_budgets SET repeated_failures = 0, last_failure_signature = NULL "
             "WHERE thread_id = ?",
@@ -251,7 +252,7 @@ def _failure_pairs(
     order = (
         "available_lineage", "no_owner_lineage", "unbound_lineage", "inferred_lineage"
     )
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection, connection:
         return tuple(
             connection.execute(
                 "SELECT repeated_failures, last_failure_signature, model_turns "
