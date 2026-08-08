@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .models import VerifierOracle
-from .paths import contained_path, ensure_no_link_parent
+from .paths import contained_path, ensure_no_link_parent, is_link_or_reparse
 
 
 @dataclass(frozen=True)
@@ -46,8 +46,15 @@ class SubprocessVerifier:
         preflight_failure = await _toolchain_preflight(executable)
         if preflight_failure is not None:
             return CommandOutcome(None, infrastructure_failure=preflight_failure)
-        cwd = workspace if oracle.cwd == "." else contained_path(workspace, oracle.cwd, "verifier cwd")
-        ensure_no_link_parent(workspace, cwd, "verifier cwd")
+        if (workspace.exists() or workspace.is_symlink()) and is_link_or_reparse(workspace):
+            raise ValueError("verifier workspace traverses a link")
+        resolved_workspace = workspace.resolve()
+        cwd = (
+            resolved_workspace
+            if oracle.cwd == "."
+            else contained_path(resolved_workspace, oracle.cwd, "verifier cwd")
+        )
+        ensure_no_link_parent(resolved_workspace, cwd, "verifier cwd")
         if not cwd.is_dir():
             return CommandOutcome(None, infrastructure_failure=f"missing verifier cwd: {oracle.cwd}")
         process_options = process_group_options()

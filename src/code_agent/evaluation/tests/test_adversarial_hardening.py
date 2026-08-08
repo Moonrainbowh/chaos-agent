@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import shutil
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from code_agent.evaluation.catalog import fixed_replay_catalog
 from code_agent.evaluation.grader import DeterministicGrader
@@ -19,12 +21,52 @@ from code_agent.evaluation.models import (
 )
 from code_agent.evaluation.process_executor import ProcessScenarioExecutor
 from code_agent.evaluation.runner import ScenarioRunner
-from code_agent.evaluation.verifier import CommandOutcome
+from code_agent.evaluation.verifier import CommandOutcome, SubprocessVerifier
 
 from helpers import apply_hidden_golden, deterministic_verifier, successful_result
 
 
 class IsolationAndTrustTests(unittest.IsolatedAsyncioTestCase):
+    async def test_verifier_root_cwd_accepts_resolved_parent_alias(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            actual_parent = Path(temporary) / "actual"
+            actual_workspace = actual_parent / "workspace"
+            actual_workspace.mkdir(parents=True)
+            workspace = actual_workspace
+            if os.name != "nt":
+                alias_parent = Path(temporary) / "alias"
+                alias_parent.symlink_to(actual_parent, target_is_directory=True)
+                workspace = alias_parent / "workspace"
+                self.assertNotEqual(workspace, workspace.resolve())
+            expected_cwd = repr(str(actual_workspace.resolve()))
+            oracle = VerifierOracle(
+                "root-cwd",
+                (
+                    sys.executable,
+                    "-c",
+                    f"from pathlib import Path; assert Path.cwd() == Path({expected_cwd})",
+                ),
+                baseline_must_fail=False,
+            )
+            outcome = await SubprocessVerifier()(workspace, oracle, "baseline")
+        self.assertEqual(outcome, CommandOutcome(0))
+
+    async def test_verifier_rejects_link_at_workspace_or_cwd_boundary(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary) / "workspace"
+            linked_cwd = workspace / "linked"
+            linked_cwd.mkdir(parents=True)
+            oracle = VerifierOracle("linked", (sys.executable, "-c", "pass"), cwd="linked")
+            with patch("code_agent.evaluation.verifier.is_link_or_reparse", return_value=True):
+                with self.assertRaisesRegex(ValueError, "workspace traverses a link"):
+                    await SubprocessVerifier()(workspace, oracle, "baseline")
+            with patch(
+                "code_agent.evaluation.paths.is_link_or_reparse",
+                side_effect=lambda path: path == linked_cwd,
+            ):
+                with self.assertRaisesRegex(ValueError, "verifier cwd traverses a link"):
+                    await SubprocessVerifier()(workspace, oracle, "baseline")
+
     async def test_hidden_baseline_is_removed_and_final_uses_snapshot(self) -> None:
         phases: list[tuple[str, Path]] = []
 
