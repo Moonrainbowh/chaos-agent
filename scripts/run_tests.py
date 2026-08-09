@@ -58,8 +58,18 @@ def run_test_suites(root: Path, suites: Sequence[Path]) -> int:
     for suite in suites:
         relative = suite.relative_to(root)
         print(f"=== {relative.as_posix()} ===", flush=True)
-        completed = subprocess.run(
-            (
+        if github_actions:
+            command = (
+                sys.executable,
+                "-m",
+                "scripts.run_test_suite",
+                "--start-dir",
+                str(relative),
+                "--pattern",
+                TEST_PATTERN,
+            )
+        else:
+            command = (
                 sys.executable,
                 "-m",
                 "unittest",
@@ -68,7 +78,9 @@ def run_test_suites(root: Path, suites: Sequence[Path]) -> int:
                 str(relative),
                 "-p",
                 TEST_PATTERN,
-            ),
+            )
+        completed = subprocess.run(
+            command,
             cwd=root,
             check=False,
         )
