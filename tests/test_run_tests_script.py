@@ -26,6 +26,7 @@ class TestSuiteDiscoveryTests(unittest.TestCase):
     def test_discovers_sorted_features_and_integration_last(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
+            canonical_root = root.resolve()
             for relative in (
                 "src/code_agent/zeta/tests/test_zeta.py",
                 "src/code_agent/alpha/tests/test_alpha.py",
@@ -38,7 +39,7 @@ class TestSuiteDiscoveryTests(unittest.TestCase):
             suites = discover_test_suites(root)
 
         self.assertEqual(
-            tuple(path.relative_to(root).as_posix() for path in suites),
+            tuple(path.relative_to(canonical_root).as_posix() for path in suites),
             (
                 "src/code_agent/alpha/tests",
                 "src/code_agent/zeta/tests",
