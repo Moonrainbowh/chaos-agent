@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import sys
 from collections.abc import Sequence
@@ -53,6 +54,7 @@ def discover_test_suites(root: Path) -> tuple[Path, ...]:
 
 
 def run_test_suites(root: Path, suites: Sequence[Path]) -> int:
+    github_actions = os.environ.get("GITHUB_ACTIONS", "").casefold() == "true"
     for suite in suites:
         relative = suite.relative_to(root)
         print(f"=== {relative.as_posix()} ===", flush=True)
@@ -76,8 +78,21 @@ def run_test_suites(root: Path, suites: Sequence[Path]) -> int:
                 file=sys.stderr,
                 flush=True,
             )
+            if github_actions:
+                _emit_github_failure(relative, completed.returncode)
             return completed.returncode or 1
     return 0
+
+
+def _emit_github_failure(suite: Path, returncode: int) -> None:
+    message = _escape_workflow_data(
+        f"suite={suite.as_posix()}; exit_code={returncode}"
+    )
+    print(f"::error title=Chaos Agent test suite failed::{message}", flush=True)
+
+
+def _escape_workflow_data(value: str) -> str:
+    return value.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
 
 
 def main(arguments: Sequence[str] | None = None) -> int:

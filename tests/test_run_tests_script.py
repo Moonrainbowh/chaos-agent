@@ -1,16 +1,25 @@
 from __future__ import annotations
 
+import contextlib
+import io
+import os
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.run_tests import discover_test_suites  # noqa: E402
+from scripts.run_tests import (  # noqa: E402
+    _emit_github_failure,
+    discover_test_suites,
+    run_test_suites,
+)
 
 
 class TestSuiteDiscoveryTests(unittest.TestCase):
@@ -61,6 +70,62 @@ class TestSuiteDiscoveryTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "src/code_agent/alpha"):
                 discover_test_suites(root)
 
+
+class TestSuiteDiagnosticsTests(unittest.TestCase):
+    def test_ci_failure_annotation_identifies_suite(self) -> None:
+        root = Path.cwd()
+        suite = root / "tests"
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with (
+            mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}),
+            mock.patch(
+                "scripts.run_tests.subprocess.run",
+                return_value=SimpleNamespace(returncode=1),
+            ),
+            contextlib.redirect_stdout(stdout),
+            contextlib.redirect_stderr(stderr),
+        ):
+            returncode = run_test_suites(root, (suite,))
+
+        self.assertEqual(returncode, 1)
+        self.assertIn("test suite failed: tests", stderr.getvalue())
+        annotation = stdout.getvalue()
+        self.assertIn("::error title=Chaos Agent test suite failed::", annotation)
+        self.assertIn("suite=tests", annotation)
+        self.assertIn("exit_code=1", annotation)
+
+    def test_non_ci_failure_preserves_returncode_without_annotation(self) -> None:
+        root = Path.cwd()
+        suite = root / "tests"
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with (
+            mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "false"}),
+            mock.patch(
+                "scripts.run_tests.subprocess.run",
+                return_value=SimpleNamespace(returncode=7),
+            ),
+            contextlib.redirect_stdout(stdout),
+            contextlib.redirect_stderr(stderr),
+        ):
+            returncode = run_test_suites(root, (suite,))
+
+        self.assertEqual(returncode, 7)
+        self.assertNotIn("::error", stdout.getvalue())
+        self.assertIn("test suite failed: tests", stderr.getvalue())
+
+    def test_annotation_escapes_newlines_and_percent_signs(self) -> None:
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            _emit_github_failure(
+                Path("tests\n::error title=pwned::bad%"),
+                1,
+            )
+
+        annotation = stdout.getvalue()
+        self.assertEqual(len(annotation.splitlines()), 1)
+        self.assertIn("tests%0A::error title=pwned::bad%25", annotation)
 
 if __name__ == "__main__":
     unittest.main()
