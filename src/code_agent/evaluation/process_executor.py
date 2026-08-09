@@ -92,9 +92,26 @@ async def _bounded_exchange(
 
 
 async def _finish_terminated_process(process: asyncio.subprocess.Process) -> None:
-    await terminate_process_tree(process)
-    if process.stdout is not None:
-        await process.stdout.read()
+    drain_task = (
+        asyncio.create_task(_discard_output(process.stdout))
+        if process.stdout is not None
+        else None
+    )
+    try:
+        await terminate_process_tree(process)
+    except BaseException:
+        if drain_task is not None and not drain_task.done():
+            drain_task.cancel()
+        if drain_task is not None:
+            await asyncio.gather(drain_task, return_exceptions=True)
+        raise
+    if drain_task is not None:
+        await drain_task
+
+
+async def _discard_output(stdout: asyncio.StreamReader) -> None:
+    while await stdout.read(65_536):
+        pass
 
 
 def _decode_response(output: bytes, recorder: TrustedTraceRecorder) -> ScenarioResult:

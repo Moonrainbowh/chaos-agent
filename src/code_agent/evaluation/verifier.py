@@ -161,8 +161,10 @@ async def terminate_process_tree(process: asyncio.subprocess.Process) -> None:
                 stderr=asyncio.subprocess.DEVNULL,
             )
             await asyncio.wait_for(killer.wait(), timeout=5)
+            if killer.returncode != 0:
+                _kill_process(process)
         except (OSError, asyncio.TimeoutError):
-            process.kill()
+            _kill_process(process)
     else:
         try:
             os.killpg(process.pid, signal.SIGKILL)
@@ -171,5 +173,14 @@ async def terminate_process_tree(process: asyncio.subprocess.Process) -> None:
     try:
         await asyncio.wait_for(process.wait(), timeout=5)
     except asyncio.TimeoutError:
-        process.kill()
+        _kill_process(process)
         await process.wait()
+
+
+def _kill_process(process: asyncio.subprocess.Process) -> None:
+    if process.returncode is not None:
+        return
+    try:
+        process.kill()
+    except ProcessLookupError:
+        pass
