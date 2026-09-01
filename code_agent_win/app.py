@@ -30,11 +30,7 @@ from code_agent_win.host_composition import compose_host
 from code_agent_win.multimodal_ui import build_attachment_draft
 from code_agent_win.peer_composition import compose_peers
 from code_agent_win.agent_modes import build_mode_registry, freeze_mode
-from code_agent_win.runtime_support import (
-    model_client,
-    profile_model_factory,
-    replace_model,
-)
+from code_agent_win.runtime_support import model_client, profile_model_factory, replace_model
 from code_agent_win.runtime_extensions import SkillApprovalAdapter, ThreadRuntimeBinding
 from code_agent_win.rewind_runtime import RewindRuntime
 from code_agent_win.rewind_sessions import build_rewind_write_side
@@ -42,12 +38,10 @@ from code_agent_win.runtime_controls import compose_runtime_controls
 from code_agent_win.tool_support import discover_git_workspace
 from code_agent_win.ui_composition import compose_ui
 from code_agent_win.workspace_runtime import ManagedWorkspaceRuntime
+from code_agent_win.workspace_mutation_pool import WorkspaceMutationPool
+from code_agent_win.workspace_session_router import WorkspaceSessionRouter
 from code_agent_win.workspace_context import workspace_uses_repo_map
-from code_agent_win.app_paths import (
-    product_state_root as _product_state_root,
-    session_path as _session_path,
-    workspace_storage_path as _workspace_storage_path,
-)
+from code_agent_win.app_paths import product_state_root as _product_state_root, session_path as _session_path, workspace_storage_path as _workspace_storage_path
 
 
 _model_client = model_client
@@ -102,9 +96,7 @@ class _ApplicationComposer:
         scanner = RepoFileScanner(files)
         self.repo_index = RepoIndexService(files, scan_file=scanner.scan)
         self.repo_view_cache = RepoMapViewCache()
-        self.repo_map_enabled = workspace_uses_repo_map(
-            self.root, git_available=git is not None
-        )
+        self.repo_map_enabled = workspace_uses_repo_map(self.root, git_available=git is not None)
         self.profiles = {item.name: item for item in self.runtime_config.profiles}
         self.modes, _ = build_mode_registry(self.profiles, self.runtime_config.profile)
         self.snapshot = freeze_mode(self.modes, self.profiles, mode_name)
@@ -115,9 +107,7 @@ class _ApplicationComposer:
             self.profiles[initial_name] = self.initial
             selected_mode = self.snapshot.definition.mode.value
             self.snapshot = freeze_mode(self.modes, self.profiles, selected_mode)
-        self.mode_snapshots = {
-            mode: self.modes.freeze(mode, self.profiles) for mode in AgentMode
-        }
+        self.mode_snapshots = {mode: self.modes.freeze(mode, self.profiles) for mode in AgentMode}
 
     def build(self) -> Application:
         self._configure_workspace()
@@ -152,9 +142,7 @@ class _ApplicationComposer:
             workspace_guard=self.services.guard,
             ignore_rules=self.services.files.ignore,
         )
-        self.model_factory = profile_model_factory(
-            _model_client, self.profiles, self.attachment_store
-        )
+        self.model_factory = profile_model_factory(_model_client, self.profiles, self.attachment_store)
         self.approvals = ApprovalBroker()
 
     def _configure_rewind(self) -> None:
@@ -165,8 +153,17 @@ class _ApplicationComposer:
             self.session_path,
             has_git=self.git is not None,
         )
-        self.sessions = self.rewind_write.coordinated
+        self.mutations = WorkspaceMutationPool(self.services, self.rewind_write.capture)
+        self.sessions = WorkspaceSessionRouter(
+            self.rewind_write.base,
+            self.root,
+            self.workspace_runtime.root_for_thread,
+            lambda root: self.mutations.coordinated_for_services(
+                self.workspace_runtime.services_for_root(root)
+            ),
+        )
         self.workspace_runtime._sessions = self.sessions
+        self.workspace_runtime.configure_mutations(self.mutations, self.root)
         self.rewind = RewindRuntime(
             self.rewind_write.base,
             self.rewind_write.snapshots,
@@ -221,6 +218,7 @@ class _ApplicationComposer:
             thread_binding=self.thread_binding,
             peers=self.peer_tools,
             capture=self.rewind_write.capture,
+            mutations=self.mutations,
         )
 
     def _configure_controls(self) -> None:

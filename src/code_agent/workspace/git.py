@@ -100,22 +100,15 @@ class GitWorkspace:
 
     def changed_snapshot_paths(self) -> tuple[str, ...]:
         """Return changed tracked paths and non-ignored untracked paths."""
-        tracked = self._invoke(
-            "changed_snapshot_paths",
-            ("diff", "--name-only", "--no-renames", "-z", "HEAD", "--"),
-        )
-        self._require_success("changed_snapshot_paths", tracked)
-        untracked = self._invoke(
-            "changed_snapshot_paths",
-            ("ls-files", "-z", "--others", "--exclude-standard"),
-        )
-        self._require_success("changed_snapshot_paths", untracked)
-        return tuple(
-            sorted(
-                set(_decode_path_list(tracked.stdout))
-                | set(_decode_path_list(untracked.stdout))
-            )
-        )
+        from ._git_path_sets import changed_snapshot_paths
+
+        return changed_snapshot_paths(self)
+
+    def tracked_paths(self, paths: Iterable[PathInput]) -> tuple[str, ...]:
+        """Return only the supplied paths that are tracked by Git."""
+        from ._git_path_sets import tracked_paths
+
+        return tracked_paths(self, paths)
 
     def diff(self, paths: Iterable[PathInput] = ()) -> str:
         """Return a safe built-in Git diff, optionally restricted to paths."""

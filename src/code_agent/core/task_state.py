@@ -186,6 +186,28 @@ def reduce_task_state(state: TaskState, request: object, result: object) -> Task
             files_changed=_append(state.files_changed, path),
             verified_facts=_append(state.verified_facts, f"Changed file: {path}"),
         )
+    if name == "apply_workspace_edit_plan_v1":
+        output = getattr(result, "output", {})
+        paths = output.get("paths") if isinstance(output, Mapping) else None
+        may_change = (
+            isinstance(output, Mapping)
+            and output.get("workspace_may_have_changed") is True
+        )
+        if may_change and isinstance(paths, Sequence) and not isinstance(paths, (str, bytes)):
+            changed = state.files_changed
+            facts = state.verified_facts
+            notes = state.working_notes
+            for changed_path in paths:
+                if isinstance(changed_path, str) and changed_path:
+                    changed = _append(changed, changed_path)
+                    if is_error:
+                        notes = _append(notes, f"Workspace may have changed: {changed_path}")
+                    else:
+                        facts = _append(facts, f"Changed file: {changed_path}")
+            return replace(
+                state, files_changed=changed, verified_facts=facts,
+                working_notes=notes,
+            )
     if name in {"run_command", "run_process_v1"} and _execution_attempted(result):
         returncode = _returncode(result)
         if is_error or (returncode is not None and returncode != 0):

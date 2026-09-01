@@ -190,11 +190,15 @@ class WorkspaceSnapshotStore:
     def _workspace_path(self, value: object) -> str:
         if type(value) is not str or not is_relative_path(value):
             raise WorkspaceError("snapshot path must be canonical and relative")
-        target = self.guard.resolve(value)
-        relative = self.guard.relative(target).as_posix()
-        if relative != value:
-            raise WorkspaceError("snapshot path is not canonical")
-        return relative
+        resolved = self.guard.resolve(value)
+        try:
+            canonical = resolved.relative_to(self.guard.root).as_posix()
+        except ValueError as error:
+            raise WorkspaceError("snapshot path escaped its workspace") from error
+        case_only = os.name == "nt" and canonical.casefold() == value.casefold()
+        if canonical != value and not case_only:
+            raise WorkspaceError("snapshot path must use its canonical spelling")
+        return value
 
     def _load_blob(self, entry: StoredEntry) -> bytes:
         assert entry.digest is not None

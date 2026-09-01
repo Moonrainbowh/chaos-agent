@@ -33,7 +33,7 @@ class PolicyModelTests(unittest.TestCase):
         )
         self.assertEqual(
             [item.value for item in Capability],
-            ["read", "write", "execute", "network", "outside_workspace", "raw_shell", "raw_process", "verification", "protected_path"],
+            ["read", "write", "execute", "network", "outside_workspace", "raw_shell", "raw_process", "verification", "protected_path", "explicit_approval"],
         )
         self.assertEqual(
             [item.value for item in DecisionOutcome], ["allow", "ask", "deny"]

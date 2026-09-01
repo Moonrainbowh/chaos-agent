@@ -14,7 +14,8 @@
 
 ## Units
 - `ApprovalMode`、`Capability`、`DecisionOutcome`、`RiskLevel`、`PolicyDecision`: 表达稳定的审批、能力、结果与风险词汇以及不可变决定 | 无副作用 | `auto` 是默认访问级别；`unrestricted` 只能显式选择且不能绕过类型化 protected、critical 与 unknown 边界
-- `RAW_SHELL`、`RAW_PROCESS`、`VERIFICATION`、`PROTECTED_PATH`: 区分模型原始 shell、shell-free 结构化进程、受信验证和受保护路径 | 无副作用 | task grant 只可自动允许 `VERIFICATION`
+- `RAW_SHELL`、`RAW_PROCESS`、`VERIFICATION`、`PROTECTED_PATH`、`EXPLICIT_APPROVAL`: 区分模型原始 shell、shell-free 结构化进程、受信验证、受保护路径和必须显式确认的计划风险 | 无副作用 | task grant 只可自动允许 `VERIFICATION`，不能绕过 dirty、Git ignored/untracked 既有文件、delete/move/case-only edit plan 的确认
+- `requires_explicit_edit_plan_approval(risk_flags)`: 严格验证 Host 注入的本地计划风险并决定是否必须询问 | 无副作用 | 只接受已知风险 flag（包括非 Git 既有文件与 Git 仓库中 ignored/untracked 既有文件）；`ActionPolicy.evaluate(..., trusted_edit_risk_flags=...)` 仅对 apply 工具生效，PLAN 仍拒绝写入
 - `classify_action(request, workspace_root): ActionClassification`: 从工具名、递归路径参数和 raw/argv 命令信号生成能力与风险提示 | 解析路径但不写入 | 路径执行 workspace containment；共享命令检查是保守启发式，不是 shell parser
 - `PolicyConfig`、`ActionPolicy.evaluate(request): PolicyDecision`: 以不可变模式、网络开关和 workspace root 执行访问级别决策表 | 无副作用 | 默认 `auto`；protected path 在 `unrestricted` 之前进入审批，critical 与未知工具始终拒绝
 - `ActionPolicy.evaluate(request, task_authorization)`: 在有效任务授权下允许普通工作区读写和 Host 固定 argv 的 typed verification | 无副作用 | raw shell、raw process、unknown、critical、network、outside-workspace 不被任务授权自动放行

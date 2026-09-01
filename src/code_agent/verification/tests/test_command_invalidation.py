@@ -97,6 +97,57 @@ class CommandInvalidationTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertIs(unchanged, self.state)
 
+    async def test_successful_edit_plan_apply_advances_generation(self) -> None:
+        advanced = await self.service.record_action(
+            self.task,
+            ActionRequest("apply", "apply_workspace_edit_plan_v1", {}),
+            ActionResult(
+                "apply",
+                "apply_workspace_edit_plan_v1",
+                {
+                    "status": "applied", "paths": ["note.py"],
+                    "workspace_may_have_changed": True,
+                },
+            ),
+            self.state,
+        )
+
+        self.assertEqual(advanced.code_generation, self.state.code_generation + 1)
+        self.assertNotEqual(advanced.subject_hash, self.state.subject_hash)
+
+    async def test_uncertain_edit_failure_advances_but_clean_failure_does_not(self) -> None:
+        request = ActionRequest("apply", "apply_workspace_edit_plan_v1", {})
+        for code in ("apply_failed_partial_conflict", "recovery_required"):
+            with self.subTest(code=code):
+                advanced = await self.service.record_action(
+                    self.task,
+                    request,
+                    ActionResult(
+                        "apply", request.name,
+                        {
+                            "error_code": code,
+                            "workspace_may_have_changed": True,
+                            "paths": ["note.py"],
+                        },
+                        is_error=True,
+                    ),
+                    self.state,
+                )
+                self.assertEqual(
+                    advanced.code_generation, self.state.code_generation + 1
+                )
+        unchanged = await self.service.record_action(
+            self.task,
+            request,
+            ActionResult(
+                "apply", request.name,
+                {"error_code": "apply_failed_rolled_back", "workspace_may_have_changed": False},
+                is_error=True,
+            ),
+            self.state,
+        )
+        self.assertIs(unchanged, self.state)
+
 
 if __name__ == "__main__":
     unittest.main()

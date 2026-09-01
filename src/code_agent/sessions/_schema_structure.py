@@ -36,6 +36,13 @@ _FOREIGN_KEYS = {
     "workspace_mutation_paths": {
         ("mutation_sequence", "workspace_mutations", "sequence", "CASCADE")
     },
+    "workspace_edit_batches": {
+        ("mutation_sequence", "workspace_mutations", "sequence", "CASCADE"),
+        ("workspace_fingerprint", "workspace_rewind_coverage", "workspace_fingerprint", "NO ACTION"),
+    },
+    "workspace_edit_batch_operations": {
+        ("mutation_sequence", "workspace_edit_batches", "mutation_sequence", "CASCADE")
+    },
     "checkpoint_rewind_facts": {
         ("checkpoint_id", "checkpoints", "id", "CASCADE"),
         ("owner_thread_id", "threads", "id", "NO ACTION"),
@@ -78,6 +85,19 @@ _INDEXES = {
     ),
     "workspace_mutation_paths_path_sequence": (
         "workspace_mutation_paths", ("path", "mutation_sequence"), False, False
+    ),
+    "workspace_edit_batches_workspace_sequence": (
+        "workspace_edit_batches",
+        ("workspace_fingerprint", "mutation_sequence"),
+        False,
+        False,
+    ),
+    "workspace_edit_batches_one_unresolved": (
+        "workspace_edit_batches",
+        ("workspace_fingerprint",),
+        True,
+        True,
+        "state in ('prepared','applying','rolling_back','conflicted')",
     ),
     "checkpoint_rewind_facts_owner": (
         "checkpoint_rewind_facts", ("owner_thread_id", "mutation_sequence"), False, False
@@ -125,6 +145,7 @@ def _validate_index(
     columns: tuple[str, ...],
     unique: bool,
     partial: bool,
+    where_clause: str | None = None,
 ) -> None:
     row = _index_row(connection, table, name)
     if row is None or bool(row[2]) != unique or bool(row[4]) != partial:
@@ -134,7 +155,8 @@ def _validate_index(
         raise SessionCorruptionError(f"invalid required index {name}")
     if any(bool(item[3]) for item in keys):
         raise SessionCorruptionError(f"invalid required index {name}")
-    if partial and _where_clause(connection, name) != "status = 'pending'":
+    expected_where = where_clause or "status = 'pending'"
+    if partial and _where_clause(connection, name) != expected_where:
         raise SessionCorruptionError(f"invalid required index {name}")
 
 

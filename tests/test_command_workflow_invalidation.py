@@ -82,6 +82,47 @@ class CommandWorkflowInvalidationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(node.status, WorkflowNodeStatus.COMPLETED)
         self.assertEqual(node.evidence_refs, ("evidence",))
 
+    async def test_successful_edit_plan_apply_invalidates_workflow_evidence(self) -> None:
+        await self.controller._observe_action(
+            "task",
+            _action_event(
+                ActionResult(
+                    "apply",
+                    "apply_workspace_edit_plan_v1",
+                    {
+                        "status": "applied", "paths": ["src/app.py"],
+                        "workspace_may_have_changed": True,
+                    },
+                )
+            ),
+        )
+
+        node = _verification_node(self.store.snapshot)
+        self.assertEqual(node.status, WorkflowNodeStatus.VERIFYING)
+        self.assertEqual(node.evidence_refs, ())
+
+    async def test_uncertain_edit_failure_invalidates_but_clean_failure_does_not(self) -> None:
+        for may_have_changed, expected in (
+            (False, WorkflowNodeStatus.COMPLETED),
+            (True, WorkflowNodeStatus.VERIFYING),
+        ):
+            with self.subTest(may_have_changed=may_have_changed):
+                await self._complete_verification()
+                await self.controller._observe_action(
+                    "task",
+                    _action_event(
+                        ActionResult(
+                            "apply",
+                            "apply_workspace_edit_plan_v1",
+                            {"workspace_may_have_changed": may_have_changed},
+                            is_error=True,
+                        )
+                    ),
+                )
+                self.assertEqual(
+                    _verification_node(self.store.snapshot).status, expected
+                )
+
     async def _complete_verification(self) -> None:
         node = _verification_node(self.store.snapshot)
         if node.status is not WorkflowNodeStatus.COMPLETED:

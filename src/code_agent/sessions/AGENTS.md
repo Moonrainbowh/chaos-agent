@@ -28,6 +28,8 @@
 
 - 负责：以专用表持久化 workspace coverage、prepared/completed mutation、path preimage、代码 owner scope 和 checkpoint mutation 高水位，并提供同事务的有界 rewind observation。
 - 不负责：解析 SnapshotHandle、读取工作区、判断当前路径冲突或把 checkpoint metadata 当作可信 rewind 事实。
+- 负责：以 v19 companion 表持久化已批准多文件编辑批次、有序操作端点的 existence/hash/size 事实与进度，并与 parent mutation 原子闭合终态。
+- 不负责：读取或修改工作区、判定用户漂移、执行回滚或启动恢复；这些只消费 Sessions 中的持久事实。
 
 ## Units
 - `ThreadStatus`、`GoalStatus`、`ThreadSummary`、`ThreadRelation`、`MessageRecord`、`GoalRecord`、`CheckpointRecord`: 表达不可变的会话、父子关系和 checkpoint 状态 | 无副作用 | 时间归一化为 UTC，元数据深度冻结
@@ -37,7 +39,8 @@
 - `WorkflowRepositoryMixin`、`SkillActivationRepositoryMixin`: 保存已校验 DAG 与 thread-scoped Skill 身份 | SQLite I/O | Workflow thread 限于两级树；Skill 不保存正文且 upsert 不重复
 - `WorkspaceSnapshotRepositoryMixin`: 创建/读取 lineage，并在一个写事务中发布 snapshot entries、checkpoint 与 cursor | SQLite I/O | blob 仅作摘要元数据；任一写入失败完全回滚，available/unavailable 关联必须一致
 - `RewindRepositoryMixin`: 以 CAS 开始、完成或失败 Rewind，并按 lineage/时间查询待恢复操作 | SQLite I/O | 状态机幂等；跨 lineage checkpoint、非法 completion 与 recovery-required 后续写入失败闭合
+- `EditBatchRepositoryMixin`: 准备、查询、迁移、记录操作进度并闭合多文件编辑批次 | SQLite I/O | 同 workspace 最多一个 unresolved；计划漂移、逆序进度、相反终态与冲突码漂移均失败闭合
 - `CheckpointForkRepositoryMixin`、`AtomicSessionRewindRepositoryMixin`: 从 checkpoint 非破坏性分叉游标前事实与累计预算；以单事务创建 paused replacement、转交 owner、SUPERSEDE 旧任务并完成 operation | SQLite I/O | session/combined 禁止 generic completion；任一写入故障整体回滚为 pending，completed 幂等重试复核 source/replacement/owner/lineage/status 事实
 - `save_task_contract_revision`、`begin_verification_run`、`append_verification_evidence`、`finalize_task`: 保存 append-only 验证账本并原子完成 | SQLite I/O | 必须复核最新 generation、revision 与全部 required evidence
-- `SessionDatabase`、`migrate_legacy_session_database`、稳定 JSON codecs: 执行 v1-v18 migration、schema/index/FK 校验、旧库复制及含附件引用的 Message 编解码 | SQLite/JSON I/O | 附件沿用 Message JSON 无需 schema migration；未来版本、缺表/索引、损坏数据失败闭合；只读校验连接必须在 Windows 原子替换前显式关闭，旧库始终保留
+- `SessionDatabase`、`migrate_legacy_session_database`、稳定 JSON codecs: 执行 v1-v19 migration、schema/index/FK 校验、旧库复制及含附件引用的 Message 编解码 | SQLite/JSON I/O | 附件沿用 Message JSON 无需 schema migration；未来版本、缺表/索引、损坏数据失败闭合；只读校验连接必须在 Windows 原子替换前显式关闭，旧库始终保留
 - `PeerSessionRepositoryMixin`、`PeerMessageRepositoryMixin`、`PeerInboxRepositoryMixin`: 原子注册/心跳/rename 本机实例并保存、领取/续租/查询显式 `peer` origin 纯文本 | SQLite I/O | v18；同名允许但 ref 唯一；held 与 claim lease 分离，过期 lease可恢复，closed 与消息终态不可回退

@@ -9,7 +9,7 @@
 - 不负责：自动翻译任意 Shell 脚本、自动初始化 Git 仓库或把失败命令报告为成功。
 
 ## Units
-- `tool_definitions(include_git, powershell): tuple[ToolDefinition, ...]`: 声明严格工具 schema、冻结 PowerShell 方言/默认 Stop 与显式恢复提示、文件编码选项和 versioned `run_process_v1`，并按仓库能力省略 Git 工具 | 无副作用 | structured process 必须显式提供 `program`/`args`，不接受 shell/env/stdin；文件 auto 不猜 legacy code page；非 Git 工作区不得暴露 Git 工具
+- `tool_definitions(include_git, powershell): tuple[ToolDefinition, ...]`: 声明严格且递归校验的工具 schema、不可变 `plan_workspace_edits_v1`/`apply_workspace_edit_plan_v1` 契约、冻结 PowerShell 方言/默认 Stop 与显式恢复提示、文件编码选项和 versioned `run_process_v1`，并按仓库能力省略 Git 工具 | 无副作用 | 多文件计划最多 32 个 write/replace/delete/move 操作，apply 只接受 plan ID 与小写 SHA-256；structured process 必须显式提供 `program`/`args`，不接受 shell/env/stdin；文件 auto 不猜 legacy code page；非 Git 工作区不得暴露 Git 工具
 - `RootActionDispatcher`: 在执行前验证 PowerShell/structured-process 契约、评估策略并请求交互审批，再调用 typed 文件、编辑、Git 或命令 Unit；为执行结果记录耗时，并将文件列表限制为最多 200 条及显式截断元数据 | 产生如实标记成功/失败且保留有界诊断的 tool result；成功编辑通知精确 dirty path，实际命令尝试和验证通知一次全量 reconciliation | 只有已通过策略的外部路径可抵达 workspace Unit
 - `run_powershell_action(...)`、`run_process_action(...)`: 分别把冻结方言、默认 Stop 且保留 native 原始字节的脚本和 shell-free `program + args` 映射为 `CommandSpec` | 启动本地进程并失效工作区缓存 | structured process 拒绝 shell launcher、`.cmd/.bat`、NUL 与超限 Windows command line；stdout/stderr 独立严格解码并逐流报告截断，无法解码时返回完整 Base64/code page；legacy script 映射仅供旧 Runtime 兼容
 - Windows 路径能力在启动、`/状态` 和 Provider prompt 中可见；入口必须在 `Path.resolve()`、storage mkdir 或进程启动前检查 legacy/extended 预算，不能以“目录不存在”掩盖长路径策略缺失。
@@ -32,7 +32,11 @@
 - `child_mode_for_role(...)`、`SubagentTool.dispatch(...)`、`EngineChildRunner.run(...)`：按 Search/Librarian→Low、Subagent→Medium、Review/Oracle→High 路由 profile，并把 `delegate_agent` 转换为受预算、取消和单写者约束的真实子 thread | provider/session/tool 调用 | 路由不依赖父模式；子结果始终 advisory，不产生 verification evidence。
 - `load_plugins(...)`、`PluginToolBridge`：发现可信 manifest 并把不可变工具贡献映射到 Host typed action | 读取 manifest/信任文件 | 插件风险与目标 action 风险必须分别通过中央策略。
 - `build_context_runtime(...)`、`PersistingAnchoredCompactor.compact(...)`：组合共享的本地确定性压缩器与语义压缩，并在 Host 持久化脱敏 checkpoint facts | 仅 Host 写入固定八项元数据 | Context Feature 不持久化；revision、summary、source text 和 messages 不进入 payload，持久化错误与取消原样传播。
-- `WorkspaceMutationGate`、`RewindCaptureCoordinator`、`CoordinatedSessionRepository`：共享一个基础回溯仓库并严格排序 mutation/checkpoint | 写入会话日志和工作区 | 未知写者先持久化 gap。
+- `WorkspaceEditPlanStore`、`create_stored_edit_plan(...)`、`WorkspaceEditPlanActions`、`edit_plan_results`：把模型提供的多文件意图转换为 Host 所有的不可变计划，以 ID/digest 分离 plan 与 apply，并显式编码工作区是否可能已变化及涉及路径 | 进程内保存有界计划、只读 Git tracked/dirty 状态和工作区预览 | apply 前重新 preflight；Git ignored/untracked 既有文件必须标记显式风险；计划只能消费一次，取消前不得进入 applying；完整回滚、预检冲突和拒绝不得宣称工作区变化，模型不能提交风险标志或可信 Diff
+- `WorkspaceMutationPool`：按 canonical workspace root 复用 editor、快照、gate、capture、计划仓库和 coordinated session facade | 延迟创建每个 source/task root 的持久状态依赖 | source 与 task worktree 绝不共用 mutation gate、snapshot 或计划；所有 facade 共用同一个基础 Sessions 仓库
+- `WorkspaceMutationGate`、`RewindCaptureCoordinator`、`CoordinatedSessionRepository`：共享一个基础回溯仓库并严格排序 mutation/checkpoint，批次 apply 在首次写前持久化 PRE/POST journal | 写入会话日志、快照和工作区 | 未知写者先持久化 gap；异常或取消先完成 owned-only 恢复再释放 gate，foreign 结果持久化为 conflict 并阻止后续写入
+- `recover_workspace_edit_batches(...)`：启动时逐个恢复 source/task root 中未闭合的编辑批次，再允许普通 checkpoint rewind 恢复 | 读取 durable journal 并按 workspace 执行恢复 | 并发启动只执行一次；任一 foreign conflict 立即失败闭合，不继续其他工作区写入
+- `WorkspaceSessionRouter`: 透传唯一 `RewindSessionRepository`，按 thread/owner 所属 workspace 把 checkpoint 路由到该 root 的 `CoordinatedSessionRepository` | 仅被选中的 facade 写入 checkpoint/coverage | 未绑定 child 回退 owner root，再回退 source root；任何 facade 必须共享同一基础仓库
 - `RewindRuntime`：基于基础仓库和同一快照存储生成双观测只读预览 | 只读会话、快照和工作区 | 不提供 apply、restore、approval、provider 或 Git reset。
 - `ModeAwareWindowsTerminalApp.update_capability(...)`、`GitDiffAdapter`：展示并刷新模式/权限分离信息，并把 staged/unstaged/untracked 快照交给只读 Diff 交互，把 `/rewind` 仅委托给 Interfaces handler | 终端/Git 读取 | mode 切换不修改权限；diff 和回溯预览不修改 Git index。
 - `PeerToolAdapter`、`PEER_TOOL_DEFINITIONS`: 独立暴露 `list_agents`、`send_message`、`rename_agent` typed tools | 仅委托已注册的 PeerMessagingService | 本 Unit 不接 Root dispatcher/UI，错误输出不回显正文，peer 输入仍不具有用户授权

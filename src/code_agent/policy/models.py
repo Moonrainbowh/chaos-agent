@@ -24,6 +24,7 @@ class Capability(str, Enum):
     RAW_PROCESS = "raw_process"
     VERIFICATION = "verification"
     PROTECTED_PATH = "protected_path"
+    EXPLICIT_APPROVAL = "explicit_approval"
 
 
 class DecisionOutcome(str, Enum):

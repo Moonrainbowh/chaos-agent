@@ -115,7 +115,10 @@ class ModeSwitchIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(application.rewind.sessions, capture.sessions)
         self.assertIs(application.rewind.snapshots, capture.snapshots)
         self.assertIs(application.rewind.editor, capture.editor)
-        self.assertIs(application.tui.sessions._gate, capture.gate)
+        default_sessions = application.tui.sessions._coordinated(
+            capture.editor.guard.root
+        )
+        self.assertIs(default_sessions._gate, capture.gate)
 
     def test_snapshot_product_state_is_outside_workspace(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

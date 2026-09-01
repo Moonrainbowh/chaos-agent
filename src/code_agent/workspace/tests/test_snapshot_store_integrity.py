@@ -16,7 +16,11 @@ SRC_ROOT = Path(__file__).resolve().parents[3]
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from code_agent.workspace.edits import WorkspaceEditor  # noqa: E402
+from code_agent.workspace.edits import (  # noqa: E402
+    SnapshotEntry,
+    WorkspaceEditor,
+    WorkspaceSnapshot,
+)
 from code_agent.workspace.errors import SnapshotIntegrityError, WorkspaceError  # noqa: E402
 from code_agent.workspace.paths import WorkspacePathGuard  # noqa: E402
 import code_agent.workspace._atomic_artifact_write as writer_module  # noqa: E402
@@ -125,6 +129,38 @@ class SnapshotIntegrityTests(unittest.TestCase):
                 with self.assertRaises(WorkspaceError):
                     self.store.load(handle)
 
+    @unittest.skipUnless(os.name == "nt", "Windows path aliases only")
+    def test_snapshot_paths_reject_win32_alias_spellings(self) -> None:
+        for path in (
+            "file.bin.",
+            "file.bin ",
+            "folder./file.bin",
+            "file.bin:stream",
+            "NUL.txt",
+            "CONIN$",
+            "CONOUT$.txt",
+        ):
+            with self.subTest(path=path):
+                snapshot = WorkspaceSnapshot(
+                    (SnapshotEntry(path, b"alias", True),)
+                )
+                with self.assertRaises(WorkspaceError):
+                    self.store.save(snapshot)
+
+    @unittest.skipUnless(os.name == "nt", "Windows 8.3 aliases only")
+    def test_snapshot_path_rejects_resolved_non_case_alias(self) -> None:
+        snapshot = WorkspaceSnapshot(
+            (SnapshotEntry("LONGNA~1.TXT", b"alias", True),)
+        )
+
+        with patch.object(
+            self.guard,
+            "resolve",
+            return_value=self.root / "LongCanonicalName.txt",
+        ):
+            with self.assertRaises(WorkspaceError):
+                self.store.save(snapshot)
+
     def test_manifest_link_path_fails_closed(self) -> None:
         link = self.root / "linked"
         link.mkdir()
@@ -138,6 +174,15 @@ class SnapshotIntegrityTests(unittest.TestCase):
         ):
             with self.assertRaises(WorkspaceError):
                 self.store.load(handle)
+
+    @unittest.skipUnless(os.name == "nt", "Windows case-insensitive lookup only")
+    def test_load_preserves_historical_case_after_case_only_rename(self) -> None:
+        (self.root / "file.bin").rename(self.root / "FILE.BIN")
+
+        loaded = self.store.load(self.handle)
+
+        self.assertEqual(loaded.entries[0].relative_path, "file.bin")
+        self.assertEqual(loaded.entries[0].content, b"original")
 
     def test_workspace_fingerprint_prevents_cross_workspace_reuse(self) -> None:
         other_root = self.base / "other-workspace"

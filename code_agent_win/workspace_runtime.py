@@ -27,6 +27,9 @@ from code_agent_win.workspace_checkpoint_runtime import (
     checkpoint_control,
     noop_invalidate_verification,
 )
+from code_agent_win.workspace_startup_recovery import (
+    recover_workspace_edit_batches,
+)
 
 
 _T = TypeVar("_T")
@@ -63,6 +66,9 @@ class ManagedWorkspaceRuntime:
         self._verification_invalidator = noop_invalidate_verification
         self._quiescer = StableQuiescer()
         self._startup_complete = False
+        self._startup_lock = asyncio.Lock()
+        self._mutations: object | None = None
+        self._mutation_source_root: Path | None = None
 
     def powershell_info(self) -> PowerShellRuntimeInfo:
         return self.powershell.resolve()
@@ -103,13 +109,32 @@ class ManagedWorkspaceRuntime:
         return self._task_roots[task_id]
 
     async def startup(self) -> tuple[object, ...]:
+        async with self._startup_lock:
+            if self._startup_complete:
+                return ()
+            await self.hydrate_bindings()
+            batches = await self.recover_edit_batches()
+            rewinds = await self.recover_pending()
+            await self.hydrate_bindings()
+            self._startup_complete = True
+            return batches + rewinds
+
+    def configure_mutations(self, mutations: object, source_root: Path) -> None:
         if self._startup_complete:
+            raise RuntimeError("workspace runtime has already started")
+        if not callable(getattr(mutations, "for_services", None)):
+            raise TypeError("mutations must provide for_services")
+        if not isinstance(source_root, Path):
+            raise TypeError("source_root must be a Path")
+        self._mutations = mutations
+        self._mutation_source_root = source_root.resolve()
+
+    async def recover_edit_batches(self) -> tuple[object, ...]:
+        if self._mutations is None or self._mutation_source_root is None:
             return ()
-        await self.hydrate_bindings()
-        results = await self.recover_pending()
-        await self.hydrate_bindings()
-        self._startup_complete = True
-        return results
+        return await recover_workspace_edit_batches(
+            self, self._mutations, self._mutation_source_root
+        )
 
     async def hydrate_bindings(self) -> None:
         for task in await self._sessions.list_tasks(include_terminal=True):

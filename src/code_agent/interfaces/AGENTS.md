@@ -85,21 +85,21 @@
 - `TokenRateTracker`: 从首个文本增量开始统计当前模型回合的平均输出速度，并在 usage 到达后以真实 `output_tokens` 校准 | 读取可注入单调时钟 | 不把首字等待时间或输入 token 计入速度
 - `WindowsTerminalApp`: 追加完成条目、继续当前未终结前台任务并维护输入/状态尾部 | 终端 I/O | 模型增量以 dirty/revision 合并重绘，其他事件立即刷新；可恢复的任务启动竞争显示为带内错误
 - `tui_lifecycle`：以确定性帧判定管理最高 30fps 动画、审批/交互监听与关闭清理 | 异步任务/终端重绘 | 关闭先请求 token 取消并完整等待持久 interrupt/checkpoint，再有界等待 runner，把残留草稿本地固化一次
-- `ApprovalBroker`、`load_thread_history`: 提供可取消审批和已保存会话读取 | 异步/SQLite 读取 | 不伪造会话摘要
+- `EditPlanApprovalView`、`ApprovalBroker`、`load_thread_history`: 提供严格有界且不可变的本地计划摘要/Diff、可取消审批和已保存会话读取 | 异步/SQLite 读取 | 计划预览只能作为 Host 构造的 typed field 注入，模型参数不能伪造；不伪造会话摘要
 - `PickerState`、`PickerItem`：统一命令、会话、模式、Skill、MCP 和插件候选的过滤、键盘选择、补全和禁用原因 | 进程内状态 | `Esc` 取消，不执行候选动作。
 - `skill_picker_items`、`mcp_picker_items`、`plugin_picker_items`：把 Controller snapshot 转换为共享 Picker 候选和完整命令补全 | 无副作用 | 不把 Skill/Plugin 正文放入候选，未批准 MCP server 显示禁用原因
 - `SteeringQueueView`：投影 queued、steered、dequeued、applied 及队列数量 | 进程内状态 | 只依据持久 `TURN_STARTED`、`CONTEXT_BUILT` 边界推进消费和应用状态。
 - `HostInteraction`、`InteractionBroker`、`plugin_interaction`：统一 Host 与插件的 `notify`、`confirm`、`input`、`select` 请求及可取消结果 | 异步状态 | 插件请求转换为 Host 所有的交互，不接受预填用户答案。
 - `PluginInteractionAdapter.notify`、`interact`：把 generation-bound PluginProposal 分流为直接 Host 显示或共享 InteractionBroker 请求 | 显示/异步等待 | notify 不等待答案，其余交互可取消且默认不自答
 - `DiffController.load(...)`、`DiffView`：优先从注入的只读 Git 服务读取真实 unified diff，并提供文件导航、路径过滤和评论 | 只读服务调用/进程内状态 | 不直接 stage、unstage 或执行 Git。
-- `DiffInteraction`、`format_diff_feedback(...)`：持有 point-in-time Diff modal，消费导航/编辑/刷新/放弃键并生成带 scope、路径和行锚点的有界反馈 | 进程内状态 | 只有显式 `s` 才经调用方 `submit` 发送，刷新失败保留旧快照
+- `DiffInteraction`、`format_diff_feedback(...)`：持有 point-in-time Diff modal，消费导航/编辑/刷新/放弃键并生成带 scope、路径和行锚点的有界反馈 | 进程内状态 | 只有显式 `s` 才经调用方 `submit` 发送，刷新失败保留旧快照；计划审批使用 `rows(..., read_only=True)` 隐藏评论/发送/刷新提示
 - `AttachmentDraft.add_clipboard_items(...)`、`has_submission_input(...)`、`handle_attachment_command(...)`、`apply_clipboard_images(...)`、`dropped_file_paths(...)`：批量摄取并维护有界附件引用、在 UI 边界把无文本无附件提交静默判为空操作，并把 Windows Terminal 的空 bracketed paste 识别为 `Ctrl+V` 图片手势，同时提供显式命令和完整文件拖放识别 | 调用注入摄取器/进程内状态 | 把草稿剩余数量/字节预算下推至批量摄取器，拒绝批次不得发布孤儿 blob；旧 `add_clipboard()` 单图 API 保持可调用，但不具备预算协议的旧摄取器不得进入新版批量 UI；仅 durable `MESSAGE_ADDED` 确认后按本次 digest 移除草稿，后续新增与失败提交必须保留；非空文本粘贴不得误摄取剪贴板图片
 - `ModePermissionView`：分开展示模式实际模型、topology、Oracle、有效推理强度、有效主工具数量、生效边界与访问权限 | 无副作用 | Anthropic 默认 effort 明示为 prompt-only/structured unsupported；single 不计入被隐藏的 `delegate_agent`，模式信息绝不解释为授权。
 - `ModeControl.list()`、`use(name, idle)`：列出冻结的四档 mode 并在空闲边界委托运行时切换 | 调用注入的异步重建回调 | 回调成功后才更新当前 mode，活动任务和未知 mode 失败闭合。
 - `_set_mode(app, instruction, action)`：优先把 topology、profile、reasoning effort 独立委托给 `runtime_selection`，缺少该控件时保留旧 `ModeControl` 兼容 | 调用注入控件/追加显示 | profile 短名必须唯一，失败不得改变当前运行时
 - `handle_session_command(app, action, instruction)`：委托历史会话或 peer facade 的 list/rename/send/policy/inbox/resolve 操作 | Controller I/O/追加显示 | 无 peers 时历史仍可用，peer 错误带内显示且正文有界
 - `PermissionControl.list()`、`use(name, idle)`：列出访问权限并在空闲边界委托中央策略切换 | 调用注入的异步回调 | 默认 `auto`，活动任务和未知权限失败闭合，模式切换不修改权限
-- `TuiInteractions`：把 Picker、可见审批、steering 生命周期和结构化 diff 委托给单栏 TUI | 终端显示/进程内状态 | 审批默认拒绝，`Enter` 明确选择，`Esc` 取消。
+- `TuiInteractions`：把 Picker、可见审批、steering 生命周期和结构化 diff 委托给单栏 TUI，并以独立只读 modal 展示受信多文件计划 Diff | 终端显示/进程内状态 | 审批默认拒绝，`Enter` 明确选择，`Esc` 先关闭计划 Diff、再次取消审批；计划 Diff 不允许评论、刷新或发送。
 - `AgentRunStatusProjection.observe(view)`：将子 Agent 状态变化投影为去重、有界的生命周期行 | 进程内状态 | 只消费 Orchestration 快照，不从工具名称猜测状态。
 - `WorkflowView.render`、`detail`、`evidence`：把持久 WorkflowSnapshot 渲染为追加式 DAG、节点详情和 Evidence 引用 | 无副作用 | 过滤和窄屏有界，所有不可信文本先经 `safe_text`
 - `handle_workflow_command(app, instruction)`：从注入的只读 Workflow store 渲染流程、节点详情或证据 | 只读服务调用/追加显示 | 不从 edge 推导授权或执行状态转换

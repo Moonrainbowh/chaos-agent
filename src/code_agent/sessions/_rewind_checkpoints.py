@@ -45,6 +45,13 @@ def _require_quiescent(
     ).fetchone()
     if pending is not None:
         raise SessionStorageError("prepared rewind mutation exists")
+    batch = connection.execute(
+        "SELECT 1 FROM workspace_edit_batches WHERE workspace_fingerprint = ? "
+        "AND state IN ('prepared','applying','rolling_back','conflicted') LIMIT 1",
+        (workspace_fingerprint,),
+    ).fetchone()
+    if batch is not None:
+        raise SessionStorageError("unresolved edit batch exists")
 
 
 def _validate_anchor(

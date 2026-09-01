@@ -15,12 +15,29 @@ from ._text_codec import (
 )
 from ._text_diff import unified_text_diff
 from ._edit_plan import EditPlan
+from ._batch_apply import PreparedBatchEdit
+from ._batch_editor import BatchWorkspaceEditorMixin
+from ._batch_models import (
+    BatchApplyResult,
+    BatchApplyStatus,
+    BatchConflict,
+    BatchEditPlan,
+    DeletePlan,
+    MovePlan,
+    PathTransition,
+    PlannedPathState,
+    RecoveryOperation,
+    RecoveryOperationKind,
+    RecoveryPathState,
+)
 from ._workspace_read import read_current
 from .errors import (
     BinaryFileError,
     EditConflictError,
     FileTooLargeError,
     WorkspaceError,
+    BatchEditConflictError,
+    CrossVolumeMoveError,
 )
 from .paths import PathInput, WorkspacePathGuard
 from ._secure_io import canonical_path_key, capture_target_state
@@ -55,7 +72,7 @@ class WorkspaceSnapshot:
     entries: tuple[SnapshotEntry, ...]
 
 
-class WorkspaceEditor:
+class WorkspaceEditor(BatchWorkspaceEditorMixin):
     """Preview and atomically apply guarded single-file text edits."""
 
     def __init__(

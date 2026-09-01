@@ -220,6 +220,15 @@ class RewindMutationRepositoryMixin:
 
         def write(connection: sqlite3.Connection) -> RewindMutationRecord:
             current = _load_by_id(connection, mutation_id)
+            companion = connection.execute(
+                "SELECT 1 FROM workspace_edit_batches "
+                "WHERE mutation_sequence = ? LIMIT 1",
+                (current.sequence,),
+            ).fetchone()
+            if companion is not None:
+                raise SessionStorageError(
+                    "edit batch mutations require settle_edit_batch"
+                )
             if current.status is not RewindMutationStatus.PREPARED:
                 raise SessionStorageError("rewind mutation is not prepared")
             _load_coverage(connection, current.coverage)

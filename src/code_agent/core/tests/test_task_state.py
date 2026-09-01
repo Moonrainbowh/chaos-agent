@@ -33,6 +33,19 @@ class TaskStateTests(unittest.TestCase):
         )
         state = reduce_task_state(
             state,
+            ActionRequest("apply-1", "apply_workspace_edit_plan_v1", {}),
+            ActionResult(
+                "apply-1",
+                "apply_workspace_edit_plan_v1",
+                {
+                    "status": "applied",
+                    "paths": ["src/app.py", "src/lib.py"],
+                    "workspace_may_have_changed": True,
+                },
+            ),
+        )
+        state = reduce_task_state(
+            state,
             ActionRequest("run-1", "run_command", {"command": "python -m test"}),
             ActionResult(
                 "run-1",
@@ -44,7 +57,8 @@ class TaskStateTests(unittest.TestCase):
         )
 
         self.assertEqual(state.files_read, ("src/app.py",))
-        self.assertEqual(state.files_changed, ("src/app.py",))
+        self.assertEqual(state.files_changed, ("src/app.py", "src/lib.py"))
+        self.assertIn("Changed file: src/lib.py", state.verified_facts)
         self.assertEqual(
             state.failed_commands,
             (CommandFact("python -m test", 1, "command failed"),),
@@ -66,6 +80,26 @@ class TaskStateTests(unittest.TestCase):
         self.assertEqual(TaskStateUpdate.from_dict(update.to_dict()), update)
         state = TaskState(verified_facts=("tests passed",))
         self.assertEqual(TaskState.from_dict(state.to_dict()), state)
+
+    def test_partial_edit_apply_records_possible_workspace_changes(self) -> None:
+        request = ActionRequest("apply", "apply_workspace_edit_plan_v1", {})
+        partial = ActionResult(
+            "apply", request.name,
+            {"workspace_may_have_changed": True, "paths": ["src/raced.py"]},
+            is_error=True,
+        )
+        rolled_back = ActionResult(
+            "apply", request.name,
+            {"workspace_may_have_changed": False, "paths": ["src/clean.py"]},
+            is_error=True,
+        )
+
+        changed = reduce_task_state(TaskState.empty(), request, partial)
+        unchanged = reduce_task_state(changed, request, rolled_back)
+
+        self.assertEqual(changed.files_changed, ("src/raced.py",))
+        self.assertIn("Workspace may have changed: src/raced.py", changed.working_notes)
+        self.assertIs(unchanged, changed)
 
 
 if __name__ == "__main__":

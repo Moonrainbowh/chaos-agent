@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable, Sequence
-from pathlib import Path
 
 from code_agent.core.action_execution import ActionExecutionContext
 from code_agent.core.cancellation import CancellationError, CancellationToken
@@ -13,26 +12,38 @@ from code_agent.mcp.registry import McpController
 from code_agent.policy.engine import ActionPolicy
 from code_agent.policy.models import DecisionOutcome
 from code_agent.runtime.local import WindowsLocalRuntime
-from code_agent.runtime.models import CommandSpec
 from code_agent.verification.local_adapter import LocalVerificationAdapter
-from code_agent.verification.models import VerificationKind, VerificationRequest, VerificationUnavailable
 from code_agent.workspace.edits import WorkspaceEditor
 from code_agent.workspace.files import WorkspaceFiles
 from code_agent.workspace.git import GitCommandError, GitWorkspace
 
+from code_agent_win.edit_plan_dispatch import (
+    EditPlanAuthorization,
+    WorkspaceEditPlanActions,
+)
+from code_agent_win.edit_plan_preview import default_workspace_fingerprint
+from code_agent_win.edit_plan_store import EditPlanStoreError, WorkspaceEditPlanStore
 from code_agent_win.plugin_runtime import PluginToolBridge
 from code_agent_win.process_actions import run_powershell_action, run_process_action
-from code_agent_win.rewind_capture import is_external_plan, mcp_requires_gap, plugin_requires_gap, record_unknown_gap
+from code_agent_win.rewind_capture_support import (
+    mcp_requires_gap,
+    plugin_requires_gap,
+    record_unknown_gap,
+)
 from code_agent_win.subagents import SubagentRuntime, SubagentTool
-from code_agent_win.tool_support import command_action_result, git_error_result
+from code_agent_win.tool_support import git_error_result
 from code_agent_win.tools import tool_definitions
 from code_agent.thread_intelligence.tools import ThreadIntelligenceTools
 from code_agent_win.action_support import (
-    edit_plan, error_result as _error, exception_result as _exception, list_action_result,
-    ok_result as _ok, preflight_action, read_action_result,
-    text_argument as _text, text_format_fields, with_action_duration,
+    error_result as _error,
+    exception_result as _exception,
+    ok_result as _ok,
+    preflight_action,
+    with_action_duration,
 )
 from code_agent_win.thread_actions import execute_thread_action
+from code_agent_win.verification_action import run_verification_action
+from code_agent_win.workspace_actions import execute_workspace_action
 
 
 class RootActionDispatcher:
@@ -56,6 +67,8 @@ class RootActionDispatcher:
         capture: object | None = None,
         caller_thread: Callable[[], str] | None = None,
         invalidate_cache: Callable[[Sequence[str]], None] | None = None,
+        edit_plans: WorkspaceEditPlanStore | None = None,
+        workspace_fingerprint: str | None = None,
     ) -> None:
         self.files, self.editor, self.policy, self.approvals = files, editor, policy, approvals
         self.git, self.runtime, self.verification = git, runtime, verification
@@ -63,6 +76,19 @@ class RootActionDispatcher:
         self.threads, self.peers, self.caller_thread = threads, peers, caller_thread
         self.capture = capture
         self.invalidate_cache = invalidate_cache
+        self.edit_plans = edit_plans or WorkspaceEditPlanStore()
+        captured = getattr(capture, "workspace_fingerprint", None)
+        fingerprint = workspace_fingerprint or (
+            captured if isinstance(captured, str) else default_workspace_fingerprint(editor)
+        )
+        self.edit_plan_actions = WorkspaceEditPlanActions(
+            editor,
+            self.edit_plans,
+            fingerprint,
+            git=git,
+            capture=capture,
+            invalidate_cache=invalidate_cache,
+        )
         self.interactive = False
 
     def tools(self) -> Sequence[ToolDefinition]:
@@ -97,8 +123,25 @@ class RootActionDispatcher:
         rejected = preflight_action(request, translated)
         if rejected is not None:
             return rejected
+        try:
+            edit_authorization = self.edit_plan_actions.authorization(
+                translated, execution_context
+            )
+        except EditPlanStoreError as error:
+            return _error(
+                request,
+                "edit plan is not applicable",
+                str(error),
+                error_code=error.code,
+            )
+        except (TypeError, ValueError) as error:
+            return _error(request, "invalid edit plan context", str(error))
         rejected = await self._authorize(
-            request, translated, cancellation, task_authorization
+            request,
+            translated,
+            cancellation,
+            task_authorization,
+            edit_authorization,
         )
         if rejected is not None:
             return rejected
@@ -110,10 +153,25 @@ class RootActionDispatcher:
         translated: ActionRequest,
         cancellation: CancellationToken,
         task_authorization: TaskAuthorization | None,
+        edit_authorization: EditPlanAuthorization,
     ) -> ActionResult | None:
-        decisions = (self.policy.evaluate(request, task_authorization),)
+        def evaluate(item: ActionRequest):
+            risks = (
+                edit_authorization.risk_flags
+                if item.name == "apply_workspace_edit_plan_v1"
+                else ()
+            )
+            if risks:
+                return self.policy.evaluate(
+                    item,
+                    task_authorization,
+                    trusted_edit_risk_flags=risks,
+                )
+            return self.policy.evaluate(item, task_authorization)
+
+        decisions = (evaluate(request),)
         if translated is not request:
-            decisions += (self.policy.evaluate(translated, task_authorization),)
+            decisions += (evaluate(translated),)
         denied = next((item for item in decisions if item.outcome is DecisionOutcome.DENY), None)
         if denied is not None:
             return _error(request, "action denied", denied.reason)
@@ -125,6 +183,7 @@ class RootActionDispatcher:
                 ApprovalRequest(
                     request.id, request.name, dict(request.arguments),
                     asking.risk.value, translated.name, asking.reason,
+                    edit_authorization.view,
                 ),
                 cancellation,
             )
@@ -197,7 +256,9 @@ class RootActionDispatcher:
             ):
                 await record_unknown_gap(self.capture, context, request, cancellation)
             return _ok(request, {"result": await self.mcp.call(request.name, arguments)})
-        workspace = await self._execute_workspace(request, cancellation, context)
+        workspace = await execute_workspace_action(
+            self, request, cancellation, context
+        )
         if workspace is not None:
             return workspace
         if request.name == "git_status":
@@ -223,76 +284,14 @@ class RootActionDispatcher:
             )
             return await action(request, self.runtime, cancellation, self.invalidate_cache)
         if request.name == "run_verification":
-            return await self._run_verification(
-                request, cancellation, context, gap_recorded)
-        return _error(request, "tool is not implemented")
-
-    async def _execute_workspace(
-        self, request: ActionRequest, cancellation: CancellationToken,
-        context: ActionExecutionContext | None,
-    ) -> ActionResult | None:
-        arguments = request.arguments
-        if request.name == "read_file":
-            return await read_action_result(request, self.files)
-        if request.name == "list_files":
-            root = arguments.get("root")
-            if root is not None and not isinstance(root, str):
-                raise ValueError("root must be text")
-            return await list_action_result(request, self.files, self.git, root)
-        if request.name == "search_text":
-            matches = await asyncio.to_thread(
-                self.files.search,
-                _text(arguments, "pattern"),
-                bool(arguments.get("regex", False)),
-                bool(arguments.get("case_sensitive", False)),
-            )
-            return _ok(request, {"matches": [match.__dict__ for match in matches]})
-        if request.name in {"write_file", "replace_text"}:
-            plan = await asyncio.to_thread(edit_plan, self.editor, request)
-            if self.capture is not None and not is_external_plan(plan.relative_path):
-                if context is None:
-                    raise TypeError("execution_context is required for capture")
-                cancellation.raise_if_cancelled()
-                await self.capture.apply_edit(context, request, plan)
-            else:
-                await asyncio.to_thread(self.editor.apply, plan)
-            if self.invalidate_cache is not None:
-                self.invalidate_cache((plan.relative_path,))
-            cancellation.raise_if_cancelled()
-            return _ok(request, {"path": plan.relative_path, **text_format_fields(plan.text_format)}, {"diff": plan.diff})
-        return None
-
-    async def _run_verification(
-        self, request: ActionRequest, cancellation: CancellationToken,
-        context: ActionExecutionContext | None,
-        gap_recorded: bool,
-    ) -> ActionResult:
-        if self.runtime is None or self.verification is None:
-            return _error(request, "verification unavailable")
-        arguments = request.arguments
-        command = self.verification.build(
-            VerificationRequest(
-                VerificationKind(_text(arguments, "kind")),
-                cwd=str(arguments.get("cwd", ".")), targets=tuple(arguments.get("targets", ())),
-                timeout_s=int(arguments.get("timeout_s", 300)),
-            )
-        )
-        if isinstance(command, VerificationUnavailable):
-            return _error(request, "verification unavailable", command.reason)
-        if not gap_recorded:
-            await record_unknown_gap(self.capture, context, request, cancellation)
-        try:
-            result = await self.runtime.run(
-                CommandSpec(cwd=Path(command.cwd), argv=command.argv, timeout_s=command.timeout_s),
+            return await run_verification_action(
+                request,
+                self.runtime,
+                self.verification,
+                self.capture,
+                context,
                 cancellation,
-                None,
+                gap_recorded,
+                self.invalidate_cache,
             )
-        finally:
-            if self.invalidate_cache is not None:
-                self.invalidate_cache(())
-        action_result = command_action_result(request, result)
-        return ActionResult(
-            action_result.request_id, action_result.name,
-            {**action_result.output, "kind": _text(arguments, "kind")},
-            action_result.is_error, action_result.metadata,
-        )
+        return _error(request, "tool is not implemented")

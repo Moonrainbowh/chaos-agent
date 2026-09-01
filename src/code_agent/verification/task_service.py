@@ -59,7 +59,13 @@ class LedgerTaskVerificationService:
     async def record_action(
         self, task: TaskRecord, request: ActionRequest, result: ActionResult, state: TaskState
     ) -> TaskState:
-        if request.name in {"write_file", "replace_text"} and not result.is_error:
+        edit_changed = (
+            request.name == "apply_workspace_edit_plan_v1"
+            and result.output.get("workspace_may_have_changed") is True
+        )
+        if (
+            request.name in {"write_file", "replace_text"} and not result.is_error
+        ) or edit_changed:
             return await self._snapshot(task, state, state.code_generation + 1)
         if request.name in {"run_command", "run_process_v1"} and (
             result.metadata.get("execution_attempted") is True

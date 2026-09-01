@@ -174,7 +174,7 @@ class AgentEngineActionLineageTests(unittest.IsolatedAsyncioTestCase):
             ],
         )
 
-    async def test_supervisor_pause_never_builds_or_dispatches_context(self) -> None:
+    async def test_supervisor_pauses_edit_plan_apply_before_dispatch(self) -> None:
         sessions = MemorySessionRepository()
         thread_id = await sessions.create_thread()
         actions = FakeActionDispatcher()
@@ -189,7 +189,11 @@ class AgentEngineActionLineageTests(unittest.IsolatedAsyncioTestCase):
             ),
             TaskStatus.RUNNING,
         )
-        call = ToolCall("call-1", "write_file", {"path": "a.txt"})
+        call = ToolCall(
+            "call-1",
+            "apply_workspace_edit_plan_v1",
+            {"plan_id": "plan", "plan_digest": "a" * 64},
+        )
 
         events = [
             event

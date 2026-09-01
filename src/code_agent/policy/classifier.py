@@ -15,10 +15,27 @@ from .models import Capability, RiskLevel
 
 
 _READ_TOOLS = frozenset(
-    {"read_file", "list_files", "search_text", "git_status", "git_diff"}
+    {
+        "read_file", "list_files", "search_text", "git_status", "git_diff",
+        "plan_workspace_edits_v1",
+    }
 )
 _WRITE_TOOLS = frozenset(
-    {"write_file", "replace_text", "create_checkpoint", "restore_checkpoint"}
+    {
+        "write_file", "replace_text", "create_checkpoint", "restore_checkpoint",
+        "apply_workspace_edit_plan_v1",
+    }
+)
+EDIT_PLAN_RISK_FLAGS = frozenset(
+    {
+        "dirty",
+        "dirty_baseline",
+        "non_git_existing",
+        "untracked_existing",
+        "delete",
+        "move",
+        "case_only_move",
+    }
 )
 _PROTECTED_PATH_NAMES = frozenset(
     {".env", ".git", ".chaos-agent", ".code-agent", "chaos-agent-workspaces"}
@@ -39,6 +56,18 @@ class ActionClassification:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "capabilities", frozenset(self.capabilities))
+
+
+def requires_explicit_edit_plan_approval(risk_flags: Sequence[str]) -> bool:
+    """Return whether trusted local plan facts require a visible confirmation."""
+    if not isinstance(risk_flags, Sequence) or isinstance(risk_flags, (str, bytes)):
+        raise TypeError("risk_flags must be a sequence of strings")
+    if any(not isinstance(flag, str) for flag in risk_flags):
+        raise TypeError("risk_flags must contain strings")
+    unknown = set(risk_flags).difference(EDIT_PLAN_RISK_FLAGS)
+    if unknown:
+        raise ValueError("risk_flags contain an unknown edit-plan risk")
+    return bool(risk_flags)
 
 
 def _is_path_key(key: str) -> bool:

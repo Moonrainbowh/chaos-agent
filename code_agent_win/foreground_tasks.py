@@ -260,7 +260,12 @@ class IntegratedForegroundTaskController(ForegroundTaskController):
         result = ActionResult.from_dict(raw)
         if result.name == "run_verification":
             await self._observe_verification(task_id)
-        elif result.name in {"write_file", "replace_text"} and not result.is_error:
+        elif (
+            result.name in {"write_file", "replace_text"} and not result.is_error
+        ) or (
+            result.name == "apply_workspace_edit_plan_v1"
+            and result.output.get("workspace_may_have_changed") is True
+        ):
             await self._invalidate_completed_evidence(task_id)
         elif result.name in {"run_command", "run_process_v1"} and result.metadata.get("execution_attempted") is True:
             await self._invalidate_completed_evidence(task_id)

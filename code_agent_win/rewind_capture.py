@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from pathlib import Path, PureWindowsPath
 from typing import Awaitable, Generic, TypeVar
 
 from code_agent.core.action_execution import ActionExecutionContext
@@ -102,7 +101,36 @@ class RewindCaptureCoordinator:
         finally:
             await lease.release()
 
+    async def apply_edit_plan(
+        self,
+        context: ActionExecutionContext,
+        request: ActionRequest,
+        plan: object,
+        stored_plan_id: str,
+        cancellation: CancellationToken | None = None,
+    ) -> object:
+        _validate_identity(context, request)
+        from code_agent_win.rewind_edit_batch import apply_edit_plan
+
+        return await apply_edit_plan(
+            self, context, request, plan, stored_plan_id, cancellation
+        )
+
+    async def recover_edit_batches(self) -> tuple[object, ...]:
+        from code_agent_win.rewind_edit_batch import recover_edit_batches
+
+        return await recover_edit_batches(self)
+
     async def _ensure(self) -> object:
+        list_unresolved = getattr(
+            self.sessions, "list_unresolved_edit_batches", None
+        )
+        if callable(list_unresolved):
+            unresolved = _raise_settled(await _ordered(
+                list_unresolved(self.workspace_fingerprint)
+            ))
+            if unresolved:
+                raise RuntimeError("workspace has an unresolved edit batch")
         outcome = await _ordered(self.sessions.ensure_rewind_coverage(
             self.workspace_fingerprint))
         return _raise_settled(outcome)
@@ -260,38 +288,3 @@ def _raise_settled(outcome: _Settled[_Result]) -> _Result:
     if outcome.error is not None:
         raise outcome.error
     return outcome.value  # type: ignore[return-value]
-
-
-async def record_unknown_gap(
-    capture: object | None,
-    context: ActionExecutionContext | None,
-    request: ActionRequest,
-    cancellation: CancellationToken,
-) -> None:
-    if capture is None:
-        return
-    if context is None:
-        raise TypeError("execution_context is required for capture")
-    cancellation.raise_if_cancelled()
-    await capture.record_gap(context, request, "unknown-writer")
-    cancellation.raise_if_cancelled()
-
-
-def plugin_requires_gap(
-    plugins: object | None,
-    original: ActionRequest,
-    translated: ActionRequest,
-) -> bool:
-    if plugins is None or original is translated:
-        return False
-    if translated.name in {"write_file", "replace_text"}:
-        return False
-    return plugins.risk_map().get(original.name) in {"write", "critical"}
-
-
-def mcp_requires_gap(mcp: object | None, name: str) -> bool:
-    return mcp is not None and mcp.risks().get(name) in {"write", "critical"}
-
-
-def is_external_plan(path: str) -> bool:
-    return Path(path).is_absolute() or PureWindowsPath(path).is_absolute()

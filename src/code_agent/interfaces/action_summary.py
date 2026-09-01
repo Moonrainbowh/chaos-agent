@@ -11,6 +11,8 @@ _TOOL_LABELS = {
     "search_text": "Search text",
     "write_file": "Write file",
     "replace_text": "Edit file",
+    "plan_workspace_edits_v1": "Plan workspace edits",
+    "apply_workspace_edit_plan_v1": "Apply workspace edit plan",
     "run_command": "Run command",
     "run_process_v1": "Run process",
     "run_verification": "Run verification",
@@ -47,6 +49,9 @@ def action_activity(name: str, arguments: object) -> str:
     if name in {"read_file", "write_file", "replace_text"}:
         path = _bounded_scalar(values.get("path"))
         return f"{label} {path}" if path else label
+    if name == "apply_workspace_edit_plan_v1":
+        plan_id = _bounded_scalar(values.get("plan_id"))
+        return f"{label} {plan_id}" if plan_id else label
     if name == "search_text":
         pattern = _bounded_scalar(values.get("pattern"), maximum=80)
         return f'{label} "{pattern}"' if pattern else label
@@ -64,10 +69,28 @@ def _result_facts(name: str, result: ActionResult) -> list[str]:
         if duration:
             facts.append(duration)
         return facts
+    if name in {"plan_workspace_edits_v1", "apply_workspace_edit_plan_v1"}:
+        facts = []
+        for key, label in (("operation_count", "operations"), ("path_count", "paths")):
+            value = result.metadata.get(key)
+            if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+                facts.append(f"{value} {label}")
+        duration = _duration(result.metadata.get("duration_ms"))
+        if duration:
+            facts.append(duration)
+        return facts
     return _facts(result.metadata)
 
 
 def _result_preview(name: str, result: ActionResult) -> list[str]:
+    if name == "plan_workspace_edits_v1" and isinstance(result.output, Mapping):
+        operations = result.output.get("operations")
+        if isinstance(operations, (list, tuple)):
+            return [
+                text
+                for item in operations[:_FILE_PREVIEW_LIMIT]
+                if (text := _bounded_scalar(item)) is not None
+            ]
     if name != "list_files" or not isinstance(result.output, Mapping):
         return []
     files = result.output.get("files")

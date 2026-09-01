@@ -41,6 +41,8 @@ class ToolSchemaTests(unittest.TestCase):
                 "search_text",
                 "write_file",
                 "replace_text",
+                "plan_workspace_edits_v1",
+                "apply_workspace_edit_plan_v1",
                 "git_status",
                 "git_diff",
                 "run_verification",

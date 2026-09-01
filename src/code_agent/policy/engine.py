@@ -8,7 +8,11 @@ from collections.abc import Mapping
 from code_agent.core.models import ActionRequest
 from code_agent.core.task import TaskAuthorization
 
-from .classifier import ActionClassification, classify_action
+from .classifier import (
+    ActionClassification,
+    classify_action,
+    requires_explicit_edit_plan_approval,
+)
 from .models import (
     ApprovalMode,
     Capability,
@@ -59,8 +63,19 @@ class ActionPolicy:
             capabilities=classified.capabilities,
         )
 
-    def evaluate(self, request: ActionRequest, task_authorization: TaskAuthorization | None = None) -> PolicyDecision:
+    def evaluate(
+        self,
+        request: ActionRequest,
+        task_authorization: TaskAuthorization | None = None,
+        *,
+        trusted_edit_risk_flags: tuple[str, ...] = (),
+    ) -> PolicyDecision:
         classified = classify_action(request, self.config.workspace_root, self.config.mcp_risks)
+        explicit_edit_approval = requires_explicit_edit_plan_approval(
+            trusted_edit_risk_flags
+        )
+        if explicit_edit_approval and request.name.casefold() != "apply_workspace_edit_plan_v1":
+            raise ValueError("trusted edit risks require the edit-plan apply tool")
 
         if not classified.known_tool:
             return self._decision(
@@ -78,6 +93,21 @@ class ActionPolicy:
                 DecisionOutcome.ASK,
                 classified,
                 "approval required for a protected path",
+            )
+
+        if (
+            explicit_edit_approval
+            and self.config.approval_mode is not ApprovalMode.PLAN
+        ):
+            explicit = ActionClassification(
+                classified.capabilities | {Capability.EXPLICIT_APPROVAL},
+                RiskLevel.HIGH,
+                "trusted edit plan includes protected existing-file or destructive risk",
+            )
+            return self._decision(
+                DecisionOutcome.ASK,
+                explicit,
+                "explicit user approval required for the edit plan",
             )
 
         if self.config.approval_mode is ApprovalMode.UNRESTRICTED:

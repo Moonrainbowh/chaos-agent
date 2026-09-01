@@ -23,6 +23,7 @@ from code_agent_win.runtime_support import host_risks
 from code_agent_win.subagents import RestrictedDispatcher, SubagentRuntime
 from code_agent_win.tools import tool_definitions
 from code_agent_win.task_dispatcher import TaskScopedDispatcher
+from code_agent_win.workspace_mutation_pool import WorkspaceMutationPool
 from code_agent_win.workspace_models import WorkspaceServices
 from code_agent_win.workspace_runtime import ManagedWorkspaceRuntime
 
@@ -97,6 +98,7 @@ def compose_host(
     thread_binding: object,
     peers: object | None = None,
     capture: object | None = None,
+    mutations: WorkspaceMutationPool | None = None,
 ) -> HostComposition:
     risks: dict[str, str] = {
         "delegate_agent": "write",
@@ -122,6 +124,7 @@ def compose_host(
         mcp=mcp,
         plugin_bridge=plugin_bridge,
         capture=capture,
+        mutations=mutations,
         sessions=sessions,
         thread_binding=thread_binding,
         peers=peers,
@@ -187,6 +190,7 @@ def _compose_dispatcher(
     mcp: McpController,
     plugin_bridge: PluginToolBridge,
     capture: object | None,
+    mutations: WorkspaceMutationPool | None,
     sessions: object,
     thread_binding: object,
     peers: object | None,
@@ -207,6 +211,7 @@ def _compose_dispatcher(
         mcp=mcp,
         plugins=plugin_bridge,
         capture=capture,
+        mutations=mutations or WorkspaceMutationPool(services, capture),
         threads=threads,
         caller_thread=thread_binding.current,
         peers=peers,

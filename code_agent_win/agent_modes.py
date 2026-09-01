@@ -22,9 +22,11 @@ READ_TOOLS = (
     "git_diff",
     "search_threads",
     "read_thread",
+    "plan_workspace_edits_v1",
 )
 TYPED_WRITE_TOOLS = READ_TOOLS + (
-    "write_file", "replace_text", "run_verification", "run_process_v1"
+    "write_file", "replace_text", "apply_workspace_edit_plan_v1",
+    "run_verification", "run_process_v1",
 )
 ALL_TOOLS = TYPED_WRITE_TOOLS + ("run_command", "delegate_agent")
 

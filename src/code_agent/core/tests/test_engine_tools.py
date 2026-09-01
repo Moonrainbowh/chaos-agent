@@ -79,6 +79,39 @@ class AgentEngineToolTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(sessions.task_states["thread-1"].files_read, ("a.txt",))
         self.assertEqual(context.calls[1][3].files_read, ("a.txt",))
 
+    async def test_edit_plan_apply_result_is_reduced_into_task_state(self) -> None:
+        call = ToolCall("apply-1", "apply_workspace_edit_plan_v1", {})
+        model = FakeModelClient(
+            (
+                (ModelEvent(ModelEventKind.TOOL_CALL, tool_call=call), completed()),
+                (completed(),),
+            )
+        )
+        result = ActionResult(
+            "apply-1",
+            "apply_workspace_edit_plan_v1",
+            {
+                "status": "applied",
+                "paths": ["a.py", "b.py"],
+                "workspace_may_have_changed": True,
+            },
+        )
+        actions = FakeActionDispatcher((result,))
+        actions._tools = (
+            ToolDefinition(
+                "apply_workspace_edit_plan_v1", "Apply edit plan", {"type": "object"}
+            ),
+        )
+        sessions = MemorySessionRepository()
+        engine = AgentEngine(model, FakeContextBuilder(), actions, sessions)
+
+        _ = [event async for event in engine.run("apply")]
+
+        self.assertEqual(
+            sessions.task_states["thread-1"].files_changed,
+            ("a.py", "b.py"),
+        )
+
     async def test_dispatch_exception_becomes_sanitized_tool_error_feedback(self) -> None:
         call = ToolCall(id="call-1", name="read_file", arguments={})
         model = FakeModelClient(

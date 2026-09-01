@@ -59,6 +59,14 @@ class EditConflictError(WorkspaceError):
     """Raised when an edit plan no longer matches on-disk state."""
 
 
+class BatchEditConflictError(EditConflictError):
+    """A planned batch path no longer has its exact recorded state."""
+
+
+class CrossVolumeMoveError(WorkspaceError):
+    """An exact move crossed volumes and was rejected before mutation."""
+
+
 class SearchTimeoutError(WorkspaceError):
     """Raised when a workspace search exceeds its global deadline."""
 

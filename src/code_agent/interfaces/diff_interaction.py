@@ -101,7 +101,9 @@ class DiffInteraction:
         """Close only after the normal submit boundary accepted the feedback."""
         self._close()
 
-    def rows(self, columns: int, *, max_rows: int = 14) -> tuple[str, ...]:
+    def rows(
+        self, columns: int, *, max_rows: int = 14, read_only: bool = False
+    ) -> tuple[str, ...]:
         return render_diff_interaction(
             self._view,
             mode=self.mode.value,
@@ -111,6 +113,7 @@ class DiffInteraction:
             error=self.error,
             columns=columns,
             max_rows=max_rows,
+            read_only=read_only,
         )
 
     def handle_key(self, key: str) -> DiffAction:

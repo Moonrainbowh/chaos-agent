@@ -14,6 +14,7 @@ from code_agent.core.attachments import AttachmentRef
 from code_agent.interfaces.attachment_input import DEFAULT_ATTACHMENT_PROMPT
 from code_agent.interfaces.commands import CommandKind
 from code_agent.orchestration.models import AgentDefinition, AgentRole
+from code_agent.plugins.models import PluginRisk
 from code_agent_win import agent_modes
 from code_agent_win.app import Application, _workspace_storage_path, create_application
 from code_agent_win.cli import (
@@ -22,7 +23,8 @@ from code_agent_win.cli import (
     _split_mode_option,
     run,
 )
-from code_agent_win.rewind_sessions import CoordinatedSessionRepository
+from code_agent_win.workspace_session_router import WorkspaceSessionRouter
+from code_agent_win.runtime_support import host_risks
 from tests.agent_app_test_support import _configured_application
 
 
@@ -52,6 +54,10 @@ class ApplicationConstructionTests(unittest.TestCase):
             {definition.tool_names for definition in definitions},
             {agent_modes.ALL_TOOLS},
         )
+        self.assertIn("plan_workspace_edits_v1", agent_modes.READ_TOOLS)
+        self.assertIn("apply_workspace_edit_plan_v1", agent_modes.TYPED_WRITE_TOOLS)
+        self.assertEqual(host_risks()["plan_workspace_edits_v1"], PluginRisk.READ)
+        self.assertEqual(host_risks()["apply_workspace_edit_plan_v1"], PluginRisk.WRITE)
         main_tools_for_mode = getattr(agent_modes, "main_tools_for_mode", None)
         self.assertIsNotNone(main_tools_for_mode)
         for definition in definitions:
@@ -103,11 +109,11 @@ class ApplicationConstructionTests(unittest.TestCase):
         self.assertIs(main_context.repo_map.index, application.repo_index)
         self.assertIs(child_context.repo_map.index, application.repo_index)
 
-    def test_application_uses_coordinated_sessions_for_engine_and_foreground(self) -> None:
+    def test_application_uses_workspace_routed_sessions_for_engine_and_foreground(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             application, _, _ = _configured_application(Path(temporary).resolve())
         sessions = application.tui.sessions
-        self.assertIsInstance(sessions, CoordinatedSessionRepository)
+        self.assertIsInstance(sessions, WorkspaceSessionRouter)
         self.assertIs(application.foreground_tasks._sessions, sessions)
         self.assertIs(application.controller._engine._journal._repository, sessions)
         self.assertIs(application.tui.history, sessions)

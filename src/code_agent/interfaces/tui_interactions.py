@@ -21,6 +21,11 @@ from .interaction import (
     render_interaction,
 )
 from .checkpoint_tui import handle_rewind_key, rewind_rows
+from .edit_plan_approval_tui import (
+    close_edit_plan_approval_diff,
+    edit_plan_approval_rows,
+    handle_edit_plan_approval_key,
+)
 
 
 class TuiInteractions:
@@ -28,6 +33,7 @@ class TuiInteractions:
         self.picker = PickerState(limit=6)
         self.diff = DiffController(diff_source)
         self.diff_interaction = DiffInteraction()
+        self.approval_diff = DiffInteraction()
         self.approval_choice = 0
         self.interaction_choice = 0
         self.steering = SteeringQueueView()
@@ -36,6 +42,15 @@ class TuiInteractions:
     def rows(self, app: object, *, max_rows: int = 14) -> tuple[str, ...]:
         approval = app._pending_approval
         if approval is not None:
+            plan_rows = edit_plan_approval_rows(
+                approval,
+                self.approval_choice,
+                self.approval_diff,
+                columns=app._columns(),
+                max_rows=max_rows,
+            )
+            if plan_rows is not None:
+                return plan_rows
             target = approval.target or approval.name
             risk = f" · risk {approval.risk}" if approval.risk else ""
             rows = [f"approval · {approval.name}{risk}", f"target: {target}"]
@@ -126,6 +141,10 @@ class TuiInteractions:
         return await self._handle_picker_key(app, key)
 
     async def _handle_approval_key(self, app: object, key: str) -> bool:
+        if handle_edit_plan_approval_key(
+            app._pending_approval, self.approval_diff, key
+        ):
+            return True
         if key in {"left", "up"}:
             self.approval_choice = 0
         elif key in {"right", "down"}:
@@ -218,6 +237,7 @@ class TuiInteractions:
 
     async def _resolve_approval(self, app: object, approved: bool) -> None:
         request = app._pending_approval
+        close_edit_plan_approval_diff(self.approval_diff)
         app.approvals.resolve(request.request_id, approved)
         app._pending_approval = None
         app._approval_done.set()

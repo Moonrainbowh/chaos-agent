@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import TypeVar
 
 from . import _database_cancellation as _dbc
+from ._edit_batch_schema import EDIT_BATCH_MIGRATION, EDIT_BATCH_REQUIRED_COLUMNS
 from ._rewind_schema import REWIND_MIGRATION, REWIND_REQUIRED_COLUMNS
 from .errors import (
     SessionCorruptionError,
@@ -17,7 +18,7 @@ from .errors import (
 from ._schema_structure import validate_schema_structure
 from ._schema_validation import REQUIRED_COLUMNS
 
-SCHEMA_VERSION = 18
+SCHEMA_VERSION = 19
 _BUSY_TIMEOUT_MS = 5_000
 _SQLITE_CORRUPT = 11
 _SQLITE_NOTADB = 26
@@ -128,6 +129,7 @@ _MIGRATIONS: dict[int, tuple[str, ...]] = {
         "CREATE INDEX peer_messages_sender_created ON peer_messages(sender_instance_id, created_at, id)",
         "CREATE INDEX peer_messages_dedupe ON peer_messages(sender_instance_id, receiver_instance_id, content_sha256, created_at)",
     ),
+    19: EDIT_BATCH_MIGRATION,
 }
 
 
@@ -222,16 +224,14 @@ class SessionDatabase:
 
     @staticmethod
     def _validate_schema(connection: sqlite3.Connection) -> None:
-        for table, expected in REQUIRED_COLUMNS.items():
-            rows = connection.execute(f"PRAGMA table_info({table})").fetchall()
-            columns = {row[1] for row in rows}
-            if not expected.issubset(columns):
-                raise SessionCorruptionError(f"session schema is missing {table}")
-        for table, expected in REWIND_REQUIRED_COLUMNS.items():
-            rows = connection.execute(f"PRAGMA table_info({table})").fetchall()
-            columns = {row[1] for row in rows}
-            if not expected.issubset(columns):
-                raise SessionCorruptionError(f"session schema is missing {table}")
+        groups = (REQUIRED_COLUMNS, REWIND_REQUIRED_COLUMNS, EDIT_BATCH_REQUIRED_COLUMNS)
+        for required in groups:
+            for table, expected in required.items():
+                rows = connection.execute(f"PRAGMA table_info({table})").fetchall()
+                if not expected.issubset({row[1] for row in rows}):
+                    raise SessionCorruptionError(
+                        f"session schema is missing {table}"
+                    )
         validate_schema_structure(connection)
 
     def _execute(

@@ -18,6 +18,7 @@ def render_diff_interaction(
     error: str | None,
     columns: int,
     max_rows: int = 14,
+    read_only: bool = False,
 ) -> tuple[str, ...]:
     """Render a bounded overlay for the point-in-time diff modal."""
     width = max(20, columns - 4)
@@ -25,7 +26,7 @@ def render_diff_interaction(
     mode_rows = 2 if mode in {"discard", "filter", "comment"} else 0
     fixed_rows = 2 + int(bool(error)) + mode_rows
     line_budget = max(0, min(DIFF_PAGE_SIZE, row_limit - fixed_rows))
-    rows = _browse_rows(view, line_index, width, line_budget)
+    rows = _browse_rows(view, line_index, width, line_budget, read_only=read_only)
     if error:
         rows.insert(1, clip_display("! " + safe_text(error), width))
     if mode == "discard":
@@ -50,16 +51,22 @@ def render_diff_interaction(
 
 
 def _browse_rows(
-    view: DiffView | None, line_index: int, width: int, line_budget: int
+    view: DiffView | None,
+    line_index: int,
+    width: int,
+    line_budget: int,
+    *,
+    read_only: bool,
 ) -> list[str]:
     current = view.current if view else None
     if current is None:
+        controls = "Esc back" if read_only else "r refresh · Esc close"
         return [
             clip_display(value, width)
             for value in (
                 "diff · point-in-time",
                 "no diff available",
-                "r refresh · Esc close",
+                controls,
             )
         ]
     provenance = "fresh" if current.fresh else "recorded"
@@ -73,13 +80,15 @@ def _browse_rows(
     start = _window_start(len(current.lines), line_index, line_budget)
     for index in range(start, min(start + line_budget, len(current.lines))):
         rows.append(_line_row(view, current.lines[index], index, line_index, width))
-    rows.append(
-        clip_display(
-            f"↑↓ line · ←→ file · [] hunk · PgUp/PgDn · / filter · "
-            f"c comment · s send ({len(view.comments)}) · r · Esc",
-            width,
+    controls = "↑↓ line · ←→ file · [] hunk · PgUp/PgDn"
+    if read_only:
+        controls += " · Esc back"
+    else:
+        controls += (
+            f" · / filter · c comment · s send ({len(view.comments)})"
+            " · r · Esc"
         )
-    )
+    rows.append(clip_display(controls, width))
     return rows
 
 

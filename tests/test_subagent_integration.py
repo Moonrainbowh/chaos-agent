@@ -46,7 +46,10 @@ def _runtime():
         for mode in AgentMode
     }
     tools = {
-        mode: ("read_file", "search_text", "write_file", "delegate_agent")
+        mode: (
+            "read_file", "search_text", "plan_workspace_edits_v1",
+            "write_file", "apply_workspace_edit_plan_v1", "delegate_agent",
+        )
         for mode in AgentMode
     }
     registry = ModeRegistry(
@@ -192,6 +195,8 @@ class EngineChildRunnerTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(result.is_error)
         self.assertTrue(result.output["advisory"])
         self.assertFalse(supervisor.request.agent.may_write)
+        self.assertIn("plan_workspace_edits_v1", supervisor.request.agent.effective_tools)
+        self.assertNotIn("apply_workspace_edit_plan_v1", supervisor.request.agent.effective_tools)
         self.assertNotIn("write_file", supervisor.request.agent.effective_tools)
         self.assertNotIn("delegate_agent", supervisor.request.agent.effective_tools)
 
@@ -271,6 +276,11 @@ class EngineChildRunnerTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(
                     supervisor.request.agent.mode.definition.mode, expected_child
                 )
+                if role is AgentRole.SUBAGENT:
+                    self.assertIn(
+                        "apply_workspace_edit_plan_v1",
+                        supervisor.request.agent.effective_tools,
+                    )
                 child_mode_for_role = getattr(agent_modes, "child_mode_for_role", None)
                 self.assertIsNotNone(child_mode_for_role)
                 self.assertEqual(child_mode_for_role(role), expected_child)

@@ -8,25 +8,16 @@ from pathlib import PureWindowsPath
 from code_agent.core.models import ToolDefinition
 from code_agent.runtime.models import PowerShellRuntimeInfo
 from code_agent.runtime.output_codec import OutputEncoding
-
-
-def _object_schema(
-    properties: Mapping[str, object], required: Sequence[str] = ()
-) -> dict[str, object]:
-    return {
-        "type": "object",
-        "properties": dict(properties),
-        "required": list(required),
-        "additionalProperties": False,
-    }
-
-
-def _nonempty_text_schema() -> dict[str, object]:
-    return {"type": "string", "minLength": 1}
-
-
-def _integer_schema(minimum: int, maximum: int) -> dict[str, object]:
-    return {"type": "integer", "minimum": minimum, "maximum": maximum}
+from code_agent_win.edit_plan_tools import (
+    EDIT_PLAN_TOOL_DEFINITIONS,
+    validate_edit_plan_tool_arguments,
+)
+from code_agent_win.tool_schema import (
+    integer_schema as _integer_schema,
+    matches_schema as _matches_schema,
+    nonempty_text_schema as _nonempty_text_schema,
+    object_schema as _object_schema,
+)
 
 
 def _output_encoding_schema() -> dict[str, object]:
@@ -89,6 +80,7 @@ TOOL_DEFINITIONS: tuple[ToolDefinition, ...] = (
             ("path", "old_text", "new_text"),
         ),
     ),
+    *EDIT_PLAN_TOOL_DEFINITIONS,
     ToolDefinition("git_status", "Read Git porcelain status.", _object_schema({})),
     ToolDefinition(
         "git_diff",
@@ -255,42 +247,4 @@ def validate_tool_arguments(name: str, arguments: Mapping[str, object]) -> str |
         schema = properties[field]
         if not isinstance(schema, Mapping) or not _matches_schema(value, schema):
             return f"invalid argument type: {field}"
-    return None
-
-
-def _matches_schema(value: object, schema: Mapping[str, object]) -> bool:
-    schema_type = schema.get("type")
-    if schema_type == "string":
-        minimum = schema.get("minLength", 0)
-        maximum = schema.get("maxLength")
-        matches = (
-            isinstance(value, str)
-            and isinstance(minimum, int)
-            and not isinstance(minimum, bool)
-            and len(value) >= minimum
-            and (
-                maximum is None
-                or (isinstance(maximum, int) and len(value) <= maximum)
-            )
-        )
-        options = schema.get("enum")
-        return matches and (not isinstance(options, Sequence) or value in options)
-    if schema_type == "integer":
-        minimum, maximum = schema.get("minimum"), schema.get("maximum")
-        return isinstance(value, int) and not isinstance(value, bool) and isinstance(minimum, int) and isinstance(maximum, int) and minimum <= value <= maximum
-    if schema_type == "boolean":
-        return isinstance(value, bool)
-    if schema_type == "array":
-        items = schema.get("items")
-        maximum = schema.get("maxItems")
-        return (
-            isinstance(value, Sequence)
-            and not isinstance(value, (str, bytes, bytearray))
-            and isinstance(items, Mapping)
-            and (
-                maximum is None
-                or (isinstance(maximum, int) and len(value) <= maximum)
-            )
-            and all(_matches_schema(item, items) for item in value)
-        )
-    return False
+    return validate_edit_plan_tool_arguments(name, arguments)

@@ -36,10 +36,16 @@ _READ_ONLY_ROLES = {
     AgentRole.LIBRARIAN,
 }
 _WRITE_TOOLS = frozenset(
-    {"write_file", "replace_text", "run_verification", "run_process_v1", "run_command"}
+    {
+        "write_file", "replace_text", "apply_workspace_edit_plan_v1",
+        "run_verification", "run_process_v1", "run_command",
+    }
 )
 _READ_ONLY_TOOLS = frozenset(
-    {"read_file", "list_files", "search_text", "git_status", "git_diff", "search_threads", "read_thread"}
+    {
+        "read_file", "list_files", "search_text", "git_status", "git_diff",
+        "search_threads", "read_thread", "plan_workspace_edits_v1",
+    }
 )
 
 

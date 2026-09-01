@@ -177,6 +177,7 @@ def is_relative_path(value: str) -> bool:
         or bool(windows.drive)
         or Path(value).is_absolute()
         or any(part in ("", ".", "..") for part in value.split("/"))
+        or (os.name == "nt" and _has_win32_alias_component(value))
     ):
         return False
     try:
@@ -184,6 +185,23 @@ def is_relative_path(value: str) -> bool:
     except UnicodeEncodeError:
         return False
     return True
+
+
+_WIN32_DEVICES = frozenset(
+    {"con", "prn", "aux", "nul", "conin$", "conout$"}
+)
+
+
+def _has_win32_alias_component(value: str) -> bool:
+    for part in value.split("/"):
+        if part.endswith((".", " ")):
+            return True
+        if any(ord(char) < 32 or char in '<>"|?*' for char in part):
+            return True
+        base = part.split(".", 1)[0].casefold()
+        if base in _WIN32_DEVICES or re.fullmatch(r"(?:com|lpt)[1-9¹²³]", base):
+            return True
+    return False
 
 
 def _reject_json_constant(value: str) -> object:

@@ -39,6 +39,7 @@ class AgentEngineActionMixin:
             if supervisor is not None and call.name in {
                 "write_file", "replace_text", "run_command",
                 "run_process_v1", "run_verification",
+                "apply_workspace_edit_plan_v1",
             }:
                 decision = supervisor.before_external_action()
                 if decision.kind is SupervisionKind.PAUSE:
@@ -135,7 +136,9 @@ class AgentEngineActionMixin:
     ) -> AgentEvent | None:
         if call.name not in {
             "read_file", "list_files", "search_text", "write_file",
-            "replace_text", "run_command", "run_process_v1", "run_verification",
+            "replace_text", "plan_workspace_edits_v1",
+            "apply_workspace_edit_plan_v1", "run_command", "run_process_v1",
+            "run_verification",
         }:
             return None
         state = await self._journal.reduce_task_state(thread_id, request, result)

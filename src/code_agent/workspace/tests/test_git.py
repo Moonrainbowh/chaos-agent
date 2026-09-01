@@ -204,6 +204,28 @@ class GitRepositoryTests(GitWorkspaceTestCase):
             ("deleted.txt", "staged.txt", "tracked.txt", "visible.py"),
         )
 
+    def test_changed_snapshot_paths_support_unborn_head(self) -> None:
+        run_git(self.root, "init", "-q")
+        (self.root / "staged.txt").write_bytes(b"staged\n")
+        (self.root / "visible.txt").write_bytes(b"visible\n")
+        run_git(self.root, "add", "staged.txt")
+
+        paths = GitWorkspace(self.root).changed_snapshot_paths()
+
+        self.assertEqual(paths, ("staged.txt", "visible.txt"))
+
+    def test_tracked_paths_excludes_ignored_and_untracked_existing_files(self) -> None:
+        self.initialize_repository()
+        (self.root / ".gitignore").write_text("*.tmp\n", encoding="utf-8")
+        (self.root / "ignored.tmp").write_bytes(b"ignored")
+        (self.root / "visible.txt").write_bytes(b"visible")
+
+        paths = GitWorkspace(self.root).tracked_paths(
+            ("tracked.txt", "ignored.tmp", "visible.txt")
+        )
+
+        self.assertEqual(paths, ("tracked.txt",))
+
     def test_snapshot_path_decoder_rejects_non_utf8_git_output(self) -> None:
         with self.assertRaisesRegex(GitCommandError, "undecodable path") as raised:
             _decode_path_list(b"valid.py\0\xff.py\0")
