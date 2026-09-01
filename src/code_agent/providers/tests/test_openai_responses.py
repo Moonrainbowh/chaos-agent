@@ -63,7 +63,12 @@ class OpenAIResponsesClientTests(unittest.IsolatedAsyncioTestCase):
             return httpx.Response(200, content=content)
 
         http_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-        client = OpenAIResponsesClient(self.make_config(), http_client=http_client)
+        client = OpenAIResponsesClient(
+            self.make_config(),
+            http_client=http_client,
+            reasoning_effort="max",
+            max_output_tokens=23_456,
+        )
         old_call = ToolCall(id="old-call", name="search", arguments={"q": "old"})
         messages = (
             Message(role="user", content="question"),
@@ -84,6 +89,8 @@ class OpenAIResponsesClientTests(unittest.IsolatedAsyncioTestCase):
         ])
         body = json.loads(seen[0].read())
         self.assertEqual(body["instructions"], "System")
+        self.assertEqual(body["reasoning"], {"effort": "max"})
+        self.assertEqual(body["max_output_tokens"], 23_456)
         self.assertEqual(body["input"][1]["type"], "function_call")
         self.assertEqual(body["input"][2], {"type": "function_call_output", "call_id": "old-call", "output": "answer"})
         self.assertEqual(body["tools"][0]["parameters"], {"type": "object"})

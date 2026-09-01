@@ -16,6 +16,7 @@ from code_agent.runtime.errors import (  # noqa: E402
     ProcessTreeTerminationError,
     RuntimeStartError,
 )
+from code_agent.runtime.tests._windows_job_support import RecordingJob  # noqa: E402
 
 
 class FakeReader:
@@ -90,7 +91,7 @@ class WindowsSpawnFailureTests(unittest.IsolatedAsyncioTestCase):
         *,
         capture_identity: object,
         resume_identity: object,
-    ) -> tuple[object, object]:
+    ) -> tuple[object, object, object]:
         async def create_process(*args: object, **kwargs: object) -> FakeProcess:
             del args, kwargs
             return process
@@ -106,6 +107,7 @@ class WindowsSpawnFailureTests(unittest.IsolatedAsyncioTestCase):
             capture_identity=capture_identity,  # type: ignore[arg-type]
             resume_identity=resume_identity,  # type: ignore[arg-type]
             process_api=object(),
+            job_factory=lambda: RecordingJob([], process),
         )
 
     async def _assert_capture_cleanup_failure(
@@ -191,15 +193,17 @@ class WindowsSpawnFailureTests(unittest.IsolatedAsyncioTestCase):
             actual_process: object,
             process_wait: asyncio.Task[int],
             actual_identity: object,
+            actual_job: object,
         ) -> None:
             self.assertIs(actual_process, process)
             self.assertIs(actual_identity, identity)
+            self.assertIsInstance(actual_job, RecordingJob)
             process.complete()
             await process_wait
 
         terminate_mock = AsyncMock(side_effect=terminate)
         with patch.object(
-            _windows_spawn, "terminate_process_tree", terminate_mock
+            _windows_spawn, "complete_process_termination", terminate_mock
         ):
             with self.assertRaises(RuntimeStartError) as raised:
                 await self._spawn(
@@ -222,7 +226,7 @@ class WindowsSpawnFailureTests(unittest.IsolatedAsyncioTestCase):
 
         terminate_mock = AsyncMock(side_effect=tree_error)
         with patch.object(
-            _windows_spawn, "terminate_process_tree", terminate_mock
+            _windows_spawn, "complete_process_termination", terminate_mock
         ):
             with self.assertRaises(ProcessTreeTerminationError) as raised:
                 await self._spawn(

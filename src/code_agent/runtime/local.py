@@ -3,10 +3,8 @@ from __future__ import annotations
 import asyncio
 import inspect
 import os
-import shutil
 import subprocess
-from collections.abc import Callable, Iterable, Iterator, Mapping
-from contextlib import contextmanager
+from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
 from typing import Optional
 
@@ -16,24 +14,28 @@ from code_agent.core.cancellation import CancellationToken
 from code_agent.policy.environment import sanitize_environment
 from code_agent.workspace.paths import WorkspacePathGuard
 
-from ._powershell_script import temporary_powershell_script
+from ._powershell_runtime import PowerShellRuntimeResolver
+from ._windows_command import prepared_windows_command
 from ._process_snapshot import (
     capture_process_identity,
     resume_process_identity,
 )
 from ._windows_directory import DirectoryLease
-from ._windows_process import finish_tasks, terminate_process_tree
-from ._windows_spawn import spawn_suspended_process
-from .errors import (
-    ProcessTreeTerminationError,
-    RuntimeStartError,
-    RuntimeUnavailable,
+from ._windows_process import (
+    close_process_job,
+    complete_process_termination,
+    finish_process_tasks,
+    require_output_tasks,
 )
+from ._windows_spawn import spawn_suspended_process
+from .errors import RuntimeStartError, RuntimeUnavailable
 from .models import (
     CommandResult,
     CommandSpec,
     OutputChunk,
+    PowerShellRuntimeInfo,
     RuntimeKind,
+    ShellDialect,
     StreamName,
     TerminationReason,
 )
@@ -51,11 +53,22 @@ class WindowsLocalRuntime:
 
     kind = RuntimeKind.LOCAL
 
-    def __init__(self, root: os.PathLike[str] | str, allowed_env_names: Iterable[str] = ()) -> None:
+    def __init__(
+        self,
+        root: os.PathLike[str] | str,
+        allowed_env_names: Iterable[str] = (),
+        *,
+        powershell: PowerShellRuntimeResolver | None = None,
+    ) -> None:
         if isinstance(allowed_env_names, (str, bytes)):
             raise TypeError("allowed_env_names must be an iterable of names")
+        if powershell is not None and not isinstance(
+            powershell, PowerShellRuntimeResolver
+        ):
+            raise TypeError("powershell must be a PowerShellRuntimeResolver or None")
         self._guard = WorkspacePathGuard(root)
         self._allowed_env_names = tuple(allowed_env_names)
+        self._powershell = powershell or PowerShellRuntimeResolver()
         sanitize_environment({}, self._allowed_env_names)
 
     @property
@@ -64,6 +77,9 @@ class WindowsLocalRuntime:
 
     def is_available(self) -> bool:
         return True
+
+    def powershell_info(self) -> PowerShellRuntimeInfo:
+        return self._powershell.resolve()
 
     async def run(
         self,
@@ -80,7 +96,20 @@ class WindowsLocalRuntime:
 
         cwd = self._guard.resolve(spec.cwd)
         result_cwd = self._guard.relative(cwd).as_posix()
-        with self._prepare_command(spec) as (argv, display_command):
+        powershell = None
+        if spec.argv is None:
+            if (
+                spec.shell_script is not None
+                and spec.shell_script.dialect not in {
+                    ShellDialect.POWERSHELL_7,
+                    ShellDialect.WINDOWS_POWERSHELL_5_1,
+                }
+            ):
+                raise RuntimeUnavailable(
+                    "local Windows runtime requires a PowerShell dialect"
+                )
+            powershell = self.powershell_info()
+        with prepared_windows_command(spec, powershell) as (argv, display_command):
             environment = sanitize_environment(
                 os.environ, self._allowed_env_names, spec.explicit_env
             )
@@ -95,29 +124,6 @@ class WindowsLocalRuntime:
                 cancellation=cancellation,
                 on_output=on_output,
             )
-
-    @staticmethod
-    @contextmanager
-    def _prepare_command(
-        spec: CommandSpec,
-    ) -> Iterator[tuple[tuple[str, ...], str]]:
-        if spec.argv is not None:
-            yield spec.argv, subprocess.list2cmdline(spec.argv)
-            return
-        executable = shutil.which("pwsh") or shutil.which("powershell")
-        if executable is None:
-            raise RuntimeUnavailable("PowerShell executable was not found")
-        assert spec.powershell_script is not None
-        with temporary_powershell_script(spec.powershell_script) as script_path:
-            argv = (
-                executable,
-                "-NoLogo",
-                "-NoProfile",
-                "-NonInteractive",
-                "-File",
-                str(script_path),
-            )
-            yield argv, "<powershell-script>"
 
     async def _execute(
         self,
@@ -142,7 +148,7 @@ class WindowsLocalRuntime:
             )
 
         try:
-            process, root_identity = await spawn_suspended_process(
+            process, root_identity, job = await spawn_suspended_process(
                 argv,
                 cwd=cwd,
                 environment=environment,
@@ -160,9 +166,9 @@ class WindowsLocalRuntime:
             ) from error
 
         assert process.stdout is not None and process.stderr is not None
-        stdout = bytearray()
-        stderr = bytearray()
+        stdout, stderr = bytearray(), bytearray()
         limit_reached = asyncio.Event()
+        truncated_streams: set[StreamName] = set()
         reader_error: asyncio.Future[BaseException] = loop.create_future()
 
         async def emit(chunk: OutputChunk) -> None:
@@ -188,6 +194,7 @@ class WindowsLocalRuntime:
                         sink.extend(kept)
                         await emit(OutputChunk(stream, kept))
                     if len(kept) != len(data):
+                        truncated_streams.add(stream)
                         limit_reached.set()
                         return
             except asyncio.CancelledError:
@@ -215,6 +222,7 @@ class WindowsLocalRuntime:
         )
         reason = TerminationReason.EXITED
         primary_error: Optional[BaseException] = None
+        termination_started = False
 
         try:
             await asyncio.wait(monitors, return_when=asyncio.FIRST_COMPLETED)
@@ -229,9 +237,10 @@ class WindowsLocalRuntime:
             else:
                 reason = TerminationReason.TIMEOUT
 
-            if reason is not TerminationReason.EXITED or primary_error is not None:
-                await terminate_process_tree(process, process_wait, root_identity)
-            await finish_tasks(readers)
+            termination_started = True
+            await complete_process_termination(process, process_wait, root_identity, job)
+            close_process_job(job, process.pid)
+            await require_output_tasks(readers, process.pid)
             if limit_reached.is_set():
                 reason = TerminationReason.OUTPUT_LIMIT
             if reader_error.done() and primary_error is None:
@@ -249,26 +258,19 @@ class WindowsLocalRuntime:
                 bytes(stderr),
                 loop.time() - started,
                 reason is TerminationReason.OUTPUT_LIMIT,
+                frozenset(truncated_streams),
                 result_cwd,
                 cancellation.reason if reason is TerminationReason.CANCELLED else None,
             )
         except BaseException as error:
-            if (
-                process.returncode is None
-                and not isinstance(error, ProcessTreeTerminationError)
-            ):
-                await asyncio.shield(
-                    terminate_process_tree(
-                        process, process_wait, root_identity
-                    )
+            if not job.closed and not termination_started:
+                await complete_process_termination(
+                    process, process_wait, root_identity, job
                 )
             raise
         finally:
             pending = (*monitors, *readers)
-            for task in pending:
-                if not task.done():
-                    task.cancel()
-            await finish_tasks(pending)
+            await finish_process_tasks(job, process.pid, pending)
 
     @staticmethod
     def _result(
@@ -279,7 +281,7 @@ class WindowsLocalRuntime:
         stdout: bytes,
         stderr: bytes,
         duration_s: float,
-        truncated: bool,
+        truncated: bool, truncated_streams: frozenset[StreamName],
         cwd: str,
         cancellation_reason: Optional[str],
     ) -> CommandResult:
@@ -294,4 +296,5 @@ class WindowsLocalRuntime:
             truncated=truncated,
             cwd=cwd,
             cancellation_reason=cancellation_reason,
+            truncated_streams=truncated_streams,
         )

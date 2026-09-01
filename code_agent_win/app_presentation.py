@@ -7,7 +7,8 @@ from code_agent.interfaces.capability_view import (
     PermissionSummary,
 )
 from code_agent.interfaces.mode_control import ModeControl
-from code_agent.orchestration.models import ModeSnapshot
+from code_agent.orchestration.models import AgentTopology, ModeSnapshot
+from code_agent.workspace.windows_paths import windows_path_support
 
 from code_agent_win.agent_modes import main_tools_for_mode
 from code_agent_win.app_models import FactoryExecution, FactoryHost
@@ -28,7 +29,12 @@ def build_main_dispatcher(
         tool.name for tool in host.plugin_bridge.definitions()
     )
     tools = main_tools_for_mode(mode.definition.tool_names, plugin_names)
-    return RestrictedDispatcher(host.dispatcher, tools)
+    return RestrictedDispatcher(
+        host.dispatcher,
+        tools,
+        allow_delegation=mode.topology is AgentTopology.TEAM,
+        allow_coordination=True,
+    )
 
 
 def build_foreground(
@@ -100,6 +106,10 @@ def capability_view(
             True,
         ),
         applies_next_task=True,
+        runtime_summary=(
+            f"{host.dispatcher.runtime.powershell_info().summary}; "
+            f"{windows_path_support().summary}"
+        ),
     )
 
 

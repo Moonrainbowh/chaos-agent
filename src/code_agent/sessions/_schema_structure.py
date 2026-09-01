@@ -44,6 +44,14 @@ _FOREIGN_KEYS = {
     "checkpoint_rewind_expectations": {
         ("checkpoint_id", "checkpoints", "id", "CASCADE")
     },
+    "peer_sessions": {
+        ("thread_id", "threads", "id", "SET NULL"),
+        ("task_id", "tasks", "id", "SET NULL"),
+    },
+    "peer_messages": {
+        ("sender_instance_id", "peer_sessions", "instance_id", "NO ACTION"),
+        ("receiver_instance_id", "peer_sessions", "instance_id", "NO ACTION"),
+    },
 }
 
 _INDEXES = {
@@ -74,6 +82,21 @@ _INDEXES = {
     "checkpoint_rewind_facts_owner": (
         "checkpoint_rewind_facts", ("owner_thread_id", "mutation_sequence"), False, False
     ),
+    "peer_sessions_live_name": (
+        "peer_sessions", ("status", "heartbeat_at", "name", "session_ref"), False, False
+    ),
+    "peer_messages_receiver_status_created": (
+        "peer_messages", ("receiver_instance_id", "status", "created_at", "id"), False, False
+    ),
+    "peer_messages_sender_created": (
+        "peer_messages", ("sender_instance_id", "created_at", "id"), False, False
+    ),
+    "peer_messages_dedupe": (
+        "peer_messages",
+        ("sender_instance_id", "receiver_instance_id", "content_sha256", "created_at"),
+        False,
+        False,
+    ),
 }
 
 
@@ -85,6 +108,7 @@ def validate_schema_structure(connection: sqlite3.Connection) -> None:
     for name, specification in _INDEXES.items():
         _validate_index(connection, name, *specification)
     _validate_worktree_uniqueness(connection)
+    _validate_peer_ref_uniqueness(connection)
 
 
 def _foreign_keys(
@@ -149,3 +173,14 @@ def _validate_worktree_uniqueness(connection: sqlite3.Connection) -> None:
         if len(keys) == 1 and str(keys[0][4]).upper() == "NOCASE":
             return
     raise SessionCorruptionError("invalid worktree_root uniqueness constraint")
+
+
+def _validate_peer_ref_uniqueness(connection: sqlite3.Connection) -> None:
+    row = _index_row(connection, "peer_sessions", "peer_sessions_ref_unique")
+    if row is None or not bool(row[2]) or bool(row[4]):
+        raise SessionCorruptionError("invalid peer session ref uniqueness constraint")
+    keys = _index_keys(connection, "peer_sessions_ref_unique")
+    if len(keys) != 1 or keys[0][2] != "session_ref":
+        raise SessionCorruptionError("invalid peer session ref uniqueness constraint")
+    if str(keys[0][4]).upper() != "NOCASE" or bool(keys[0][3]):
+        raise SessionCorruptionError("invalid peer session ref uniqueness constraint")

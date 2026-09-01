@@ -23,6 +23,7 @@ def isolated_git_environment(source: Mapping[str, str] | None = None) -> dict[st
         {
             "GIT_CONFIG_GLOBAL": os.devnull,
             "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_OPTIONAL_LOCKS": "0",
             "GIT_TERMINAL_PROMPT": "0",
             "LC_ALL": "C",
         }

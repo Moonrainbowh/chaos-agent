@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Union
 
 from .errors import PathOutsideWorkspace, SensitivePathError
+from .windows_paths import require_supported_windows_path
 
 
 PathInput = Union[str, os.PathLike[str]]
@@ -40,10 +41,12 @@ class WorkspacePathGuard:
         allow_outside: bool = False,
     ) -> None:
         root_path = Path(root).expanduser()
+        require_supported_windows_path(root_path, operation="workspace root")
         if not root_path.exists() or not root_path.is_dir():
             raise ValueError("workspace root must be an existing directory")
         self._literal_root = Path(os.path.abspath(root_path))
         self.root = root_path.resolve(strict=True)
+        require_supported_windows_path(self.root, operation="workspace root")
         if _is_managed_container_root(self.root):
             raise SensitivePathError(
                 "managed workspace storage cannot be used as a workspace root"
@@ -69,6 +72,7 @@ class WorkspacePathGuard:
         candidate = Path(raw).expanduser()
         if not candidate.is_absolute():
             candidate = self.root / candidate
+        require_supported_windows_path(candidate, operation="workspace")
         try:
             lexical_relative = self._relative_to_root_anchor(candidate)
         except ValueError as error:
@@ -115,6 +119,7 @@ class WorkspacePathGuard:
         candidate = Path(raw).expanduser()
         if not candidate.is_absolute():
             candidate = self.root / candidate
+        require_supported_windows_path(candidate, operation="Git pathspec")
         absolute = Path(os.path.abspath(candidate))
         try:
             relative = self._relative_to_root_anchor(absolute)

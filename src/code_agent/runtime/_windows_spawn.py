@@ -6,7 +6,8 @@ from pathlib import Path
 from typing import Any
 
 from ._process_snapshot import ProcessIdentity
-from ._windows_process import terminate_process_tree
+from ._windows_job import WindowsJob
+from ._windows_process import complete_process_termination
 from .errors import ProcessTreeTerminationError, RuntimeStartError
 
 
@@ -25,35 +26,89 @@ async def spawn_suspended_process(
     capture_identity: Callable[[int, Any], ProcessIdentity],
     resume_identity: Callable[[ProcessIdentity, Any], None],
     process_api: Any,
-) -> tuple[asyncio.subprocess.Process, ProcessIdentity]:
-    with lease_factory(cwd, guard) as lease:
-        process = await create_process(
-            *argv,
-            cwd=str(lease.path),
-            env=dict(environment),
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            shell=False,
-            creationflags=creationflags,
-        )
-        identity: ProcessIdentity | None = None
-        try:
+    job_factory: Callable[[], Any] | None = None,
+) -> tuple[asyncio.subprocess.Process, ProcessIdentity, Any]:
+    job = (job_factory or WindowsJob.create)()
+    process: asyncio.subprocess.Process | None = None
+    identity: ProcessIdentity | None = None
+    assigned = False
+    try:
+        with lease_factory(cwd, guard) as lease:
+            process = await create_process(
+                *argv,
+                cwd=str(lease.path),
+                env=dict(environment),
+                stdin=asyncio.subprocess.DEVNULL,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                shell=False,
+                creationflags=creationflags,
+            )
             identity = capture_identity(process.pid, process_api)
+            job.assign(process.pid)
+            assigned = True
             resume_identity(identity, process_api)
-        except BaseException as setup_error:
+    except BaseException as setup_error:
+        if process is None:
             try:
-                await _cleanup_failed_start(process, identity)
-            except ProcessTreeTerminationError as cleanup_error:
-                raise cleanup_error from setup_error
-            raise RuntimeStartError(
-                "failed to establish suspended process identity"
-            ) from setup_error
-    return process, identity
+                job.close()
+            except BaseException as close_error:
+                raise close_error from setup_error
+            raise
+        job_assigned = assigned or bool(getattr(job, "assigned", False))
+        try:
+            await _cleanup_failed_start(
+                process, identity, job if job_assigned else None, job
+            )
+        except ProcessTreeTerminationError as cleanup_error:
+            if cleanup_error.__cause__ is not None:
+                raise
+            raise cleanup_error from setup_error
+        raise RuntimeStartError(
+            "failed to establish suspended process ownership"
+        ) from setup_error
+    assert process is not None and identity is not None
+    return process, identity, job
 
 
 async def _cleanup_failed_start(
     process: asyncio.subprocess.Process,
     identity: ProcessIdentity | None,
+    assigned_job: Any | None,
+    owned_job: Any,
+) -> None:
+    task = asyncio.create_task(
+        _perform_failed_start_cleanup(
+            process, identity, assigned_job, owned_job
+        )
+    )
+    cancellation: asyncio.CancelledError | None = None
+    while True:
+        try:
+            await asyncio.shield(task)
+        except asyncio.CancelledError as error:
+            if task.done():
+                try:
+                    task.result()
+                except BaseException as cleanup_error:
+                    raise cleanup_error from error
+                raise
+            cancellation = error
+            continue
+        except BaseException as error:
+            if cancellation is not None:
+                raise error from cancellation
+            raise
+        break
+    if cancellation is not None:
+        raise cancellation
+
+
+async def _perform_failed_start_cleanup(
+    process: asyncio.subprocess.Process,
+    identity: ProcessIdentity | None,
+    assigned_job: Any | None,
+    owned_job: Any,
 ) -> None:
     process_wait = asyncio.create_task(process.wait())
     pipe_tasks = (
@@ -68,7 +123,9 @@ async def _cleanup_failed_start(
             _kill_suspended_root(process, failures)
         else:
             try:
-                await terminate_process_tree(process, process_wait, identity)
+                await complete_process_termination(
+                    process, process_wait, identity, assigned_job
+                )
             except ProcessTreeTerminationError as error:
                 tree_error = error
                 failures.extend(error.failures)
@@ -76,6 +133,13 @@ async def _cleanup_failed_start(
                 failures.append(
                     f"process tree cleanup failed: {type(error).__name__}: {error}"
                 )
+
+        try:
+            owned_job.close()
+        except BaseException as error:
+            failures.append(
+                f"job close cleanup failed: {type(error).__name__}: {error}"
+            )
 
         await _collect_task_failure(process_wait, "root wait cleanup", failures)
         if (

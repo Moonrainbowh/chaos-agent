@@ -19,6 +19,8 @@ def available_services(app: Any) -> set[str]:
             "mcp",
             "plugins",
             "attachments",
+            "runtime_selection",
+            "peers",
         )
         if (
             getattr(app, "attachment_draft", None) is not None

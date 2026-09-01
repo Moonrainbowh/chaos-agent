@@ -15,6 +15,8 @@ from code_agent.policy.models import ApprovalMode
 from code_agent.providers.config import ApiProtocol, ConfiguredApiKey, InputModality, ModelProfile, ProviderConfig
 from code_agent.providers.errors import ProviderConfigError
 from code_agent.mcp.registry import McpRisk, McpServer
+from code_agent.runtime.models import ShellDialect
+from code_agent.workspace.windows_paths import require_supported_windows_path
 
 
 class LocalConfigError(ValueError):
@@ -30,6 +32,7 @@ class RuntimeConfig:
     config_path: Path
     profiles: tuple[ModelProfile, ...] = ()
     mcp_servers: tuple[McpServer, ...] = ()
+    powershell_dialect: ShellDialect | None = None
 
     @property
     def key_status(self) -> str:
@@ -46,13 +49,13 @@ def resolve_config_path(env: Mapping[str, str] | None = None) -> Path:
     source = os.environ if env is None else env
     value = _environment_value(source, "CHAOS_CONFIG", "CODE_AGENT_CONFIG")
     if value is None:
-        default = default_config_path(source)
-        legacy = _legacy_config_path(source)
+        default = _supported_config_path(default_config_path(source))
+        legacy = _supported_config_path(_legacy_config_path(source))
         return legacy if not default.exists() and legacy.exists() else default
     path = Path(value).expanduser()
     if not path.is_absolute():
         raise LocalConfigError("CHAOS_CONFIG must be an absolute path")
-    return path
+    return _supported_config_path(path)
 
 
 def load_runtime_config(
@@ -68,7 +71,9 @@ def load_runtime_config(
         profile=selected,
         approval_mode=_approval_mode(document, source),
         allow_sensitive_paths=_allow_sensitive_paths(document, source),
-        config_path=path, profiles=_profiles(document, source, selected, provider), mcp_servers=_mcp_servers(document),
+        config_path=path, profiles=_profiles(document, source, selected, provider),
+        mcp_servers=_mcp_servers(document),
+        powershell_dialect=_powershell_dialect(document, source),
     )
 
 
@@ -225,6 +230,33 @@ def _allow_sensitive_paths(document: Mapping[str, Any], env: Mapping[str, str]) 
     raise LocalConfigError("allow_sensitive_paths must be a boolean")
 
 
+def _powershell_dialect(
+    document: Mapping[str, Any], env: Mapping[str, str]
+) -> ShellDialect | None:
+    agent = document.get("agent", {})
+    if agent is not None and not isinstance(agent, dict):
+        raise LocalConfigError("agent must be a table")
+    value = _environment_value(
+        env,
+        "CHAOS_POWERSHELL_DIALECT",
+        "CODE_AGENT_POWERSHELL_DIALECT",
+        agent.get("powershell_dialect", "auto"),
+    )
+    parsed = _text(value, "powershell_dialect")
+    if parsed.casefold() == "auto":
+        return None
+    try:
+        dialect = ShellDialect(parsed)
+    except ValueError:
+        raise LocalConfigError(
+            "powershell_dialect must be auto, powershell_7, or "
+            "windows_powershell_5_1"
+        ) from None
+    if dialect is ShellDialect.POSIX_SH:
+        raise LocalConfigError("powershell_dialect cannot be posix_sh")
+    return dialect
+
+
 def _table(document: Mapping[str, Any], name: str) -> Mapping[str, Any]:
     value = document.get(name)
     if not isinstance(value, dict):
@@ -235,6 +267,13 @@ def _table(document: Mapping[str, Any], name: str) -> Mapping[str, Any]:
 def _legacy_config_path(env: Mapping[str, str]) -> Path:
     base = env.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
     return Path(base) / "code-agent" / "config.toml"
+
+
+def _supported_config_path(path: Path) -> Path:
+    require_supported_windows_path(path, operation="configuration")
+    canonical = path.resolve(strict=False)
+    require_supported_windows_path(canonical, operation="configuration")
+    return path
 
 
 def _environment_value(

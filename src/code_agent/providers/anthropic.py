@@ -21,7 +21,7 @@ from ._limits import ArgumentBuffer, ToolBudget, ensure_utf8_limit
 from .attachments import AttachmentResolver, ProviderAttachmentEncoder
 from .config import ApiProtocol, InputModality, ProviderConfig
 from .errors import ProviderConfigError, ProviderProtocolError
-from ._request_payload import anthropic_payload
+from ._request_payload import anthropic_payload, request_options
 from .transport import ProviderTransport, Sleep
 
 def _request_messages(
@@ -160,12 +160,19 @@ class AnthropicClient:
         input_modalities: Iterable[InputModality] = (InputModality.TEXT,),
         http_client: Optional[httpx.AsyncClient] = None,
         sleep: Sleep = asyncio.sleep,
+        reasoning_effort: str | None = None,
+        max_output_tokens: int = 4_096,
     ) -> None:
         if config.api is not ApiProtocol.ANTHROPIC_MESSAGES:
             raise ProviderConfigError("AnthropicClient requires anthropic_messages API")
         self._config = config
         self._attachments = ProviderAttachmentEncoder(
             attachment_resolver, input_modalities
+        )
+        self._request_options = request_options(
+            config.api,
+            reasoning_effort=reasoning_effort,
+            max_output_tokens=max_output_tokens,
         )
         self._transport = ProviderTransport(config, client=http_client, sleep=sleep)
 
@@ -179,6 +186,7 @@ class AnthropicClient:
         payload = anthropic_payload(
             self._config, system, request_messages,
             [_request_tool(tool) for tool in tools],
+            self._request_options,
         )
         pending: dict[int, _PendingTool] = {}
         tool_budget = ToolBudget(self._config.max_tool_calls, self._config.max_tool_argument_bytes)

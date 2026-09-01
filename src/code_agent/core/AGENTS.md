@@ -40,7 +40,7 @@
 - `CancellationToken`、`CancellationError`: 在线程与异步调用间传播首次取消原因 | 唤醒等待者
 - `ModelClient`: 约束统一的模型流式调用接口 | 具体副作用由实现负责
 - `ContextBuilder.build(request: ContextRequest)`: 以 Host 注入的不可变请求快照构建当前回合上下文 | 具体副作用由实现负责 | 不从消息文本猜测身份；内部异常不得触发重复调用
-- `CommandFact`、`TaskState`、`TaskStateUpdate`、`reduce_task_state`: 以有界 JSON 兼容事实表达持久任务进度 | 无副作用 | 工作笔记始终显式标注为未验证
+- `CommandFact`、`TaskState`、`TaskStateUpdate`、`reduce_task_state`: 以有界 JSON 兼容事实表达持久任务进度 | 无副作用 | 只有实际尝试且失败的 raw shell/structured process 才记录失败事实；策略或预检拒绝不伪装成执行失败
 - `ActionDispatcher`: 暴露工具并接收可取消动作、可选任务授权和 keyword-only execution context | 具体副作用由实现负责 | unavailable/dispatch 前暂停不产生执行上下文
 - `SessionRepository`: 异步创建线程并持久化消息与事件 | 具体副作用由实现负责
 - `EngineLimits`: 冻结模型回合、工具调用、token 与输出字符预算 | 无副作用 | 越界前先阻止新的外部工具动作
@@ -49,5 +49,6 @@
 - `TaskSupervisor.observe(...)`: 根据恢复后的持久预算、验证结果和失败指纹决定继续、checkpoint、暂停或等待决策 | 无副作用 | 累计活跃时间、重复失败和修复循环不依赖进程内状态
 - `AgentEngine.run(..., task=...)`: 在同一 thread 内执行显式任务并持久化任务事件 | 调用抽象模型、动作与会话协议 | root 动作使用 active thread/task 归因；安全边界消费 steering，自动验证通过后由持久完成门收尾
 - `AgentEngine.run(user_input, thread_id, cancellation)`: 持久化并流式发布回合、模型、工具和终态事件 | 调用抽象模型、动作与会话协议 | ad-hoc root 的 owner/origin 均为 active thread，child engine 继承构造器 lineage；未声明工具、重复 ID、无完成事件和预算越界均失败闭合
+- `AgentEngine.run_peer(thread_id, cancellation)`: 不制造 user Message 地唤醒一个不可信 peer 回合，并在首个合法模型事件持久化后确认其上下文 | 调用抽象模型、上下文、动作与会话协议 | 工具强制投影到构造时冻结的 peer allowlist；默认空集，不能取得 TaskAuthorization
 - `SessionJournal`: 把会话协议异常转换为稳定的内核持久化错误 | 调用会话协议 | 不允许不可信历史消息进入上下文
 - `AgentEngineError` 及子类: 表达预算、模型流、上下文构建与持久化失败 | 无副作用 | 对外错误不包含上游异常文本

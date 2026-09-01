@@ -21,6 +21,13 @@ class AgentRunner(Protocol):
         attachments: Sequence[AttachmentRef] = (),
     ) -> AsyncIterator[AgentEvent]: ...
 
+    def run_peer(
+        self,
+        *,
+        thread_id: Optional[str] = None,
+        cancellation: Optional[CancellationToken] = None,
+    ) -> AsyncIterator[AgentEvent]: ...
+
 
 class AgentController:
     """Expose one engine stream to interactive and non-interactive clients."""
@@ -69,6 +76,21 @@ class AgentController:
             thread_id=thread_id,
             cancellation=cancellation,
             attachments=attachments,
+        ):
+            yield event
+
+    async def receive_peer(
+        self,
+        *,
+        thread_id: Optional[str] = None,
+        cancellation: Optional[CancellationToken] = None,
+    ) -> AsyncIterator[AgentEvent]:
+        """Wake the runner for queued peer context without user impersonation."""
+        run_peer = getattr(self._engine, "run_peer", None)
+        if not callable(run_peer):
+            raise RuntimeError("peer-triggered turns are unavailable")
+        async for event in run_peer(
+            thread_id=thread_id, cancellation=cancellation
         ):
             yield event
 

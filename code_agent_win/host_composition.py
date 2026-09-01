@@ -22,11 +22,9 @@ from code_agent_win.plugin_runtime import (
 from code_agent_win.runtime_support import host_risks
 from code_agent_win.subagents import RestrictedDispatcher, SubagentRuntime
 from code_agent_win.tools import tool_definitions
-from code_agent_win.workspace_runtime import (
-    ManagedWorkspaceRuntime,
-    TaskScopedDispatcher,
-    WorkspaceServices,
-)
+from code_agent_win.task_dispatcher import TaskScopedDispatcher
+from code_agent_win.workspace_models import WorkspaceServices
+from code_agent_win.workspace_runtime import ManagedWorkspaceRuntime
 
 
 PluginDiscovery = Callable[
@@ -97,12 +95,15 @@ def compose_host(
     sessions: object,
     approvals: object,
     thread_binding: object,
+    peers: object | None = None,
     capture: object | None = None,
 ) -> HostComposition:
     risks: dict[str, str] = {
         "delegate_agent": "write",
         "search_threads": "read",
         "read_thread": "read",
+        "list_agents": "read",
+        "send_message": "write",
     }
     mcp = _compose_mcp(runtime_config, risks)
     discover_plugins = _plugin_discovery(root, modes, services, mcp)
@@ -123,6 +124,7 @@ def compose_host(
         capture=capture,
         sessions=sessions,
         thread_binding=thread_binding,
+        peers=peers,
     )
     bindings = PluginRuntimeBindings(dispatcher, plugin_host, plugin_bridge)
     return (
@@ -187,6 +189,7 @@ def _compose_dispatcher(
     capture: object | None,
     sessions: object,
     thread_binding: object,
+    peers: object | None,
 ) -> TaskScopedDispatcher:
     policy = ActionPolicy(
         PolicyConfig(
@@ -206,6 +209,7 @@ def _compose_dispatcher(
         capture=capture,
         threads=threads,
         caller_thread=thread_binding.current,
+        peers=peers,
     )
 
 

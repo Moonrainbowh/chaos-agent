@@ -21,6 +21,7 @@ class Capability(str, Enum):
     NETWORK = "network"
     OUTSIDE_WORKSPACE = "outside_workspace"
     RAW_SHELL = "raw_shell"
+    RAW_PROCESS = "raw_process"
     VERIFICATION = "verification"
     PROTECTED_PATH = "protected_path"
 

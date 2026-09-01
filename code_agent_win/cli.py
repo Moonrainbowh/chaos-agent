@@ -9,6 +9,8 @@ from .app import create_application
 from code_agent.config.loader import LocalConfigError, default_config_path, resolve_config_path
 from code_agent.interfaces.attachment_input import DEFAULT_ATTACHMENT_PROMPT
 from code_agent.interfaces.commands import CommandKind, execute_command, parse_command
+from code_agent.runtime.errors import RuntimeUnavailable
+from .stdio import configure_windows_utf8_stdio
 
 
 _ATTACHMENT_COMMANDS = frozenset(
@@ -94,6 +96,14 @@ async def run(arguments: Sequence[str]) -> int:
             file=sys.stderr,
         )
         return 2
+    except RuntimeUnavailable as error:
+        print(f"runtime unavailable: {error}", file=sys.stderr)
+        print(
+            "Install the configured PowerShell dialect or set "
+            "[agent].powershell_dialect to an available runtime.",
+            file=sys.stderr,
+        )
+        return 2
     except Exception as error:
         print(f"agent error: {type(error).__name__}", file=sys.stderr)
         return 1
@@ -103,6 +113,7 @@ async def run(arguments: Sequence[str]) -> int:
 
 
 def main() -> int:
+    configure_windows_utf8_stdio()
     return asyncio.run(run(sys.argv[1:]))
 
 

@@ -3,54 +3,65 @@ from __future__ import annotations
 import hashlib
 import os
 import secrets
-import tempfile
 from pathlib import Path
-from typing import BinaryIO, Mapping
+from typing import BinaryIO, Callable, Mapping
 
 from . import _posix_io
 from . import _secure_io as safety
-from ._secure_modes import (
-    make_destination_writable,
-    restore_destination_mode,
-    restore_mode,
-)
+from ._secure_modes import restore_mode
 from ._secure_posix import identity_from_fd, inspect_at, open_verified_directory
 from ._secure_temp import (
     TEMP_PREFIX as _TEMP_PREFIX,
     attach_or_raise_cleanup as _attach_or_raise_cleanup,
+    create_windows_temp,
     raw_identity_from_fd as _raw_identity_from_fd,
     remove_posix_temp as _remove_posix_temp,
     remove_windows_temp as _remove_path_temp,
 )
-from .errors import PathOutsideWorkspace, WorkspaceError
+from .errors import EditConflictError, PathOutsideWorkspace, WorkspaceError
 from .paths import WorkspacePathGuard
-
-
+from ._windows_file_locks import (
+    DEFAULT_WINDOWS_FILE_LOCK_TIMEOUT_S,
+    REPLACE_RETRY_WINERRORS,
+    retry_windows_file_operation,
+)
+from ._windows_atomic_replace import publish_windows_temp
 def secure_atomic_write(
     state: safety.TargetState,
     content: bytes,
     guard: WorkspacePathGuard,
     created: Mapping[str, tuple[Path, safety.PathIdentity]],
+    *,
+    timeout_s: float = DEFAULT_WINDOWS_FILE_LOCK_TIMEOUT_S,
+    validate: Callable[[], None] | None = None,
+    context: str = "restore",
 ) -> None:
-    safety.verify_target_state(state, guard, created, context="restore")
+    safety.verify_target_state(state, guard, created, context=context)
     try:
         if os.name == "posix":
-            _atomic_write_posix(state, content, guard, created)
+            _atomic_write_posix(state, content, guard, created, validate, context)
         else:
-            _atomic_write_windows(state, content, guard, created)
+            _atomic_write_windows(
+                state, content, guard, created, timeout_s, validate, context
+            )
     except (PathOutsideWorkspace, WorkspaceError):
         raise
     except OSError as error:
         if getattr(error, "cleanup_error", None) is not None:
             raise
-        raise WorkspaceError(f"cannot atomically restore file: {state.target}") from error
-
-
+        wrapped = WorkspaceError(
+            f"cannot atomically {context} file: {state.target}"
+        )
+        if getattr(error, "publication_committed", False):
+            setattr(wrapped, "publication_committed", True)
+        raise wrapped from error
 def _atomic_write_posix(
     state: safety.TargetState,
     content: bytes,
     guard: WorkspacePathGuard,
     created: Mapping[str, tuple[Path, safety.PathIdentity]],
+    validate: Callable[[], None] | None,
+    context: str,
 ) -> None:
     parent_fd = open_verified_directory(
         state.target.parent, state.parent, guard, created, context="restore"
@@ -74,7 +85,9 @@ def _atomic_write_posix(
         _verify_visible_temp(state.target.parent / temporary_name, temporary_identity)
         owned_descriptor, descriptor = descriptor, None
         _write_descriptor(owned_descriptor, content, restore_mode(state))
-        _verify_posix_target(parent_fd, state, guard, created)
+        _verify_posix_target(parent_fd, state, guard, created, context)
+        if validate is not None:
+            validate()
         _verify_posix_temp(parent_fd, temporary_name, temporary_identity)
         _posix_io.replace(parent_fd, temporary_name, state.target.name)
         moved = True
@@ -101,19 +114,19 @@ def _atomic_write_windows(
     content: bytes,
     guard: WorkspacePathGuard,
     created: Mapping[str, tuple[Path, safety.PathIdentity]],
+    timeout_s: float,
+    validate: Callable[[], None] | None,
+    context: str,
 ) -> None:
     temporary_path: Path | None = None
     temporary_identity: safety.PathIdentity | None = None
-    destination_changed = False
     temporary_created = False
     cleanup_identity: safety.PathIdentity | None = None
     primary: BaseException | None = None
     moved = False
     try:
-        with tempfile.NamedTemporaryFile(
-            mode="wb", prefix=_TEMP_PREFIX, dir=state.target.parent, delete=False
-        ) as stream:
-            temporary_path = Path(stream.name)
+        temporary_path, stream = create_windows_temp(state.target.parent)
+        with stream:
             temporary_created = True
             try:
                 temporary_identity = identity_from_fd(stream.fileno(), temporary_path)
@@ -125,19 +138,53 @@ def _atomic_write_windows(
             cleanup_identity = temporary_identity
             _verify_visible_temp(temporary_path, temporary_identity)
             _write_stream(stream, content)
-        os.chmod(temporary_path, restore_mode(state))
-        safety.verify_target_state(state, guard, created, context="restore")
-        _verify_visible_temp(temporary_path, temporary_identity)
-        destination_changed = make_destination_writable(state)
-        os.replace(temporary_path, state.target)
-        moved = True
+        def verify_attempt() -> None:
+            if validate is not None:
+                validate()
+            try:
+                safety.verify_target_state(state, guard, created, context=context)
+            except WorkspaceError:
+                if validate is not None:
+                    try:
+                        validate()
+                    except EditConflictError:
+                        raise
+                raise
+            _verify_visible_temp(temporary_path, temporary_identity)
+
+        def replace_attempt() -> None:
+            nonlocal moved
+            try:
+                publish_windows_temp(
+                    temporary_path,
+                    temporary_identity,
+                    state,
+                    guard,
+                    created,
+                    validate,
+                    context=context,
+                )
+            except BaseException as error:
+                if getattr(error, "publication_committed", False):
+                    moved = True
+                raise
+            moved = True
+
+        retry_windows_file_operation(
+            replace_attempt,
+            target=state.target,
+            operation=f"{context} file",
+            timeout_s=timeout_s,
+            retry_winerrors=REPLACE_RETRY_WINERRORS,
+            validate=verify_attempt,
+        )
         _verify_path_result(state.target, temporary_identity, content, guard)
     except BaseException as error:
+        if moved or getattr(error, "publication_committed", False):
+            setattr(error, "publication_committed", True)
         primary = error
         raise
     finally:
-        if destination_changed and not moved:
-            restore_destination_mode(state)
         _cleanup_windows_failure(
             temporary_path, temporary_created and not moved,
             cleanup_identity,
@@ -146,8 +193,6 @@ def _atomic_write_windows(
             created,
             primary,
         )
-
-
 def _cleanup_windows_failure(
     temporary_path: Path | None,
     should_clean: bool,
@@ -163,8 +208,6 @@ def _cleanup_windows_failure(
         _remove_path_temp(temporary_path, expected, state, guard, created)
     except WorkspaceError as cleanup_error:
         _attach_or_raise_cleanup(primary, cleanup_error)
-
-
 def _create_posix_temp(parent_fd: int) -> tuple[str, int]:
     for _ in range(32):
         name = f"{_TEMP_PREFIX}{secrets.token_hex(8)}"
@@ -174,12 +217,10 @@ def _create_posix_temp(parent_fd: int) -> tuple[str, int]:
             continue
     raise WorkspaceError("cannot allocate a unique restore temporary file")
 
-
 def _write_descriptor(fd: int, content: bytes, mode: int) -> None:
     with os.fdopen(fd, "wb") as stream:
         _write_stream(stream, content)
         os.fchmod(stream.fileno(), mode)
-
 
 def _write_stream(stream: BinaryIO, content: bytes) -> None:
     stream.write(content)
@@ -192,11 +233,12 @@ def _verify_posix_target(
     state: safety.TargetState,
     guard: WorkspacePathGuard,
     created: Mapping[str, tuple[Path, safety.PathIdentity]],
+    context: str,
 ) -> None:
-    safety.verify_target_state(state, guard, created, context="restore")
-    current = inspect_at(parent_fd, state.target.name, missing_ok=True, context="restore")
-    if current != state.identity:
-        raise WorkspaceError(f"path changed during restore: {state.target}")
+    safety.verify_target_state(state, guard, created, context=context)
+    current = inspect_at(parent_fd, state.target.name, missing_ok=True, context=context)
+    if not safety.same_path_state(current, state.identity):
+        raise WorkspaceError(f"path changed during {context}: {state.target}")
 
 
 def _verify_posix_temp(
@@ -231,7 +273,6 @@ def _verify_posix_result(
         raise WorkspaceError(f"restored file changed after replace: {name}")
     _verify_result_content(opened, restored, content, name)
 
-
 def _verify_path_result(
     path: Path,
     expected: safety.PathIdentity,
@@ -250,7 +291,6 @@ def _verify_path_result(
     if visible != expected or opened != expected or final != expected:
         raise WorkspaceError(f"restored file changed after replace: {path}")
     _verify_result_content(opened, restored, content, str(path))
-
 
 def _verify_result_content(
     identity: safety.PathIdentity, restored: bytes, expected: bytes, label: str

@@ -79,7 +79,12 @@ class OpenAIChatClientTests(unittest.IsolatedAsyncioTestCase):
             return httpx.Response(200, stream=ChunkStream(content))
 
         http_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-        client = OpenAIChatClient(self.make_config(), http_client=http_client)
+        client = OpenAIChatClient(
+            self.make_config(),
+            http_client=http_client,
+            reasoning_effort="high",
+            max_output_tokens=12_345,
+        )
         previous = ToolCall(id="old-1", name="read_file", arguments={"path": "old.txt"})
         messages = (
             Message(role="user", content="hello"),
@@ -112,6 +117,8 @@ class OpenAIChatClientTests(unittest.IsolatedAsyncioTestCase):
         body = json.loads(requests[0].read())
         self.assertEqual(body["model"], "chat-model")
         self.assertTrue(body["stream"])
+        self.assertEqual(body["reasoning_effort"], "high")
+        self.assertEqual(body["max_completion_tokens"], 12_345)
         self.assertEqual(body["messages"][0], {"role": "system", "content": "Be precise."})
         self.assertEqual(body["messages"][2]["tool_calls"][0]["function"]["arguments"], '{"path":"old.txt"}')
         self.assertEqual(body["messages"][3]["tool_call_id"], "old-1")

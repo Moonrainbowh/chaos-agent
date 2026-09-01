@@ -53,4 +53,14 @@ REQUIRED_COLUMNS = {
         "repair_cycles", "repeated_failures", "last_failure_signature",
         "active_seconds", "warned_at_80", "warned_at_90",
     },
+    "peer_sessions": {
+        "instance_id", "session_ref", "name", "owner_pid", "owner_create_time",
+        "workspace_root", "thread_id", "task_id", "permission_mode",
+        "inbound_policy", "status", "heartbeat_at", "created_at", "updated_at",
+    },
+    "peer_messages": {
+        "id", "sender_instance_id", "receiver_instance_id", "origin", "content",
+        "content_sha256", "status", "claim_token", "claimed_at",
+        "claim_expires_at", "created_at", "updated_at", "expires_at",
+    },
 }

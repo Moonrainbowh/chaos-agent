@@ -29,6 +29,9 @@ def compose_ui(
     root: Path,
     profile_supplier: object,
     profile_resolver: object,
+    runtime_resolver: object,
+    runtime_selection: object,
+    peers: object,
     subagents: object,
     snapshot: object,
     approval_mode: object,
@@ -51,7 +54,8 @@ def compose_ui(
 ) -> tuple[object, ModeAwareWindowsTerminalApp, WorkflowService]:
     parts = UiComposition(
         controller, approvals, sessions, root, profile_supplier,
-        profile_resolver, subagents, snapshot, approval_mode, mode_control,
+        profile_resolver, runtime_resolver, runtime_selection, peers, subagents,
+        snapshot, approval_mode, mode_control,
         permission_control, plugin_host, dispatcher, interaction_broker, skills,
         mcp, git, checkpoints, rewind, workspace_runtime, plugin_errors,
         plugin_discover, on_plugin_change, tui_ref, plugin_command_registry,

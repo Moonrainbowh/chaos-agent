@@ -83,11 +83,12 @@ class PickerHierarchyTests(unittest.IsolatedAsyncioTestCase):
         items = command_picker_items(REGISTRY.all(), services)
         labels = {item.label for item in items}
 
-        self.assertTrue({"/技能", "/mcp", "/检查点", "/插件"}.issubset(labels))
-        self.assertFalse(any(item.label.startswith("/技能 ") for item in items))
-        self.assertFalse(any(item.label.startswith("/mcp ") for item in items))
-        plugin = next(item for item in items if item.label == "/插件")
-        self.assertEqual(plugin.source, PickerSource.PLUGIN)
+        self.assertNotIn("/技能", labels)
+        self.assertNotIn("/mcp", labels)
+        self.assertNotIn("/检查点", labels)
+        self.assertNotIn("/插件", labels)
+        self.assertIn("/模式", labels)
+        self.assertIn("/权限", labels)
 
         actions = command_picker_items(
             REGISTRY.all(), services, parent=REGISTRY.resolve("插件")
@@ -143,10 +144,14 @@ class PickerHierarchyTests(unittest.IsolatedAsyncioTestCase):
             ("review.focus",)
         ).with_plugin_commands((descriptor,))
         items = command_picker_items(registry.all(), {"plugins", "modes"})
+        mode_items = command_picker_items(
+            registry.all(), {"plugins", "modes"}, parent=registry.resolve("模式")
+        )
 
-        contribution = next(item for item in items if item.identifier == "review.audit")
-        plugin_mode = next(item for item in items if item.identifier == "模式:review.focus")
-        self.assertEqual(contribution.source, PickerSource.PLUGIN)
+        self.assertFalse(any(item.identifier == "review.audit" for item in items))
+        contribution = registry.resolve("review.audit")
+        plugin_mode = next(item for item in mode_items if item.identifier == "模式:review.focus")
+        self.assertEqual(contribution.visibility.value, "internal")
         self.assertEqual(plugin_mode.source, PickerSource.PLUGIN)
 
     def test_plugin_resource_picker_uses_controller_snapshot(self) -> None:

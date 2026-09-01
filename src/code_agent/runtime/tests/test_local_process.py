@@ -20,6 +20,7 @@ from code_agent.runtime.errors import RuntimeStartError  # noqa: E402
 from code_agent.runtime import _process_snapshot  # noqa: E402
 from code_agent.runtime.models import CommandSpec, TerminationReason  # noqa: E402
 from code_agent.runtime.tests._local_test_support import (  # noqa: E402
+    CompletedJob,
     CompletedProcess,
     LocalRuntimeTestCase,
     patch_process_identity_capture,
@@ -223,6 +224,9 @@ class WindowsLocalProcessTests(LocalRuntimeTestCase):
             "code_agent.runtime.local.capture_process_identity", side_effect=capture
         ), patch(
             "code_agent.runtime.local.resume_process_identity", side_effect=resume
+        ), patch(
+            "code_agent.runtime._windows_spawn.WindowsJob.create",
+            side_effect=CompletedJob,
         ):
             result = await self.runtime.run(
                 CommandSpec(cwd=".", argv=(sys.executable, "-V")),

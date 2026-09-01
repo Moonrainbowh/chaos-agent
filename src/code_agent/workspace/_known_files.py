@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-from .errors import WorkspaceError, WorkspaceScanLimitError
+from .errors import (
+    WindowsLongPathError,
+    WorkspaceError,
+    WorkspaceScanLimitError,
+)
 from .ignore import IgnoreRules
 from .paths import WorkspacePathGuard
 
@@ -37,6 +41,8 @@ def known_workspace_files(
             relative = guard.relative(resolved).as_posix()
             if resolved.is_file() and not ignore.is_ignored(relative):
                 visible.append(relative)
+        except WindowsLongPathError:
+            raise
         except (OSError, WorkspaceError):
             continue
         if len(visible) >= max_entries:

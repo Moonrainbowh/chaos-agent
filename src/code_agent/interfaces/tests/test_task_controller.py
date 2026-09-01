@@ -23,6 +23,41 @@ class _IdleRunner:
 
 
 class ForegroundTaskControllerTests(unittest.IsolatedAsyncioTestCase):
+    async def test_task_freezes_full_runtime_selection_and_resolves_it_on_resume(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = SQLiteSessionRepository(root / "sessions.sqlite3")
+            resolved = []
+
+            async def resolve(contract: object) -> None:
+                resolved.append(contract)
+
+            controller = ForegroundTaskController(
+                AgentController(_IdleRunner()),
+                repository,
+                root,
+                profile_supplier=lambda: (
+                    "gpt56_terra",
+                    "gpt-5.6-terra",
+                    "chat_completions",
+                    "gateway.example.test",
+                    "team",
+                    "high",
+                    "medium",
+                    "b" * 64,
+                ),
+                runtime_resolver=resolve,
+            )
+
+            task = await controller.start("coordinate repair")
+            _ = [event async for event in controller.events(task.id)]
+
+            self.assertEqual(task.contract.agent_topology, "team")
+            self.assertEqual(task.contract.reasoning_effort, "high")
+            self.assertEqual(task.contract.runtime_mode, "medium")
+            self.assertEqual(task.contract.runtime_selection_digest, "b" * 64)
+            self.assertEqual(resolved, [task.contract])
+
     async def test_attachment_steering_persists_only_safe_message_reference(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

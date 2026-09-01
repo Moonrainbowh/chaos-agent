@@ -94,7 +94,10 @@ class ApplicationGuardTests(unittest.IsolatedAsyncioTestCase):
             with patch("code_agent_win.app.os.getenv", return_value=str(root)):
                 current = _session_path()
 
-            self.assertEqual(current, root / "chaos-agent" / "sessions.sqlite3")
+            self.assertEqual(
+                current,
+                (root / "chaos-agent" / "sessions.sqlite3").resolve(strict=False),
+            )
             self.assertTrue(current.exists())
             self.assertTrue(legacy.exists())
 
@@ -105,7 +108,10 @@ class ApplicationGuardTests(unittest.IsolatedAsyncioTestCase):
             with patch("code_agent_win.app.os.getenv", return_value=str(root)):
                 current = _session_path()
 
-            self.assertEqual(current, root / "chaos-agent" / "sessions.sqlite3")
+            self.assertEqual(
+                current,
+                (root / "chaos-agent" / "sessions.sqlite3").resolve(strict=False),
+            )
 
     def test_product_state_root_uses_the_chaos_agent_directory(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -114,7 +120,9 @@ class ApplicationGuardTests(unittest.IsolatedAsyncioTestCase):
             with patch("code_agent_win.app.os.getenv", return_value=str(root)):
                 current = _product_state_root()
 
-            self.assertEqual(current, root / "chaos-agent")
+            self.assertEqual(
+                current, (root / "chaos-agent").resolve(strict=False)
+            )
 
     async def test_foreground_task_repairs_a_failed_test_then_checkpoints_completion(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

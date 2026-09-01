@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import posixpath
 import stat
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Mapping
 
@@ -26,6 +26,10 @@ class ParentState:
     parent: Path
     existing: tuple[tuple[Path, PathIdentity], ...]
     missing: tuple[Path, ...]
+
+    @property
+    def anchor(self) -> Path:
+        return self.existing[0][0]
 
     @property
     def nearest_existing(self) -> Path:
@@ -67,8 +71,24 @@ def verify_target_state(
     verify_parent_state(state.parent, guard, created, context=context)
     checked = guard.resolve(state.target, for_write=True)
     current = _inspect_path(checked, missing_ok=True, context=context)
-    if current != state.identity:
+    if not same_path_state(current, state.identity):
         raise WorkspaceError(f"path changed during {context}: {state.target}")
+
+
+def refresh_directory_after_owned_mutations(
+    state: TargetState,
+    guard: WorkspacePathGuard,
+    created: Mapping[str, tuple[Path, PathIdentity]],
+    *,
+    context: str,
+) -> TargetState:
+    """Accept expected child changes without accepting a replaced directory."""
+    verify_parent_state(state.parent, guard, created, context=context)
+    checked = guard.resolve(state.target, for_write=True)
+    current = _inspect_path(checked, missing_ok=False, context=context)
+    if not _same_directory_object(current, state.identity):
+        raise WorkspaceError(f"path changed during {context}: {state.target}")
+    return replace(state, identity=current)
 
 
 def verify_parent_state(
@@ -99,11 +119,16 @@ def _capture_parent_state(
     guard.resolve(parent, for_write=True)
     existing: list[tuple[Path, PathIdentity]] = []
     missing: list[Path] = []
-    current = guard.root
+    try:
+        relative = parent.relative_to(guard.root)
+        current = guard.root
+    except ValueError:
+        current = Path(parent.anchor)
+        relative = parent.relative_to(current)
     root_identity = _inspect_path(current, missing_ok=False, context=context)
     assert root_identity is not None
     existing.append((current, root_identity))
-    for part in parent.relative_to(guard.root).parts:
+    for part in relative.parts:
         current /= part
         identity = _inspect_path(current, missing_ok=True, context=context)
         if identity is None:
@@ -150,3 +175,32 @@ def identity_from_stat(metadata: os.stat_result) -> PathIdentity:
 
 def _same_object(current: PathIdentity, expected: PathIdentity) -> bool:
     return current == expected
+
+
+def _same_directory_object(
+    current: PathIdentity | None, expected: PathIdentity | None
+) -> bool:
+    return bool(
+        current is not None
+        and expected is not None
+        and current == expected
+        and stat.S_ISDIR(current.mode)
+        and stat.S_ISDIR(expected.mode)
+        and current.mode == expected.mode
+        and current.attributes == expected.attributes
+    )
+
+
+def same_path_state(
+    current: PathIdentity | None, expected: PathIdentity | None
+) -> bool:
+    """Compare object identity plus mutation-relevant metadata."""
+    if current is None or expected is None:
+        return current is expected
+    return (
+        current == expected
+        and current.mode == expected.mode
+        and current.attributes == expected.attributes
+        and current.size == expected.size
+        and current.modified_ns == expected.modified_ns
+    )

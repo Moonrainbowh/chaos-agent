@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import asyncio
 import os
 import sqlite3
 from collections.abc import Callable
 from pathlib import Path
 from typing import TypeVar
 
+from . import _database_cancellation as _dbc
 from ._rewind_schema import REWIND_MIGRATION, REWIND_REQUIRED_COLUMNS
 from .errors import (
     SessionCorruptionError,
@@ -17,13 +17,11 @@ from .errors import (
 from ._schema_structure import validate_schema_structure
 from ._schema_validation import REQUIRED_COLUMNS
 
-
-SCHEMA_VERSION = 17
+SCHEMA_VERSION = 18
 _BUSY_TIMEOUT_MS = 5_000
 _SQLITE_CORRUPT = 11
 _SQLITE_NOTADB = 26
 _Result = TypeVar("_Result")
-
 _MIGRATIONS: dict[int, tuple[str, ...]] = {
     1: (
         "CREATE TABLE threads (id TEXT PRIMARY KEY, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)",
@@ -121,6 +119,15 @@ _MIGRATIONS: dict[int, tuple[str, ...]] = {
     ),
     16: REWIND_MIGRATION,
     17: (),
+    18: (
+        "CREATE TABLE peer_sessions (instance_id TEXT PRIMARY KEY, session_ref TEXT NOT NULL, name TEXT NOT NULL, owner_pid INTEGER NOT NULL, owner_create_time REAL NOT NULL, workspace_root TEXT NOT NULL, thread_id TEXT REFERENCES threads(id) ON DELETE SET NULL, task_id TEXT REFERENCES tasks(id) ON DELETE SET NULL, permission_mode TEXT NOT NULL, inbound_policy TEXT NOT NULL CHECK(inbound_policy IN ('auto', 'accept', 'hold', 'refuse')), status TEXT NOT NULL CHECK(status IN ('idle', 'running', 'waiting', 'closed')), heartbeat_at TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)",
+        "CREATE UNIQUE INDEX peer_sessions_ref_unique ON peer_sessions(session_ref COLLATE NOCASE)",
+        "CREATE INDEX peer_sessions_live_name ON peer_sessions(status, heartbeat_at, name, session_ref)",
+        "CREATE TABLE peer_messages (id TEXT PRIMARY KEY, sender_instance_id TEXT NOT NULL REFERENCES peer_sessions(instance_id), receiver_instance_id TEXT NOT NULL REFERENCES peer_sessions(instance_id), origin TEXT NOT NULL CHECK(origin = 'peer'), content TEXT NOT NULL CHECK(length(trim(content)) > 0), content_sha256 TEXT NOT NULL, status TEXT NOT NULL CHECK(status IN ('queued', 'held', 'delivered', 'refused', 'expired')), claim_token TEXT, claimed_at TEXT, claim_expires_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, expires_at TEXT NOT NULL, CHECK((claim_token IS NULL AND claimed_at IS NULL AND claim_expires_at IS NULL) OR (status = 'queued' AND claim_token IS NOT NULL AND claimed_at IS NOT NULL AND claim_expires_at IS NOT NULL)))",
+        "CREATE INDEX peer_messages_receiver_status_created ON peer_messages(receiver_instance_id, status, created_at, id)",
+        "CREATE INDEX peer_messages_sender_created ON peer_messages(sender_instance_id, created_at, id)",
+        "CREATE INDEX peer_messages_dedupe ON peer_messages(sender_instance_id, receiver_instance_id, content_sha256, created_at)",
+    ),
 }
 
 
@@ -141,12 +148,16 @@ class SessionDatabase:
     async def read(
         self, operation: Callable[[sqlite3.Connection], _Result]
     ) -> _Result:
-        return await asyncio.to_thread(self._execute, operation, False)
+        return await _dbc.run_cancellable_database_call(
+            lambda cancellation: self._execute(operation, False, cancellation)
+        )
 
     async def write(
         self, operation: Callable[[sqlite3.Connection], _Result]
     ) -> _Result:
-        return await asyncio.to_thread(self._execute, operation, True)
+        return await _dbc.run_cancellable_database_call(
+            lambda cancellation: self._execute(operation, True, cancellation)
+        )
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(
@@ -227,25 +238,42 @@ class SessionDatabase:
         self,
         operation: Callable[[sqlite3.Connection], _Result],
         write: bool,
+        cancellation: _dbc.DatabaseCancellation,
     ) -> _Result:
         connection: sqlite3.Connection | None = None
+        primary: BaseException | None = None
         try:
             connection = self._connect()
-            connection.execute("BEGIN IMMEDIATE" if write else "BEGIN")
+            cancellation.attach(connection)
+            connection.set_progress_handler(cancellation.progress, 1_000)
+            _dbc.begin_cancellable_transaction(
+                connection, write=write, cancellation=cancellation,
+                timeout_ms=_BUSY_TIMEOUT_MS,
+            )
+            cancellation.check()
             result = operation(connection)
-            connection.execute("COMMIT")
+            cancellation.check()
+            cancellation.commit(connection, result)
             return result
-        except SessionError:
-            if connection is not None and connection.in_transaction:
-                connection.execute("ROLLBACK")
+        except (SessionError, _dbc.DatabaseOperationCancelled) as error:
+            primary = error
+            _dbc.rollback_database_transaction(connection, primary)
             raise
         except sqlite3.DatabaseError as error:
-            if connection is not None and connection.in_transaction:
-                connection.execute("ROLLBACK")
-            raise _database_error(error) from error
+            primary = (
+                _dbc.DatabaseOperationCancelled()
+                if cancellation.cancelled
+                else _database_error(error)
+            )
+            _dbc.rollback_database_transaction(connection, primary)
+            raise primary from error
+        except BaseException as error:
+            primary = error
+            _dbc.rollback_database_transaction(connection, primary)
+            raise
         finally:
             if connection is not None:
-                connection.close()
+                _dbc.cleanup_database_connection(cancellation, connection, primary)
 
 
 def _database_error(error: sqlite3.DatabaseError) -> SessionError:

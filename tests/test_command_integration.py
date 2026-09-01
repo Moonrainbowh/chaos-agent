@@ -282,7 +282,8 @@ class CapabilityTests(unittest.TestCase):
         plain = windows_system_prompt(False)
         repository = windows_system_prompt(True)
 
-        self.assertIn("Windows PowerShell", plain)
+        self.assertIn("PowerShell runtime information is unavailable", plain)
+        self.assertIn("run_process_v1", plain)
         self.assertIn("not a Git repository", plain)
         self.assertIn("Git repository", repository)
 

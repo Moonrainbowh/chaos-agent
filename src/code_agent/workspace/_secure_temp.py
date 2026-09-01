@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import os
+import secrets
 import stat
 from pathlib import Path
-from typing import Mapping
+from typing import BinaryIO, Mapping
 
 from . import _posix_io
 from . import _secure_io as safety
@@ -12,7 +13,30 @@ from .errors import WorkspaceError
 from .paths import WorkspacePathGuard
 
 
-TEMP_PREFIX = ".code-agent-edit-"
+TEMP_PREFIX = ".ca-"
+_TEMP_TOKEN_BYTES = 6
+WINDOWS_TEMP_NAME_UNITS = len(TEMP_PREFIX) + (_TEMP_TOKEN_BYTES * 2)
+
+
+def create_windows_temp(parent: Path) -> tuple[Path, BinaryIO]:
+    """Create an exclusive, bounded-name temp within a verified parent."""
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0)
+    for _ in range(32):
+        path = parent / f"{TEMP_PREFIX}{secrets.token_hex(_TEMP_TOKEN_BYTES)}"
+        try:
+            descriptor = os.open(path, flags, 0o600)
+        except FileExistsError:
+            continue
+        try:
+            return path, os.fdopen(descriptor, "wb")
+        except BaseException:
+            os.close(descriptor)
+            try:
+                path.unlink(missing_ok=True)
+            except OSError:
+                pass
+            raise
+    raise WorkspaceError("cannot allocate a unique Windows temporary file")
 
 
 def raw_identity_from_fd(

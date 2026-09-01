@@ -34,6 +34,7 @@ class _RunState:
     used_call_ids: set[str] = field(default_factory=set)
     total_usage: Usage = field(default_factory=Usage)
     stop_requested: bool = False
+    allowed_tool_names: frozenset[str] | None = None
 
 
 @dataclass(slots=True)
@@ -173,6 +174,7 @@ class AgentEngineRunMixin:
         self, state: _RunState, turn: _TurnState, bundle: ContextBundle
     ) -> AsyncIterator[AgentEvent]:
         completed = False
+        context_accepted = False
         try:
             stream = self._model.stream(
                 bundle.system_prompt, bundle.messages, turn.tools
@@ -193,6 +195,13 @@ class AgentEngineRunMixin:
                     {"event": model_event.to_dict()},
                 )
                 await self._journal.append_event(state.thread_id, streamed)
+                if not context_accepted:
+                    accept = getattr(
+                        self._context, "accept_pending_context", None
+                    )
+                    if callable(accept):
+                        await accept(state.thread_id)
+                    context_accepted = True
                 yield streamed
                 if model_event.usage is not None:
                     async for warning in self._record_model_usage(

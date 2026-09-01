@@ -4,7 +4,13 @@ import os
 from collections.abc import Mapping
 
 from code_agent.orchestration.modes import ModeRegistry, standard_mode_definitions
-from code_agent.orchestration.models import AgentMode, AgentRole, ModeSnapshot
+from code_agent.orchestration.models import (
+    AgentMode,
+    AgentRole,
+    ModeSnapshot,
+    ReasoningEffort,
+    RuntimeReasoningEffort,
+)
 from code_agent.providers.config import ModelProfile
 
 
@@ -17,7 +23,9 @@ READ_TOOLS = (
     "search_threads",
     "read_thread",
 )
-TYPED_WRITE_TOOLS = READ_TOOLS + ("write_file", "replace_text", "run_verification")
+TYPED_WRITE_TOOLS = READ_TOOLS + (
+    "write_file", "replace_text", "run_verification", "run_process_v1"
+)
 ALL_TOOLS = TYPED_WRITE_TOOLS + ("run_command", "delegate_agent")
 
 
@@ -52,10 +60,17 @@ def mode_prompt(snapshot: ModeSnapshot) -> str:
     definition = snapshot.definition
     return (
         f"Task mode: {definition.mode.value}. Prompt policy: {definition.prompt_policy}. "
-        f"Reasoning effort: {definition.reasoning_effort.value}. "
+        f"Runtime profile: {snapshot.profile_id}. Topology: {snapshot.topology.value}. "
+        f"Reasoning effort: {snapshot.effective_reasoning_effort}. "
         f"Orchestration policy: {definition.description} "
         "Mode changes capability and cost only; it never grants permission."
     )
+
+
+def runtime_effort_for_mode(effort: ReasoningEffort) -> RuntimeReasoningEffort:
+    if effort is ReasoningEffort.MINIMAL:
+        return RuntimeReasoningEffort.LOW
+    return RuntimeReasoningEffort(effort.value)
 
 
 def main_tools_for_mode(

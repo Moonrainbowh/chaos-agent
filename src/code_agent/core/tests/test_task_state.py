@@ -39,7 +39,7 @@ class TaskStateTests(unittest.TestCase):
                 "run_command",
                 {"stderr": "failed"},
                 is_error=True,
-                metadata={"returncode": 1},
+                metadata={"execution_attempted": True, "returncode": 1},
             ),
         )
 

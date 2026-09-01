@@ -79,7 +79,8 @@ def prepare_edit_state(
     before = states[0]
     if before.existed != plan.existed or before.sha256 != plan.before_sha256:
         raise EditConflictError(f"file changed after planning: {before.relative_path}")
-    after_bytes = plan.after_text.encode("utf-8")
+    assert plan.after_bytes is not None
+    after_bytes = plan.after_bytes
     after = WorkspaceFileState(
         before.relative_path,
         True,
@@ -142,6 +143,8 @@ def _validate_plan(plan: EditPlan) -> None:
         raise TypeError("plan relative_path must be text")
     if type(plan.after_text) is not str or type(plan.diff) is not str:
         raise TypeError("plan text fields must be text")
+    if type(plan.after_bytes) is not bytes:
+        raise TypeError("plan after_bytes must be bytes")
     if type(plan.existed) is not bool:
         raise TypeError("plan existed must be boolean")
     if plan.existed:

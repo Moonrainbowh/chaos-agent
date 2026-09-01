@@ -22,15 +22,22 @@ def model_client(
     input_modalities: frozenset[InputModality] = frozenset(
         {InputModality.TEXT}
     ),
+    reasoning_effort: str | None = None,
+    max_output_tokens: int = 4_096,
 ) -> object:
     options = {
         "attachment_resolver": attachment_resolver,
         "input_modalities": input_modalities,
+        "reasoning_effort": reasoning_effort,
+        "max_output_tokens": max_output_tokens,
     }
     if config.api is ApiProtocol.RESPONSES:
         return OpenAIResponsesClient(config, **options)
     if config.api is ApiProtocol.CHAT_COMPLETIONS:
         return OpenAIChatClient(config, **options)
+    # No Anthropic reasoning-effort wire mapping is confirmed for this host.
+    # Keep the frozen UI/audit choice, but do not invent a provider field.
+    options["reasoning_effort"] = None
     return AnthropicClient(config, **options)
 
 
@@ -38,7 +45,7 @@ def profile_model_factory(
     factory: Callable[[object], object],
     profiles: Mapping[str, ModelProfile],
     attachment_resolver: AttachmentResolver | None,
-) -> Callable[[object], object]:
+) -> Callable[..., object]:
     """Bind profile capabilities while preserving one-argument test factories."""
     by_provider: dict[int, ModelProfile] = {}
     for profile in profiles.values():
@@ -49,7 +56,9 @@ def profile_model_factory(
                 "shared provider configuration has conflicting input modalities"
             )
 
-    def create(provider: object) -> object:
+    def create(
+        provider: object, *, reasoning_effort: str | None = None
+    ) -> object:
         if factory is not model_client:
             return factory(provider)
         profile = by_provider.get(id(provider))
@@ -59,6 +68,8 @@ def profile_model_factory(
             profile.provider,
             attachment_resolver=attachment_resolver,
             input_modalities=profile.input_modalities,
+            reasoning_effort=reasoning_effort,
+            max_output_tokens=profile.max_output_tokens,
         )
 
     return create
@@ -103,9 +114,12 @@ def host_risks() -> dict[str, PluginRisk]:
         "git_diff": PluginRisk.READ,
         "search_threads": PluginRisk.READ,
         "read_thread": PluginRisk.READ,
+        "list_agents": PluginRisk.READ,
         "write_file": PluginRisk.WRITE,
         "replace_text": PluginRisk.WRITE,
         "run_verification": PluginRisk.WRITE,
+        "run_process_v1": PluginRisk.CRITICAL,
         "delegate_agent": PluginRisk.WRITE,
+        "send_message": PluginRisk.WRITE,
         "run_command": PluginRisk.CRITICAL,
     }

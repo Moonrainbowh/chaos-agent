@@ -11,7 +11,7 @@ from code_agent.policy.environment import sanitize_environment
 
 from .errors import RuntimeUnavailable
 from .local import OutputCallback, WindowsLocalRuntime
-from .models import CommandResult, CommandSpec, RuntimeKind
+from .models import CommandResult, CommandSpec, RuntimeKind, ShellDialect
 
 
 class DockerRuntime:
@@ -81,6 +81,12 @@ class DockerRuntime:
         arguments.append(self.image)
         if spec.argv is not None:
             arguments.extend(spec.argv)
+        elif spec.shell_script is not None:
+            if spec.shell_script.dialect is not ShellDialect.POSIX_SH:
+                raise RuntimeUnavailable(
+                    "Docker runtime shell scripts require the posix_sh dialect"
+                )
+            arguments.extend(("/bin/sh", "-lc", spec.shell_script.text))
         else:
             assert spec.powershell_script is not None
             arguments.extend(("/bin/sh", "-lc", spec.powershell_script))

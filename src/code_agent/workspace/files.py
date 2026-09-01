@@ -11,9 +11,7 @@ from threading import RLock
 from typing import Callable, Iterator, Sequence
 
 from .errors import (
-    BinaryFileError,
-    FileTooLargeError,
-    WorkspaceError,
+    BinaryFileError, FileTooLargeError, WindowsLongPathError, WorkspaceError,
 )
 from ._file_walk import iter_workspace_files
 from ._known_files import known_workspace_files
@@ -22,6 +20,7 @@ from ._text_search import (
     SearchMatch,
     search_text,
 )
+from ._text_codec import TextCodecError, TextFileFormat, decode_text_bytes
 from .ignore import IgnoreRules
 from .paths import WorkspacePathGuard
 
@@ -39,6 +38,7 @@ class TextDocument:
     total_lines: int
     start_line: int
     end_line: int
+    text_format: TextFileFormat
 
 
 class WorkspaceFiles:
@@ -154,8 +154,9 @@ class WorkspaceFiles:
         start_line: int = 1,
         end_line: int | None = None,
         max_bytes: int = DEFAULT_MAX_BYTES,
+        encoding: str = "auto",
     ) -> TextDocument:
-        """Read an inclusive line range from a bounded UTF-8 text file."""
+        """Read an inclusive line range from a bounded, strictly decoded file."""
         if not isinstance(start_line, int) or isinstance(start_line, bool):
             raise TypeError("start_line must be an integer")
         if end_line is not None and (
@@ -167,7 +168,11 @@ class WorkspaceFiles:
 
         resolved = self.guard.resolve(path)
         data = _read_limited(resolved, max_bytes)
-        text = _decode_text(data, resolved)
+        try:
+            decoded = decode_text_bytes(data, encoding)
+        except TextCodecError as error:
+            raise BinaryFileError(f"cannot decode text file: {resolved}") from error
+        text = decoded.text
         lines = text.splitlines(keepends=True)
         total_lines = len(lines)
         if total_lines == 0:
@@ -190,6 +195,7 @@ class WorkspaceFiles:
             total_lines=total_lines,
             start_line=start_line,
             end_line=selected_end,
+            text_format=decoded.format,
         )
 
     def _iter_external_files(
@@ -214,6 +220,8 @@ class WorkspaceFiles:
                     raise WorkspaceError(f"workspace scan exceeds {max_scanned_entries} entries")
                 try:
                     resolved = self.guard.resolve(entry)
+                except WindowsLongPathError:
+                    raise
                 except WorkspaceError:
                     continue
                 if resolved.is_dir():
@@ -272,15 +280,6 @@ def _read_limited(path: Path, max_bytes: int) -> bytes:
     if len(data) > max_bytes:
         raise FileTooLargeError(f"file exceeds {max_bytes} bytes: {path}")
     return data
-
-
-def _decode_text(data: bytes, path: Path) -> str:
-    if b"\0" in data:
-        raise BinaryFileError(f"NUL byte in text file: {path}")
-    try:
-        return data.decode("utf-8-sig")
-    except UnicodeDecodeError as error:
-        raise BinaryFileError(f"file is not valid UTF-8: {path}") from error
 
 
 def _scan_limit(max_entries: int, supplied: int | None) -> int:

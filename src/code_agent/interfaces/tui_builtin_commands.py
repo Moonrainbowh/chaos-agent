@@ -9,19 +9,21 @@ from .terminal_state import TerminalState
 from .tui_commands import TuiCommand, TuiCommandKind
 from .tui_mcp_commands import handle_mcp_command
 from .tui_plugin_commands import handle_plugin_command
+from .tui_session_commands import handle_session_command
 from .tui_skill_commands import handle_skill_command
 
 
 async def handle_builtin_command(app: Any, command: TuiCommand) -> bool | None:
     if command.kind is TuiCommandKind.CLEAR:
-        app.state = TerminalState(); app.current_thread_id = None; app._flushed_entries = 0
+        app.state = TerminalState(); app._flushed_entries = 0
     elif command.kind is TuiCommandKind.EXIT:
         app.running = False
     elif command.kind is TuiCommandKind.NEW:
         app.state = TerminalState(); app.current_thread_id = None; app.active_task_id = None; app._flushed_entries = 0
     elif command.kind is TuiCommandKind.SESSIONS:
-        records = await app.sessions.list_threads() if app.sessions else ()
-        app._append(DisplayKind.METADATA, " | ".join(str(getattr(item, "id", item)) for item in records))
+        return await handle_session_command(
+            app, command.action, command.instruction
+        )
     elif command.kind is TuiCommandKind.RESTORE:
         if not command.instruction:
             app._append(DisplayKind.ERROR, "thread id is required")

@@ -116,6 +116,13 @@ class GitSnapshotSafetyTests(unittest.TestCase):
         self.assertNotIn("SECRET_PREFIX", facets)
         self.assertNotIn("\ufffd", facets)
 
+    def test_legacy_diff_rejects_invalid_utf8_instead_of_replacing_it(self) -> None:
+        tracked = self.commit_file("invalid.txt", b"old\n")
+        tracked.write_bytes(b"SECRET_PREFIX\xfftail\n")
+
+        with self.assertRaisesRegex(WorkspaceError, "non-UTF-8"):
+            GitWorkspace(self.root).diff()
+
     def test_untracked_open_handle_must_match_guarded_file_identity(self) -> None:
         safe = self.root / "note.txt"
         safe.write_bytes(b"safe\n")

@@ -139,7 +139,7 @@ def build_engine(
 
 def build_child_engine_factory(
     host: object,
-    model_factory: Callable[[object], object],
+    model_factory: Callable[..., object],
     context_factory: Callable[[ModeSnapshot, object], object],
 ) -> Callable[
     [AgentDefinition, ActionExecutionContext | None], tuple[object, object]
@@ -147,8 +147,11 @@ def build_child_engine_factory(
     def child_engine(
         agent: AgentDefinition, parent: ActionExecutionContext | None = None
     ) -> tuple[object, object]:
-        profile = host.profiles[agent.mode.definition.profile_id]
-        client = model_factory(profile.provider)
+        profile = host.profiles[agent.mode.profile_id]
+        client = model_factory(
+            profile.provider,
+            reasoning_effort=agent.mode.effective_reasoning_effort,
+        )
         restricted = RestrictedDispatcher(
             host.dispatcher, agent.effective_tools
         )

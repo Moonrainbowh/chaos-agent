@@ -36,7 +36,10 @@ class AgentEngineActionMixin:
         if not is_available:
             result = tool_failure(call, "tool is not available")
         else:
-            if supervisor is not None and call.name in {"write_file", "replace_text", "run_command", "run_verification"}:
+            if supervisor is not None and call.name in {
+                "write_file", "replace_text", "run_command",
+                "run_process_v1", "run_verification",
+            }:
                 decision = supervisor.before_external_action()
                 if decision.kind is SupervisionKind.PAUSE:
                     await self._pause_task(thread_id, task, supervisor, decision.reason or "task paused")
@@ -130,7 +133,10 @@ class AgentEngineActionMixin:
         task: TaskRecord | None,
         supervisor: TaskSupervisor | None,
     ) -> AgentEvent | None:
-        if call.name not in {"read_file", "list_files", "search_text", "write_file", "replace_text", "run_command", "run_verification"}:
+        if call.name not in {
+            "read_file", "list_files", "search_text", "write_file",
+            "replace_text", "run_command", "run_process_v1", "run_verification",
+        }:
             return None
         state = await self._journal.reduce_task_state(thread_id, request, result)
         verification = getattr(self, "_verification", None)
@@ -202,7 +208,9 @@ class AgentEngineActionMixin:
         paused = await self._journal.transition_task(task.id, TaskStatus.PAUSED, reason)
         await self._journal.create_checkpoint(thread_id, "task-paused", {"task_id": paused.id, "status": paused.status.value, "reason": reason})
 
-    def _advertised_tools(self) -> tuple[tuple[ToolDefinition, ...], set[str]]:
+    def _advertised_tools(
+        self, allowed_names: frozenset[str] | None = None
+    ) -> tuple[tuple[ToolDefinition, ...], set[str]]:
         try:
             tools = tuple(self._actions.tools())
             if not all(isinstance(tool, ToolDefinition) for tool in tools):
@@ -210,6 +218,9 @@ class AgentEngineActionMixin:
             names = {tool.name for tool in tools}
             if len(names) != len(tools):
                 raise ModelStreamError("action dispatcher exposed duplicate tools")
+            if allowed_names is not None:
+                tools = tuple(tool for tool in tools if tool.name in allowed_names)
+                names = {tool.name for tool in tools}
             return tools, names
         except ModelStreamError:
             raise
@@ -242,6 +253,20 @@ def _validation_fingerprint(request: ActionRequest, result: object) -> str | Non
         subject = request.arguments.get("command")
     if not isinstance(subject, str):
         return None
+    metadata = getattr(result, "metadata", {})
+    digest = (
+        metadata.get("failure_fingerprint")
+        if isinstance(metadata, Mapping)
+        else None
+    )
+    if (
+        isinstance(digest, str)
+        and len(digest) == 64
+        and all(character in "0123456789abcdef" for character in digest)
+    ):
+        return (
+            f"{subject[:120]}|{output.get('reason', 'failed')}|{digest}"
+        )
     prefix = " ".join(str(output.get(key, ""))[:256] for key in ("stdout", "stderr"))
     return f"{subject[:120]}|{output.get('returncode')}|{output.get('reason', 'failed')}|{prefix[:256]}"
 

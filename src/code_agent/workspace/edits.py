@@ -1,14 +1,20 @@
 from __future__ import annotations
 
-import difflib
 import hashlib
 import os
-import stat
-import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
+from ._text_codec import (
+    DecodedText,
+    TextCodecError,
+    decode_text_bytes,
+    encode_existing_text,
+    encode_new_text,
+)
+from ._text_diff import unified_text_diff
+from ._edit_plan import EditPlan
 from ._workspace_read import read_current
 from .errors import (
     BinaryFileError,
@@ -17,20 +23,18 @@ from .errors import (
     WorkspaceError,
 )
 from .paths import PathInput, WorkspacePathGuard
-from ._secure_io import canonical_path_key
+from ._secure_io import canonical_path_key, capture_target_state
+from ._secure_replace import secure_atomic_write
 from ._snapshot_restore import execute_restore, preflight_restore
+from ._windows_file_locks import (
+    DEFAULT_WINDOWS_FILE_LOCK_TIMEOUT_S,
+    READ_RETRY_WINERRORS,
+    retry_windows_file_operation,
+    validate_file_lock_timeout,
+)
 
 DEFAULT_SNAPSHOT_BYTES = 10_000_000
 DEFAULT_MAX_FILE_BYTES = 10_000_000
-
-
-@dataclass(frozen=True)
-class EditPlan:
-    relative_path: str
-    before_sha256: str | None
-    after_text: str
-    diff: str
-    existed: bool
 
 
 @dataclass(frozen=True)
@@ -59,6 +63,7 @@ class WorkspaceEditor:
         guard: WorkspacePathGuard,
         *,
         max_file_bytes: int = DEFAULT_MAX_FILE_BYTES,
+        file_lock_timeout_s: float = DEFAULT_WINDOWS_FILE_LOCK_TIMEOUT_S,
     ) -> None:
         if not isinstance(max_file_bytes, int) or isinstance(max_file_bytes, bool):
             raise TypeError("max_file_bytes must be an integer")
@@ -66,6 +71,18 @@ class WorkspaceEditor:
             raise ValueError("max_file_bytes must be positive")
         self.guard = guard
         self.max_file_bytes = max_file_bytes
+        self.file_lock_timeout_s = validate_file_lock_timeout(
+            file_lock_timeout_s
+        )
+
+    def _read_current(self, target: Path, max_bytes: int) -> tuple[bytes, bool]:
+        return retry_windows_file_operation(
+            lambda: read_current(self.guard, target, max_bytes),
+            target=target,
+            operation="read file",
+            timeout_s=self.file_lock_timeout_s,
+            retry_winerrors=READ_RETRY_WINERRORS,
+        )
 
     def plan_write(
         self,
@@ -73,22 +90,31 @@ class WorkspaceEditor:
         after_text: str,
         *,
         expected_sha256: str | None = None,
+        encoding: str = "auto",
     ) -> EditPlan:
         """Build a write plan without changing the target file."""
         if not isinstance(after_text, str):
             raise TypeError("after_text must be text")
         target = self.guard.resolve(path, for_write=True)
         relative = self.guard.relative(target).as_posix()
-        before, existed = read_current(self.guard, target, self.max_file_bytes)
+        before, existed = self._read_current(target, self.max_file_bytes)
         before_hash = _sha256(before) if existed else None
         _check_expected(before_hash, expected_sha256)
-        before_text = _decode_existing(before, target) if existed else ""
+        decoded = _decode_existing(before, target, encoding) if existed else None
+        before_text = decoded.text if decoded is not None else ""
+        encoded = (
+            encode_existing_text(after_text, decoded.format)
+            if decoded is not None
+            else encode_new_text(after_text, encoding)
+        )
         return EditPlan(
             relative_path=relative,
             before_sha256=before_hash,
-            after_text=after_text,
-            diff=_unified_diff(relative, before_text, after_text, existed),
+            after_text=encoded.text,
+            diff=unified_text_diff(relative, before_text, encoded.text, existed),
             existed=existed,
+            after_bytes=encoded.data,
+            text_format=encoded.format,
         )
 
     def plan_replace(
@@ -98,6 +124,7 @@ class WorkspaceEditor:
         new_text: str,
         *,
         expected_sha256: str | None = None,
+        encoding: str = "auto",
     ) -> EditPlan:
         """Plan replacement of exactly one non-empty text occurrence."""
         if not isinstance(old_text, str) or not isinstance(new_text, str):
@@ -105,22 +132,27 @@ class WorkspaceEditor:
         if not old_text:
             raise ValueError("old_text must be non-empty")
         target = self.guard.resolve(path, for_write=True)
-        before, existed = read_current(self.guard, target, self.max_file_bytes)
+        before, existed = self._read_current(target, self.max_file_bytes)
         if not existed:
             raise WorkspaceError(f"cannot replace text in a missing file: {target}")
         before_hash = _sha256(before)
         _check_expected(before_hash, expected_sha256)
-        before_text = _decode_existing(before, target)
+        decoded = _decode_existing(before, target, encoding)
+        before_text = decoded.text
         if before_text.count(old_text) != 1:
             raise ValueError("old_text must occur exactly once")
         relative = self.guard.relative(target).as_posix()
-        after_text = before_text.replace(old_text, new_text, 1)
+        encoded = encode_existing_text(
+            before_text.replace(old_text, new_text, 1), decoded.format
+        )
         return EditPlan(
             relative,
             before_hash,
-            after_text,
-            _unified_diff(relative, before_text, after_text, True),
+            encoded.text,
+            unified_text_diff(relative, before_text, encoded.text, True),
             True,
+            encoded.data,
+            encoded.format,
         )
 
     def apply(self, plan: EditPlan) -> None:
@@ -128,11 +160,27 @@ class WorkspaceEditor:
         if not isinstance(plan, EditPlan):
             raise TypeError("plan must be an EditPlan")
         target = self.guard.resolve(plan.relative_path, for_write=True)
-        current, exists = read_current(self.guard, target, self.max_file_bytes)
-        current_hash = _sha256(current) if exists else None
-        if exists != plan.existed or current_hash != plan.before_sha256:
-            raise EditConflictError(f"file changed after planning: {plan.relative_path}")
-        _atomic_write(target, plan.after_text.encode("utf-8"))
+
+        def validate_plan() -> None:
+            current, exists = self._read_current(target, self.max_file_bytes)
+            current_hash = _sha256(current) if exists else None
+            if exists != plan.existed or current_hash != plan.before_sha256:
+                raise EditConflictError(
+                    f"file changed after planning: {plan.relative_path}"
+                )
+
+        validate_plan()
+        state = capture_target_state(target, self.guard, context="edit")
+        assert plan.after_bytes is not None
+        secure_atomic_write(
+            state,
+            plan.after_bytes,
+            self.guard,
+            {},
+            timeout_s=self.file_lock_timeout_s,
+            validate=validate_plan,
+            context="edit",
+        )
 
     def snapshot(
         self,
@@ -154,7 +202,7 @@ class WorkspaceEditor:
                 raise ValueError(f"duplicate snapshot path: {relative}")
             seen.add(relative)
             remaining = max_total_bytes - total
-            content, existed = read_current(self.guard, target, remaining)
+            content, existed = self._read_current(target, remaining)
             total += len(content)
             if total > max_total_bytes:
                 raise FileTooLargeError(
@@ -184,7 +232,9 @@ class WorkspaceEditor:
             self.max_file_bytes,
             max_total_bytes,
         )
-        execute_restore(plan, self.guard)
+        execute_restore(
+            plan, self.guard, file_lock_timeout_s=self.file_lock_timeout_s
+        )
 
 
 WorkspaceEdits = WorkspaceEditor
@@ -216,32 +266,11 @@ def build_restore_snapshot(
     )
 
 
-def _read_current(path: Path, max_bytes: int) -> tuple[bytes, bool]:
-    if not path.exists():
-        return b"", False
-    if not path.is_file():
-        raise WorkspaceError(f"not a regular file: {path}")
+def _decode_existing(data: bytes, path: Path, encoding: str) -> DecodedText:
     try:
-        if path.stat().st_size > max_bytes:
-            raise FileTooLargeError(f"file exceeds {max_bytes} bytes: {path}")
-        with path.open("rb") as stream:
-            content = stream.read(max_bytes + 1)
-        if len(content) > max_bytes:
-            raise FileTooLargeError(f"file exceeds {max_bytes} bytes: {path}")
-        return content, True
-    except FileTooLargeError:
-        raise
-    except OSError as error:
-        raise WorkspaceError(f"cannot read file: {path}") from error
-
-
-def _decode_existing(data: bytes, path: Path) -> str:
-    if b"\0" in data:
-        raise BinaryFileError(f"cannot edit binary file: {path}")
-    try:
-        return data.decode("utf-8")
-    except UnicodeDecodeError as error:
-        raise BinaryFileError(f"cannot edit non-UTF-8 file: {path}") from error
+        return decode_text_bytes(data, encoding)
+    except TextCodecError as error:
+        raise BinaryFileError(f"cannot edit undecodable text file: {path}") from error
 
 
 def _check_expected(actual: str | None, expected: str | None) -> None:
@@ -251,51 +280,3 @@ def _check_expected(actual: str | None, expected: str | None) -> None:
 
 def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
-
-
-def _unified_diff(path: str, before: str, after: str, existed: bool) -> str:
-    return "".join(
-        difflib.unified_diff(
-            _diff_lines(before),
-            _diff_lines(after),
-            fromfile=f"a/{path}" if existed else "/dev/null",
-            tofile=f"b/{path}",
-        )
-    )
-
-
-def _diff_lines(text: str) -> list[str]:
-    lines = text.splitlines(keepends=True)
-    if lines and not text.endswith(("\n", "\r")):
-        lines[-1] += "\n\\ No newline at end of file\n"
-    return lines
-
-
-def _atomic_write(target: Path, content: bytes) -> None:
-    parent = target.parent
-    if not parent.is_dir():
-        raise WorkspaceError(f"parent directory does not exist: {parent}")
-    previous_mode: int | None = None
-    if target.is_file():
-        previous_mode = stat.S_IMODE(target.stat().st_mode)
-    temporary_path: Path | None = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            mode="wb", prefix=".code-agent-edit-", dir=parent, delete=False
-        ) as stream:
-            temporary_path = Path(stream.name)
-            stream.write(content)
-            stream.flush()
-            os.fsync(stream.fileno())
-        if previous_mode is not None:
-            os.chmod(temporary_path, previous_mode)
-        os.replace(temporary_path, target)
-        temporary_path = None
-    except OSError as error:
-        raise WorkspaceError(f"cannot atomically write file: {target}") from error
-    finally:
-        if temporary_path is not None:
-            try:
-                temporary_path.unlink(missing_ok=True)
-            except OSError:
-                pass

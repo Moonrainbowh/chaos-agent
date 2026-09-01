@@ -27,6 +27,23 @@ class CompletedProcess:
         self.returncode = -9
 
 
+class CompletedJob:
+    def __init__(self) -> None:
+        self.closed = False
+
+    def assign(self, pid: int) -> None:
+        del pid
+
+    def terminate(self, exit_code: int = 1) -> None:
+        del exit_code
+
+    def active_processes(self) -> int:
+        return 0
+
+    def close(self) -> None:
+        self.closed = True
+
+
 class LocalRuntimeTestCase(unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
@@ -44,6 +61,9 @@ def patch_process_identity_capture():
         return_value=object(),
     ) as capture, patch(
         "code_agent.runtime.local.resume_process_identity"
-    ) as resume:
+    ) as resume, patch(
+        "code_agent.runtime._windows_spawn.WindowsJob.create",
+        side_effect=CompletedJob,
+    ):
         capture.resume = resume
         yield capture

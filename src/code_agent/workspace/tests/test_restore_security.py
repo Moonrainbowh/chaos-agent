@@ -136,7 +136,13 @@ class RestoreRaceTests(RestoreSecurityTestCase):
         snapshot = WorkspaceSnapshot((SnapshotEntry("module.py", b"after", True),))
         before_names = {path.name for path in self.root.iterdir()}
 
-        with patch("os.replace", side_effect=OSError("busy")):
+        if os.name == "nt":
+            replace_path = (
+                "code_agent.workspace._windows_atomic_replace._replace_file"
+            )
+        else:
+            replace_path = "os.replace"
+        with patch(replace_path, side_effect=OSError("busy")):
             with self.assertRaisesRegex(WorkspaceError, "atomically restore"):
                 self.editor.restore(snapshot)
 
@@ -152,16 +158,7 @@ class RestoreRaceTests(RestoreSecurityTestCase):
         snapshot = WorkspaceSnapshot(
             (SnapshotEntry("package/module.py", b"after", True),)
         )
-        real_named_temporary = tempfile.NamedTemporaryFile
         attacked = False
-
-        def replace_parent(*args: object, **kwargs: object):
-            nonlocal attacked
-            if not attacked:
-                attacked = True
-                parent.rename(displaced)
-                parent.mkdir()
-            return real_named_temporary(*args, **kwargs)
 
         if os.name == "posix":
             from code_agent.workspace import _posix_io
@@ -180,7 +177,23 @@ class RestoreRaceTests(RestoreSecurityTestCase):
                 _posix_io, "create_temp", side_effect=replace_before_create
             )
         else:
-            creator = patch("tempfile.NamedTemporaryFile", side_effect=replace_parent)
+            from code_agent.workspace import _secure_replace
+
+            real_create_temp = _secure_replace.create_windows_temp
+
+            def replace_before_create(parent_path: Path):
+                nonlocal attacked
+                if not attacked:
+                    attacked = True
+                    parent.rename(displaced)
+                    parent.mkdir()
+                return real_create_temp(parent_path)
+
+            creator = patch.object(
+                _secure_replace,
+                "create_windows_temp",
+                side_effect=replace_before_create,
+            )
         with creator:
             with self.assertRaisesRegex(
                 WorkspaceError, "(changed|disappeared) during restore"

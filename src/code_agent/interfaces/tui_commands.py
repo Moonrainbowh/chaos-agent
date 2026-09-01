@@ -18,6 +18,8 @@ _DEFAULT_SERVICES = {
     "mcp",
     "plugins",
     "attachments",
+    "runtime_selection",
+    "peers",
 }
 
 
@@ -48,6 +50,7 @@ def parse_tui_command(
 ) -> ParseOutcome:
     if not isinstance(text, str): raise TypeError("text must be a string")
     if not text.startswith("/"): return ParseOutcome()
+    text = _compatibility_alias(text)
     effective = _DEFAULT_SERVICES if services is None else services
     raw_body = text[1:].lstrip()
     head = raw_body.split(maxsplit=1)[0] if raw_body else ""
@@ -72,6 +75,8 @@ def parse_tui_command(
         action = registry.resolve_action(spec, arguments[0])
         if action is None:
             return ParseOutcome(error="unknown slash command action")
+        if not set(action.requires).issubset(effective):
+            return ParseOutcome(error="unknown or unavailable slash command action")
         if len(arguments) > 1 and not action.usage:
             return ParseOutcome(error="command action does not accept arguments")
         if len(arguments) == 1 and action.usage.startswith("<"):
@@ -80,4 +85,18 @@ def parse_tui_command(
     kinds = {"帮助": "help", "状态": "status", "清屏": "clear", "退出": "exit", "新建": "new", "会话": "sessions", "恢复": "restore", "任务": "tasks", "接受": "accept", "差异": "diff", "附件": "attachment", "证据": "evidence", "检查点": "checkpoint", "回退": "rewind", "模式": "mode", "权限": "permission", "流程": "workflow", "技能": "skill", "mcp": "mcp", "插件": "plugin_control"}
     kind = TuiCommandKind.PLUGIN if spec.source == "plugin" else TuiCommandKind(kinds[spec.name])
     value = " ".join(arguments) or None
-    return ParseOutcome(TuiCommand(kind, value if kind is TuiCommandKind.ACCEPT else None, value if kind in {TuiCommandKind.HELP, TuiCommandKind.RESTORE, TuiCommandKind.ATTACHMENT, TuiCommandKind.EVIDENCE, TuiCommandKind.CHECKPOINT, TuiCommandKind.REWIND, TuiCommandKind.MODE, TuiCommandKind.PERMISSION, TuiCommandKind.WORKFLOW, TuiCommandKind.SKILL, TuiCommandKind.MCP, TuiCommandKind.PLUGIN_CONTROL, TuiCommandKind.PLUGIN} else None, spec.name if kind is TuiCommandKind.PLUGIN else None, normalized_action))
+    return ParseOutcome(TuiCommand(kind, value if kind is TuiCommandKind.ACCEPT else None, value if kind in {TuiCommandKind.HELP, TuiCommandKind.SESSIONS, TuiCommandKind.RESTORE, TuiCommandKind.ATTACHMENT, TuiCommandKind.EVIDENCE, TuiCommandKind.CHECKPOINT, TuiCommandKind.REWIND, TuiCommandKind.MODE, TuiCommandKind.PERMISSION, TuiCommandKind.WORKFLOW, TuiCommandKind.SKILL, TuiCommandKind.MCP, TuiCommandKind.PLUGIN_CONTROL, TuiCommandKind.PLUGIN} else None, spec.name if kind is TuiCommandKind.PLUGIN else None, normalized_action))
+
+
+def _compatibility_alias(text: str) -> str:
+    body = text[1:].lstrip()
+    if not body:
+        return text
+    parts = body.split(maxsplit=1)
+    head = parts[0].casefold()
+    tail = " " + parts[1] if len(parts) == 2 else ""
+    if head in {"list-agents", "peers"}:
+        return "/会话 在线" + tail
+    if head == "rename":
+        return "/会话 重命名" + tail
+    return text

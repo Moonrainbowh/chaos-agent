@@ -5,6 +5,13 @@ import uuid
 from dataclasses import dataclass, field
 from enum import Enum
 from code_agent.core.limits import EngineLimits
+from .runtime_models import (
+    AgentMode,
+    AgentTopology,
+    ReasoningEffort,
+    RuntimeReasoningEffort,
+    RuntimeSelection,
+)
 
 
 _IDENTIFIER = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
@@ -53,21 +60,6 @@ def _names(values: object, label: str) -> tuple[str, ...]:
     if len(result) != len(set(result)):
         raise ValueError(f"{label} must not contain duplicates")
     return result
-
-
-class AgentMode(str, Enum):
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
-    ULTRA = "ultra"
-
-
-class ReasoningEffort(str, Enum):
-    MINIMAL = "minimal"
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
-    XHIGH = "xhigh"
 
 
 class AgentRole(str, Enum):
@@ -120,6 +112,7 @@ class ModeSnapshot:
     model: str
     oracle_model: str | None
     digest: str
+    runtime_selection: RuntimeSelection | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.definition, ModeDefinition):
@@ -129,6 +122,31 @@ class ModeSnapshot:
             object.__setattr__(self, "oracle_model", _text(self.oracle_model, "oracle_model", 512))
         if not isinstance(self.digest, str) or not re.fullmatch(r"[0-9a-f]{64}", self.digest):
             raise ValueError("digest must be a SHA-256 hex digest")
+        if self.runtime_selection is not None:
+            if not isinstance(self.runtime_selection, RuntimeSelection):
+                raise TypeError("runtime_selection must be a RuntimeSelection")
+            if self.runtime_selection.legacy_mode is not self.definition.mode:
+                raise ValueError("runtime selection legacy mode must match snapshot mode")
+            if self.runtime_selection.model != self.model:
+                raise ValueError("runtime selection model must match snapshot model")
+
+    @property
+    def profile_id(self) -> str:
+        if self.runtime_selection is not None:
+            return self.runtime_selection.profile_id
+        return self.definition.profile_id
+
+    @property
+    def topology(self) -> AgentTopology:
+        if self.runtime_selection is not None:
+            return self.runtime_selection.topology
+        return AgentTopology.SINGLE
+
+    @property
+    def effective_reasoning_effort(self) -> str:
+        if self.runtime_selection is not None:
+            return self.runtime_selection.reasoning_effort.value
+        return self.definition.reasoning_effort.value
 
 
 @dataclass(frozen=True)

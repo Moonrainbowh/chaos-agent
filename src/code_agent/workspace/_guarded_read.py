@@ -158,6 +158,10 @@ def _strip_windows_device_prefix(path: str) -> str:
 
 
 def _read_bounded(descriptor: int, max_bytes: int) -> bytes:
+    if os.name == "nt":
+        from ._windows_guarded_read import read_bounded_windows_file
+
+        return read_bounded_windows_file(descriptor, max_bytes)
     chunks: list[bytes] = []
     remaining = max_bytes + 1
     while remaining:

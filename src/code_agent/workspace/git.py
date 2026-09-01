@@ -17,7 +17,8 @@ from ._git_errors import (
     GitCommandError,
     GitOutputLimitError,
     GitTimeoutError,
-    decode_git_output as _decode,
+    decode_git_output as _decode_diagnostic,
+    decode_git_text as _decode,
 )
 from .errors import WorkspaceError
 from ._git_environment import isolated_git_environment
@@ -76,13 +77,16 @@ class GitWorkspace:
         result = self._invoke(
             "is_repository", ("rev-parse", "--is-inside-work-tree")
         )
-        return result.returncode == 0 and _decode(result.stdout).strip() == "true"
+        return (
+            result.returncode == 0
+            and _decode(result.stdout, "is_repository", result.argv).strip() == "true"
+        )
 
     def status_porcelain(self) -> str:
         """Return machine-readable working tree status."""
         result = self._invoke("status", ("status", "--porcelain"))
         self._require_success("status", result)
-        return _decode(result.stdout)
+        return _decode(result.stdout, "status", result.argv)
 
     def snapshot_paths(self, *, timeout_s: float | None = None) -> tuple[str, ...]:
         """Return tracked and non-ignored untracked paths for a snapshot."""
@@ -131,7 +135,7 @@ class GitWorkspace:
         )
         result = self._invoke("diff", arguments)
         self._require_success("diff", result)
-        return _decode(result.stdout)
+        return _decode(result.stdout, "diff", result.argv)
 
     def diff_snapshot(self, paths: Iterable[PathInput] = ()) -> GitDiffSnapshot:
         """Return staged, unstaged, and untracked diffs under one byte budget."""
@@ -185,6 +189,7 @@ class GitWorkspace:
             self._git_executable,
             "-c",
             "core.pager=cat",
+            *(("-c", "core.longPaths=true") if os.name == "nt" else ()),
             "--literal-pathspecs",
             *arguments,
         )
@@ -217,7 +222,7 @@ class GitWorkspace:
                 operation,
                 argv,
                 capture.returncode,
-                _decode(capture.stderr),
+                _decode_diagnostic(capture.stderr),
                 f"git {operation} output could not be read: {capture.read_error}",
                 stdout_bytes=capture.stdout,
                 stderr_bytes=capture.stderr,
@@ -261,7 +266,7 @@ class GitWorkspace:
     def _require_success(operation: str, result: _GitResult) -> None:
         if result.returncode == 0:
             return
-        stderr = _decode(result.stderr)
+        stderr = _decode_diagnostic(result.stderr)
         raise GitCommandError(
             operation,
             result.argv,
@@ -272,12 +277,6 @@ class GitWorkspace:
             stdout_bytes=result.stdout,
             stderr_bytes=result.stderr,
         )
-
-
-def _decode(value: bytes) -> str:
-    return value.decode("utf-8", errors="replace")
-
-
 def _decode_snapshot_patch(value: bytes) -> str:
     try:
         return value.decode("utf-8")

@@ -14,6 +14,10 @@ from code_agent.mcp.stdio_manager import StdioMcpManager
 from code_agent.policy.engine import ActionPolicy, PolicyConfig
 from code_agent.providers.config import ModelProfile
 from code_agent.runtime.local import WindowsLocalRuntime
+from code_agent.runtime._powershell_runtime import (
+    PowerShellRuntimeResolver,
+    resolved_powershell_runtime,
+)
 from code_agent.skills.registry import SkillActivation, SkillRegistry
 from code_agent.verification.local_adapter import LocalVerificationAdapter
 from code_agent.workspace.edits import WorkspaceEditor
@@ -54,7 +58,8 @@ def build_host_integrations(
         has_git=git is not None,
     )
     dispatcher = _dispatcher(
-        root, files, git, repo_index, editor, rewind_write, extensions
+        root, files, git, repo_index, editor, rewind_write, extensions,
+        resolved_powershell_runtime(config.powershell_dialect),
     )
     store = AttachmentStore(product_state_root / "attachments")
     ingestor = AttachmentIngestor(
@@ -106,6 +111,7 @@ def _dispatcher(
     editor: WorkspaceEditor,
     rewind_write: object,
     extensions: _Extensions,
+    powershell: PowerShellRuntimeResolver,
 ) -> RootActionDispatcher:
     def invalidate_workspace_context(paths: tuple[str, ...]) -> None:
         repo_index.invalidate(paths)
@@ -117,7 +123,7 @@ def _dispatcher(
         extensions.policy,
         extensions.approvals,
         git=git,
-        runtime=WindowsLocalRuntime(root),
+        runtime=WindowsLocalRuntime(root, powershell=powershell),
         verification=LocalVerificationAdapter(root),
         mcp=extensions.mcp,
         plugins=extensions.bridge,

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, replace
 from typing import Mapping, Optional, Sequence, cast
 
@@ -185,13 +186,32 @@ def reduce_task_state(state: TaskState, request: object, result: object) -> Task
             files_changed=_append(state.files_changed, path),
             verified_facts=_append(state.verified_facts, f"Changed file: {path}"),
         )
-    if name == "run_command" and isinstance(arguments.get("command"), str):
+    if name in {"run_command", "run_process_v1"} and _execution_attempted(result):
         returncode = _returncode(result)
         if is_error or (returncode is not None and returncode != 0):
-            fact = CommandFact(arguments["command"], returncode, "command failed")
+            fact = CommandFact(
+                _command_fact_text(name, arguments), returncode, "command failed"
+            )
             if fact not in state.failed_commands:
                 return replace(state, failed_commands=(state.failed_commands + (fact,))[-_MAX_VALUES:])
     return state
+
+
+def _execution_attempted(result: object) -> bool:
+    metadata = getattr(result, "metadata", {})
+    return isinstance(metadata, Mapping) and metadata.get("execution_attempted") is True
+
+
+def _command_fact_text(name: str, arguments: Mapping[str, object]) -> str:
+    if name == "run_command":
+        value = arguments.get("command", "run_command")
+        rendered = value if isinstance(value, str) else "run_command"
+    else:
+        program = arguments.get("program")
+        raw_args = arguments.get("args")
+        values = [program, *raw_args] if isinstance(program, str) and isinstance(raw_args, Sequence) and not isinstance(raw_args, (str, bytes)) else ["run_process_v1"]
+        rendered = json.dumps(values, ensure_ascii=False, separators=(",", ":"))
+    return rendered[:_MAX_STRING_LENGTH]
 
 
 def _returncode(result: object) -> Optional[int]:

@@ -8,6 +8,7 @@ from code_agent.interfaces.capability_view import ModePermissionView, Permission
 from code_agent.interfaces.interaction import PluginInteractionAdapter
 from code_agent.interfaces.terminal_display import DisplayKind
 from code_agent.policy.models import ApprovalMode
+from code_agent.workspace.windows_paths import windows_path_support
 from code_agent.workflows.service import WorkflowService
 from code_agent_win.app_ui import (
     GitDiffAdapter,
@@ -29,6 +30,9 @@ class UiComposition:
     root: Path
     profile_supplier: object
     profile_resolver: object
+    runtime_resolver: object
+    runtime_selection: object
+    peers: object
     subagents: object
     snapshot: object
     approval_mode: object
@@ -119,6 +123,7 @@ class _UiComposer:
             parts.root,
             profile_supplier=parts.profile_supplier,
             profile_resolver=parts.profile_resolver,
+            runtime_resolver=parts.runtime_resolver,
             subagents=parts.subagents,
             workflows=self.workflows,
             plugin_events=self.plugin_events,
@@ -161,11 +166,17 @@ class _UiComposer:
                     parts.approval_mode is ApprovalMode.UNRESTRICTED,
                     parts.approval_mode is not ApprovalMode.PLAN,
                 ),
+                runtime_summary=(
+                    f"{parts.workspace_runtime.powershell_info().summary}; "
+                    f"{windows_path_support().summary}"
+                ),
             ),
             recover_pending=parts.workspace_runtime.recover_pending,
             startup=parts.workspace_runtime.startup,
             plugin_errors=parts.plugin_errors,
             attachment_draft=parts.attachment_draft,
+            runtime_selection=parts.runtime_selection,
+            peers=parts.peers,
         )
 
     def _finish(self) -> None:

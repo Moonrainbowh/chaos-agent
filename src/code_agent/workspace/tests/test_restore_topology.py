@@ -80,6 +80,14 @@ class TopologyConversionTests(RestoreTopologyTestCase):
         self.assertTrue((self.root / "a").is_file())
         self.assertEqual((self.root / "a").read_bytes(), b"checkpoint")
 
+    def test_nested_directories_refresh_after_each_owned_removal(self) -> None:
+        self.write("a/b/current.py", b"current")
+        target = WorkspaceSnapshot((SnapshotEntry("a", b"checkpoint", True),))
+
+        self.editor.restore(build_restore_snapshot(("a/b/current.py",), target))
+
+        self.assertEqual((self.root / "a").read_bytes(), b"checkpoint")
+
     def test_checkpoint_directory_replaces_planned_current_file(self) -> None:
         self.write("a", b"current")
         target = WorkspaceSnapshot(
@@ -108,6 +116,45 @@ class TopologyConversionTests(RestoreTopologyTestCase):
 
 
 class TopologyConflictTests(RestoreTopologyTestCase):
+    def test_directory_swap_after_owned_delete_is_rejected(self) -> None:
+        self.write("a/current.py", b"current")
+        target = WorkspaceSnapshot((SnapshotEntry("a", b"checkpoint", True),))
+        restore = build_restore_snapshot(("a/current.py",), target)
+        from code_agent.workspace import _snapshot_restore as execution
+
+        real_unlink = execution.secure_unlink
+
+        def delete_then_swap(*args, **kwargs) -> None:
+            real_unlink(*args, **kwargs)
+            directory = self.root / "a"
+            directory.rename(self.root / "original-a")
+            directory.mkdir()
+            (directory / "foreign.py").write_bytes(b"foreign")
+
+        with patch.object(execution, "secure_unlink", side_effect=delete_then_swap):
+            with self.assertRaisesRegex(WorkspaceError, "path changed"):
+                self.editor.restore(restore)
+
+        self.assertEqual((self.root / "a/foreign.py").read_bytes(), b"foreign")
+
+    def test_late_unplanned_content_blocks_directory_removal(self) -> None:
+        self.write("a/current.py", b"current")
+        target = WorkspaceSnapshot((SnapshotEntry("a", b"checkpoint", True),))
+        restore = build_restore_snapshot(("a/current.py",), target)
+        from code_agent.workspace import _snapshot_restore as execution
+
+        real_unlink = execution.secure_unlink
+
+        def delete_then_inject(*args, **kwargs) -> None:
+            real_unlink(*args, **kwargs)
+            (self.root / "a/late.py").write_bytes(b"late")
+
+        with patch.object(execution, "secure_unlink", side_effect=delete_then_inject):
+            with self.assertRaises(WorkspaceError):
+                self.editor.restore(restore)
+
+        self.assertEqual((self.root / "a/late.py").read_bytes(), b"late")
+
     def test_ignored_content_blocks_directory_to_file_conversion(self) -> None:
         planned = self.write("a/current.py", b"current")
         ignored = self.write("a/cache.tmp", b"ignored")

@@ -8,12 +8,15 @@ from code_agent.providers.config import ModelProfile
 from code_agent.core.limits import EngineLimits
 
 from .models import (
+    AgentTopology,
     AgentMode,
     ModeDefinition,
     ModeSnapshot,
     ReasoningEffort,
+    RuntimeReasoningEffort,
+    RuntimeSelection,
 )
-from .codec import limits_payload, snapshot_payload
+from .codec import limits_payload, runtime_selection_payload, snapshot_payload
 
 
 class ModeRegistry:
@@ -75,9 +78,94 @@ class ModeRegistry:
             raise RuntimeError("mode snapshot payload is unstable")
         return snapshot
 
+    def freeze_runtime(
+        self,
+        mode: AgentMode | str,
+        profiles: Mapping[str, ModelProfile],
+        *,
+        profile_id: str,
+        topology: AgentTopology | str,
+        reasoning_effort: RuntimeReasoningEffort | str,
+    ) -> ModeSnapshot:
+        """Freeze independent runtime choices while retaining a legacy mode."""
+
+        base = self.freeze(mode, profiles)
+        selection = freeze_runtime_selection(
+            profiles,
+            profile_id=profile_id,
+            topology=topology,
+            reasoning_effort=reasoning_effort,
+            legacy_mode=base.definition.mode,
+        )
+        return attach_runtime_selection(base, selection)
+
 
 def standard_mode_order() -> tuple[AgentMode, ...]:
     return tuple(AgentMode)
+
+
+def freeze_runtime_selection(
+    profiles: Mapping[str, ModelProfile],
+    *,
+    profile_id: str,
+    topology: AgentTopology | str,
+    reasoning_effort: RuntimeReasoningEffort | str,
+    legacy_mode: AgentMode | str = AgentMode.MEDIUM,
+) -> RuntimeSelection:
+    try:
+        profile = profiles[profile_id]
+    except KeyError:
+        raise ValueError(f"runtime profile is not configured: {profile_id}") from None
+    selected_topology = AgentTopology(topology)
+    selected_effort = RuntimeReasoningEffort(reasoning_effort)
+    selected_mode = AgentMode(legacy_mode)
+    payload = {
+        "topology": selected_topology.value,
+        "profile_id": profile.name,
+        "model": profile.provider.model,
+        "api_protocol": profile.provider.api.value,
+        "reasoning_effort": selected_effort.value,
+        "max_output_tokens": profile.max_output_tokens,
+        "legacy_mode": selected_mode.value,
+    }
+    digest = _digest(payload)
+    selection = RuntimeSelection(
+        selected_topology,
+        profile.name,
+        profile.provider.model,
+        profile.provider.api.value,
+        selected_effort,
+        profile.max_output_tokens,
+        selected_mode,
+        digest,
+    )
+    if runtime_selection_payload(selection) != {**payload, "digest": digest}:
+        raise RuntimeError("runtime selection payload is unstable")
+    return selection
+
+
+def attach_runtime_selection(
+    snapshot: ModeSnapshot, selection: RuntimeSelection
+) -> ModeSnapshot:
+    if selection.legacy_mode is not snapshot.definition.mode:
+        raise ValueError("runtime selection legacy mode must match snapshot mode")
+    payload = snapshot_payload(snapshot)
+    payload.pop("digest")
+    payload["model"] = selection.model
+    payload["runtime_selection"] = runtime_selection_payload(selection)
+    return ModeSnapshot(
+        snapshot.definition,
+        selection.model,
+        snapshot.oracle_model,
+        _digest(payload),
+        selection,
+    )
+
+
+def _digest(payload: Mapping[str, object]) -> str:
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
 
 
 def standard_mode_definitions(

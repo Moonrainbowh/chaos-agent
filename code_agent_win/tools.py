@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import re
+import subprocess
 from collections.abc import Mapping, Sequence
+from pathlib import PureWindowsPath
 
 from code_agent.core.models import ToolDefinition
+from code_agent.runtime.models import PowerShellRuntimeInfo
+from code_agent.runtime.output_codec import OutputEncoding
 
 
 def _object_schema(
@@ -25,11 +29,22 @@ def _integer_schema(minimum: int, maximum: int) -> dict[str, object]:
     return {"type": "integer", "minimum": minimum, "maximum": maximum}
 
 
+def _output_encoding_schema() -> dict[str, object]:
+    return {"type": "string", "enum": [item.value for item in OutputEncoding]}
+
+
+def _text_encoding_schema() -> dict[str, object]:
+    return {"type": "string", "enum": ["auto", "windows-ansi", "windows-oem"]}
+
+
 TOOL_DEFINITIONS: tuple[ToolDefinition, ...] = (
     ToolDefinition(
         "read_file",
-        "Read a UTF-8 workspace file.",
-        _object_schema({"path": _nonempty_text_schema()}, ("path",)),
+        "Read a strictly decoded workspace text file and report its format.",
+        _object_schema(
+            {"path": _nonempty_text_schema(), "encoding": _text_encoding_schema()},
+            ("path",),
+        ),
     ),
     ToolDefinition(
         "list_files",
@@ -51,9 +66,13 @@ TOOL_DEFINITIONS: tuple[ToolDefinition, ...] = (
     ),
     ToolDefinition(
         "write_file",
-        "Atomically write a reviewed workspace file.",
+        "Atomically write text while preserving an existing file's format.",
         _object_schema(
-            {"path": _nonempty_text_schema(), "content": _nonempty_text_schema()},
+            {
+                "path": _nonempty_text_schema(),
+                "content": _nonempty_text_schema(),
+                "encoding": _text_encoding_schema(),
+            },
             ("path", "content"),
         ),
     ),
@@ -65,6 +84,7 @@ TOOL_DEFINITIONS: tuple[ToolDefinition, ...] = (
                 "path": _nonempty_text_schema(),
                 "old_text": _nonempty_text_schema(),
                 "new_text": _nonempty_text_schema(),
+                "encoding": _text_encoding_schema(),
             },
             ("path", "old_text", "new_text"),
         ),
@@ -92,10 +112,34 @@ TOOL_DEFINITIONS: tuple[ToolDefinition, ...] = (
     ),
     ToolDefinition(
         "run_command",
-        "Run an approved Windows PowerShell command. Use PowerShell syntax only; "
+        "Run an approved script in the frozen PowerShell dialect. Use the active "
+        "PowerShell syntax only; errors stop by default, while explicit catch, "
+        "Continue, SilentlyContinue, or Ignore remain under script control; "
         "pipe multiple stdin lines with @('line1', 'line2') | command and never "
         "use the Bash here-string operator <<<.",
         _object_schema({"command": _nonempty_text_schema()}, ("command",)),
+    ),
+    ToolDefinition(
+        "run_process_v1",
+        "Start one approved program with an explicit argv. No shell parsing, "
+        "expansion, redirection, pipelines, environment overrides, or stdin. "
+        "stdout/stderr default to strict UTF-8; declare a Windows or UTF-16 "
+        "encoding when the program uses one.",
+        _object_schema(
+            {
+                "program": {"type": "string", "minLength": 1, "maxLength": 4096},
+                "args": {
+                    "type": "array",
+                    "items": {"type": "string", "maxLength": 8192},
+                    "maxItems": 128,
+                },
+                "cwd": {"type": "string", "minLength": 1, "maxLength": 4096},
+                "timeout_s": _integer_schema(1, 900),
+                "stdout_encoding": _output_encoding_schema(),
+                "stderr_encoding": _output_encoding_schema(),
+            },
+            ("program", "args"),
+        ),
     ),
     ToolDefinition(
         "delegate_agent",
@@ -120,13 +164,40 @@ TOOL_DEFINITIONS: tuple[ToolDefinition, ...] = (
 _TOOLS_BY_NAME = {tool.name: tool for tool in TOOL_DEFINITIONS}
 _GIT_TOOLS = {"git_status", "git_diff"}
 _BASH_HERE_STRING = re.compile(r"(?<![\w'\"`])<<<(?=\s|['\"])")
+_SHELL_LAUNCHERS = frozenset(
+    {"pwsh", "pwsh.exe", "powershell", "powershell.exe", "cmd", "cmd.exe",
+     "bash", "bash.exe", "sh", "sh.exe", "wsl", "wsl.exe"}
+)
 
 
-def tool_definitions(*, include_git: bool = True) -> tuple[ToolDefinition, ...]:
+def tool_definitions(
+    *,
+    include_git: bool = True,
+    powershell: PowerShellRuntimeInfo | None = None,
+) -> tuple[ToolDefinition, ...]:
     """Return the provider-facing definitions used by the action dispatcher."""
+    definitions = TOOL_DEFINITIONS
+    if powershell is not None:
+        definitions = tuple(
+            _powershell_tool(tool, powershell) for tool in definitions
+        )
     if include_git:
-        return TOOL_DEFINITIONS
-    return tuple(tool for tool in TOOL_DEFINITIONS if tool.name not in _GIT_TOOLS)
+        return definitions
+    return tuple(tool for tool in definitions if tool.name not in _GIT_TOOLS)
+
+
+def _powershell_tool(
+    tool: ToolDefinition, powershell: PowerShellRuntimeInfo
+) -> ToolDefinition:
+    if tool.name != "run_command":
+        return tool
+    return ToolDefinition(
+        tool.name,
+        f"Run an approved {powershell.prompt_summary} script. Use only this "
+        "dialect; errors stop by default, explicit recovery remains under "
+        "script control; pipe stdin explicitly and never use Bash <<< syntax.",
+        tool.parameters,
+    )
 
 
 def powershell_compatibility_error(command: str) -> str | None:
@@ -136,6 +207,31 @@ def powershell_compatibility_error(command: str) -> str | None:
             "Bash here-string operator <<< is not supported by PowerShell. "
             "Pipe input with @('line1', 'line2') | command."
         )
+    return None
+
+
+def process_compatibility_error(arguments: Mapping[str, object]) -> str | None:
+    """Reject shell launchers and invalid Windows argv before authorization."""
+    program = arguments.get("program")
+    raw_args = arguments.get("args")
+    cwd = arguments.get("cwd", ".")
+    if not isinstance(program, str) or not program.strip():
+        return "program must be non-blank text"
+    if "\x00" in program or not isinstance(cwd, str) or "\x00" in cwd:
+        return "process fields must not contain NUL characters"
+    if not isinstance(raw_args, Sequence) or isinstance(
+        raw_args, (str, bytes, bytearray)
+    ):
+        return "args must be an array of strings"
+    if any(not isinstance(item, str) or "\x00" in item for item in raw_args):
+        return "process arguments must be strings without NUL characters"
+    executable_name = PureWindowsPath(program).name.casefold()
+    if executable_name in _SHELL_LAUNCHERS or executable_name.endswith(
+        (".cmd", ".bat")
+    ):
+        return "shell launchers are not allowed; use run_command for PowerShell"
+    if len(subprocess.list2cmdline((program, *raw_args))) > 30_000:
+        return "rendered Windows command line exceeds 30000 characters"
     return None
 
 
@@ -166,11 +262,16 @@ def _matches_schema(value: object, schema: Mapping[str, object]) -> bool:
     schema_type = schema.get("type")
     if schema_type == "string":
         minimum = schema.get("minLength", 0)
+        maximum = schema.get("maxLength")
         matches = (
             isinstance(value, str)
             and isinstance(minimum, int)
             and not isinstance(minimum, bool)
             and len(value) >= minimum
+            and (
+                maximum is None
+                or (isinstance(maximum, int) and len(value) <= maximum)
+            )
         )
         options = schema.get("enum")
         return matches and (not isinstance(options, Sequence) or value in options)
@@ -181,10 +282,15 @@ def _matches_schema(value: object, schema: Mapping[str, object]) -> bool:
         return isinstance(value, bool)
     if schema_type == "array":
         items = schema.get("items")
+        maximum = schema.get("maxItems")
         return (
             isinstance(value, Sequence)
             and not isinstance(value, (str, bytes, bytearray))
             and isinstance(items, Mapping)
+            and (
+                maximum is None
+                or (isinstance(maximum, int) and len(value) <= maximum)
+            )
             and all(_matches_schema(item, items) for item in value)
         )
     return False

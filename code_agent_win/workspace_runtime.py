@@ -3,28 +3,23 @@ from __future__ import annotations
 import asyncio
 import uuid
 from pathlib import Path
-from typing import Sequence
+from typing import Sequence, TypeVar
 
 from code_agent.checkpoints.locks import LineageLockPool
-from code_agent.context.repo_index import RepoIndexService
-from code_agent.context.repo_scan import RepoFileScanner
-from code_agent.core.models import ActionRequest, ActionResult, ToolDefinition
-from code_agent.core.task import TaskAuthorization
 from code_agent.interfaces.checkpoint_control import CheckpointControl
-from code_agent.policy.engine import ActionPolicy, PolicyConfig
-from code_agent.runtime.local import WindowsLocalRuntime
-from code_agent.sessions.workspace_models import RewindOperationStatus, WorkspaceLineageRecord
+from code_agent.runtime._powershell_runtime import PowerShellRuntimeResolver
+from code_agent.runtime.models import PowerShellRuntimeInfo
+from code_agent.sessions.workspace_models import RewindOperationStatus
 from code_agent.sessions.errors import SessionNotFound
-from code_agent.verification.local_adapter import LocalVerificationAdapter
 from code_agent.workspace.edits import WorkspaceEditor
-from code_agent.workspace.files import WorkspaceFiles
 from code_agent.workspace.git import GitWorkspace
-from code_agent.workspace.ignore import IgnoreRules
 from code_agent.workspace.paths import WorkspacePathGuard
+from code_agent.workspace._worktree_leases import UnclaimedWorktreeLease
 from code_agent.workspace.worktrees import WorktreeManager
 
-from code_agent_win.action_dispatcher import RootActionDispatcher
-from code_agent_win.tool_support import discover_git_workspace
+from code_agent_win.windows_storage_paths import resolve_managed_storage_root
+from code_agent_win.workspace_preparation import PreparedWorkspaceCoordinator
+from code_agent_win.workspace_service_factory import build_workspace_services
 from code_agent_win.workspace_models import TaskWorkspace, WorkspaceServices
 from code_agent_win.workspace_checkpoint_runtime import (
     CheckpointRouter,
@@ -32,6 +27,9 @@ from code_agent_win.workspace_checkpoint_runtime import (
     checkpoint_control,
     noop_invalidate_verification,
 )
+
+
+_T = TypeVar("_T")
 
 
 class ManagedWorkspaceRuntime:
@@ -42,52 +40,55 @@ class ManagedWorkspaceRuntime:
         *,
         snapshot_read_fallback_roots: Sequence[Path] = (),
         allow_sensitive_paths: bool = False,
+        powershell: PowerShellRuntimeResolver | None = None,
     ) -> None:
         if not isinstance(allow_sensitive_paths, bool):
             raise TypeError("allow_sensitive_paths must be a bool")
-        storage_root.mkdir(parents=True, exist_ok=True)
+        canonical_storage = resolve_managed_storage_root(storage_root)
+        worktrees_root = canonical_storage / "worktrees"
+        canonical_storage.mkdir(parents=True, exist_ok=True)
         self._sessions = sessions
-        self.storage_root = storage_root.resolve()
+        self.storage_root = canonical_storage
         self.snapshot_read_fallback_roots = tuple(snapshot_read_fallback_roots)
         self.allow_sensitive_paths = allow_sensitive_paths
-        (self.storage_root / "worktrees").mkdir(parents=True, exist_ok=True)
-        self._worktrees = WorktreeManager(self.storage_root / "worktrees")
+        self.powershell = powershell or PowerShellRuntimeResolver()
+        worktrees_root.mkdir(parents=True, exist_ok=True)
+        self._worktrees = WorktreeManager(worktrees_root)
+        self._preparation = PreparedWorkspaceCoordinator(sessions, self._worktrees)
         self._locks = LineageLockPool()
         self._services: dict[str, WorkspaceServices] = {}
         self._thread_roots: dict[str, Path] = {}
         self._task_roots: dict[str, Path] = {}
-        self._prepared: dict[str, tuple[str, str]] = {}
+        self._prepared = self._preparation.prepared
         self._verification_invalidator = noop_invalidate_verification
         self._quiescer = StableQuiescer()
         self._startup_complete = False
+
+    def powershell_info(self) -> PowerShellRuntimeInfo:
+        return self.powershell.resolve()
 
     async def prepare_task(self, source_root: Path, task_id: str) -> TaskWorkspace:
         source = source_root.resolve()
         lineage_id = uuid.uuid4().hex
         branch_name = f"codex/task-{lineage_id}"
-        managed = await asyncio.to_thread(
-            self._worktrees.create, source, lineage_id, branch_name
+        worker = asyncio.create_task(
+            asyncio.to_thread(
+                self._prepare_task_sync, source, lineage_id, branch_name
+            )
         )
-        await self._seed_source_changes(source, managed.root)
-        self._prepared[lineage_id] = (
-            managed.repository_id,
-            managed.head_commit,
-        )
-        return TaskWorkspace(lineage_id, source, managed.root, managed.branch_name)
+        try:
+            lease = await asyncio.shield(worker)
+        except asyncio.CancelledError as cancellation:
+            await self._finish_cancelled_prepare(worker, cancellation)
+            raise
+        return self._preparation.register(lease)
 
     async def create_lineage(self, workspace: TaskWorkspace, task_id: str) -> None:
-        repository_id, head_commit = self._prepared.pop(workspace.lineage_id)
-        record = WorkspaceLineageRecord(
-            workspace.lineage_id,
-            repository_id=repository_id,
-            source_root=str(workspace.source_root),
-            worktree_root=str(workspace.worktree_root),
-            branch_name=workspace.branch_name,
-            head_commit=head_commit,
-            owner_task_id=task_id,
-        )
-        await self._sessions.create_lineage(record)
+        await self._preparation.create_lineage(workspace, task_id)
         self.bind_task(task_id, workspace.worktree_root)
+
+    async def abort_prepared_task(self, workspace: TaskWorkspace) -> bool:
+        return await self._preparation.abort(workspace)
 
     def bind_thread(self, thread_id: str, root: Path) -> None:
         self._thread_roots[thread_id] = root.resolve()
@@ -172,35 +173,85 @@ class ManagedWorkspaceRuntime:
     def set_verification_invalidator(self, callback: object) -> None:
         self._verification_invalidator = callback
 
-    async def _seed_source_changes(self, source_root: Path, target_root: Path) -> None:
-        paths = await asyncio.to_thread(
-            GitWorkspace(source_root).changed_snapshot_paths
+    def _prepare_task_sync(
+        self, source: Path, lineage_id: str, branch_name: str
+    ) -> UnclaimedWorktreeLease:
+        lease = self._worktrees.create_unclaimed(
+            source, lineage_id, branch_name
         )
+        managed = lease.worktree
+        try:
+            self._seed_source_changes(source, managed.root)
+        except BaseException as error:
+            try:
+                self._worktrees.discard_unclaimed(lease)
+            except Exception as cleanup_error:
+                if hasattr(error, "add_note"):
+                    error.add_note(
+                        f"unclaimed worktree cleanup failed: {cleanup_error}"
+                    )
+            raise
+        return lease
+
+    async def _finish_cancelled_prepare(
+        self,
+        worker: asyncio.Task[UnclaimedWorktreeLease],
+        cancellation: asyncio.CancelledError,
+    ) -> None:
+        try:
+            lease = await self._settle_shielded(worker)
+        except BaseException as error:
+            self._add_note(
+                cancellation, f"cancelled preparation settled with: {error}"
+            )
+            return
+        cleanup = asyncio.create_task(
+            asyncio.to_thread(self._worktrees.discard_unclaimed, lease)
+        )
+        try:
+            await self._settle_shielded(cleanup)
+        except BaseException as error:
+            self._add_note(
+                cancellation, f"unclaimed worktree cleanup failed: {error}"
+            )
+
+    @staticmethod
+    def _add_note(error: BaseException, note: str) -> None:
+        add_note = getattr(error, "add_note", None)
+        if callable(add_note):
+            add_note(note)
+
+    @staticmethod
+    async def _settle_shielded(worker: asyncio.Task[_T]) -> _T:
+        while True:
+            try:
+                return await asyncio.shield(worker)
+            except asyncio.CancelledError:
+                if worker.done():
+                    return worker.result()
+
+    def _seed_source_changes(self, source_root: Path, target_root: Path) -> None:
+        paths = GitWorkspace(source_root).changed_snapshot_paths()
         editor = WorkspaceEditor(
             WorkspacePathGuard(
                 source_root, allow_sensitive=self.allow_sensitive_paths
             )
         )
-        snapshot = await asyncio.to_thread(editor.snapshot, paths)
+        snapshot = editor.snapshot(paths)
         target = WorkspaceEditor(
             WorkspacePathGuard(
                 target_root, allow_sensitive=self.allow_sensitive_paths
             )
         )
-        await asyncio.to_thread(target.restore, snapshot)
+        target.restore(snapshot)
 
     def _build_services(self, root: Path) -> WorkspaceServices:
-        guard = WorkspacePathGuard(
-            root, allow_sensitive=self.allow_sensitive_paths
+        service = build_workspace_services(
+            root,
+            allow_sensitive_paths=self.allow_sensitive_paths,
+            powershell=self.powershell,
         )
-        files = WorkspaceFiles(guard, IgnoreRules.from_workspace(root))
-        git = discover_git_workspace(root)
-        repo_index = RepoIndexService(files, scan_file=RepoFileScanner(files).scan)
-        service = WorkspaceServices(
-            root, guard, files, git, repo_index,
-            WindowsLocalRuntime(root), LocalVerificationAdapter(root),
-        )
-        if git is not None:
+        if service.git is not None:
             service.checkpoints = self._checkpoint_control(service)
         return service
 
@@ -214,85 +265,3 @@ class ManagedWorkspaceRuntime:
             self._verification_invalidator,
             snapshot_read_fallback_roots=self.snapshot_read_fallback_roots,
         )
-
-
-class TaskScopedDispatcher:
-    def __init__(
-        self,
-        runtime: ManagedWorkspaceRuntime,
-        source_services: WorkspaceServices,
-        policy: ActionPolicy,
-        approvals: object,
-        **dependencies: object,
-    ) -> None:
-        self._runtime, self._source = runtime, source_services
-        self.policy, self.approvals = policy, approvals
-        self.mcp = dependencies.get("mcp")
-        self.plugins = dependencies.get("plugins")
-        self.threads = dependencies.get("threads")
-        self.caller_thread = dependencies.get("caller_thread")
-        self.capture = dependencies.get("capture")
-        self.subagents = None
-        self.interactive = False
-
-    @property
-    def editor(self) -> WorkspaceEditor:
-        return WorkspaceEditor(self._source.guard)
-
-    def tools(self) -> Sequence[ToolDefinition]:
-        return self._dispatcher(self._source).tools()
-
-    async def dispatch(
-        self,
-        request: ActionRequest,
-        cancellation: object,
-        task_authorization: TaskAuthorization | None = None,
-        *,
-        execution_context: object | None = None,
-    ) -> ActionResult:
-        services = self._runtime.services_for_root(
-            self._authorized_root(task_authorization)
-        )
-        return await self._dispatcher(services).dispatch(
-            request, cancellation, task_authorization,
-            execution_context=execution_context,
-        )
-
-    def _authorized_root(self, authorization: TaskAuthorization | None) -> Path:
-        if authorization is None:
-            return self._source.root
-        return Path(authorization.workspace_root).resolve()
-
-    def _dispatcher(self, service: WorkspaceServices) -> RootActionDispatcher:
-        dispatcher = RootActionDispatcher(
-            service.files,
-            WorkspaceEditor(service.guard),
-            self._policy_for(service.root),
-            self.approvals,
-            git=service.git,
-            runtime=service.runtime,
-            verification=service.verification,
-            mcp=self.mcp,
-            plugins=self.plugins,
-            subagents=self.subagents,
-            threads=self.threads,
-            capture=self.capture,
-            caller_thread=self.caller_thread,
-            invalidate_cache=lambda paths: _invalidate(service, paths),
-        )
-        dispatcher.interactive = self.interactive
-        return dispatcher
-
-    def _policy_for(self, root: Path) -> ActionPolicy:
-        return ActionPolicy(
-            PolicyConfig(
-                self.policy.config.approval_mode,
-                workspace_root=root,
-                mcp_risks=dict(self.policy.config.mcp_risks),
-            )
-        )
-
-
-def _invalidate(service: WorkspaceServices, paths: Sequence[str]) -> None:
-    service.repo_index.invalidate(paths)
-    service.files.invalidate_inventory()

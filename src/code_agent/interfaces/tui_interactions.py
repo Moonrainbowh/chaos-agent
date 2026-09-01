@@ -194,6 +194,13 @@ class TuiInteractions:
                 return True
             selection = self.picker.accept()
             if selection is None:
+                parent = _compound_parent(
+                    app.input.text,
+                    getattr(app, "command_registry", REGISTRY),
+                )
+                if parent is not None:
+                    app.input.replace(f"/{parent.name} ")
+                    return True
                 await app.submit(app.input.submit())
                 return True
             app.input.replace(selection.completion)
@@ -253,3 +260,12 @@ def _is_complete_command(
     if text[-1].isspace() and not spec.actions:
         return True
     return spec.usage.startswith("[")
+
+
+def _compound_parent(text: str, registry: object = REGISTRY) -> object | None:
+    if not text.startswith("/") or any(
+        character.isspace() for character in text[1:]
+    ):
+        return None
+    spec = registry.resolve(text[1:])
+    return spec if spec is not None and spec.actions else None

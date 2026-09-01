@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Iterable
 
+from .command_registry import CommandVisibility
 from .terminal_display import clip_display, safe_text
 
 
@@ -159,33 +160,23 @@ def command_picker_items(
 ) -> tuple[PickerItem, ...]:
     available = services or set()
     result = []
-    values = parent.actions if parent is not None else specs
-    for spec in values:
-        if parent is None and spec.actions and spec.name in {"模式", "权限"}:
-            result.extend(_expanded_command_items(spec, available))
-        else:
-            result.append(_command_picker_item(spec, available, parent))
-    return tuple(result)
-
-
-def _expanded_command_items(
-    spec: object, available: set[str]
-) -> tuple[PickerItem, ...]:
-    missing = tuple(value for value in spec.requires if value not in available)
-    reason = ("requires " + ", ".join(missing)) if missing else None
-    return tuple(
-        PickerItem(
-            f"{spec.name}:{action.name}",
-            f"/{spec.name} {action.name}",
-            _command_source(action, spec),
-            action.description,
-            (*spec.aliases, *action.aliases),
-            enabled=not missing,
-            disabled_reason=reason,
-            completion=f"/{spec.name} {action.name}" + (" " if action.usage else ""),
+    values = (
+        tuple(
+            action
+            for action in parent.actions
+            if getattr(action, "visibility", CommandVisibility.PRIMARY)
+            == CommandVisibility.PRIMARY
         )
-        for action in spec.actions
+        if parent is not None
+        else tuple(
+            spec for spec in specs
+            if getattr(spec, "visibility", CommandVisibility.PRIMARY)
+            == CommandVisibility.PRIMARY
+        )
     )
+    for spec in values:
+        result.append(_command_picker_item(spec, available, parent))
+    return tuple(result)
 
 
 def _command_picker_item(

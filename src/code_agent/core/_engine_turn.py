@@ -26,7 +26,7 @@ class AgentEngineTurnMixin:
         if reserved is None:
             raise EngineLimitError("model turn budget exceeded")
         state.budget = reserved
-        tools, tool_names = self._advertised_tools()
+        tools, tool_names = self._advertised_tools(state.allowed_tool_names)
         turn = _TurnState(number, tools, tool_names)
         bundles: list[ContextBundle] = []
         async for event in self._start_turn(state, turn, user_input, bundles):

@@ -33,6 +33,8 @@ class Application:
     workspace_runtime: object | None = None
     attachment_store: object | None = None
     attachment_ingestor: object | None = None
+    runtime_selection: object | None = None
+    peers: object | None = None
     _closed: bool = field(default=False, init=False, repr=False)
 
     async def startup(self) -> None:
@@ -55,7 +57,7 @@ class Application:
             return
         self._closed = True
         first_error: BaseException | None = None
-        for resource in (self.subagents, self.model, self.mcp):
+        for resource in (self.peers, self.subagents, self.model, self.mcp):
             close = getattr(resource, "aclose", None)
             if close is None:
                 continue

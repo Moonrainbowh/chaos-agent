@@ -13,6 +13,7 @@ from code_agent.providers.config import ModelProfile
 from code_agent.providers.runtime_manager import ProviderRuntime, ProviderRuntimeManager
 from code_agent.workspace.files import WorkspaceFiles
 from code_agent.workspace.ignore import IgnoreRules
+from code_agent.workspace.windows_paths import require_supported_windows_path
 from code_agent.workspace.paths import WorkspacePathGuard
 from code_agent_win.agent_modes import (
     build_mode_registry,
@@ -56,7 +57,12 @@ def create_application(
         not isinstance(profile_name, str) or not profile_name.strip()
     ):
         raise ValueError("profile_name must be non-blank text")
-    root = (workspace_root or Path.cwd()).resolve()
+    requested_root = workspace_root or Path.cwd()
+    require_supported_windows_path(
+        requested_root,
+        operation="workspace root",
+    )
+    root = requested_root.resolve()
     host = _build_host(
         root, model_name, profile_name, mode_name, load_config,
         session_path_factory, product_state_root,

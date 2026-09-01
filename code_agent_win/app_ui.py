@@ -34,6 +34,7 @@ class ModeAwareWindowsTerminalApp(WindowsTerminalApp):
         plugin_errors: tuple[str, ...] = (),
         recover_pending: object | None = None,
         startup: object | None = None,
+        runtime_selection: object | None = None,
         **kwargs: object,
     ) -> None:
         super().__init__(*args, **kwargs)
@@ -43,10 +44,20 @@ class ModeAwareWindowsTerminalApp(WindowsTerminalApp):
         self._announced = False
         self._recover_pending = recover_pending
         self._startup = startup
+        self.runtime_selection = runtime_selection
         self._recovered = False
 
     def update_capability(self, capability: ModePermissionView) -> None:
+        if capability.runtime_summary is None and self._capability.runtime_summary:
+            capability = replace(
+                capability,
+                runtime_summary=self._capability.runtime_summary,
+            )
         self._capability = capability
+
+    @property
+    def host_runtime_summary(self) -> str | None:
+        return self._capability.runtime_summary
 
     async def run(self, *, thread_id: str | None = None) -> None:
         if not self._recovered and self._startup is not None:

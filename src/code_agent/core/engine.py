@@ -40,6 +40,7 @@ class AgentEngine(
         context_mode_snapshot: Mapping[str, JSONValue] | None = None,
         context_permission_snapshot: Mapping[str, JSONValue] | None = None,
         action_lineage: ActionLineage | None = None,
+        peer_tool_names: Sequence[str] = (),
     ) -> None:
         self._model = model
         self._context = context
@@ -53,6 +54,12 @@ class AgentEngine(
             raise ValueError("model_name must be non-blank text")
         self._model_name = model_name
         self._verification = verification
+        peer_tools = tuple(peer_tool_names)
+        if not all(isinstance(name, str) and name.strip() for name in peer_tools):
+            raise ValueError("peer_tool_names must contain non-blank text")
+        if len(set(peer_tools)) != len(peer_tools):
+            raise ValueError("peer_tool_names must be unique")
+        self._peer_tool_names = frozenset(peer_tools)
         self._context_mode_snapshot = freeze_mapping({} if context_mode_snapshot is None else context_mode_snapshot, "context_mode_snapshot")
         self._context_permission_snapshot = freeze_mapping({} if context_permission_snapshot is None else context_permission_snapshot, "context_permission_snapshot")
 
@@ -81,6 +88,51 @@ class AgentEngine(
             state.messages = state.prior_messages + (user_message,)
             for turn in range(1, state.budget.limits.max_agent_rounds + 1):
                 async for event in self._run_turn(state, turn, user_input):
+                    yield event
+                if state.stop_requested:
+                    return
+
+            raise EngineLimitError("model turn budget exceeded")
+        except CancellationError as exc:
+            cancelled = AgentEvent(
+                kind=EventKind.CANCELLED,
+                payload={"reason": exc.reason},
+            )
+            await self._journal.append_event(state.thread_id, cancelled)
+            yield cancelled
+        except AgentEngineError as exc:
+            failed = AgentEvent(
+                kind=EventKind.ERROR,
+                payload={"code": exc.code, "error_type": type(exc).__name__},
+            )
+            await self._journal.append_event(state.thread_id, failed)
+            yield failed
+            raise
+
+    async def run_peer(
+        self,
+        *,
+        thread_id: Optional[str] = None,
+        cancellation: Optional[CancellationToken] = None,
+    ) -> AsyncIterator[AgentEvent]:
+        """Run one peer-triggered turn without manufacturing a user message.
+
+        Peer content is supplied by the context builder through a distinct,
+        untrusted peer channel.  This entry point only wakes an idle engine; it
+        deliberately does not append the peer text (or a synthetic prompt) to
+        the conversation message journal.
+        """
+        state, started = await self._start_run(thread_id, cancellation, None)
+        state.allowed_tool_names = self._peer_tool_names
+        yield started
+
+        try:
+            state.prior_messages = await self._journal.load_messages(
+                state.thread_id
+            )
+            state.messages = state.prior_messages
+            for turn in range(1, state.budget.limits.max_agent_rounds + 1):
+                async for event in self._run_turn(state, turn, ""):
                     yield event
                 if state.stop_requested:
                     return

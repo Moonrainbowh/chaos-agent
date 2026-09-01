@@ -7,7 +7,11 @@ from pathlib import Path
 from typing import Iterable, Protocol
 
 from ._restore_topology import TopologyPlan, analyze_topology
-from ._secure_io import PathIdentity, canonical_path_key
+from ._secure_io import (
+    PathIdentity,
+    canonical_path_key,
+    refresh_directory_after_owned_mutations,
+)
 from ._secure_mutation import (
     ensure_parent_directories,
     secure_rmdir,
@@ -16,6 +20,7 @@ from ._secure_mutation import (
 from ._secure_replace import secure_atomic_write
 from .errors import FileTooLargeError, WorkspaceError
 from .paths import WorkspacePathGuard
+from ._windows_file_locks import DEFAULT_WINDOWS_FILE_LOCK_TIMEOUT_S
 
 
 class RestoreEntry(Protocol):
@@ -59,17 +64,31 @@ def preflight_restore(
     return RestorePlan(topology, total)
 
 
-def execute_restore(plan: RestorePlan, guard: WorkspacePathGuard) -> None:
+def execute_restore(
+    plan: RestorePlan,
+    guard: WorkspacePathGuard,
+    *,
+    file_lock_timeout_s: float = DEFAULT_WINDOWS_FILE_LOCK_TIMEOUT_S,
+) -> None:
     """Apply a dependency-ordered plan with per-operation revalidation."""
     created: dict[str, tuple[Path, PathIdentity]] = {}
     for item in plan.topology.deletes:
-        secure_unlink(item.state, guard, created)
+        secure_unlink(item.state, guard, created, file_lock_timeout_s)
     for state in plan.topology.directories:
-        secure_rmdir(state, guard, created)
+        state = refresh_directory_after_owned_mutations(
+            state, guard, created, context="restore"
+        )
+        secure_rmdir(state, guard, created, file_lock_timeout_s)
     for item in plan.topology.writes:
         assert item.entry.content is not None
         state = ensure_parent_directories(item.state, guard, created)
-        secure_atomic_write(state, item.entry.content, guard, created)
+        secure_atomic_write(
+            state,
+            item.entry.content,
+            guard,
+            created,
+            timeout_s=file_lock_timeout_s,
+        )
 
 
 def _check_blob(entry: RestoreEntry, target: Path, max_file_bytes: int) -> int:

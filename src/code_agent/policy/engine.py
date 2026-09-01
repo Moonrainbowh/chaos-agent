@@ -109,11 +109,13 @@ class ActionPolicy:
             local = configured is not None and configured == authorized_root
             blocked = Capability.NETWORK in classified.capabilities or Capability.OUTSIDE_WORKSPACE in classified.capabilities
             if local and not blocked:
-                if Capability.RAW_SHELL in classified.capabilities:
+                if classified.capabilities.intersection(
+                    {Capability.RAW_SHELL, Capability.RAW_PROCESS}
+                ):
                     return self._decision(
                         DecisionOutcome.ASK,
                         classified,
-                        "approval required for model-provided raw shell text",
+                        "approval required for model-provided command execution",
                     )
                 if Capability.VERIFICATION in classified.capabilities and task_authorization.allow_local_execute:
                     return self._decision(DecisionOutcome.ALLOW, classified, "allowed by foreground task authorization")

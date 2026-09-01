@@ -12,10 +12,12 @@ from code_agent.core.engine import AgentEngine
 from code_agent.core.limits import EngineLimits
 from code_agent.orchestration.models import ModeSnapshot
 from code_agent.providers.config import ModelProfile
+from code_agent.runtime._powershell_runtime import PowerShellRuntimeResolver
 from code_agent.verification.task_service import (
     LedgerTaskVerificationService,
 )
 from code_agent_win.agent_modes import mode_prompt
+from code_agent_win.peer_context import PEER_CONTEXT_RESERVE_TOKENS
 from code_agent_win.context_runtime import build_context_runtime
 from code_agent_win.runtime_extensions import (
     BoundSkillContextBuilder,
@@ -39,6 +41,7 @@ class RuntimeContextFactory:
         thread_binding: object,
         skills: object,
         workspace_runtime: object | None = None,
+        powershell: PowerShellRuntimeResolver | None = None,
         context_runtime_factory: object = build_context_runtime,
     ) -> None:
         self._root = root
@@ -52,6 +55,7 @@ class RuntimeContextFactory:
         self._sessions = sessions
         self._thread_binding, self._skills = thread_binding, skills
         self._workspace_runtime = workspace_runtime
+        self._powershell = powershell or PowerShellRuntimeResolver()
         self._context_runtime_factory = context_runtime_factory
 
     def __call__(
@@ -73,7 +77,9 @@ class RuntimeContextFactory:
     ) -> object:
         guard, files, repo_index = self._workspace_parts(root)
         prompt = (
-            windows_system_prompt(self._git_available)
+            windows_system_prompt(
+                self._git_available, self._powershell.resolve()
+            )
             + "\n\n"
             + mode_prompt(mode)
         )
@@ -122,7 +128,10 @@ class RuntimeContextFactory:
 def _profile_prompt_budget(profile: ModelProfile) -> PromptBudget:
     base = PromptBudget()
     prompt_tokens = min(base.max_prompt_tokens, profile.context_window)
-    safety_tokens = min(base.safety_tokens, prompt_tokens // 10)
+    safety_tokens = min(
+        max(base.safety_tokens, PEER_CONTEXT_RESERVE_TOKENS),
+        max(0, prompt_tokens - 1),
+    )
     message_room = max(1, prompt_tokens - safety_tokens)
     max_messages = min(base.max_message_tokens, message_room)
     return replace(
@@ -231,6 +240,7 @@ def engine_for(
         limits=limits,
         model_name=profile.provider.model,
         verification=TaskScopedVerificationService(sessions),
+        peer_tool_names=("list_agents", "send_message"),
     )
 
 

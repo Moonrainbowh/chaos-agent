@@ -19,12 +19,13 @@ from .controller import AgentController
 class ForegroundTaskController:
     """Own foreground cancellation and task lifecycle, leaving execution to AgentEngine."""
 
-    def __init__(self, controller: AgentController, sessions: object, workspace_root: Path | str, *, profile_supplier: Callable[[], tuple[str, str, str, str]] | None = None, profile_resolver: Callable[[str], Awaitable[None]] | None = None) -> None:
+    def __init__(self, controller: AgentController, sessions: object, workspace_root: Path | str, *, profile_supplier: Callable[[], tuple[str, ...]] | None = None, profile_resolver: Callable[[str], Awaitable[None]] | None = None, runtime_resolver: Callable[[TaskContract], Awaitable[None]] | None = None) -> None:
         self._controller = controller
         self._sessions = sessions
         self._root = str(Path(workspace_root).resolve())
         self._tokens: dict[str, CancellationToken] = {}
         self._profile_supplier, self._profile_resolver = profile_supplier, profile_resolver
+        self._runtime_resolver = runtime_resolver
 
     async def start(self, prompt: str) -> TaskRecord:
         active = await self._sessions.list_tasks()
@@ -36,7 +37,12 @@ class ForegroundTaskController:
             raise RuntimeError("a foreground task is already active")
         thread_id = await self._sessions.create_thread()
         profile = self._profile_supplier() if self._profile_supplier else None
-        task = await self._sessions.create_task(thread_id, TaskContract(prompt, TaskAuthorization.local_workspace(self._root), profile_id=profile[0] if profile else None, model=profile[1] if profile else None, protocol=profile[2] if profile else None, endpoint_host=profile[3] if profile else None))
+        task = await self._sessions.create_task(
+            thread_id,
+            freeze_task_contract(
+                prompt, TaskAuthorization.local_workspace(self._root), profile
+            ),
+        )
         await self._sessions.create_checkpoint(thread_id, "task-created", {"task_id": task.id, "status": task.status.value})
         return task
 
@@ -51,7 +57,14 @@ class ForegroundTaskController:
         attachments: Sequence[AttachmentRef] = (),
     ) -> AsyncIterator[AgentEvent]:
         task = await self._sessions.load_task(task_id)
-        if task.contract.profile_id and self._profile_resolver:
+        if task.contract.runtime_selection_digest and self._runtime_resolver:
+            try:
+                await self._runtime_resolver(task.contract)
+            except (RuntimeError, ValueError):
+                waiting = await self._sessions.transition_task(task.id, TaskStatus.WAITING_DECISION, "recorded runtime selection is unavailable")
+                event = AgentEvent(EventKind.TASK_DECISION_REQUIRED, {"task_id": waiting.id, "status": waiting.status.value, "reason": "recorded runtime selection is unavailable"})
+                await self._sessions.append_event(waiting.thread_id, event); yield event; return
+        elif task.contract.profile_id and self._profile_resolver:
             try: await self._profile_resolver(task.contract.profile_id)
             except (RuntimeError, ValueError):
                 waiting = await self._sessions.transition_task(task.id, TaskStatus.WAITING_DECISION, "recorded model profile is unavailable")
@@ -179,3 +192,30 @@ def _owner_is_alive(owner_pid: int, owner_create_time: float) -> bool:
         return abs(psutil.Process(owner_pid).create_time() - owner_create_time) < 0.01
     except (psutil.Error, OSError):
         return False
+
+
+def freeze_task_contract(
+    prompt: str,
+    authorization: TaskAuthorization,
+    profile: tuple[str, ...] | None,
+) -> TaskContract:
+    """Freeze provider facts and, when available, the full runtime selection."""
+    if profile is None:
+        return TaskContract(prompt, authorization)
+    if len(profile) not in {4, 8} or not all(
+        isinstance(value, str) and value.strip() for value in profile
+    ):
+        raise ValueError("profile supplier must return four or eight text facts")
+    runtime = profile[4:] if len(profile) == 8 else (None,) * 4
+    return TaskContract(
+        prompt,
+        authorization,
+        profile_id=profile[0],
+        model=profile[1],
+        protocol=profile[2],
+        endpoint_host=profile[3],
+        agent_topology=runtime[0],
+        reasoning_effort=runtime[1],
+        runtime_mode=runtime[2],
+        runtime_selection_digest=runtime[3],
+    )

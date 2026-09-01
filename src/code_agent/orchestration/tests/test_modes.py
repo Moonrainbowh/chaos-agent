@@ -8,7 +8,9 @@ from code_agent.orchestration.models import (
     AgentDefinition,
     AgentMode,
     AgentRole,
+    AgentTopology,
     ReasoningEffort,
+    RuntimeReasoningEffort,
 )
 from code_agent.orchestration.modes import (
     ModeRegistry,
@@ -91,6 +93,53 @@ class ModeRegistryTests(unittest.TestCase):
         del profiles["ultra"]
         with self.assertRaisesRegex(ValueError, "not configured"):
             registry.freeze("ultra", profiles)
+
+    def test_runtime_selection_freezes_independent_profile_effort_and_topology(
+        self,
+    ) -> None:
+        registry = ModeRegistry(
+            standard_mode_definitions({mode: mode.value for mode in AgentMode})
+        )
+
+        snapshot = registry.freeze_runtime(
+            "medium",
+            _profiles(),
+            profile_id="high",
+            topology="team",
+            reasoning_effort="max",
+        )
+        restored = snapshot_from_payload(snapshot_payload(snapshot))
+
+        self.assertEqual(snapshot.definition.mode, AgentMode.MEDIUM)
+        self.assertEqual(snapshot.profile_id, "high")
+        self.assertEqual(snapshot.model, "model-high")
+        self.assertEqual(snapshot.topology, AgentTopology.TEAM)
+        self.assertEqual(snapshot.effective_reasoning_effort, "max")
+        self.assertEqual(
+            snapshot.runtime_selection.reasoning_effort,  # type: ignore[union-attr]
+            RuntimeReasoningEffort.MAX,
+        )
+        self.assertEqual(snapshot, restored)
+
+    def test_runtime_selection_rejects_unknown_profile_without_mutating_base(
+        self,
+    ) -> None:
+        registry = ModeRegistry(
+            standard_mode_definitions({mode: mode.value for mode in AgentMode})
+        )
+        base = registry.freeze("medium", _profiles())
+
+        with self.assertRaisesRegex(ValueError, "not configured"):
+            registry.freeze_runtime(
+                "medium",
+                _profiles(),
+                profile_id="missing",
+                topology="single",
+                reasoning_effort="low",
+            )
+
+        self.assertIsNone(base.runtime_selection)
+        self.assertEqual(base.profile_id, "medium")
 
     def test_registry_requires_all_modes(self) -> None:
         definitions = standard_mode_definitions({mode: mode.value for mode in AgentMode})

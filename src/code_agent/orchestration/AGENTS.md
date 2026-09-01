@@ -3,6 +3,7 @@
 
 ## 边界
 - 负责：定义并解析 `low`、`medium`、`high`、`ultra` 任务模式，将模式映射为已批准的主 Agent provider profile、提示策略和推理参数。
+- 负责：在保留四档 legacy mode 的同时，独立冻结 `single|team` topology、任意已配置 profile 与 `low|medium|high|xhigh|max` provider reasoning effort；三者均进入稳定 digest，不能由彼此隐式推导。
 - 负责：严格区分 Agent 模式与权限模式；四档模式共享同一完整工具集合和 Ultra 级硬预算，模式只改变主模型、推理强度和编排策略，不改变 `ApprovalMode` 或 `ActionPolicy`。
 - 负责：在新任务或恢复边界冻结模式、角色和资源快照；活动任务不得隐式换模型、提高预算或静默降级。
 - 负责：声明主 Agent、通用 Subagent、Oracle、Review、Search、Librarian 和已验证自定义 Agent 的角色约束；子 Agent profile 按角色稳定路由，不从父模式降级推导。
@@ -22,9 +23,10 @@
 - custom Agent、插件 mode 和 Workflow edge 都不能扩大父任务的 thread tree、工具、预算、权限或验证能力。
 
 ## Units
-- `ModeDefinition`、`ModeSnapshot`、`AgentDefinition`: 冻结任务模式、实际模型、角色、工具子集与提示策略 | 无副作用 | 模式不承载权限，快照可审计且活动任务不可变
-- `ModeRegistry.freeze(...)`、`standard_mode_definitions(...)`: 解析四档模式并绑定已配置 profile、Oracle 和资源限制 | 无副作用 | 缺失 profile 失败闭合，digest 不包含密钥
-- `snapshot_payload(...)`、`snapshot_from_payload(...)`: 在稳定 JSON 结构与模式快照间转换 | 无副作用 | 恢复后继续执行构造校验
+- `RuntimeSelection`、`AgentTopology`、`RuntimeReasoningEffort`: 冻结实际 topology/profile/model/protocol/effort/output 上限及兼容 legacy mode | 无副作用 | profile 名必须来自已配置目录，digest 不包含端点密钥
+- `ModeDefinition`、`ModeSnapshot`、`AgentDefinition`: 冻结 legacy 任务模式、实际 runtime selection、角色、工具子集与提示策略 | 无副作用 | 模式不承载权限，旧快照仍按 single topology 读取
+- `ModeRegistry.freeze(...)`、`freeze_runtime(...)`、`freeze_runtime_selection(...)`: 解析 legacy mode 并独立绑定实际 profile、topology、effort、Oracle 和资源限制 | 无副作用 | 缺失 profile 失败闭合，运行时选择不从 mode 静默推导
+- `snapshot_payload(...)`、`snapshot_from_payload(...)`、`runtime_selection_payload(...)`: 在稳定 JSON 结构与模式/运行时快照间转换 | 无副作用 | 新旧 payload 均可恢复并继续执行构造校验
 - `BudgetLedger.reserve(...)`、`settle(...)`: 为并行子运行预留并累计父任务 token、工具、时间和 child 配额 | 维护进程内租约 | 预留防止并发超借，超额结果按租约上限保守计费并拒绝
 - `ChildRunSupervisor`: 在并发上限内运行注入的单 Agent runner、传播取消并投影父子状态 | 创建 asyncio task | 只读可并行，写入使用单写者锁，异常文本不透传
 - `ChildRunSupervisor.subscribe(listener)`: 订阅 queued、running 和稳定终态的 `RunView` 快照 | 进程内回调 | 观察者异常不得改变子运行结果

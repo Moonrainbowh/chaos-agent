@@ -1,166 +1,48 @@
 from __future__ import annotations
 
 import shlex
-from dataclasses import dataclass
 from dataclasses import replace
 
-
-@dataclass(frozen=True)
-class CommandAction:
-    name: str
-    aliases: tuple[str, ...]
-    description: str
-    usage: str = ""
-    source: str = "host"
+from ._command_models import CommandAction, CommandSpec, CommandVisibility
+from ._command_specs import built_in_command_specs
 
 
-@dataclass(frozen=True)
-class CommandSpec:
-    name: str
-    aliases: tuple[str, ...]
-    group: str
-    description: str
-    usage: str = ""
-    requires: tuple[str, ...] = ()
-    accepts_active_task: bool = True
-    actions: tuple[CommandAction, ...] = ()
-    source: str = "host"
-    controller: str | None = None
-    plugin_id: str | None = None
-    digest: str | None = None
-    generation: int | None = None
-
-    @property
-    def display(self) -> str:
-        return "/" + self.name + (" " + self.usage if self.usage else "")
-
-
-_SPECS = (
-    CommandSpec("帮助", ("help",), "通用", "显示可用命令", "[command]"),
-    CommandSpec("状态", ("status",), "通用", "显示当前状态"),
-    CommandSpec("清屏", ("clear",), "通用", "清空本次转录"),
-    CommandSpec("退出", ("exit", "quit"), "通用", "请求退出"),
-    CommandSpec("新建", ("new",), "会话", "新建会话"),
-    CommandSpec("会话", ("sessions",), "会话", "列出会话", requires=("sessions",)),
-    CommandSpec("恢复", ("restore",), "会话", "恢复会话", "<thread-id>", requires=("history",)),
-    CommandSpec("任务", ("tasks",), "任务", "列出任务", requires=("tasks",)),
-    CommandSpec("接受", ("accept",), "任务", "接受部分交付", "[task-id]", requires=("tasks",)),
-    CommandSpec("差异", ("diff",), "工作区", "显示差异"),
-    CommandSpec(
-        "附件",
-        ("attach", "attachments"),
-        "输入",
-        "暂存、查看或移除附件",
-        "[path|clipboard|list|remove <id>|clear]",
-        requires=("attachments",),
-    ),
-    CommandSpec("证据", ("evidence",), "工作区", "显示验证证据", "[task-id]", requires=("evidence",)),
-    CommandSpec(
-        "检查点",
-        ("checkpoint",),
-        "工作区",
-        "列出或创建 Checkpoint",
-        "<action>",
-        requires=("checkpoints",),
-        actions=(
-            CommandAction("列表", ("list",), "列出 Checkpoint"),
-            CommandAction("创建", ("create",), "创建 Checkpoint", "[label]"),
-        ),
-    ),
-    CommandSpec(
-        "回退",
-        ("rewind",),
-        "工作区",
-        "预览并执行 Rewind",
-        "[checkpoint-id]",
-        requires=("checkpoints",),
-    ),
-    CommandSpec("模式", ("mode",), "能力", "切换下一任务的 Agent mode", "<mode>", requires=("modes",), actions=(
-        CommandAction("low", (), "快速直接"),
-        CommandAction("medium", (), "均衡执行"),
-        CommandAction("high", (), "深度处理"),
-        CommandAction("ultra", (), "复杂任务编排"),
-    )),
-    CommandSpec("权限", ("permission", "permissions"), "能力", "切换下一任务的访问权限", "<permission>", requires=("permissions",), actions=(
-        CommandAction("unrestricted", (), "高信任访问，受保护路径仍需审批"),
-        CommandAction("plan", (), "仅允许工作区只读操作"),
-        CommandAction("ask", (), "写入和命令逐次审批"),
-        CommandAction("auto", (), "普通读写自动执行，命令审批"),
-        CommandAction("elevated", (), "外部访问走审批，类型化文件仍限工作区"),
-        CommandAction("full-local", (), "本地高信任策略，类型化文件仍限工作区"),
-    )),
-    CommandSpec(
-        "流程",
-        ("flow",),
-        "任务",
-        "显示可信执行流程",
-        "[node-id|失败|证据 <node-id>]",
-        requires=("workflows",),
-    ),
-    CommandSpec(
-        "技能",
-        ("skill", "skills"),
-        "能力",
-        "管理当前 thread 的 Skills",
-        "<action>",
-        requires=("skills",),
-        actions=(
-            CommandAction("列表", ("list",), "列出 Skills", "[--all|--active|--errors]"),
-            CommandAction("信息", ("info",), "显示 Skill 信息", "<skill-id>"),
-            CommandAction("启用", ("enable",), "启用 Skill", "<skill-id>"),
-            CommandAction("禁用", ("disable",), "禁用 Skill", "<skill-id>"),
-            CommandAction("来源", ("source",), "显示 Skill 来源", "<skill-id>"),
-            CommandAction("重载", ("reload",), "重新发现 Skills"),
-        ),
-    ),
-    CommandSpec(
-        "mcp",
-        (),
-        "能力",
-        "管理已配置 MCP servers",
-        "<action>",
-        requires=("mcp",),
-        actions=(
-            CommandAction("list", ("列表",), "列出 MCP servers"),
-            CommandAction("status", ("状态",), "显示 MCP 状态", "[server]"),
-            CommandAction("tools", ("工具",), "列出 MCP tools", "[server]"),
-            CommandAction("enable", ("启用",), "启用 MCP server", "<server>"),
-            CommandAction("disable", ("禁用",), "禁用 MCP server", "<server>"),
-            CommandAction("restart", ("重启",), "重启 MCP server", "<server>"),
-            CommandAction("diagnose", ("诊断",), "诊断 MCP server", "<server>"),
-        ),
-    ),
-    CommandSpec(
-        "插件",
-        ("plugin", "plugins"),
-        "能力",
-        "管理声明式 Plugins",
-        "<action>",
-        requires=("plugins",),
-        actions=(
-            CommandAction("list", ("列表",), "列出 Plugins"),
-            CommandAction("status", ("状态",), "显示 Plugin 状态", "[plugin-id]"),
-            CommandAction("enable", ("启用",), "启用 Plugin", "<plugin-id>"),
-            CommandAction("disable", ("禁用",), "禁用 Plugin", "<plugin-id>"),
-            CommandAction("reload", ("重载",), "重新发现 Plugins"),
-        ),
-    ),
-)
+_SPECS = built_in_command_specs()
 
 
 class CommandRegistry:
     def __init__(self, specs: tuple[CommandSpec, ...] = _SPECS) -> None:
         self._specs = specs
-        self._lookup = {alias.casefold(): spec for spec in specs for alias in (spec.name, *spec.aliases)}
+        self._lookup = {
+            alias.casefold(): spec
+            for spec in specs
+            for alias in (spec.name, *spec.aliases)
+        }
         if len(self._lookup) != sum(1 + len(item.aliases) for item in specs):
             raise ValueError("command aliases must be unique")
 
-    def available(self, services: set[str] | None = None) -> tuple[CommandSpec, ...]:
+    def available(
+        self, services: set[str] | None = None
+    ) -> tuple[CommandSpec, ...]:
         services = services or set()
-        return tuple(item for item in self._specs if set(item.requires).issubset(services))
+        return tuple(
+            item
+            for item in self._specs
+            if set(item.requires).issubset(services)
+        )
 
     def all(self) -> tuple[CommandSpec, ...]:
         return self._specs
+
+    def primary(
+        self, services: set[str] | None = None
+    ) -> tuple[CommandSpec, ...]:
+        values = self._specs if services is None else self.available(services)
+        return tuple(
+            item
+            for item in values
+            if item.visibility is CommandVisibility.PRIMARY
+        )
 
     def with_plugin_commands(self, descriptors: object) -> "CommandRegistry":
         dynamic = []
@@ -186,6 +68,7 @@ class CommandRegistry:
                     plugin_id=descriptor.plugin_id,
                     digest=descriptor.digest,
                     generation=descriptor.generation,
+                    visibility=CommandVisibility.INTERNAL,
                 )
             )
         return CommandRegistry(self._specs + tuple(dynamic))
@@ -204,7 +87,11 @@ class CommandRegistry:
                 continue
             additions = tuple(
                 CommandAction(
-                    identifier, (), "插件提供的受限模式", source="plugin"
+                    identifier,
+                    (),
+                    "插件提供的受限模式",
+                    source="plugin",
+                    requires=("modes",),
                 )
                 for identifier in checked
             )
@@ -227,13 +114,15 @@ class CommandRegistry:
             None,
         )
 
-    def parse(self, text: str, services: set[str] | None = None) -> tuple[CommandSpec | None, tuple[str, ...], str | None]:
+    def parse(
+        self, text: str, services: set[str] | None = None
+    ) -> tuple[CommandSpec | None, tuple[str, ...], str | None]:
         if not isinstance(text, str):
             raise TypeError("command text must be a string")
         if not text.startswith("/"):
             return None, (), None
         try:
-            parts = tuple(shlex.split(text[1:]))
+            parts = tuple(shlex.split(text[1:], posix=False))
         except ValueError:
             return None, (), "invalid quoted command"
         if not parts:
@@ -243,11 +132,33 @@ class CommandRegistry:
             return None, (), "unknown or unavailable slash command"
         return spec, parts[1:], None
 
-    def filter(self, text: str, services: set[str] | None = None, limit: int = 6) -> tuple[CommandSpec, ...]:
+    def filter(
+        self,
+        text: str,
+        services: set[str] | None = None,
+        limit: int = 6,
+    ) -> tuple[CommandSpec, ...]:
         if not isinstance(text, str) or not text.startswith("/"):
             return ()
         query = text[1:].strip().casefold()
-        return tuple(item for item in self.available(services) if query in item.name.casefold() or any(query in alias.casefold() for alias in item.aliases))[:limit]
+        return tuple(
+            item
+            for item in self.available(services)
+            if item.visibility is CommandVisibility.PRIMARY
+            and (
+                query in item.name.casefold()
+                or any(query in alias.casefold() for alias in item.aliases)
+            )
+        )[:limit]
 
 
 REGISTRY = CommandRegistry()
+
+
+__all__ = (
+    "CommandAction",
+    "CommandRegistry",
+    "CommandSpec",
+    "CommandVisibility",
+    "REGISTRY",
+)

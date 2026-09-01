@@ -12,6 +12,11 @@ from ._secure_modes import make_destination_writable, restore_destination_mode
 from ._secure_posix import identity_from_fd, inspect_at, open_verified_directory
 from .errors import PathOutsideWorkspace, WorkspaceError
 from .paths import WorkspacePathGuard
+from ._windows_file_locks import (
+    DEFAULT_WINDOWS_FILE_LOCK_TIMEOUT_S,
+    DELETE_RETRY_WINERRORS,
+    retry_windows_file_operation,
+)
 
 
 CreatedDirectories = dict[str, tuple[Path, safety.PathIdentity]]
@@ -40,16 +45,18 @@ def secure_unlink(
     state: safety.TargetState,
     guard: WorkspacePathGuard,
     created: Mapping[str, tuple[Path, safety.PathIdentity]],
+    timeout_s: float = DEFAULT_WINDOWS_FILE_LOCK_TIMEOUT_S,
 ) -> None:
-    _secure_remove(state, guard, created, directory=False)
+    _secure_remove(state, guard, created, directory=False, timeout_s=timeout_s)
 
 
 def secure_rmdir(
     state: safety.TargetState,
     guard: WorkspacePathGuard,
     created: Mapping[str, tuple[Path, safety.PathIdentity]],
+    timeout_s: float = DEFAULT_WINDOWS_FILE_LOCK_TIMEOUT_S,
 ) -> None:
-    _secure_remove(state, guard, created, directory=True)
+    _secure_remove(state, guard, created, directory=True, timeout_s=timeout_s)
 
 
 def _create_directory(
@@ -105,13 +112,16 @@ def _secure_remove(
     created: Mapping[str, tuple[Path, safety.PathIdentity]],
     *,
     directory: bool,
+    timeout_s: float,
 ) -> None:
     safety.verify_target_state(state, guard, created, context="restore")
     try:
         if os.name == "posix":
             _remove_posix(state, guard, created, directory=directory)
         else:
-            _remove_windows(state, directory=directory)
+            _remove_windows(
+                state, guard, created, directory=directory, timeout_s=timeout_s
+            )
     except (PathOutsideWorkspace, WorkspaceError):
         raise
     except OSError as error:
@@ -133,7 +143,7 @@ def _remove_posix(
     )
     try:
         current = inspect_at(parent_fd, state.target.name, missing_ok=False, context="restore")
-        if current != state.identity:
+        if not safety.same_path_state(current, state.identity):
             raise WorkspaceError(f"path changed during restore: {state.target}")
         if directory:
             _posix_io.rmdir(parent_fd, state.target.name)
@@ -143,16 +153,30 @@ def _remove_posix(
         os.close(parent_fd)
 
 
-def _remove_windows(state: safety.TargetState, *, directory: bool) -> None:
-    changed = False
-    if not directory:
-        changed = make_destination_writable(state)
-    try:
-        if directory:
-            state.target.rmdir()
-        else:
-            state.target.unlink()
-    except OSError:
-        if changed:
-            restore_destination_mode(state)
-        raise
+def _remove_windows(
+    state: safety.TargetState,
+    guard: WorkspacePathGuard,
+    created: Mapping[str, tuple[Path, safety.PathIdentity]],
+    *,
+    directory: bool,
+    timeout_s: float,
+) -> None:
+    def remove_attempt() -> None:
+        changed = False if directory else make_destination_writable(state)
+        try:
+            state.target.rmdir() if directory else state.target.unlink()
+        except OSError:
+            if changed:
+                restore_destination_mode(state)
+            raise
+
+    retry_windows_file_operation(
+        remove_attempt,
+        target=state.target,
+        operation="remove restored path",
+        timeout_s=timeout_s,
+        retry_winerrors=DELETE_RETRY_WINERRORS,
+        validate=lambda: safety.verify_target_state(
+            state, guard, created, context="restore"
+        ),
+    )

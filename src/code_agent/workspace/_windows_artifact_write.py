@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import uuid
 from pathlib import Path
 
+from ._atomic_artifact_write import artifact_temp_name
 from ._windows_artifact_handles import (
     close_handle,
     directory_identity,
@@ -65,7 +65,7 @@ def _before_relative_write(parent_handle: int, parent: Path) -> None:
 
 
 def _atomic_relative_write(parent_handle: int, target_name: str, content: bytes) -> None:
-    temporary_name = f".snapshot-{uuid.uuid4().hex}"
+    temporary_name = artifact_temp_name()
     handle = create_relative_file(parent_handle, temporary_name)
     renamed = False
     try:

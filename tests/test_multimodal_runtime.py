@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import tempfile
 import unittest
 from pathlib import Path
@@ -14,6 +15,7 @@ from code_agent.providers.config import (
     ModelProfile,
     ProviderConfig,
 )
+from code_agent.providers.anthropic import AnthropicClient
 from code_agent.providers.openai_responses import OpenAIResponsesClient
 from code_agent_win.runtime_support import (
     model_client,
@@ -57,12 +59,17 @@ class MultimodalRuntimeTests(unittest.TestCase):
                 model_client, {selected.name: selected}, store
             )
 
-            client = factory(selected.provider)
+            client = factory(selected.provider, reasoning_effort="max")
             content = client._attachments.responses(  # type: ignore[attr-defined]
                 Message("user", attachments=(reference,))
             )
 
         self.assertIsInstance(client, OpenAIResponsesClient)
+        self.assertEqual(client._request_options.reasoning_effort, "max")
+        self.assertEqual(
+            client._request_options.max_output_tokens,
+            selected.max_output_tokens,
+        )
         self.assertEqual(content[0]["type"], "input_image")  # type: ignore[index]
 
     def test_one_argument_fake_factory_remains_compatible(self) -> None:
@@ -76,10 +83,29 @@ class MultimodalRuntimeTests(unittest.TestCase):
         factory = profile_model_factory(
             fake, {selected.name: selected}, None
         )
-        result = factory(selected.provider)
+        result = factory(selected.provider, reasoning_effort="high")
 
         self.assertIsNotNone(result)
         self.assertEqual(calls, [selected.provider])
+
+    def test_anthropic_factory_keeps_effort_off_the_wire(self) -> None:
+        provider = ProviderConfig(
+            "https://api.example.test",
+            "claude-test",
+            ApiProtocol.ANTHROPIC_MESSAGES,
+            "TEST_KEY",
+        )
+        selected = ModelProfile("claude", provider, 8_000, 777)
+        factory = profile_model_factory(
+            model_client, {selected.name: selected}, None
+        )
+
+        client = factory(selected.provider, reasoning_effort="max")
+
+        self.assertIsInstance(client, AnthropicClient)
+        self.assertIsNone(client._request_options.reasoning_effort)
+        self.assertEqual(client._request_options.max_output_tokens, 777)
+        asyncio.run(client.aclose())
 
     def test_shared_provider_with_conflicting_modalities_is_rejected(self) -> None:
         shared = profile().provider

@@ -18,7 +18,9 @@ def build_factory_context(
     context_factory: Callable[..., object],
     sessions: object | None = None,
 ) -> object:
-    prompt = windows_system_prompt(host.git is not None) + "\n\n" + mode_prompt(mode)
+    prompt = windows_system_prompt(
+        host.git is not None, host.dispatcher.runtime.powershell_info()
+    ) + "\n\n" + mode_prompt(mode)
     config = ContextConfig(
         host.root,
         host.root,

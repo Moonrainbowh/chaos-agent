@@ -88,6 +88,15 @@ class SchemaStructureValidationTests(unittest.TestCase):
         )
         self.assert_reopen_corrupt()
 
+    def test_peer_ref_unique_index_must_really_use_nocase(self) -> None:
+        with closing(sqlite3.connect(self.database)) as connection, connection:
+            connection.execute("DROP INDEX peer_sessions_ref_unique")
+            connection.execute(
+                "CREATE UNIQUE INDEX peer_sessions_ref_unique "
+                "ON peer_sessions(session_ref)"
+            )
+        self.assert_reopen_corrupt()
+
 
 if __name__ == "__main__":
     unittest.main()

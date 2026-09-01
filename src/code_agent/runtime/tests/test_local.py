@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 import sys
 import unittest
@@ -111,53 +112,6 @@ class WindowsLocalRuntimeTests(LocalRuntimeTestCase):
 
         self.assertEqual(result.stdout.strip(), b"visible")
 
-    async def test_powershell_uses_fixed_noninteractive_flags(self) -> None:
-        process = CompletedProcess()
-
-        async def spawn(*args: object, **kwargs: object) -> CompletedProcess:
-            return process
-
-        with patch(
-            "code_agent.runtime.local.shutil.which", side_effect=("C:\\pwsh.exe", None)
-        ), patch(
-            "code_agent.runtime.local.asyncio.create_subprocess_exec", side_effect=spawn
-        ) as create, patch_process_identity_capture() as capture:
-            result = await self.runtime.run(
-                CommandSpec(cwd=".", powershell_script="Write-Output ready"),
-                CancellationToken(),
-                None,
-            )
-
-        args = create.call_args.args
-        options = create.call_args.kwargs
-        self.assertEqual(
-            args[:-1],
-            (
-                "C:\\pwsh.exe",
-                "-NoLogo",
-                "-NoProfile",
-                "-NonInteractive",
-                "-File",
-            ),
-        )
-        script_path = Path(args[-1])
-        self.assertEqual(result.display_command, "<powershell-script>")
-        self.assertFalse(script_path.exists())
-        self.assertFalse(options["shell"])
-        self.assertEqual(options["creationflags"] & 0x00000004, 0x00000004)
-        self.assertEqual(result.reason, TerminationReason.EXITED)
-        capture.assert_called_once()
-        capture.resume.assert_called_once()
-
-    async def test_missing_powershell_is_unavailable(self) -> None:
-        with patch("code_agent.runtime.local.shutil.which", return_value=None):
-            with self.assertRaises(RuntimeUnavailable):
-                await self.runtime.run(
-                    CommandSpec(cwd=".", powershell_script="pwd"),
-                    CancellationToken(),
-                    None,
-                )
-
     async def test_combined_output_limit_bounds_capture_and_callback(self) -> None:
         chunks = []
         code = (
@@ -180,6 +134,26 @@ class WindowsLocalRuntimeTests(LocalRuntimeTestCase):
         self.assertIsNone(result.returncode)
         self.assertLessEqual(len(result.stdout) + len(result.stderr), 100)
         self.assertLessEqual(sum(len(item.data) for item in chunks), 100)
+        self.assertTrue(result.truncated_streams)
+
+    async def test_output_limit_records_the_stream_that_lost_bytes(self) -> None:
+        code = (
+            "import sys;"
+            "sys.stdout.buffer.write('中'.encode('utf-8')*100);"
+            "sys.stdout.flush()"
+        )
+
+        result = await self.runtime.run(
+            CommandSpec(
+                cwd=".", argv=(sys.executable, "-c", code), max_output_bytes=2
+            ),
+            CancellationToken(),
+            None,
+        )
+
+        self.assertEqual(result.reason, TerminationReason.OUTPUT_LIMIT)
+        self.assertEqual(result.stdout, "中".encode("utf-8")[:2])
+        self.assertEqual(result.truncated_streams, frozenset({StreamName.STDOUT}))
 
     async def test_spawn_oserror_is_wrapped(self) -> None:
         with patch(

@@ -12,6 +12,7 @@ _TOOL_LABELS = {
     "write_file": "Write file",
     "replace_text": "Edit file",
     "run_command": "Run command",
+    "run_process_v1": "Run process",
     "run_verification": "Run verification",
 }
 _KEY_LABELS = {

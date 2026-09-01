@@ -21,6 +21,7 @@ from code_agent.workspace.edits import (  # noqa: E402
 )
 from code_agent.workspace.errors import WorkspaceError  # noqa: E402
 from code_agent.workspace.paths import WorkspacePathGuard  # noqa: E402
+from code_agent.workspace._secure_temp import TEMP_PREFIX  # noqa: E402
 
 
 def cleanup_function_name() -> str:
@@ -34,7 +35,7 @@ class TempCleanupProofTests(unittest.TestCase):
         self.editor = WorkspaceEditor(WorkspacePathGuard(self.root))
 
     def tearDown(self) -> None:
-        for path in self.root.glob(".code-agent-edit-*"):
+        for path in self.root.glob(f"{TEMP_PREFIX}*"):
             try:
                 os.chmod(path, stat.S_IWRITE | stat.S_IREAD)
             except OSError:
@@ -46,7 +47,7 @@ class TempCleanupProofTests(unittest.TestCase):
         return WorkspaceSnapshot((SnapshotEntry(name, b"after", True),))
 
     def temp_paths(self) -> list[Path]:
-        return list(self.root.glob(".code-agent-edit-*"))
+        return list(self.root.glob(f"{TEMP_PREFIX}*"))
 
     def test_raw_fstat_proves_ownership_after_identity_helper_failure(self) -> None:
         snapshot = self.snapshot()
@@ -137,13 +138,17 @@ class TempCleanupProofTests(unittest.TestCase):
 
     def test_native_primary_type_survives_a_cleanup_failure(self) -> None:
         from code_agent.workspace import _posix_io
+        from code_agent.workspace import _windows_atomic_replace
 
         snapshot = self.snapshot()
         primary = OSError("primary os failure")
         cleanup = WorkspaceError("cleanup ownership failure")
-        replace_target = _posix_io if os.name == "posix" else replacement.os
+        replace_target = (
+            _posix_io if os.name == "posix" else _windows_atomic_replace
+        )
+        replace_name = "replace" if os.name == "posix" else "_replace_file"
 
-        with patch.object(replace_target, "replace", side_effect=primary):
+        with patch.object(replace_target, replace_name, side_effect=primary):
             with patch.object(
                 replacement, cleanup_function_name(), side_effect=cleanup
             ):

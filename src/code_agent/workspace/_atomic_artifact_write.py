@@ -7,6 +7,14 @@ from pathlib import Path
 from .errors import WorkspaceError
 
 
+ARTIFACT_TEMP_PREFIX = ".snapshot-"
+ARTIFACT_TEMP_NAME_UNITS = len(ARTIFACT_TEMP_PREFIX) + 32
+
+
+def artifact_temp_name() -> str:
+    return f"{ARTIFACT_TEMP_PREFIX}{uuid.uuid4().hex}"
+
+
 class AtomicArtifactWriter:
     """Atomically write only into recorded manifest and blob directories."""
 
@@ -47,7 +55,7 @@ class AtomicArtifactWriter:
 
     def _write_posix(self, namespace: str, target_name: str, content: bytes) -> None:
         root_fd = parent_fd = temporary_fd = None
-        temporary_name = f".snapshot-{uuid.uuid4().hex}"
+        temporary_name = artifact_temp_name()
         try:
             root_fd = os.open(self.root, _directory_flags())
             _verify_directory(root_fd, self.root_identity)

@@ -76,22 +76,48 @@ class PickerStateTests(unittest.TestCase):
         }
         items = command_picker_items(REGISTRY.all(), services)
 
-        for spec in REGISTRY.all():
+        self.assertEqual(
+            tuple(item.label for item in items),
+            (
+                "/帮助", "/状态", "/新建", "/会话", "/任务", "/差异",
+                "/附件", "/回退", "/模式", "/权限", "/退出",
+            ),
+        )
+
+        for spec in REGISTRY.primary():
             picker = PickerState(items)
             picker.update_query(spec.name)
             with self.subTest(command=spec.name):
                 self.assertTrue(picker.accept().completion.startswith("/" + spec.name))  # type: ignore[union-attr]
 
-    def test_mode_choices_are_flattened_and_inherit_unavailability(self) -> None:
-        items = command_picker_items(REGISTRY.all(), set())
-        modes = tuple(item for item in items if item.label.startswith("/模式 "))
+        self.assertFalse(any(item.label == "/证据" for item in items))
 
+    def test_mode_is_a_root_parent_and_its_actions_inherit_unavailability(self) -> None:
+        items = command_picker_items(REGISTRY.all(), set())
+        modes = command_picker_items(
+            REGISTRY.all(), set(), parent=REGISTRY.resolve("模式")
+        )
+
+        self.assertEqual(tuple(item.label for item in items).count("/模式"), 1)
+        self.assertFalse(any(item.label.startswith("/模式 ") for item in items))
         self.assertEqual(
             tuple(item.label for item in modes),
-            ("/模式 low", "/模式 medium", "/模式 high", "/模式 ultra"),
+            ("/模式 代理", "/模式 模型", "/模式 思考"),
         )
         self.assertTrue(all(not item.enabled for item in modes))
-        self.assertTrue(all(item.disabled_reason == "requires modes" for item in modes))
+        self.assertTrue(
+            all(item.disabled_reason == "requires runtime_selection" for item in modes)
+        )
+
+    def test_session_actions_are_service_scoped_without_changing_the_root(self) -> None:
+        root = command_picker_items(REGISTRY.all(), {"sessions"})
+        actions = command_picker_items(
+            REGISTRY.all(), {"sessions"}, parent=REGISTRY.resolve("会话")
+        )
+
+        self.assertEqual(tuple(item.label for item in root).count("/会话"), 1)
+        self.assertTrue(actions[0].enabled)
+        self.assertTrue(all(not item.enabled for item in actions[1:]))
 
 
 class SteeringQueueViewTests(unittest.TestCase):

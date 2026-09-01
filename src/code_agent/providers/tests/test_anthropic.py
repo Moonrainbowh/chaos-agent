@@ -18,7 +18,10 @@ from code_agent.core.models import (  # noqa: E402
 )
 from code_agent.providers.anthropic import AnthropicClient  # noqa: E402
 from code_agent.providers.config import ApiProtocol, ProviderConfig  # noqa: E402
-from code_agent.providers.errors import ProviderProtocolError  # noqa: E402
+from code_agent.providers.errors import (  # noqa: E402
+    ProviderConfigError,
+    ProviderProtocolError,
+)
 
 
 def sse(name: str, data: dict[str, object]) -> bytes:
@@ -59,7 +62,9 @@ class AnthropicClientTests(unittest.IsolatedAsyncioTestCase):
             return httpx.Response(200, content=content)
 
         http_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-        client = AnthropicClient(self.make_config(), http_client=http_client)
+        client = AnthropicClient(
+            self.make_config(), http_client=http_client, max_output_tokens=7_654
+        )
         old = ToolCall(id="old-tool", name="read_file", arguments={"path": "old"})
         messages = (
             Message(role="user", content="question"),
@@ -83,9 +88,28 @@ class AnthropicClientTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(request.headers["x-api-key"], "anthropic-secret")
         self.assertEqual(request.headers["anthropic-version"], "2023-06-01")
         self.assertEqual(body["system"], "System")
+        self.assertEqual(body["max_tokens"], 7_654)
         self.assertEqual(body["messages"][1]["content"][1]["type"], "tool_use")
         self.assertEqual(body["messages"][2]["content"][0]["type"], "tool_result")
         self.assertEqual(body["tools"][0]["input_schema"], {"type": "object"})
+        await http_client.aclose()
+
+    async def test_reasoning_effort_is_rejected_before_network(self) -> None:
+        requests: list[httpx.Request] = []
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            requests.append(request)
+            return httpx.Response(500)
+
+        http_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        with self.assertRaisesRegex(ProviderConfigError, "not supported"):
+            AnthropicClient(
+                self.make_config(),
+                http_client=http_client,
+                reasoning_effort="high",
+            )
+
+        self.assertEqual(requests, [])
         await http_client.aclose()
 
     async def test_malformed_tool_input_and_error_event_are_safe_errors(self) -> None:

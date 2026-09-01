@@ -10,6 +10,7 @@ from typing import FrozenSet, Optional
 
 from code_agent.core.models import ActionRequest
 
+from ._command_risk import command_risk, process_risk
 from .models import Capability, RiskLevel
 
 
@@ -24,57 +25,6 @@ _PROTECTED_PATH_NAMES = frozenset(
 )
 _PRIVATE_KEY_NAMES = re.compile(r"(?:^|[_-])(?:id_rsa|id_ecdsa|id_ed25519|private(?:[_-]?key)?)(?:\.[a-z0-9]+)?$", re.IGNORECASE)
 
-_NETWORK_PATTERNS = tuple(
-    re.compile(pattern, re.IGNORECASE)
-    for pattern in (
-        r"\bcurl(?:\.exe)?\b",
-        r"\biwr\b",
-        r"\binvoke-webrequest\b",
-        r"\birm\b",
-        r"\binvoke-restmethod\b",
-        r"\bwget(?:\.exe)?\b",
-        r"\bstart-bitstransfer\b",
-        r"\bgit\s+(?:clone|fetch|pull)\b",
-        r"\bpip(?:3(?:\.\d+)?)?\s+install\b",
-        r"\buv\s+(?:add|sync)\b",
-        r"\b(?:npm|pnpm)\s+(?:install|i|ci|add|update)\b",
-        r"\byarn\s+(?:install|add|upgrade)\b",
-    )
-)
-_CRITICAL_PATTERNS = tuple(
-    re.compile(pattern, re.IGNORECASE)
-    for pattern in (
-        r"\bgit\s+reset\b[^;&|\r\n]*--hard\b",
-        r"\bgit\s+clean\s+-(?=[a-z]*f)(?=[a-z]*d)[a-z]+\b",
-        r"\brm\s+-(?=[a-z]*r)(?=[a-z]*f)[a-z]+\b",
-        r"\b(?:del|rmdir)\b[^;&|\r\n]*/s\b",
-        r"\bformat(?:\.com)?\b",
-        r"\bdiskpart(?:\.exe)?\b",
-        r"\bshutdown(?:\.exe)?\b",
-        r"\bstop-computer\b",
-        r"\brunas(?:\.exe)?\b",
-        r"\bsudo\b",
-        r"\bset-executionpolicy\b",
-    )
-)
-_REMOVE_ITEM = re.compile(
-    r"\b(?:remove-item|rm|ri|del|erase|rd|rmdir)\b(?P<arguments>[^;&|\r\n]*)",
-    re.IGNORECASE,
-)
-_RECURSE_FLAG = re.compile(
-    r"(?:^|\s)-(?:r|re|rec|recu|recur|recurs|recurse)"
-    r"(?::(?:\$true|true|1))?(?=\s|$)",
-    re.IGNORECASE,
-)
-_FORCE_FLAG = re.compile(
-    r"(?:^|\s)-(?:f|fo|for|forc|force)(?::(?:\$true|true|1))?(?=\s|$)",
-    re.IGNORECASE,
-)
-_POWERSHELL_INVOCATION = re.compile(
-    r"\b(?:powershell|pwsh)(?:\.exe)?\b(?P<arguments>[^;&|\r\n]*)",
-    re.IGNORECASE,
-)
-_POWERSHELL_FLAG = re.compile(r"(?:^|\s)-(?P<name>[a-z]+)\b", re.IGNORECASE)
 _PATH_KEY_WORDS = frozenset(
     {"path", "cwd", "file", "directory", "root", "source", "destination", "target"}
 )
@@ -89,30 +39,6 @@ class ActionClassification:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "capabilities", frozenset(self.capabilities))
-
-
-def _matches_any(command: str, patterns: tuple[re.Pattern[str], ...]) -> bool:
-    return any(pattern.search(command) is not None for pattern in patterns)
-
-
-def _is_critical_command(command: str) -> bool:
-    if _matches_any(command, _CRITICAL_PATTERNS):
-        return True
-    for invocation in _POWERSHELL_INVOCATION.finditer(command):
-        for flag in _POWERSHELL_FLAG.finditer(invocation.group("arguments")):
-            name = flag.group("name").casefold()
-            if name in {"e", "ec"} or (
-                len(name) >= 2 and "encodedcommand".startswith(name)
-            ):
-                return True
-    for invocation in _REMOVE_ITEM.finditer(command):
-        arguments = invocation.group("arguments")
-        if (
-            _RECURSE_FLAG.search(arguments) is not None
-            and _FORCE_FLAG.search(arguments) is not None
-        ):
-            return True
-    return False
 
 
 def _is_path_key(key: str) -> bool:
@@ -260,9 +186,10 @@ def classify_action(
                 RiskLevel.CRITICAL,
                 "run_command requires a non-blank string command",
             )
-        if _matches_any(command, _NETWORK_PATTERNS):
+        signals = command_risk(command)
+        if signals.network:
             capabilities.add(Capability.NETWORK)
-        if _is_critical_command(command):
+        if signals.critical:
             return ActionClassification(
                 frozenset(capabilities),
                 RiskLevel.CRITICAL,
@@ -274,6 +201,37 @@ def classify_action(
         else:
             risk = RiskLevel.HIGH
             reason = "command execution always requires approval"
+    elif name == "run_process_v1":
+        capabilities = {Capability.EXECUTE, Capability.RAW_PROCESS}
+        program = request.arguments.get("program")
+        raw_args = request.arguments.get("args")
+        if (
+            not isinstance(program, str)
+            or not program.strip()
+            or not isinstance(raw_args, Sequence)
+            or isinstance(raw_args, (str, bytes))
+            or not all(isinstance(item, str) for item in raw_args)
+        ):
+            return ActionClassification(
+                frozenset(capabilities),
+                RiskLevel.CRITICAL,
+                "run_process_v1 requires program text and string args",
+            )
+        signals = process_risk(program, tuple(raw_args))
+        if signals.network:
+            capabilities.add(Capability.NETWORK)
+        if signals.critical:
+            return ActionClassification(
+                frozenset(capabilities),
+                RiskLevel.CRITICAL,
+                "structured process includes a shell or critical operation",
+            )
+        risk = RiskLevel.HIGH
+        reason = (
+            "structured process includes a network-capable operation"
+            if signals.network
+            else "structured process execution always requires approval"
+        )
     elif name == "run_verification":
         capabilities = {Capability.EXECUTE, Capability.VERIFICATION}
         risk = RiskLevel.MEDIUM

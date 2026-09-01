@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from code_agent.core.action_execution import ActionExecutionContext
@@ -21,12 +21,17 @@ from code_agent.workspace.files import WorkspaceFiles
 from code_agent.workspace.git import GitCommandError, GitWorkspace
 
 from code_agent_win.plugin_runtime import PluginToolBridge
+from code_agent_win.process_actions import run_powershell_action, run_process_action
 from code_agent_win.rewind_capture import is_external_plan, mcp_requires_gap, plugin_requires_gap, record_unknown_gap
 from code_agent_win.subagents import SubagentRuntime, SubagentTool
 from code_agent_win.tool_support import command_action_result, git_error_result
-from code_agent_win.tools import powershell_compatibility_error, tool_definitions, validate_tool_arguments
+from code_agent_win.tools import tool_definitions
 from code_agent.thread_intelligence.tools import ThreadIntelligenceTools
-from code_agent_win.action_support import list_action_result, with_action_duration
+from code_agent_win.action_support import (
+    edit_plan, error_result as _error, exception_result as _exception, list_action_result,
+    ok_result as _ok, preflight_action, read_action_result,
+    text_argument as _text, text_format_fields, with_action_duration,
+)
 from code_agent_win.thread_actions import execute_thread_action
 
 
@@ -47,6 +52,7 @@ class RootActionDispatcher:
         plugins: PluginToolBridge | None = None,
         subagents: SubagentTool | None = None,
         threads: ThreadIntelligenceTools | None = None,
+        peers: object | None = None,
         capture: object | None = None,
         caller_thread: Callable[[], str] | None = None,
         invalidate_cache: Callable[[Sequence[str]], None] | None = None,
@@ -54,17 +60,29 @@ class RootActionDispatcher:
         self.files, self.editor, self.policy, self.approvals = files, editor, policy, approvals
         self.git, self.runtime, self.verification = git, runtime, verification
         self.mcp, self.plugins, self.subagents = mcp, plugins, subagents
-        self.threads, self.caller_thread = threads, caller_thread
+        self.threads, self.peers, self.caller_thread = threads, peers, caller_thread
         self.capture = capture
         self.invalidate_cache = invalidate_cache
         self.interactive = False
 
     def tools(self) -> Sequence[ToolDefinition]:
-        builtins = tool_definitions(include_git=self.git is not None)
+        powershell = self.runtime.powershell_info() if isinstance(self.runtime, WindowsLocalRuntime) else None
+        builtins = tool_definitions(
+            include_git=self.git is not None, powershell=powershell
+        )
         mcp = self.mcp.definitions() if self.mcp is not None else ()
         plugins = self.plugins.definitions() if self.plugins is not None else ()
         threads = self.threads.definitions() if self.threads is not None else ()
-        return builtins + threads + mcp + plugins
+        peer_tools = (
+            tuple(
+                tool
+                for tool in self.peers.tools()
+                if tool.name in {"list_agents", "send_message"}
+            )
+            if self.peers is not None
+            else ()
+        )
+        return builtins + threads + peer_tools + mcp + plugins
 
     async def dispatch(
         self,
@@ -76,7 +94,7 @@ class RootActionDispatcher:
     ) -> ActionResult:
         target = self.plugins.targets().get(request.name) if self.plugins else None
         translated = ActionRequest(request.id, target, request.arguments) if target else request
-        rejected = self._preflight(request, translated)
+        rejected = preflight_action(request, translated)
         if rejected is not None:
             return rejected
         rejected = await self._authorize(
@@ -85,16 +103,6 @@ class RootActionDispatcher:
         if rejected is not None:
             return rejected
         return await self._run(request, translated, cancellation, execution_context)
-
-    def _preflight(self, request: ActionRequest, translated: ActionRequest) -> ActionResult | None:
-        validation_error = validate_tool_arguments(translated.name, translated.arguments)
-        if validation_error is not None:
-            return _error(request, "invalid tool arguments", validation_error)
-        if translated.name == "run_command":
-            mismatch = powershell_compatibility_error(_text(translated.arguments, "command"))
-            if mismatch is not None:
-                return _error(request, "shell syntax mismatch", mismatch)
-        return None
 
     async def _authorize(
         self,
@@ -154,7 +162,7 @@ class RootActionDispatcher:
         except (CancellationError, asyncio.CancelledError):
             raise
         except Exception as error:
-            return _error(request, "action failed", type(error).__name__)
+            return _exception(request, error)
 
     async def _execute(
         self, request: ActionRequest, cancellation: CancellationToken,
@@ -174,6 +182,12 @@ class RootActionDispatcher:
                 return _error(request, "thread intelligence unavailable")
             return await execute_thread_action(
                 request, self.threads, self.caller_thread
+            )
+        if request.name in {"list_agents", "send_message"}:
+            if self.peers is None:
+                return _error(request, "peer messaging unavailable")
+            return await self.peers.dispatch(
+                request, cancellation, execution_context=context
             )
         if request.name.startswith("mcp."):
             if self.mcp is None:
@@ -197,21 +211,17 @@ class RootActionDispatcher:
             if not isinstance(paths, (list, tuple)) or not all(isinstance(path, str) for path in paths):
                 raise ValueError("paths must be a list of strings")
             return _ok(request, {"diff": await asyncio.to_thread(self.git.diff, paths)})
-        if request.name == "run_command":
+        if request.name in {"run_command", "run_process_v1"}:
             if self.runtime is None:
                 raise RuntimeError("local runtime is unavailable")
             if not gap_recorded:
                 await record_unknown_gap(self.capture, context, request, cancellation)
-            try:
-                result = await self.runtime.run(
-                    CommandSpec(cwd=Path("."), powershell_script=_text(arguments, "command")),
-                    cancellation,
-                    None,
-                )
-            finally:
-                if self.invalidate_cache is not None:
-                    self.invalidate_cache(())
-            return command_action_result(request, result)
+            action = (
+                run_powershell_action
+                if request.name == "run_command"
+                else run_process_action
+            )
+            return await action(request, self.runtime, cancellation, self.invalidate_cache)
         if request.name == "run_verification":
             return await self._run_verification(
                 request, cancellation, context, gap_recorded)
@@ -223,8 +233,7 @@ class RootActionDispatcher:
     ) -> ActionResult | None:
         arguments = request.arguments
         if request.name == "read_file":
-            document = await asyncio.to_thread(self.files.read_text, _text(arguments, "path"))
-            return _ok(request, {"path": document.relative_path, "text": document.text, "total_lines": document.total_lines})
+            return await read_action_result(request, self.files)
         if request.name == "list_files":
             root = arguments.get("root")
             if root is not None and not isinstance(root, str):
@@ -239,7 +248,7 @@ class RootActionDispatcher:
             )
             return _ok(request, {"matches": [match.__dict__ for match in matches]})
         if request.name in {"write_file", "replace_text"}:
-            plan = await asyncio.to_thread(self._edit_plan, request)
+            plan = await asyncio.to_thread(edit_plan, self.editor, request)
             if self.capture is not None and not is_external_plan(plan.relative_path):
                 if context is None:
                     raise TypeError("execution_context is required for capture")
@@ -250,7 +259,7 @@ class RootActionDispatcher:
             if self.invalidate_cache is not None:
                 self.invalidate_cache((plan.relative_path,))
             cancellation.raise_if_cancelled()
-            return _ok(request, {"path": plan.relative_path}, {"diff": plan.diff})
+            return _ok(request, {"path": plan.relative_path, **text_format_fields(plan.text_format)}, {"diff": plan.diff})
         return None
 
     async def _run_verification(
@@ -287,36 +296,3 @@ class RootActionDispatcher:
             {**action_result.output, "kind": _text(arguments, "kind")},
             action_result.is_error, action_result.metadata,
         )
-
-    def _edit_plan(self, request: ActionRequest) -> object:
-        arguments = request.arguments
-        if request.name == "write_file":
-            return self.editor.plan_write(_text(arguments, "path"), _text(arguments, "content"))
-        return self.editor.plan_replace(
-            _text(arguments, "path"), _text(arguments, "old_text"),
-            _text(arguments, "new_text"),
-        )
-
-
-def _text(arguments: Mapping[str, object], name: str) -> str:
-    value = arguments.get(name)
-    if not isinstance(value, str) or not value:
-        raise ValueError(f"{name} must be non-empty text")
-    return value
-
-
-def _ok(request: ActionRequest, output: Mapping[str, object],
-        metadata: Mapping[str, object] | None = None) -> ActionResult:
-    return ActionResult(request.id, request.name, dict(output), metadata=metadata or {})
-
-
-def _error(
-    request: ActionRequest, message: str, detail: str | None = None, *,
-    error_code: str | None = None,
-) -> ActionResult:
-    output = {"error": message}
-    if detail is not None:
-        output["detail"] = detail
-    if error_code is not None:
-        output["error_code"] = error_code
-    return ActionResult(request.id, request.name, output, is_error=True)

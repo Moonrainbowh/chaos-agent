@@ -26,6 +26,10 @@ from code_agent.workspace.git import (  # noqa: E402
     GitWorkspace,
     _decode_path_list,
 )
+from code_agent.workspace._git_errors import (  # noqa: E402
+    decode_git_output,
+    decode_git_text,
+)
 
 
 def run_git(root: Path, *arguments: str) -> None:
@@ -137,6 +141,8 @@ class GitRepositoryTests(GitWorkspaceTestCase):
         argv = invoked.call_args.args[0]
         self.assertTrue(Path(argv[0]).name.casefold().startswith("git"))
         self.assertEqual(argv[1:3], ["-c", "core.pager=cat"])
+        if os.name == "nt":
+            self.assertIn("core.longPaths=true", argv)
         self.assertLess(argv.index("--literal-pathspecs"), argv.index("diff"))
         self.assertIn("--no-ext-diff", argv)
         self.assertIn("--no-textconv", argv)
@@ -204,6 +210,21 @@ class GitRepositoryTests(GitWorkspaceTestCase):
 
         self.assertEqual(raised.exception.operation, "snapshot_paths")
         self.assertEqual(raised.exception.stderr, "invalid UTF-8 path")
+
+    def test_non_utf8_git_diagnostic_is_lossless_and_explicit(self) -> None:
+        decoded = decode_git_output(b"failure \xff")
+
+        self.assertNotIn("\ufffd", decoded)
+        self.assertIn("base64=ZmFpbHVyZSD/", decoded)
+
+    def test_non_utf8_git_control_output_preserves_source_bytes(self) -> None:
+        raw = b"control \xff"
+
+        with self.assertRaisesRegex(GitCommandError, "non-UTF-8") as raised:
+            decode_git_text(raw, "status", ("git", "status"))
+
+        self.assertEqual(raised.exception.stdout_bytes, raw)
+        self.assertNotIn("\ufffd", str(raised.exception))
 
 
 if __name__ == "__main__":

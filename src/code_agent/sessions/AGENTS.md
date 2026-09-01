@@ -23,6 +23,8 @@
 - 负责：持久化 thread 级 Skill 激活身份、来源和 digest；不保存完整 Skill 文本。
 - 不负责解析 verifier 输出、执行验证或把模型消息提升为 evidence。
 - 不负责：计算 thread 读取权限、生成语义摘要、解释 Workflow 状态或执行 Skill/MCP。
+- 负责：以 v18 专用表保存本机同用户打开实例的 PID+创建时间、心跳、稳定 ref 与纯文本 PEER 收件箱，并提供有界去重、限流、队列、过期和 CAS claim/ack。
+- 不负责：把 peer 正文写入普通 `messages`、`task_controls`，或把它提升为用户授权、steering、斜杠命令和跨机器传输。
 
 - 负责：以专用表持久化 workspace coverage、prepared/completed mutation、path preimage、代码 owner scope 和 checkpoint mutation 高水位，并提供同事务的有界 rewind observation。
 - 不负责：解析 SnapshotHandle、读取工作区、判断当前路径冲突或把 checkpoint metadata 当作可信 rewind 事实。
@@ -37,4 +39,5 @@
 - `RewindRepositoryMixin`: 以 CAS 开始、完成或失败 Rewind，并按 lineage/时间查询待恢复操作 | SQLite I/O | 状态机幂等；跨 lineage checkpoint、非法 completion 与 recovery-required 后续写入失败闭合
 - `CheckpointForkRepositoryMixin`、`AtomicSessionRewindRepositoryMixin`: 从 checkpoint 非破坏性分叉游标前事实与累计预算；以单事务创建 paused replacement、转交 owner、SUPERSEDE 旧任务并完成 operation | SQLite I/O | session/combined 禁止 generic completion；任一写入故障整体回滚为 pending，completed 幂等重试复核 source/replacement/owner/lineage/status 事实
 - `save_task_contract_revision`、`begin_verification_run`、`append_verification_evidence`、`finalize_task`: 保存 append-only 验证账本并原子完成 | SQLite I/O | 必须复核最新 generation、revision 与全部 required evidence
-- `SessionDatabase`、`migrate_legacy_session_database`、稳定 JSON codecs: 执行 v1-v17 migration、schema/index/FK 校验、旧库复制及含附件引用的 Message 编解码 | SQLite/JSON I/O | 附件沿用 Message JSON 无需 schema migration；未来版本、缺表/索引、损坏数据失败闭合；只读校验连接必须在 Windows 原子替换前显式关闭，旧库始终保留
+- `SessionDatabase`、`migrate_legacy_session_database`、稳定 JSON codecs: 执行 v1-v18 migration、schema/index/FK 校验、旧库复制及含附件引用的 Message 编解码 | SQLite/JSON I/O | 附件沿用 Message JSON 无需 schema migration；未来版本、缺表/索引、损坏数据失败闭合；只读校验连接必须在 Windows 原子替换前显式关闭，旧库始终保留
+- `PeerSessionRepositoryMixin`、`PeerMessageRepositoryMixin`、`PeerInboxRepositoryMixin`: 原子注册/心跳/rename 本机实例并保存、领取/续租/查询显式 `peer` origin 纯文本 | SQLite I/O | v18；同名允许但 ref 唯一；held 与 claim lease 分离，过期 lease可恢复，closed 与消息终态不可回退

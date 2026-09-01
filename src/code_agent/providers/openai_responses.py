@@ -14,7 +14,7 @@ from ._limits import ArgumentBuffer, ToolBudget
 from .attachments import AttachmentResolver, ProviderAttachmentEncoder
 from .config import ApiProtocol, InputModality, ProviderConfig
 from .errors import ProviderConfigError, ProviderProtocolError
-from ._request_payload import responses_payload
+from ._request_payload import request_options, responses_payload
 from .transport import ProviderTransport, Sleep
 def _request_input(
     messages: Sequence[Message], encoder: ProviderAttachmentEncoder
@@ -185,12 +185,19 @@ class OpenAIResponsesClient:
         input_modalities: Iterable[InputModality] = (InputModality.TEXT,),
         http_client: Optional[httpx.AsyncClient] = None,
         sleep: Sleep = asyncio.sleep,
+        reasoning_effort: str | None = None,
+        max_output_tokens: int = 4_096,
     ) -> None:
         if config.api is not ApiProtocol.RESPONSES:
             raise ProviderConfigError("OpenAIResponsesClient requires responses API")
         self._config = config
         self._attachments = ProviderAttachmentEncoder(
             attachment_resolver, input_modalities
+        )
+        self._request_options = request_options(
+            config.api,
+            reasoning_effort=reasoning_effort,
+            max_output_tokens=max_output_tokens,
         )
         self._transport = ProviderTransport(config, client=http_client, sleep=sleep)
 
@@ -202,6 +209,7 @@ class OpenAIResponsesClient:
         payload = responses_payload(
             self._config, system_prompt, _request_input(messages, self._attachments),
             [_request_tool(tool) for tool in tools],
+            self._request_options,
         )
         calls = _CallRegistry(
             ToolBudget(self._config.max_tool_calls, self._config.max_tool_argument_bytes)

@@ -25,6 +25,10 @@ from code_agent.workspace.worktrees import WorktreeManager  # noqa: E402
 
 
 class WorktreeCreationSecurityTests(WorktreeTestCase):
+    @unittest.skipUnless(os.name == "nt", "Git worktree limit is Windows-only")
+    def test_default_keeps_git_worktree_headroom_below_win32_limit(self) -> None:
+        self.assertEqual(WorktreeManager(self.storage).max_path_chars, 215)
+
     def test_manager_validates_bounded_git_limits_at_construction(self) -> None:
         for arguments in (
             {"max_output_bytes": 0},
@@ -150,6 +154,55 @@ class WorktreeCreationSecurityTests(WorktreeTestCase):
             )
 
         self.assertEqual(tuple(self.storage.iterdir()), ())
+
+    @unittest.skipUnless(os.name == "nt", "Windows path units are Windows-only")
+    def test_custom_path_limit_counts_utf16_code_units(self) -> None:
+        storage = self.root / ("\U0001f600" * 10)
+        storage.mkdir()
+        probe = WorktreeManager(storage)
+        repository_id = probe.identify(self.source).repository_id
+        proposed = storage / repository_id / "lineage-1"
+        code_points = len(str(proposed))
+        utf16_units = len(str(proposed).encode("utf-16-le")) // 2
+        self.assertGreater(utf16_units, code_points)
+        manager = WorktreeManager(storage, max_path_chars=code_points)
+
+        with patch.object(
+            manager,
+            "_create_locked",
+            side_effect=AssertionError("path limit was bypassed"),
+        ):
+            with self.assertRaisesRegex(WorkspaceError, "path length"):
+                manager.create(
+                    self.source, "lineage-1", "codex/task-lineage-1"
+                )
+
+    @unittest.skipUnless(os.name == "nt", "Git worktree limit is Windows-only")
+    def test_custom_limit_cannot_relax_the_git_hard_limit(self) -> None:
+        repository_id = WorktreeManager(self.storage).identify(
+            self.source
+        ).repository_id
+        lineage = "lineage-1"
+        suffix_units = 1 + len(repository_id) + 1 + len(lineage)
+        storage_units = 216 - suffix_units
+        component_units = storage_units - len(str(self.root)) - 1
+        storage = self.root / ("s" * component_units)
+        storage.mkdir()
+        target = storage / repository_id / lineage
+        self.assertEqual(len(str(target).encode("utf-16-le")) // 2, 216)
+        manager = WorktreeManager(storage, max_path_chars=1_000)
+
+        with patch.object(
+            manager,
+            "_create_locked",
+            side_effect=AssertionError("Git hard limit was bypassed"),
+        ):
+            with self.assertRaisesRegex(WorkspaceError, "path length"):
+                manager.create(
+                    self.source, lineage, f"codex/task-{lineage}"
+                )
+
+        self.assertEqual(tuple(storage.iterdir()), ())
 
     def test_git_creation_argv_is_fixed_and_has_no_model_flags(self) -> None:
         real_popen = subprocess.Popen

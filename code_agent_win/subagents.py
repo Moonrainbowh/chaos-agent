@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Mapping
 from contextvars import ContextVar, Token
 
 from code_agent.core.action_execution import ActionExecutionContext
@@ -8,7 +8,6 @@ from code_agent.core.cancellation import CancellationToken
 from code_agent.core.models import (
     ActionRequest,
     ActionResult,
-    ToolDefinition,
 )
 from code_agent.orchestration.models import (
     AgentDefinition,
@@ -28,6 +27,7 @@ from code_agent.plugins.registry import PluginHost
 from code_agent.providers.config import ModelProfile
 from code_agent_win.agent_modes import child_mode_for_role
 from code_agent_win.child_runner import EngineChildRunner
+from code_agent_win.restricted_dispatcher import RestrictedDispatcher
 
 _READ_ONLY_ROLES = {
     AgentRole.ORACLE,
@@ -35,59 +35,12 @@ _READ_ONLY_ROLES = {
     AgentRole.SEARCH,
     AgentRole.LIBRARIAN,
 }
-_WRITE_TOOLS = frozenset({"write_file", "replace_text", "run_verification", "run_command"})
+_WRITE_TOOLS = frozenset(
+    {"write_file", "replace_text", "run_verification", "run_process_v1", "run_command"}
+)
 _READ_ONLY_TOOLS = frozenset(
     {"read_file", "list_files", "search_text", "git_status", "git_diff", "search_threads", "read_thread"}
 )
-
-
-class RestrictedDispatcher:
-    def __init__(self, inner: object, allowed_tools: Sequence[str]) -> None:
-        self._inner = inner
-        self._allowed = self._validated(allowed_tools)
-
-    def replace_allowed(self, allowed_tools: Sequence[str]) -> None:
-        self._allowed = self._validated(allowed_tools)
-
-    def update_allowed(self, *, add: Sequence[str] = (), remove: Sequence[str] = ()) -> None:
-        self._allowed = (self._allowed | self._validated(add)) - self._validated(remove)
-
-    @staticmethod
-    def _validated(values: Sequence[str]) -> frozenset[str]:
-        if isinstance(values, (str, bytes)):
-            raise TypeError("allowed tools must be a sequence of names")
-        checked = tuple(values)
-        for value in checked:
-            if not isinstance(value, str):
-                raise TypeError("allowed tool names must be text")
-            if not value.strip():
-                raise ValueError("allowed tool names must not be blank")
-        return frozenset(checked) - {"delegate_agent"}
-
-    def tools(self) -> tuple[ToolDefinition, ...]:
-        return tuple(tool for tool in self._inner.tools() if tool.name in self._allowed)
-
-    async def dispatch(
-        self,
-        request: ActionRequest,
-        cancellation: CancellationToken,
-        task_authorization: object = None,
-        *,
-        execution_context: ActionExecutionContext | None = None,
-    ) -> ActionResult:
-        if request.name not in self._allowed:
-            return ActionResult(
-                request.id,
-                request.name,
-                {"error": "child tool is outside its mode and role"},
-                is_error=True,
-            )
-        return await self._inner.dispatch(
-            request,
-            cancellation,
-            task_authorization,
-            execution_context=execution_context,
-        )
 
 
 class SubagentTool:

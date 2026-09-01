@@ -23,12 +23,12 @@ def open_verified_directory(
     safety.verify_parent_state(state, guard, created, context=context)
     descriptor: int | None = None
     try:
-        descriptor = _posix_io.open_directory(guard.root)
+        descriptor = _posix_io.open_directory(state.anchor)
         _verify_fd(
-            descriptor, _expected(guard.root, state, created), guard.root, context
+            descriptor, _expected(state.anchor, state, created), state.anchor, context
         )
-        current = guard.root
-        for part in directory.relative_to(guard.root).parts:
+        current = state.anchor
+        for part in directory.relative_to(state.anchor).parts:
             child = _posix_io.open_directory_at(descriptor, part)
             previous, descriptor = descriptor, child
             os.close(previous)

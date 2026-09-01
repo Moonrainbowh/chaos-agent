@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from ._checkpoint_fork import CheckpointForkRepositoryMixin
 from ._database import SessionDatabase
+from ._peer_messages import PeerMessageRepositoryMixin
+from ._peer_sessions import PeerSessionRepositoryMixin
 from ._records import RecordRepositoryMixin
 from ._rewinds import RewindRepositoryMixin
 from ._semantic import SemanticRepositoryMixin
@@ -21,6 +23,8 @@ class SQLiteSessionRepository(
     WorkspaceSnapshotRepositoryMixin,
     TaskRuntimeRepositoryMixin,
     TaskRecordRepositoryMixin,
+    PeerMessageRepositoryMixin,
+    PeerSessionRepositoryMixin,
     ThreadContentRepositoryMixin,
     SkillActivationRepositoryMixin,
     WorkflowRepositoryMixin,

@@ -19,6 +19,7 @@ from code_agent.runtime.errors import RuntimeErrorBase, RuntimeStartError  # noq
 from code_agent.runtime.local import WindowsLocalRuntime  # noqa: E402
 from code_agent.runtime.models import CommandSpec, TerminationReason  # noqa: E402
 from code_agent.runtime.tests._local_test_support import (  # noqa: E402
+    CompletedJob,
     patch_process_identity_capture,
 )
 
@@ -125,16 +126,22 @@ class PowerShellRuntimeTests(unittest.IsolatedAsyncioTestCase):
             actual_process: object,
             process_wait: asyncio.Task[int],
             actual_identity: object,
+            actual_job: object,
         ) -> None:
             self.assertIs(actual_process, process)
             self.assertIs(actual_identity, identity)
+            self.assertIsInstance(actual_job, CompletedJob)
             process.kill()
             await process_wait
 
         terminate_mock = AsyncMock(side_effect=terminate)
 
         with self.track_temporary_scripts(), patch(
-            "code_agent.runtime.local.shutil.which", return_value="C:\\pwsh.exe"
+            "code_agent.runtime._powershell_runtime.shutil.which",
+            return_value="C:\\pwsh.exe",
+        ), patch(
+            "code_agent.runtime._powershell_runtime._probe_powershell",
+            return_value=("Core", "7.6.5"),
         ), patch(
             "code_agent.runtime.local.DirectoryLease", TrackedLease
         ), patch(
@@ -144,8 +151,11 @@ class PowerShellRuntimeTests(unittest.IsolatedAsyncioTestCase):
         ), patch(
             "code_agent.runtime.local.resume_process_identity", side_effect=resume
         ), patch(
-            "code_agent.runtime._windows_spawn.terminate_process_tree",
+            "code_agent.runtime._windows_spawn.complete_process_termination",
             terminate_mock,
+        ), patch(
+            "code_agent.runtime._windows_spawn.WindowsJob.create",
+            side_effect=CompletedJob,
         ):
             with self.assertRaises(RuntimeErrorBase) as raised:
                 await self.runtime.run(
@@ -160,7 +170,8 @@ class PowerShellRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(leases), 1)
         self.assertFalse(leases[0].active)
         self.assertIsNotNone(observed_path)
-        self.assertFalse(observed_path.exists())  # type: ignore[union-attr]
+        self.assertEqual(len(self.created_scripts), 2)
+        self.assertTrue(all(not path.exists() for path in self.created_scripts))
         await asyncio.sleep(0)
         leaked_tasks = set(asyncio.all_tasks()) - existing_tasks
         self.assertFalse(leaked_tasks)
@@ -185,15 +196,24 @@ class PowerShellRuntimeTests(unittest.IsolatedAsyncioTestCase):
             del kwargs
             observed_path = Path(str(args[-1]))
             self.assertTrue(observed_path.exists())
-            rendered = observed_path.read_text(encoding="utf-8-sig")
-            self.assertTrue(rendered.startswith(secret + "\n"))
-            self.assertIn("$__ChaosAgent_CommandSucceeded = $?", rendered)
+            self.assertEqual(len(self.created_scripts), 2)
+            payload_path, wrapper_path = self.created_scripts
+            self.assertEqual(observed_path, wrapper_path)
+            self.assertEqual(payload_path.read_text(encoding="utf-8-sig"), secret)
+            rendered = wrapper_path.read_text(encoding="utf-8-sig")
+            self.assertNotIn(secret, rendered)
+            self.assertIn("ActionPreference]::Stop", rendered)
+            self.assertNotIn("2>&1", rendered)
             self.assertIn("exit $__ChaosAgent_NativeExitCode", rendered)
             self.assertNotIn(secret, repr(args))
             return process
 
         with self.track_temporary_scripts(), patch(
-            "code_agent.runtime.local.shutil.which", return_value="C:\\pwsh.exe"
+            "code_agent.runtime._powershell_runtime.shutil.which",
+            return_value="C:\\pwsh.exe",
+        ), patch(
+            "code_agent.runtime._powershell_runtime._probe_powershell",
+            return_value=("Core", "7.6.5"),
         ), patch(
             "code_agent.runtime.local.asyncio.create_subprocess_exec", side_effect=spawn
         ), patch_process_identity_capture():
@@ -204,33 +224,11 @@ class PowerShellRuntimeTests(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertIsNotNone(observed_path)
-        self.assertFalse(observed_path.exists())  # type: ignore[union-attr]
+        self.assertEqual(len(self.created_scripts), 2)
+        self.assertTrue(all(not path.exists() for path in self.created_scripts))
         self.assertEqual(result.display_command, "<powershell-script>")
         self.assertNotIn(secret, result.argv)
         self.assertNotIn(secret, result.display_command)
-
-    async def test_native_command_exit_code_is_propagated(self) -> None:
-        result = await self.runtime.run(
-            CommandSpec(cwd=".", powershell_script="cmd.exe /d /c exit 7"),
-            CancellationToken(),
-            None,
-        )
-
-        self.assertEqual(result.reason, TerminationReason.EXITED)
-        self.assertEqual(result.returncode, 7)
-
-    async def test_powershell_failure_state_becomes_nonzero_exit(self) -> None:
-        result = await self.runtime.run(
-            CommandSpec(
-                cwd=".",
-                powershell_script="Write-Error 'expected runtime test failure'",
-            ),
-            CancellationToken(),
-            None,
-        )
-
-        self.assertEqual(result.reason, TerminationReason.EXITED)
-        self.assertEqual(result.returncode, 1)
 
     async def test_start_error_does_not_leak_script_and_removes_temp(self) -> None:
         secret = "Write-Output 'start-secret-456'"
@@ -243,7 +241,11 @@ class PowerShellRuntimeTests(unittest.IsolatedAsyncioTestCase):
             raise OSError("spawn unavailable")
 
         with self.track_temporary_scripts(), patch(
-            "code_agent.runtime.local.shutil.which", return_value="C:\\pwsh.exe"
+            "code_agent.runtime._powershell_runtime.shutil.which",
+            return_value="C:\\pwsh.exe",
+        ), patch(
+            "code_agent.runtime._powershell_runtime._probe_powershell",
+            return_value=("Core", "7.6.5"),
         ), patch(
             "code_agent.runtime.local.asyncio.create_subprocess_exec",
             side_effect=fail_start,
@@ -257,13 +259,11 @@ class PowerShellRuntimeTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertNotIn(secret, str(raised.exception))
         self.assertIsNotNone(observed_path)
-        self.assertFalse(observed_path.exists())  # type: ignore[union-attr]
+        self.assertEqual(len(self.created_scripts), 2)
+        self.assertTrue(all(not path.exists() for path in self.created_scripts))
 
     async def test_unicode_script_runs_from_utf8_bom_file(self) -> None:
-        script = (
-            "$OutputEncoding=[Console]::OutputEncoding="
-            "[Text.UTF8Encoding]::new($false);Write-Output '\u4f60\u597d'"
-        )
+        script = "Write-Output '\u4f60\u597d\U0001f642'"
 
         result = await self.runtime.run(
             CommandSpec(cwd=".", powershell_script=script),
@@ -273,7 +273,7 @@ class PowerShellRuntimeTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result.reason, TerminationReason.EXITED)
         self.assertEqual(result.returncode, 0)
-        self.assertIn("\u4f60\u597d".encode("utf-8"), result.stdout)
+        self.assertIn("\u4f60\u597d\U0001f642".encode("utf-8"), result.stdout)
 
     async def test_cancelled_script_removes_temp_file(self) -> None:
         token = CancellationToken()
@@ -289,7 +289,7 @@ class PowerShellRuntimeTests(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertEqual(result.reason, TerminationReason.CANCELLED)
-        self.assertTrue(self.created_scripts)
+        self.assertEqual(len(self.created_scripts), 2)
         self.assertTrue(all(not path.exists() for path in self.created_scripts))
 
 

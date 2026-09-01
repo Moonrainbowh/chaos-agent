@@ -19,6 +19,8 @@ from code_agent.runtime.errors import RuntimeUnavailable  # noqa: E402
 from code_agent.runtime.models import (  # noqa: E402
     CommandSpec,
     RuntimeKind,
+    ShellDialect,
+    ShellScript,
     TerminationReason,
 )
 from code_agent.runtime.tests._local_test_support import (  # noqa: E402
@@ -169,6 +171,50 @@ class DockerRuntimeTests(unittest.IsolatedAsyncioTestCase):
         args = create.call_args.args
         image_at = args.index("alpine:3")
         self.assertEqual(args[image_at + 1 :], ("/bin/sh", "-lc", "printf ready"))
+
+    async def test_typed_posix_script_uses_bin_sh_lc(self) -> None:
+        process = CompletedDockerProcess()
+
+        async def spawn(*args: object, **kwargs: object) -> CompletedDockerProcess:
+            return process
+
+        with patch(
+            "code_agent.runtime.docker.shutil.which", return_value="docker.exe"
+        ), patch(
+            "code_agent.runtime.local.asyncio.create_subprocess_exec", side_effect=spawn
+        ) as create, patch_process_identity_capture():
+            await DockerRuntime(self.root, "alpine:3").run(
+                CommandSpec(
+                    cwd=".",
+                    shell_script=ShellScript("printf ready", ShellDialect.POSIX_SH),
+                ),
+                CancellationToken(),
+                None,
+            )
+
+        args = create.call_args.args
+        image_at = args.index("alpine:3")
+        self.assertEqual(args[image_at + 1 :], ("/bin/sh", "-lc", "printf ready"))
+
+    async def test_typed_powershell_script_is_rejected(self) -> None:
+        with patch(
+            "code_agent.runtime.docker.shutil.which", return_value="docker.exe"
+        ), patch(
+            "code_agent.runtime.local.asyncio.create_subprocess_exec"
+        ) as create:
+            with self.assertRaisesRegex(RuntimeUnavailable, "posix_sh"):
+                await DockerRuntime(self.root, "alpine:3").run(
+                    CommandSpec(
+                        cwd=".",
+                        shell_script=ShellScript(
+                            "Write-Output ready", ShellDialect.POWERSHELL_7
+                        ),
+                    ),
+                    CancellationToken(),
+                    None,
+                )
+
+        create.assert_not_called()
 
     async def test_missing_docker_raises_without_starting_or_pulling(self) -> None:
         with patch(

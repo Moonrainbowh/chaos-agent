@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import sys
 import tempfile
 import unittest
@@ -25,17 +26,9 @@ from code_agent.workspace.errors import (  # noqa: E402
     WorkspaceError,
 )
 from code_agent.workspace.paths import WorkspacePathGuard  # noqa: E402
-
-
-class WorkspaceEditorTestCase(unittest.TestCase):
-    def setUp(self) -> None:
-        self.temporary = tempfile.TemporaryDirectory()
-        self.root = Path(self.temporary.name).resolve()
-        self.editor = WorkspaceEditor(WorkspacePathGuard(self.root))
-
-    def tearDown(self) -> None:
-        self.temporary.cleanup()
-
+from code_agent.workspace.tests._edit_test_support import (  # noqa: E402
+    WorkspaceEditorTestCase,
+)
 
 class EditPlanningTests(WorkspaceEditorTestCase):
     def test_editor_configuration_bounds_existing_file_reads(self) -> None:
@@ -142,7 +135,13 @@ class AtomicApplyTests(WorkspaceEditorTestCase):
         plan = self.editor.plan_write("atomic.txt", "after\n")
         before_names = {item.name for item in self.root.iterdir()}
 
-        with patch("code_agent.workspace.edits.os.replace", side_effect=OSError("busy")):
+        if os.name == "nt":
+            replace_path = (
+                "code_agent.workspace._windows_atomic_replace._replace_file"
+            )
+        else:
+            replace_path = "code_agent.workspace._secure_replace._posix_io.replace"
+        with patch(replace_path, side_effect=OSError("busy")):
             with self.assertRaises(WorkspaceError):
                 self.editor.apply(plan)
 
@@ -296,7 +295,6 @@ class SnapshotTests(WorkspaceEditorTestCase):
             ("one.bin", "two.bin"), max_total_bytes=6
         )
         self.assertEqual(sum(len(entry.content or b"") for entry in snapshot.entries), 6)
-
 
 if __name__ == "__main__":
     unittest.main()

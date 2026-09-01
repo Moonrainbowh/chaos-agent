@@ -3,7 +3,7 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from code_agent.core.limits import EngineLimits
 from code_agent.workspace.errors import WorkspaceError
@@ -96,6 +96,40 @@ class ManagedWorkspaceApplicationTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(await application.foreground_tasks._sessions.list_tasks(), ())
             await application.aclose()
 
+    async def test_task_record_failure_aborts_prepared_worktree(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            _init_git_source(root)
+            application = _configured_application(root)
+
+            with patch.object(
+                application.foreground_tasks._sessions,
+                "create_task",
+                new=AsyncMock(side_effect=RuntimeError("task write failed")),
+            ):
+                with self.assertRaisesRegex(RuntimeError, "task write failed"):
+                    await application.foreground_tasks.start("edit safely")
+
+            self._assert_no_prepared_worktree(application, root)
+            await application.aclose()
+
+    async def test_budget_failure_aborts_prepared_worktree(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            _init_git_source(root)
+            application = _configured_application(root)
+
+            with patch.object(
+                application.foreground_tasks._sessions,
+                "get_or_create_task_budget",
+                new=AsyncMock(side_effect=RuntimeError("budget write failed")),
+            ):
+                with self.assertRaisesRegex(RuntimeError, "budget write failed"):
+                    await application.foreground_tasks.start("edit safely")
+
+            self._assert_no_prepared_worktree(application, root)
+            await application.aclose()
+
     async def test_active_managed_task_blocks_second_task_from_same_source(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()
@@ -164,6 +198,23 @@ class ManagedWorkspaceApplicationTests(unittest.IsolatedAsyncioTestCase):
             )
             await application.aclose()
 
+    def _assert_no_prepared_worktree(self, application, source: Path) -> None:
+        runtime = application.workspace_runtime
+        identity = runtime._worktrees.identify(source)
+        repository_root = runtime._worktrees.storage_root / identity.repository_id
+        directories = (
+            tuple(path for path in repository_root.iterdir() if path.is_dir())
+            if repository_root.exists()
+            else ()
+        )
+        self.assertEqual(directories, ())
+        self.assertEqual(
+            GitWorkspace(source)._invoke(
+                "test_branch_list", ("branch", "--list", "codex/task-*")
+            ).stdout,
+            b"",
+        )
+        self.assertEqual(runtime._prepared, {})
 
 if __name__ == "__main__":
     unittest.main()

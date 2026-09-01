@@ -6,7 +6,7 @@ import os
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import Enum
-from pathlib import Path, PurePosixPath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from types import MappingProxyType
 from typing import Optional
 
@@ -14,6 +14,18 @@ from typing import Optional
 class RuntimeKind(str, Enum):
     LOCAL = "local"
     DOCKER = "docker"
+
+
+class ShellDialect(str, Enum):
+    POWERSHELL_7 = "powershell_7"
+    WINDOWS_POWERSHELL_5_1 = "windows_powershell_5_1"
+    POSIX_SH = "posix_sh"
+
+
+class PowerShellSelection(str, Enum):
+    EXPLICIT = "explicit"
+    AUTO_PRIMARY = "auto_primary"
+    AUTO_FALLBACK = "auto_fallback"
 
 
 class StreamName(str, Enum):
@@ -67,10 +79,99 @@ def _immutable_bytes(value: object, name: str) -> bytes:
 
 
 @dataclass(frozen=True)
+class ShellScript:
+    text: str
+    dialect: ShellDialect
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.text, str):
+            raise TypeError("shell script text must be a string")
+        if not isinstance(self.dialect, ShellDialect):
+            raise TypeError("shell script dialect must be a ShellDialect")
+        object.__setattr__(self, "text", copy.deepcopy(self.text))
+
+
+@dataclass(frozen=True)
+class PowerShellRuntimeInfo:
+    dialect: ShellDialect
+    executable: str
+    selection: PowerShellSelection
+    edition: str
+    version: str
+
+    def __post_init__(self) -> None:
+        if self.dialect not in {
+            ShellDialect.POWERSHELL_7,
+            ShellDialect.WINDOWS_POWERSHELL_5_1,
+        }:
+            raise ValueError("PowerShell runtime requires a PowerShell dialect")
+        if not isinstance(self.executable, str) or not self.executable.strip():
+            raise ValueError("PowerShell executable must be non-blank text")
+        if not (
+            PureWindowsPath(self.executable).is_absolute()
+            or PurePosixPath(self.executable).is_absolute()
+        ):
+            raise ValueError("PowerShell executable must be an absolute path")
+        if not isinstance(self.selection, PowerShellSelection):
+            raise TypeError("PowerShell selection must be PowerShellSelection")
+        if self.edition not in {"Core", "Desktop"}:
+            raise ValueError("PowerShell edition must be Core or Desktop")
+        if not isinstance(self.version, str) or not self.version.strip():
+            raise ValueError("PowerShell version must be non-blank text")
+        components = self.version.split(".")
+        if not all(part.isdigit() for part in components):
+            raise ValueError("PowerShell version must contain numeric components")
+        if self.dialect is ShellDialect.POWERSHELL_7 and (
+            self.edition != "Core" or int(components[0]) < 7
+        ):
+            raise ValueError("powershell_7 requires Core edition version 7 or later")
+        if self.dialect is ShellDialect.WINDOWS_POWERSHELL_5_1 and (
+            self.edition != "Desktop" or components[:2] != ["5", "1"]
+        ):
+            raise ValueError(
+                "windows_powershell_5_1 requires Desktop edition version 5.1"
+            )
+        object.__setattr__(self, "executable", copy.deepcopy(self.executable))
+        object.__setattr__(self, "version", copy.deepcopy(self.version))
+
+    @property
+    def summary(self) -> str:
+        return (
+            f"{self.dialect.value} (PowerShell {self.version}, "
+            f"{self.edition}) via {self.executable} [{self.selection.value}]"
+        )
+
+    @property
+    def prompt_summary(self) -> str:
+        windows_name = PureWindowsPath(self.executable).name
+        executable_name = windows_name or PurePosixPath(self.executable).name
+        return (
+            f"{self.dialect.value} (PowerShell {self.version}, "
+            f"{self.edition}) via {executable_name}"
+        )
+
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "dialect": self.dialect.value,
+            "edition": self.edition,
+            "version": self.version,
+            "executable": self.executable,
+            "selection": self.selection.value,
+        }
+
+    def to_public_dict(self) -> dict[str, str]:
+        result = self.to_dict()
+        result["executable"] = PureWindowsPath(self.executable).name
+        del result["selection"]
+        return result
+
+
+@dataclass(frozen=True)
 class CommandSpec:
     cwd: Path
     argv: Optional[tuple[str, ...]] = None
     powershell_script: Optional[str] = None
+    shell_script: Optional[ShellScript] = None
     timeout_s: float = 60.0
     max_output_bytes: int = 1_000_000
     explicit_env: Mapping[str, str] = field(default_factory=dict)
@@ -82,17 +183,22 @@ class CommandSpec:
         object.__setattr__(self, "cwd", Path(copy.deepcopy(raw_cwd)))
 
         has_argv = self.argv is not None
-        has_script = self.powershell_script is not None
-        if has_argv == has_script:
-            raise ValueError("exactly one of argv or powershell_script is required")
+        has_legacy_script = self.powershell_script is not None
+        has_shell_script = self.shell_script is not None
+        if sum((has_argv, has_legacy_script, has_shell_script)) != 1:
+            raise ValueError(
+                "exactly one of argv, powershell_script, or shell_script is required"
+            )
         if has_argv:
             object.__setattr__(self, "argv", _command_argv(self.argv))
-        elif not isinstance(self.powershell_script, str):
+        elif has_legacy_script and not isinstance(self.powershell_script, str):
             raise TypeError("powershell_script must be a string")
-        else:
+        elif has_legacy_script:
             object.__setattr__(
                 self, "powershell_script", copy.deepcopy(self.powershell_script)
             )
+        elif not isinstance(self.shell_script, ShellScript):
+            raise TypeError("shell_script must be a ShellScript")
 
         object.__setattr__(self, "timeout_s", _positive_float(self.timeout_s, "timeout_s"))
         if isinstance(self.max_output_bytes, bool) or not isinstance(
@@ -129,6 +235,7 @@ class CommandResult:
     truncated: bool
     cwd: str
     cancellation_reason: Optional[str] = None
+    truncated_streams: frozenset[StreamName] = frozenset()
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "argv", _command_argv(self.argv))
@@ -152,6 +259,9 @@ class CommandResult:
         object.__setattr__(self, "duration_s", duration)
         if not isinstance(self.truncated, bool):
             raise TypeError("truncated must be a bool")
+        streams = self.truncated_streams
+        if not isinstance(streams, frozenset) or not all(isinstance(item, StreamName) for item in streams):
+            raise TypeError("truncated_streams must be a frozenset of StreamName")
         if not isinstance(self.cwd, str):
             raise TypeError("cwd must be a string")
         if not self.cwd.strip():
@@ -181,8 +291,8 @@ class CommandResult:
             self.cancellation_reason is not None
         ):
             raise ValueError("cancellation_reason is required only for cancellation")
-        if (self.reason is TerminationReason.OUTPUT_LIMIT) != self.truncated:
-            raise ValueError("truncated must identify output-limit termination")
+        if (self.reason is TerminationReason.OUTPUT_LIMIT) != self.truncated or self.truncated != bool(streams):
+            raise ValueError("truncated fields must identify output-limit termination")
         if self.reason in {
             TerminationReason.TIMEOUT,
             TerminationReason.CANCELLED,

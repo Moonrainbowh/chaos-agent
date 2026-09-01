@@ -25,6 +25,7 @@ from code_agent.workspace.edits import (  # noqa: E402
 )
 from code_agent.workspace.errors import WorkspaceError  # noqa: E402
 from code_agent.workspace.paths import WorkspacePathGuard  # noqa: E402
+from code_agent.workspace._secure_temp import TEMP_PREFIX  # noqa: E402
 
 
 class StableIdentityTests(unittest.TestCase):
@@ -87,17 +88,30 @@ class SecureRestoreTests(unittest.TestCase):
         target = self.root / "module.py"
         target.write_bytes(b"before")
         snapshot = WorkspaceSnapshot((SnapshotEntry("module.py", b"after", True),))
-        real_replace = os.replace
+        if os.name == "nt":
+            from code_agent.workspace import _windows_atomic_replace
 
-        def replace_then_attack(
-            source: str | os.PathLike[str],
-            destination: str | os.PathLike[str],
-            **kwargs: int,
-        ) -> None:
-            real_replace(source, destination, **kwargs)
-            target.write_bytes(b"attacker")
+            real_replace = _windows_atomic_replace._replace_file
 
-        with patch("os.replace", side_effect=replace_then_attack):
+            def replace_then_attack(source, destination, backup) -> None:
+                real_replace(source, destination, backup)
+                target.write_bytes(b"attacker")
+
+            replace_patch = patch.object(
+                _windows_atomic_replace,
+                "_replace_file",
+                side_effect=replace_then_attack,
+            )
+        else:
+            real_replace = os.replace
+
+            def replace_then_attack(source, destination, **kwargs) -> None:
+                real_replace(source, destination, **kwargs)
+                target.write_bytes(b"attacker")
+
+            replace_patch = patch("os.replace", side_effect=replace_then_attack)
+
+        with replace_patch:
             with self.assertRaisesRegex(WorkspaceError, "changed after replace"):
                 self.editor.restore(snapshot)
 
@@ -111,7 +125,7 @@ class SecureRestoreTests(unittest.TestCase):
         real_inspect = _secure_io._inspect_path
 
         def fail_temp_identity(path: Path, *, missing_ok: bool, context: str):
-            if path.name.startswith(".code-agent-edit-"):
+            if path.name.startswith(TEMP_PREFIX):
                 raise WorkspaceError("temp identity failed")
             return real_inspect(path, missing_ok=missing_ok, context=context)
 
@@ -143,7 +157,13 @@ class SecureRestoreTests(unittest.TestCase):
         snapshot = WorkspaceSnapshot((SnapshotEntry("readonly.py", b"after", True),))
         before_names = {path.name for path in self.root.iterdir()}
 
-        with patch("os.replace", side_effect=OSError("locked")):
+        if os.name == "nt":
+            replace_path = (
+                "code_agent.workspace._windows_atomic_replace._replace_file"
+            )
+        else:
+            replace_path = "os.replace"
+        with patch(replace_path, side_effect=OSError("locked")):
             with self.assertRaisesRegex(WorkspaceError, "atomically restore"):
                 self.editor.restore(snapshot)
 

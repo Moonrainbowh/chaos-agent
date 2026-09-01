@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+
 from .errors import WorkspaceError
 
 
@@ -23,7 +25,7 @@ class GitCommandError(WorkspaceError):
         self.stderr = stderr
         self.stdout_bytes = stdout_bytes
         self.stderr_bytes = (
-            stderr.encode("utf-8", errors="replace")
+            stderr.encode("utf-8")
             if stderr_bytes is None
             else stderr_bytes
         )
@@ -79,4 +81,24 @@ class GitTimeoutError(GitCommandError):
 
 
 def decode_git_output(value: bytes) -> str:
-    return value.decode("utf-8", errors="replace")
+    try:
+        return value.decode("utf-8")
+    except UnicodeDecodeError:
+        encoded = base64.b64encode(value).decode("ascii")
+        return f"[non-UTF-8 git output; base64={encoded}]"
+
+
+def decode_git_text(
+    value: bytes, operation: str, argv: tuple[str, ...]
+) -> str:
+    try:
+        return value.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise GitCommandError(
+            operation,
+            argv,
+            0,
+            "invalid UTF-8 output",
+            f"git {operation} returned non-UTF-8 text output",
+            stdout_bytes=value,
+        ) from error

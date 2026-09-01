@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import hashlib
+import os
 import subprocess
 import sys
 from collections.abc import AsyncIterator
@@ -69,6 +70,7 @@ def _isolated_application(
         patch.dict("os.environ", {
             "USERPROFILE": str(container / "profile"),
             "LOCALAPPDATA": str(container / "localappdata"),
+            "PATH": os.environ.get("PATH", ""),
         }, clear=True),
         patch("code_agent_win.app._model_client", return_value=object()),
         patch("code_agent_win.app._session_path",
@@ -108,11 +110,12 @@ def _workspace_application(
         patch.dict("os.environ", mode_env),
     )
     stack = contextlib.ExitStack()
-    for item in patches:
-        stack.enter_context(item)
-    application = create_application(root)
-    application._test_stack = stack
-    return application
+    try:
+        for item in patches:
+            stack.enter_context(item)
+        return create_application(root)
+    finally:
+        stack.close()
 
 
 def _task_context(root: Path) -> WorkspaceContextBuilder:

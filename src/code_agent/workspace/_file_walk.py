@@ -7,7 +7,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterator
 
-from .errors import WorkspaceError, WorkspaceScanLimitError
+from .errors import (
+    WindowsLongPathError,
+    WorkspaceError,
+    WorkspaceScanLimitError,
+)
 from .ignore import IgnoreRules
 from .paths import WorkspacePathGuard
 
@@ -84,6 +88,8 @@ def _enqueue_directory(
                     continue
                 try:
                     resolved = guard.resolve(entry.path)
+                except WindowsLongPathError:
+                    raise
                 except (OSError, WorkspaceError):
                     continue
                 heapq.heappush(

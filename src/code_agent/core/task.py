@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+import re
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from enum import Enum
@@ -91,6 +92,10 @@ class TaskContract:
     model: str | None = None
     protocol: str | None = None
     endpoint_host: str | None = None
+    agent_topology: str | None = None
+    reasoning_effort: str | None = None
+    runtime_mode: str | None = None
+    runtime_selection_digest: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "objective", cast(str, _text(self.objective, "objective")))
@@ -101,15 +106,50 @@ class TaskContract:
         profile_facts = (self.profile_id, self.model, self.protocol, self.endpoint_host)
         if any(value is not None for value in profile_facts) and not all(isinstance(value, str) and value.strip() for value in profile_facts):
             raise ValueError("profile audit facts must be complete non-blank text")
+        runtime_facts = (
+            self.agent_topology,
+            self.reasoning_effort,
+            self.runtime_mode,
+            self.runtime_selection_digest,
+        )
+        if any(value is not None for value in runtime_facts):
+            if not all(
+                isinstance(value, str) and value.strip()
+                for value in runtime_facts
+            ):
+                raise ValueError(
+                    "runtime selection audit facts must be complete non-blank text"
+                )
+            if not all(
+                isinstance(value, str) and value.strip()
+                for value in profile_facts
+            ):
+                raise ValueError(
+                    "runtime selection requires complete profile audit facts"
+                )
+            if self.agent_topology not in {"single", "team"}:
+                raise ValueError("agent_topology must be single or team")
+            if self.reasoning_effort not in {
+                "low", "medium", "high", "xhigh", "max"
+            }:
+                raise ValueError("unsupported reasoning_effort")
+            if self.runtime_mode not in {"low", "medium", "high", "ultra"}:
+                raise ValueError("unsupported runtime_mode")
+            if not re.fullmatch(
+                r"[0-9a-f]{64}", self.runtime_selection_digest or ""
+            ):
+                raise ValueError(
+                    "runtime_selection_digest must be a SHA-256 hex digest"
+                )
         for name in ("max_active_seconds", "max_repair_cycles", "max_repeated_failure_signatures"):
             object.__setattr__(self, name, _positive(getattr(self, name), name))
 
     def to_dict(self) -> dict[str, JSONValue]:
-        return {"objective": self.objective, "authorization": self.authorization.to_dict(), "max_active_seconds": self.max_active_seconds, "max_repair_cycles": self.max_repair_cycles, "max_repeated_failure_signatures": self.max_repeated_failure_signatures, "intent": self.intent.value, "profile_id": self.profile_id, "model": self.model, "protocol": self.protocol, "endpoint_host": self.endpoint_host}
+        return {"objective": self.objective, "authorization": self.authorization.to_dict(), "max_active_seconds": self.max_active_seconds, "max_repair_cycles": self.max_repair_cycles, "max_repeated_failure_signatures": self.max_repeated_failure_signatures, "intent": self.intent.value, "profile_id": self.profile_id, "model": self.model, "protocol": self.protocol, "endpoint_host": self.endpoint_host, "agent_topology": self.agent_topology, "reasoning_effort": self.reasoning_effort, "runtime_mode": self.runtime_mode, "runtime_selection_digest": self.runtime_selection_digest}
 
     @classmethod
     def from_dict(cls, data: Mapping[str, object]) -> TaskContract:
-        return cls(objective=cast(str, data["objective"]), authorization=TaskAuthorization.from_dict(cast(Mapping[str, object], data["authorization"])), max_active_seconds=cast(int, data.get("max_active_seconds", 1200)), max_repair_cycles=cast(int, data.get("max_repair_cycles", 3)), max_repeated_failure_signatures=cast(int, data.get("max_repeated_failure_signatures", 3)), intent=TaskIntent(cast(str, data.get("intent", TaskIntent.MODIFY.value))), profile_id=cast(str | None, data.get("profile_id")), model=cast(str | None, data.get("model")), protocol=cast(str | None, data.get("protocol")), endpoint_host=cast(str | None, data.get("endpoint_host")))
+        return cls(objective=cast(str, data["objective"]), authorization=TaskAuthorization.from_dict(cast(Mapping[str, object], data["authorization"])), max_active_seconds=cast(int, data.get("max_active_seconds", 1200)), max_repair_cycles=cast(int, data.get("max_repair_cycles", 3)), max_repeated_failure_signatures=cast(int, data.get("max_repeated_failure_signatures", 3)), intent=TaskIntent(cast(str, data.get("intent", TaskIntent.MODIFY.value))), profile_id=cast(str | None, data.get("profile_id")), model=cast(str | None, data.get("model")), protocol=cast(str | None, data.get("protocol")), endpoint_host=cast(str | None, data.get("endpoint_host")), agent_topology=cast(str | None, data.get("agent_topology")), reasoning_effort=cast(str | None, data.get("reasoning_effort")), runtime_mode=cast(str | None, data.get("runtime_mode")), runtime_selection_digest=cast(str | None, data.get("runtime_selection_digest")))
 
 
 @dataclass(frozen=True)

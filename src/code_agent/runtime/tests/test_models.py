@@ -66,7 +66,6 @@ class CommandSpecTests(unittest.TestCase):
         with self.assertRaises(FrozenInstanceError):
             spec.timeout_s = 2  # type: ignore[misc]
 
-
 class ResultModelTests(unittest.TestCase):
     def test_runtime_errors_share_a_dedicated_base(self) -> None:
         self.assertTrue(issubclass(RuntimeErrorBase, RuntimeError))
@@ -133,6 +132,8 @@ class ResultModelTests(unittest.TestCase):
             {"duration_s": -1},
             {"duration_s": False},
             {"truncated": 1},
+            {"truncated_streams": {StreamName.STDOUT}},
+            {"truncated_streams": frozenset({"stdout"})},
             {"cwd": 1},
             {"cwd": ""},
             {"cwd": "/outside"},
@@ -175,6 +176,7 @@ class ResultModelTests(unittest.TestCase):
             {"returncode": None},
             {"cancellation_reason": "not cancelled"},
             {"truncated": True},
+            {"truncated_streams": frozenset({StreamName.STDOUT})},
             {"reason": TerminationReason.TIMEOUT, "returncode": 0},
             {
                 "reason": TerminationReason.TIMEOUT,
@@ -185,6 +187,7 @@ class ResultModelTests(unittest.TestCase):
                 "reason": TerminationReason.TIMEOUT,
                 "returncode": None,
                 "truncated": True,
+                "truncated_streams": frozenset({StreamName.STDOUT}),
             },
             {"reason": TerminationReason.CANCELLED, "returncode": None},
             {
@@ -226,6 +229,7 @@ class ResultModelTests(unittest.TestCase):
                 "reason": TerminationReason.OUTPUT_LIMIT,
                 "returncode": None,
                 "truncated": True,
+                "truncated_streams": frozenset({StreamName.STDOUT}),
             },
         ):
             CommandResult(**(valid | override))

@@ -7,10 +7,14 @@ import stat
 import uuid
 from pathlib import Path
 
-from ._atomic_artifact_write import AtomicArtifactWriter
+from ._atomic_artifact_write import (
+    ARTIFACT_TEMP_NAME_UNITS,
+    AtomicArtifactWriter,
+)
 from ._guarded_read import _GuardedFileMissingError, read_guarded_file
 from .errors import FileTooLargeError, SnapshotMissingError, WorkspaceError
 from .paths import PathInput, _directory_identity
+from .windows_paths import require_supported_windows_path
 
 
 _MANIFEST_NAME = re.compile(r"[0-9a-f]{32}\.json")
@@ -90,6 +94,7 @@ class _ArtifactPathGuard:
         candidate = Path(raw)
         if not candidate.is_absolute():
             candidate = self.root / candidate
+        require_supported_windows_path(candidate, operation="snapshot artifact")
         try:
             lexical = candidate.relative_to(self.root)
         except ValueError as error:
@@ -116,8 +121,10 @@ def _prepare_root(value: PathInput, workspace: Path) -> Path:
         raise ValueError("product-state root must be absolute")
     if _contains_git_component(candidate):
         raise ValueError("product-state root cannot be inside .git")
+    _require_artifact_paths(candidate)
     _reject_link_components(candidate)
     root = candidate.resolve(strict=False)
+    _require_artifact_paths(root)
     if _contains_git_component(root):
         raise ValueError("product-state root cannot be inside .git")
     if _is_within(root, workspace):
@@ -183,6 +190,28 @@ def _is_link_like(path: Path) -> bool:
         if path.is_symlink():
             return True
         attributes = getattr(path.lstat(), "st_file_attributes", 0)
-    except OSError:
+    except (FileNotFoundError, NotADirectoryError):
         return False
+    except OSError as error:
+        raise WorkspaceError(
+            f"cannot inspect snapshot artifact path: {path}"
+        ) from error
     return bool(attributes & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400))
+
+
+def _require_artifact_paths(root: Path) -> None:
+    temporary = "t" * ARTIFACT_TEMP_NAME_UNITS
+    candidates = (
+        root,
+        root / "manifests",
+        root / "blobs",
+        root / "manifests" / f"{'0' * 32}.json",
+        root / "blobs" / ("0" * 64),
+        root / "manifests" / temporary,
+        root / "blobs" / temporary,
+    )
+    for candidate in candidates:
+        require_supported_windows_path(
+            candidate,
+            operation="snapshot artifact",
+        )

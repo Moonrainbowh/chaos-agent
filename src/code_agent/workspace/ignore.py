@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Union
 
+from .errors import WorkspaceError
+
 
 PathValue = Union[str, Path]
 _BUILTIN_PARTS = frozenset(
@@ -80,8 +82,10 @@ class IgnoreRules:
             return cls()
         try:
             lines = ignore_file.read_text(encoding="utf-8-sig").splitlines()
-        except (OSError, UnicodeError):
-            return cls()
+        except UnicodeError as error:
+            raise WorkspaceError("failed to decode .gitignore as UTF-8") from error
+        except OSError as error:
+            raise WorkspaceError(f"failed to read .gitignore: {error}") from error
         return cls(rule for line in lines if (rule := _Rule.parse(line)) is not None)
 
     def is_ignored(self, path: PathValue, *, is_dir: bool = False) -> bool:

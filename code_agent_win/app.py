@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import os
+import os  # Compatibility export for callers patching code_agent_win.app.os.
 from dataclasses import replace
 from pathlib import Path
 
@@ -13,7 +13,8 @@ from code_agent.context.repo_scan import RepoFileScanner
 from code_agent.interfaces.approval import ApprovalBroker
 from code_agent.orchestration.models import AgentMode
 from code_agent.policy.models import ApprovalMode
-from code_agent.sessions.legacy_migration import migrate_legacy_session_database
+from code_agent.runtime._powershell_runtime import resolved_powershell_runtime
+from code_agent.workspace.windows_paths import require_supported_windows_path
 from code_agent.sessions.repository import SQLiteSessionRepository
 from code_agent.skills.controller import SkillController
 from code_agent.workspace.files import WorkspaceFiles
@@ -27,6 +28,7 @@ from code_agent_win.context_runtime import build_context_runtime
 from code_agent_win.action_dispatcher import RootActionDispatcher
 from code_agent_win.host_composition import compose_host
 from code_agent_win.multimodal_ui import build_attachment_draft
+from code_agent_win.peer_composition import compose_peers
 from code_agent_win.agent_modes import build_mode_registry, freeze_mode
 from code_agent_win.runtime_support import (
     model_client,
@@ -41,6 +43,11 @@ from code_agent_win.tool_support import discover_git_workspace
 from code_agent_win.ui_composition import compose_ui
 from code_agent_win.workspace_runtime import ManagedWorkspaceRuntime
 from code_agent_win.workspace_context import workspace_uses_repo_map
+from code_agent_win.app_paths import (
+    product_state_root as _product_state_root,
+    session_path as _session_path,
+    workspace_storage_path as _workspace_storage_path,
+)
 
 
 _model_client = model_client
@@ -73,8 +80,15 @@ class _ApplicationComposer:
     ) -> None:
         if profile_name is not None and (not isinstance(profile_name, str) or not profile_name.strip()):
             raise ValueError("profile_name must be non-blank text")
-        self.root = (workspace_root or Path.cwd()).resolve()
+        requested_root = workspace_root or Path.cwd()
+        require_supported_windows_path(requested_root, operation="workspace root")
+        self.root = requested_root.resolve()
+        require_supported_windows_path(self.root, operation="workspace root")
+        self.product_state_root = _product_state_root()
+        self.product_state_root.mkdir(parents=True, exist_ok=True)
+        self.workspace_storage_root = _workspace_storage_path()
         self.runtime_config = load_runtime_config(cli_profile=profile_name)
+        self.powershell = resolved_powershell_runtime(self.runtime_config.powershell_dialect)
         guard = WorkspacePathGuard(
             self.root,
             allow_sensitive=self.runtime_config.allow_sensitive_paths,
@@ -108,6 +122,7 @@ class _ApplicationComposer:
     def build(self) -> Application:
         self._configure_workspace()
         self._configure_rewind()
+        self._configure_peers()
         self._configure_context()
         self._configure_host()
         self._configure_controls()
@@ -116,26 +131,22 @@ class _ApplicationComposer:
 
     def _configure_workspace(self) -> None:
         self.session_path = _session_path()
-        self.session_path.parent.mkdir(parents=True, exist_ok=True)
-        self.product_state_root = _product_state_root()
-        self.product_state_root.mkdir(parents=True, exist_ok=True)
         self.sessions = SQLiteSessionRepository(self.session_path)
         self.workspace_runtime = ManagedWorkspaceRuntime(
             self.sessions,
-            _workspace_storage_path(),
+            self.workspace_storage_root,
             snapshot_read_fallback_roots=(
                 self.session_path.parent / "managed-workspaces" / "snapshots",
             ),
             allow_sensitive_paths=self.runtime_config.allow_sensitive_paths,
+            powershell=self.powershell,
         )
         self.services = self.workspace_runtime.services_for_root(self.root)
         self.guard = self.services.guard
         self.files = self.services.files
         self.git = self.services.git
         self.repo_index = self.services.repo_index
-        self.attachment_store = AttachmentStore(
-            self.product_state_root / "attachments"
-        )
+        self.attachment_store = AttachmentStore(self.product_state_root / "attachments")
         self.attachment_ingestor = AttachmentIngestor(
             self.attachment_store,
             workspace_guard=self.services.guard,
@@ -161,10 +172,16 @@ class _ApplicationComposer:
             self.rewind_write.snapshots,
             self.rewind_write.capture.editor,
         )
-        self.skills = SkillController(
-            self.root, self.sessions, SkillApprovalAdapter(self.approvals)
-        )
+        self.skills = SkillController(self.root, self.sessions, SkillApprovalAdapter(self.approvals))
         self.thread_binding = ThreadRuntimeBinding()
+
+    def _configure_peers(self) -> None:
+        (
+            self.tui_ref, self.activity_lock, self.peer_service,
+            self.peer_tools, self.peers,
+        ) = compose_peers(
+            self.sessions, self.root, self.runtime_config.approval_mode.value
+        )
 
     def _configure_context(self) -> None:
         self.context_for = RuntimeContextFactory(
@@ -179,6 +196,7 @@ class _ApplicationComposer:
             thread_binding=self.thread_binding,
             skills=self.skills,
             workspace_runtime=self.workspace_runtime,
+            powershell=self.powershell,
             context_runtime_factory=build_context_runtime,
         )
 
@@ -201,12 +219,12 @@ class _ApplicationComposer:
             sessions=self.sessions,
             approvals=self.approvals,
             thread_binding=self.thread_binding,
+            peers=self.peer_tools,
             capture=self.rewind_write.capture,
         )
 
     def _configure_controls(self) -> None:
         self.application_ref: list[Application] = []
-        self.tui_ref: list[object] = []
         self.controls = compose_runtime_controls(
             root=self.root, snapshot=self.snapshot,
             mode_snapshots=self.mode_snapshots, profiles=self.profiles,
@@ -218,7 +236,10 @@ class _ApplicationComposer:
             plugin_bindings=self.plugin_bindings,
             approval_mode=self.runtime_config.approval_mode,
             application_ref=self.application_ref, tui_ref=self.tui_ref,
+            context_wrapper=self.peers.wrap_context,
+            activity_lock=self.activity_lock,
         )
+        self.snapshot = self.controls.runtime_selection.snapshot
 
     def _configure_ui(self) -> None:
         self.foreground, self.tui, self.workflows = compose_ui(
@@ -228,6 +249,9 @@ class _ApplicationComposer:
             root=self.root,
             profile_supplier=self.controls.profile_facts,
             profile_resolver=self.controls.profile_resolver,
+            runtime_resolver=self.controls.runtime_resolver,
+            runtime_selection=self.controls.runtime_selection,
+            peers=self.peers,
             subagents=self.controls.subagents,
             snapshot=self.snapshot,
             approval_mode=self.runtime_config.approval_mode,
@@ -269,31 +293,8 @@ class _ApplicationComposer:
             workspace_runtime=self.workspace_runtime,
             attachment_store=self.attachment_store,
             attachment_ingestor=self.attachment_ingestor,
+            runtime_selection=self.controls.runtime_selection,
+            peers=self.peers,
         )
         self.application_ref.append(application)
         return application
-
-
-def _session_path() -> Path:
-    directory = _product_state_root()
-    base = directory.parent
-    legacy = Path(base) / "code-agent" / "sessions.sqlite3"
-    current = directory / "sessions.sqlite3"
-    if not current.exists() and legacy.exists():
-        migrate_legacy_session_database(legacy, current)
-    return current
-
-
-def _product_state_root() -> Path:
-    base = os.getenv("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
-    directory = Path(base) / "chaos-agent"
-    directory.mkdir(parents=True, exist_ok=True)
-    return directory
-
-
-def _workspace_storage_path() -> Path:
-    base = os.getenv("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
-    # Managed worktrees must not live below the protected API configuration
-    # directory. Keeping this sibling path short also leaves room for long
-    # repository-relative filenames on Windows.
-    return Path(base) / "chaos-agent-workspaces"

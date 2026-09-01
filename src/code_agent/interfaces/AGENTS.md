@@ -20,9 +20,13 @@
 - 负责：采用中等留白：对话轮次之间空一行，连续工具记录不空行，工具组与最终结论之间空一行，短正文内部不额外扩张间距。
 - 负责：从不可信模型或工具文本中剥离终端控制序列；ANSI 样式只能由本地可信显示事件生成，并支持 `auto`、`always`、`never` 颜色模式及 ASCII 回退。
 - 负责：从单一命令注册表生成解析、帮助、调色板、补全、显示标签与动态可用性；命令只委托注入的控制器或只读服务，不直接执行工具、修改配置或调用 provider。
-- 负责：把动态插件命令以始终命名空间化的 ID 合并进不可变命令快照；禁用、撤销或 digest 变化后不执行旧选择。
-- 负责：输入 `/` 时完整展示当前可用的一级命令目录；选中无参数命令后一次 `Enter` 立即执行，选中复合命令后一次 `Enter` 进入由同一注册表生成的二级动作菜单，不要求重复确认同一选择。
-- 负责：一级命令保留帮助、状态、会话恢复、任务查看/接受、差异、证据、Agent mode 与访问权限；Picker 把 `/模式 low|medium|high|ultra` 和 `/权限 unrestricted|plan|ask|auto|elevated|full-local` 直接铺为一级候选，一次 `Enter` 切换，不进入二级菜单。
+- 负责：把动态插件命令以始终命名空间化的 ID 合并进不可变命令快照；动态贡献属于 `internal`，不得膨胀默认根 Picker；禁用、撤销或 digest 变化后不执行旧选择。
+- 负责：输入 `/` 时只展示固定的 11 个 `primary` 一级命令：帮助、状态、新建、会话、任务、差异、附件、回退、模式、权限、退出；`advanced`/`internal` 命令仍可完整输入并解析，`/帮助 全部` 展示完整注册表。
+- 负责：选中无参数命令后一次 `Enter` 立即执行，选中复合命令后一次 `Enter` 进入由同一注册表生成的二级动作菜单；`/会话`、`/模式` 和 `/权限` 只作为根父项，其具体动作不得平铺到根面板。
+- 负责：`/模式` 二级面只暴露代理 `single|team`、已注册模型 profile 和思考深度 `low|medium|high|xhigh|max` 三个独立维度；短模型名只能唯一匹配 profile 后缀，切换只委托注入控件并遵守 idle 边界。
+- 负责：`/会话` 二级面把历史会话与同机在线 Agent、重命名、纯文本发送、入站策略及 held 消息处理分开；`/list-agents`、`/peers`、`/rename` 仅为隐藏兼容入口，不进入注册表、根 Picker 或默认帮助。
+- 不负责：把 peer 文本解释为用户授权、斜杠命令或附件，也不从界面直接访问 peer 存储。
+- 负责：`/清屏` 只清空本次转录，必须保留 `current_thread_id` 和当前会话语义。
 - 负责：底部状态栏左侧显示动态任务状态，右侧显示模型、耗时等稳定上下文；窗口变窄时按优先级隐藏右侧信息，动态文本不得左右跳动。
 - 负责：底部状态栏实时显示当前模型回合的输出 token/s；首个文本增量开始计时，生成中使用确定性 token 估算，收到 provider 输出用量后校准。
 - 不负责：复制 Agent 状态机、直接执行工具、直接访问 provider、切换活动任务的模型，或绕过 `ActionPolicy` 权限决定。
@@ -47,7 +51,7 @@
 - 负责：diff/rewind views 仅为只读投影，严格区分 preview 与 apply；不运行 Git、不授予权限、不重写用户历史。
 - 负责：stage/unstage 等改变 Git 索引的操作只能由显式用户命令委托 typed Git action，并经过与其他写动作相同的策略、审批和审计；界面不直接调用 Git。
 - 负责：会话 Picker 显示标题、预览、状态、更新时间和消息数；读取与恢复语义分离，超长 Thread 使用分页、窗口读取和搜索。
-- 负责：模式操作显示当前 mode、实际模型和生效边界，不接收 profile、密钥、任意 URL、启动命令或权限变更。
+- 负责：模式操作显示当前 topology、已注册 profile、实际模型、思考深度和生效边界；只接收已配置 profile ID 或唯一短后缀，不接收密钥、任意 URL、启动命令或权限变更。
 - 负责：原始 reasoning 不进入转录、状态或会话；只呈现本地生命周期推导的活动标签，或 provider 明确标注、脱敏且有界的 reasoning summary。
 - 负责：维持一个前台父任务、追加式单栏转录和最小动态尾部；子 Agent 是该任务内的层级执行，不引入默认全屏、多栏、固定侧栏或卡片化仪表盘。
 - 不负责：调度子 Agent、生成语义摘要、执行插件提案，或把 mode、Oracle、插件和 UI 选择解释为权限授权或 verification evidence。
@@ -65,10 +69,10 @@
 - `AgentController`、`ForegroundTaskController`: 向交互和非交互调用暴露同一核心事件与前台任务控制 | 调用内核 | steering 的用户消息与 task control 必须委托 Session 原子写入；仅实际 created/running 执行阻止并发启动
 - `ForegroundTaskController.interrupt(task_id, reason)`: 取消活动 token 并持久化 `INTERRUPTED` checkpoint | SQLite I/O | 不在 runner 返回时兜底完成任务
 - `parse_command`、`execute_command`: 解析并委托稳定 CLI 语义，文本命令复用可信 Markdown 终端渲染 | 写入调用方输出 | 不直接输出模型 Markdown 控制标记，不直接退出或组合依赖
-- `parse_tui_command(text)`、`filter_palette(input)`: 解析斜杠命令并筛选已接入的候选 | 无副作用 | 精确命令名和别名优先于描述匹配，完整参数原样提交，以结构化错误恢复且不显示未接通、占位或危险命令
+- `parse_tui_command(text)`、`filter_palette(input)`: 解析完整注册表中的斜杠命令并只从 `primary` 筛选默认候选 | 无副作用 | 精确命令名和别名优先于描述匹配，完整参数原样提交，以结构化错误恢复且不显示未接通、占位或危险命令
 - `handle_tui_command(app, outcome)`：把已解析命令委托给有界的控制面处理器 | 调用注入服务 | 不直接执行工具或绕过策略，分支函数不超过 Unit 粒度上限
 - `CheckpointControl`、Checkpoint/Rewind TUI flow：通过窄协议列出/创建 checkpoint，并以 Picker、三模式有界预览、默认 No 确认和 single-flight 受管任务委托 Rewind；启动对账的内部恢复委托只传 operation ID | 调用注入 Controller/追加显示 | preview 可取消回收，durable execute 关闭时等待安全完成；不接受调用方重述的持久 rollback facts，不直接访问 Workspace、Git、SQLite 或 Runtime
-- `CommandRegistry`: 声明命令、别名、参数、依赖、可用性与执行委托 | 无副作用 | 是解析、帮助、调色板和补全的唯一目录
+- `CommandAction`、`CommandVisibility`、`built_in_command_specs()`、`CommandRegistry`: 声明动作级依赖、`primary`/`advanced`/`internal` 可见性、命令、别名、参数与可用性 | 无副作用 | 默认帮助和根 Picker 只投影同一组 `primary`，隐藏兼容别名不污染注册表，解析与 `/帮助 全部` 保留完整目录
 - `CommandRegistry.with_plugin_commands(descriptors)`：把绑定 digest/generation 的 namespaced plugin command 合并为不可变目录 | 无副作用 | 未命名空间化贡献拒绝，旧目录不被原地修改
 - `CommandRegistry.with_plugin_modes(identifiers)`：把 namespaced plugin mode 合并为模式命令的受限 action | 无副作用 | 不替换四个内置 mode
 - `CommandAction`、`CommandRegistry.resolve(...)`：声明并解析复合命令的二级动作 | 无副作用 | 只列举真实接通动作，需要自由文本参数时保留输入边界
@@ -90,8 +94,10 @@
 - `DiffController.load(...)`、`DiffView`：优先从注入的只读 Git 服务读取真实 unified diff，并提供文件导航、路径过滤和评论 | 只读服务调用/进程内状态 | 不直接 stage、unstage 或执行 Git。
 - `DiffInteraction`、`format_diff_feedback(...)`：持有 point-in-time Diff modal，消费导航/编辑/刷新/放弃键并生成带 scope、路径和行锚点的有界反馈 | 进程内状态 | 只有显式 `s` 才经调用方 `submit` 发送，刷新失败保留旧快照
 - `AttachmentDraft.add_clipboard_items(...)`、`has_submission_input(...)`、`handle_attachment_command(...)`、`apply_clipboard_images(...)`、`dropped_file_paths(...)`：批量摄取并维护有界附件引用、在 UI 边界把无文本无附件提交静默判为空操作，并把 Windows Terminal 的空 bracketed paste 识别为 `Ctrl+V` 图片手势，同时提供显式命令和完整文件拖放识别 | 调用注入摄取器/进程内状态 | 把草稿剩余数量/字节预算下推至批量摄取器，拒绝批次不得发布孤儿 blob；旧 `add_clipboard()` 单图 API 保持可调用，但不具备预算协议的旧摄取器不得进入新版批量 UI；仅 durable `MESSAGE_ADDED` 确认后按本次 digest 移除草稿，后续新增与失败提交必须保留；非空文本粘贴不得误摄取剪贴板图片
-- `ModePermissionView`：分开展示模式实际模型、Oracle、推理强度、生效边界与访问权限 | 无副作用 | 模式信息绝不解释为授权。
+- `ModePermissionView`：分开展示模式实际模型、topology、Oracle、有效推理强度、有效主工具数量、生效边界与访问权限 | 无副作用 | Anthropic 默认 effort 明示为 prompt-only/structured unsupported；single 不计入被隐藏的 `delegate_agent`，模式信息绝不解释为授权。
 - `ModeControl.list()`、`use(name, idle)`：列出冻结的四档 mode 并在空闲边界委托运行时切换 | 调用注入的异步重建回调 | 回调成功后才更新当前 mode，活动任务和未知 mode 失败闭合。
+- `_set_mode(app, instruction, action)`：优先把 topology、profile、reasoning effort 独立委托给 `runtime_selection`，缺少该控件时保留旧 `ModeControl` 兼容 | 调用注入控件/追加显示 | profile 短名必须唯一，失败不得改变当前运行时
+- `handle_session_command(app, action, instruction)`：委托历史会话或 peer facade 的 list/rename/send/policy/inbox/resolve 操作 | Controller I/O/追加显示 | 无 peers 时历史仍可用，peer 错误带内显示且正文有界
 - `PermissionControl.list()`、`use(name, idle)`：列出访问权限并在空闲边界委托中央策略切换 | 调用注入的异步回调 | 默认 `auto`，活动任务和未知权限失败闭合，模式切换不修改权限
 - `TuiInteractions`：把 Picker、可见审批、steering 生命周期和结构化 diff 委托给单栏 TUI | 终端显示/进程内状态 | 审批默认拒绝，`Enter` 明确选择，`Esc` 取消。
 - `AgentRunStatusProjection.observe(view)`：将子 Agent 状态变化投影为去重、有界的生命周期行 | 进程内状态 | 只消费 Orchestration 快照，不从工具名称猜测状态。

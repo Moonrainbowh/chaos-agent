@@ -5,7 +5,7 @@ import os
 import shutil
 import time
 from collections.abc import Callable, Sequence
-from typing import Optional, Protocol
+from typing import Optional
 from code_agent.core.attachments import AttachmentRef
 from code_agent.core.cancellation import CancellationError, CancellationToken
 from code_agent.core.events import EventKind
@@ -37,25 +37,16 @@ from .tui_command_dispatch import handle_tui_command
 from .interaction import InteractionBroker
 from .checkpoint_control import CheckpointControl
 from .checkpoint_tui import close_rewind_flow, wait_rewind_task
-from .tui_lifecycle import (
-    close_tasks,
-    listen_approvals,
-    listen_interactions,
-    start_animation,
-    stop_animation,
-)
-class SessionBrowser(Protocol):
-    async def list_threads(self, *, limit: int = 100) -> Sequence[object]: ...
-
-class EvidenceReader(Protocol):
-    async def list_verification_evidence(self, task_id: str) -> Sequence[object]: ...
+from .tui_lifecycle import close_tasks, listen_approvals, listen_interactions, start_animation, stop_animation
+from .tui_peer_turn import yield_peer_slot
+from .tui_protocols import EvidenceReader, SessionBrowser
 
 class WindowsTerminalApp:
     """Append-only Windows Terminal interaction without alternate-screen control."""
 
-    def __init__(self, controller: AgentController, approvals: ApprovalBroker, *, sessions: Optional[SessionBrowser] = None, evidence: Optional[EvidenceReader] = None, tasks: ForegroundTaskController | None = None, history: Optional[ThreadHistoryReader] = None, profiles: ProfileControl | None = None, modes: ModeControl | None = None, permissions: PermissionControl | None = None, skills: SkillActivation | None = None, mcp: McpRegistry | None = None, workflows: object | None = None, plugins: object | None = None, checkpoints: CheckpointControl | None = None, interaction_broker: InteractionBroker | None = None, command_registry: CommandRegistry = REGISTRY, diff_source: GitDiffSource | None = None, attachment_draft: AttachmentDraft | None = None, write: Optional[Callable[[str], object]] = None) -> None:
+    def __init__(self, controller: AgentController, approvals: ApprovalBroker, *, sessions: Optional[SessionBrowser] = None, peers: object | None = None, evidence: Optional[EvidenceReader] = None, tasks: ForegroundTaskController | None = None, history: Optional[ThreadHistoryReader] = None, profiles: ProfileControl | None = None, modes: ModeControl | None = None, runtime_selection: object | None = None, permissions: PermissionControl | None = None, skills: SkillActivation | None = None, mcp: McpRegistry | None = None, workflows: object | None = None, plugins: object | None = None, checkpoints: CheckpointControl | None = None, interaction_broker: InteractionBroker | None = None, command_registry: CommandRegistry = REGISTRY, diff_source: GitDiffSource | None = None, attachment_draft: AttachmentDraft | None = None, write: Optional[Callable[[str], object]] = None) -> None:
         self.controller, self.approvals = controller, approvals
-        self.sessions, self.evidence, self.tasks, self.history, self.profiles, self.modes, self.permissions, self.skills, self.mcp, self.workflows, self.plugins, self.checkpoints, self.command_registry, self._write = sessions, evidence, tasks, history, profiles, modes, permissions, skills, mcp, workflows, plugins, checkpoints, command_registry, write or stdout_write
+        self.sessions, self.peers, self.evidence, self.tasks, self.history, self.profiles, self.modes, self.runtime_selection, self.permissions, self.skills, self.mcp, self.workflows, self.plugins, self.checkpoints, self.command_registry, self._write = sessions, peers, evidence, tasks, history, profiles, modes, runtime_selection, permissions, skills, mcp, workflows, plugins, checkpoints, command_registry, write or stdout_write
         self.state = TerminalState(); self.input = InputBuffer(); self.current_thread_id: str | None = None
         self.exit_guard = ExitGuard()
         self.interaction_broker = interaction_broker
@@ -68,6 +59,7 @@ class WindowsTerminalApp:
         self.interactions = TuiInteractions(diff_source)
         self.attachment_draft = attachment_draft
         self.active_task_id: str | None = None; self.running = False; self._run_task: asyncio.Task[None] | None = None
+        self._peer_run_task: asyncio.Task[None] | None = None
         self._animation_task: asyncio.Task[None] | None = None; self._spinner_index = 0; self._redraw_dirty = True
         self._token: CancellationToken | None = None; self._approval_task: asyncio.Task[None] | None = None
         self._pending_approval: ApprovalRequest | None = None; self._approval_done = asyncio.Event()
@@ -81,6 +73,9 @@ class WindowsTerminalApp:
         if self.tasks:
             await self.tasks.reconcile_stale_tasks()
         if thread_id: await self.restore_thread(thread_id)
+        start_peers = getattr(self.peers, "start", None)
+        if callable(start_peers):
+            await start_peers()
         self._write(BRACKETED_PASTE_ENABLE); self.running = True; self._approval_task = asyncio.create_task(listen_approvals(self))
         if self.interaction_broker is not None:
             self._interaction_task = asyncio.create_task(listen_interactions(self))
@@ -99,6 +94,8 @@ class WindowsTerminalApp:
             return False
         if self._pending_approval is not None:
             self._append(DisplayKind.ERROR, "approval decision is pending")
+            return False
+        if not await yield_peer_slot(self):
             return False
         if text.strip():
             parsed = parse_tui_command(text, available_services(self), self.command_registry)
@@ -272,8 +269,8 @@ class WindowsTerminalApp:
     async def _handle_command(self, outcome: ParseOutcome) -> bool:
         return await handle_tui_command(self, outcome)
     def _current_model(self) -> str | None:
-        if self.modes is not None:
-            return self.modes.current.model
+        control = self.runtime_selection or self.modes
+        if control is not None: return control.current.model
         return self.profiles.current.model if self.profiles else None
     def _append(self, kind: DisplayKind, value: object) -> None:
         self.state.entries.append(text_entry(kind, value)); self.state.transcript.append(self.state.entries[-1].text); self._flush_pending_entries()

@@ -4,7 +4,8 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from .git import GitCommandError, GitWorkspace, _decode
+from ._git_errors import GitCommandError, decode_git_text
+from .git import GitWorkspace
 
 
 @dataclass(frozen=True)
@@ -25,7 +26,7 @@ class FixedGitWorktreeCommands:
         result = self._run(
             "common_dir", ("rev-parse", "--path-format=absolute", "--git-common-dir")
         )
-        raw = _decode(result.stdout).strip()
+        raw = decode_git_text(result.stdout, "common_dir", result.argv).strip()
         if not raw:
             raise GitCommandError(
                 "common_dir", result.argv, result.returncode, "", "git returned no common dir"
@@ -60,7 +61,7 @@ class FixedGitWorktreeCommands:
         if result.returncode in (1, 128):
             return None
         self._git._require_success("branch_tip", result)
-        return _decode(result.stdout).strip()
+        return decode_git_text(result.stdout, "branch_tip", result.argv).strip()
 
     def add(self, branch: str, target: Path, head: str) -> None:
         self._run("worktree_add", ("worktree", "add", "-b", branch, str(target), head))
@@ -74,8 +75,11 @@ class FixedGitWorktreeCommands:
     def remove_missing(self, target: Path) -> None:
         self._run("worktree_remove", ("worktree", "remove", "--force", str(target)))
 
-    def delete_branch(self, branch: str) -> None:
-        self._run("branch_delete", ("branch", "-D", branch))
+    def delete_branch_if_matches(self, branch: str, expected_head: str) -> None:
+        self._run(
+            "branch_delete",
+            ("update-ref", "-d", f"refs/heads/{branch}", expected_head),
+        )
 
     def entries(self) -> tuple[GitWorktreeEntry, ...]:
         result = self._run("worktree_list", ("worktree", "list", "--porcelain", "-z"))
@@ -91,7 +95,8 @@ class FixedGitWorktreeCommands:
         return matches[0] if len(matches) == 1 else None
 
     def _text(self, operation: str, arguments: tuple[str, ...]) -> str:
-        return _decode(self._run(operation, arguments).stdout).strip()
+        result = self._run(operation, arguments)
+        return decode_git_text(result.stdout, operation, result.argv).strip()
 
     def _run(self, operation: str, arguments: tuple[str, ...]):
         result = self._git._invoke(operation, arguments)

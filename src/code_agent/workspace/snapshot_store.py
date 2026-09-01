@@ -11,6 +11,7 @@ from typing import Iterable, Mapping
 from ._rewind_snapshot_store import SnapshotHandle, WorkspaceSnapshotStore
 from ._snapshot_blob_io import (
     BlobIntegrityFailure,
+    SNAPSHOT_BLOB_TEMP_NAME_UNITS,
     blob_path as _blob_path,
     publish_blob,
     read_blob_if_present,
@@ -29,6 +30,7 @@ from ._snapshot_manifest import (
 )
 from .edits import SnapshotEntry, WorkspaceSnapshot
 from .paths import PathInput
+from .windows_paths import require_supported_windows_path
 
 
 __all__ = (
@@ -58,7 +60,10 @@ class ContentAddressedSnapshotStore:
         gc_max_entries: int = DEFAULT_GC_MAX_ENTRIES,
         gc_deadline_s: float = DEFAULT_GC_DEADLINE_S,
     ) -> None:
-        self.root = Path(root).expanduser().resolve(strict=False)
+        literal_root = Path(root).expanduser()
+        _require_content_store_paths(literal_root, "snapshot store")
+        self.root = literal_root.resolve(strict=False)
+        _require_content_store_paths(self.root, "snapshot store")
         self.blobs_root = self.root / "blobs"
         self.read_fallback_roots = _fallback_roots(
             read_fallback_roots, self.root
@@ -188,6 +193,7 @@ def _fallback_roots(
 
 def _admit_fallback_root(value: PathInput) -> Path | None:
     literal = Path(os.path.abspath(Path(value).expanduser()))
+    _require_content_store_paths(literal, "snapshot fallback")
     blobs = literal / "blobs"
     current = Path(blobs.anchor)
     for part in blobs.parts[1:]:
@@ -210,7 +216,23 @@ def _admit_fallback_root(value: PathInput) -> Path | None:
             raise SnapshotIntegrityError(
                 f"snapshot fallback path is not a real directory: {current}"
             )
-    return literal.resolve(strict=True)
+    resolved = literal.resolve(strict=True)
+    _require_content_store_paths(resolved, "snapshot fallback")
+    return resolved
+
+
+def _require_content_store_paths(root: Path, operation: str) -> None:
+    blobs = root / "blobs"
+    shard = blobs / "00"
+    candidates = (
+        root,
+        blobs,
+        shard,
+        shard / ("0" * 64),
+        shard / ("t" * SNAPSHOT_BLOB_TEMP_NAME_UNITS),
+    )
+    for candidate in candidates:
+        require_supported_windows_path(candidate, operation=operation)
 
 
 def _timestamp(value: float | datetime) -> float:

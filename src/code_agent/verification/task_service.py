@@ -61,6 +61,10 @@ class LedgerTaskVerificationService:
     ) -> TaskState:
         if request.name in {"write_file", "replace_text"} and not result.is_error:
             return await self._snapshot(task, state, state.code_generation + 1)
+        if request.name in {"run_command", "run_process_v1"} and (
+            result.metadata.get("execution_attempted") is True
+        ):
+            return await self._snapshot(task, state, state.code_generation + 1)
         if request.name != "run_verification":
             return state
         state = await self._snapshot(task, state, state.code_generation)

@@ -22,6 +22,7 @@ from .errors import WorkspaceError
 
 
 _TEMP_PREFIX = ".tmp-"
+SNAPSHOT_BLOB_TEMP_NAME_UNITS = len(_TEMP_PREFIX) + 16
 _READ_CHUNK_BYTES = 65_536
 
 

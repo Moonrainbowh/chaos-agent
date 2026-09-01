@@ -72,6 +72,61 @@ class SessionConcurrencyTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(set(identifiers)), 20)
         self.assertTrue(all(len(identifier) == 32 for identifier in identifiers))
 
+    async def test_cancelled_lock_wait_cannot_commit_a_ghost_write(self) -> None:
+        thread_id = await self.first.create_thread()
+        blocker = sqlite3.connect(self.database, isolation_level=None)
+        blocker.execute("BEGIN IMMEDIATE")
+        append = asyncio.create_task(
+            self.second.append_message(thread_id, Message("user", "ghost"))
+        )
+        await asyncio.sleep(0.05)
+        append.cancel()
+
+        async def release_lock() -> None:
+            await asyncio.sleep(0.05)
+            blocker.execute("ROLLBACK")
+            blocker.close()
+
+        release = asyncio.create_task(release_lock())
+        with self.assertRaises(asyncio.CancelledError):
+            await append
+        await release
+        await asyncio.sleep(0.05)
+
+        self.assertEqual(await self.first.load_messages(thread_id), ())
+
+    async def test_cancelled_persistent_lock_wait_returns_promptly_without_ghost(self) -> None:
+        thread_id = await self.first.create_thread()
+        blocker = sqlite3.connect(self.database, isolation_level=None)
+        blocker.execute("BEGIN IMMEDIATE")
+        append = asyncio.create_task(
+            self.second.append_message(thread_id, Message("user", "late-ghost"))
+        )
+        await asyncio.sleep(0.05)
+        started = asyncio.get_running_loop().time()
+        append.cancel()
+
+        async def safety_release() -> None:
+            await asyncio.sleep(1.0)
+            blocker.execute("ROLLBACK")
+            blocker.close()
+
+        release = asyncio.create_task(safety_release())
+        try:
+            with self.assertRaises(asyncio.CancelledError):
+                await append
+        finally:
+            if not release.done():
+                release.cancel()
+                blocker.execute("ROLLBACK")
+                blocker.close()
+            await asyncio.gather(release, return_exceptions=True)
+
+        elapsed = asyncio.get_running_loop().time() - started
+        self.assertLess(elapsed, 0.5)
+        await asyncio.sleep(0.05)
+        self.assertEqual(await self.first.load_messages(thread_id), ())
+
 
 if __name__ == "__main__":
     unittest.main()

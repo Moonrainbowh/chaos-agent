@@ -35,6 +35,20 @@ full runner. Windows CI and release validation therefore cannot omit newly
 added Features silently; the portable non-Windows job remains a smaller smoke
 subset.
 
+### Windows long paths
+
+Chaos Agent does not change machine-wide registry or Group Policy settings.
+For paths beyond the legacy-safe 240 UTF-16-code-unit budget, enable **Win32
+long paths** (`LongPathsEnabled=1`) and restart Windows before starting the agent.
+The current mode is shown by `/状态` and supplied to the coding model. When the
+policy is disabled, typed workspace operations fail before a filesystem side
+effect instead of silently omitting a deep file. Git for Windows is invoked
+with per-command `core.longPaths=true`; this does not modify global, repository,
+or user Git configuration. Managed Git worktree targets keep a separate
+215-unit/UTF-8-byte cap because Git's `$GIT_DIR` check is not relaxed by that
+setting. Snapshot roots are admitted against their longest derived blob path,
+so a save cannot return a handle that is already unreadable.
+
 ## Configure A Provider
 
 Create `%LOCALAPPDATA%\chaos-agent\config.toml` to configure a provider once for the current Windows user. An existing `%LOCALAPPDATA%\code-agent\config.toml` is read when the new file is absent:
@@ -55,6 +69,8 @@ input_modalities = ["text", "image"]
 
 [agent]
 approval_mode = "auto"
+# Optional; "auto" probes PowerShell 7 first, then Windows PowerShell 5.1.
+# powershell_dialect = "powershell_7"
 # Optional alternatives:
 # approval_mode = "ask"
 # approval_mode = "unrestricted" # Explicit high-trust mode.
@@ -62,6 +78,16 @@ approval_mode = "auto"
 ```
 
 Every configured `[providers.<name>]` profile must declare `api`, `base_url`, `model`, exactly one of `api_key`/`api_key_env`, `context_window`, and `max_output_tokens`. Use `chaos-agent --profile <name>` or `CHAOS_PROFILE` to choose one; `CHAOS_CONFIG` may select another absolute config path. `CHAOS_API`, `CHAOS_BASE_URL`, `CHAOS_MODEL`, and `CHAOS_API_KEY_ENV` override only the selected profile. Legacy `CODE_AGENT_*` names remain fallback aliases during migration.
+
+`[agent].powershell_dialect` accepts `powershell_7` or
+`windows_powershell_5_1`; omit it (or set `auto`) for the migration default.
+The Host performs a bounded no-Profile probe at startup, verifies the actual
+Edition/version, and freezes one executable for the source workspace and all
+managed worktrees. An explicit dialect never falls back to the other one.
+`CHAOS_POWERSHELL_DIALECT` overrides TOML and the legacy
+`CODE_AGENT_POWERSHELL_DIALECT` remains a fallback alias. `/状态` shows the
+full local selection, while Provider prompts receive only its basename and
+verified dialect/version.
 
 `--mode low|medium|high|ultra` or `CHAOS_MODE` selects the task mode. By
 default every mode uses the selected provider profile, while
@@ -81,10 +107,25 @@ $env:CHAOS_BASE_URL = "https://api.openai.com"
 $env:CHAOS_MODEL = "gpt-4.1-mini"
 ```
 
-Profile limits belong in the TOML provider table. In the terminal, `/模式`
-shows the current mode and each mode's bound model; `/模式
-low|medium|high|ultra` rebuilds the main runtime while idle and applies to the
-next task. It never accepts a URL, protocol, API key, or permission change.
+Profile limits belong in the TOML provider table. In the terminal, runtime
+topology, model profile, and reasoning effort are independent controls:
+
+```text
+/模式 代理 single|team
+/模式 模型 <profile|sol|terra|luna>
+/模式 思考 low|medium|high|xhigh|max
+```
+
+Each selection rebuilds the main provider/runner while idle. `team` exposes
+real bounded child-Agent delegation to the main Agent; `single` removes that
+tool. The selected profile changes the actual provider model, while reasoning
+effort is serialized into supported provider requests. The full runtime
+selection is frozen into durable task contracts. The older `/模式
+low|medium|high|ultra` forms remain hidden compatibility entries. Runtime
+selection never accepts a URL, protocol, API key, or permission change.
+`anthropic_messages` currently has no confirmed structured effort mapping:
+its default `medium` remains prompt-only, other effort choices fail closed,
+and the capability view labels this limitation instead of claiming it applied.
 
 Provider selection values:
 
@@ -117,10 +158,42 @@ medium transcript spacing, cyan emphasis, dim-gray tool records, and green
 only for task-level completion. The live tail keeps a single bordered composer;
 typing `/` places keyboard-selectable command candidates above it; `Up`/`Down`
 move, `Enter` completes or selects, and `Esc` closes the Picker. Disabled
-candidates retain a visible reason. `/帮助` prints the compact, grouped command
-set, while `/帮助 <command>` explains one command. The status row keeps dynamic
+candidates retain a visible reason. The root Picker and default `/帮助` contain
+exactly 11 everyday entries: `/帮助`, `/状态`, `/新建`, `/会话`, `/任务`, `/差异`,
+`/附件`, `/回退`, `/模式`, `/权限`, and `/退出`. Advanced commands remain directly
+typeable and `/帮助 全部` shows the complete registry. Compound commands open a
+second-level action menu instead of flattening every action into the root.
+The status row keeps dynamic
 work on the left and model/elapsed context on the right when space allows.
 `NO_COLOR` disables ANSI color.
+
+### Same-machine session messaging
+
+Open TUI instances for the same Windows user can exchange bounded plain text
+through the shared local session database:
+
+```text
+/会话 在线
+/会话 重命名 <name>
+/会话 发送 <name-or-ref> <text...>
+/会话 接收 auto|accept|hold|refuse
+/会话 待处理
+/会话 接受 <message-id>
+/会话 拒绝 <message-id>
+```
+
+`/list-agents`, `/peers`, and `/rename` are hidden compatibility aliases. A
+message contains no chat history, files, credentials, slash-command authority,
+permission, or user approval. Text must fit 4 KiB after safe JSON escaping; a
+message is acknowledged as delivered only when its complete text fits the
+reserved peer context—never after silent truncation. It enters model context
+only as token-bounded untrusted `PEER` JSON. Idle coordination turns use an
+isolated internal thread and can call only `list_agents` and `send_message`, so
+they neither consume nor replace the user's current task budget. Paused,
+waiting, and task-owned threads wait for the user's next resume instead of
+being restarted in the background. Permission mismatches can place messages
+in `held` for explicit acceptance. This implementation is local to one Windows
+machine and OS user; it is not a remote or cross-machine relay.
 
 Skills are discovered only from `%USERPROFILE%\.agents\skills\<id>` and
 `<workspace>\.agents\skills\<id>`, each containing `SKILL.md` with optional
@@ -170,8 +243,10 @@ policy risks together.
 - Configurations that omit `approval_mode` now resolve to `auto`. Set `unrestricted` explicitly only when the legacy high-trust behavior is intended.
 - Unknown and critical actions are denied. Destructive commands and unbounded output are rejected.
 - `delegate_agent` is a normal typed action. It is policy checked before a child starts; child output is explicitly advisory and never counts as verification evidence or parent completion.
-- `run_command` represents model-provided raw PowerShell. It runs without approval only in explicit `unrestricted` mode; critical commands remain denied. Other permission modes retain their approval or denial rules. `run_verification` only accepts a registered kind plus constrained relative paths; the local adapter generates its fixed argv for Python unittest, pytest, compileall, or build.
+- `run_command` represents model-provided raw PowerShell in the frozen dialect. Its UTF-8 wrapper preserves top-level `using`/`param`/`return`, uses `ErrorActionPreference=Stop` by default, and treats explicit catch/`Continue`/`SilentlyContinue`/`Ignore` as script-controlled recovery. It never sends native stdout/stderr through a PowerShell object pipeline, so raw bytes, missing final newlines, and control characters remain intact; genuine native stderr with exit zero succeeds, while the last nonzero native exit code has priority. `run_process_v1` instead accepts only `program`, literal `args`, optional workspace-relative `cwd`, a bounded timeout, and independent stdout/stderr encodings; it has no shell parsing, environment override, stdin, redirection, pipeline, glob, or variable expansion, and rejects shell launchers plus `.cmd/.bat`. Both remain approval-requiring model-provided execution outside explicit non-critical `unrestricted` use, and every actual attempt invalidates older verification evidence. `run_verification` alone accepts a registered kind plus constrained relative paths and lets the local adapter generate fixed argv for trusted verification.
+- Process output defaults to strict UTF-8; BOM or an explicit UTF-8/UTF-16/Windows ANSI/OEM selection is decoded per stream. Undecodable or mixed output is reported with exact Base64 and code-page metadata rather than replacement characters, and output-limit metadata identifies the stream that actually lost bytes. Typed file reads return encoding/BOM/newline/code-page metadata; edits preserve existing UTF-8/16/32 BOM and consistent newline style, while new files default to UTF-8 without BOM. Legacy ANSI/OEM files require an explicit encoding.
 - The local runtime is controlled process execution, not an OS-level sandbox. Typed verification executes user-authorized project code under the current Windows user and therefore does not isolate that code's indirect filesystem or network effects. Docker is optional and uses no network and no image pulls.
+- On Windows 10/11, each local command gets an anonymous Job Object configured with `KILL_ON_JOB_CLOSE`. The root process is created suspended, identity-bound, assigned to the Job, and only then resumed. Timeout, cancellation, and output-limit termination target the Job first; assignment or Job API failures are reported instead of silently running without containment. The runtime waits for Job accounting to reach zero, closes the Job, and requires both pipe readers to reach EOF before returning; ordinary inherited children left after a normal root exit are terminated during the same finalization. This process ownership boundary is not an OS sandbox and does not claim to contain service-mediated or explicit breakaway execution.
 
 Sessions are stored at `%LOCALAPPDATA%\chaos-agent\sessions.sqlite3` by default. When that target is absent and the legacy `%LOCALAPPDATA%\code-agent\sessions.sqlite3` exists, Chaos Agent uses SQLite backup into a temporary target, checks integrity and key counts, then atomically publishes the copy while retaining the legacy database.
 

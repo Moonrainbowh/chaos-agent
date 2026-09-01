@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import unittest
 
-from code_agent.core.task import TaskAuthorization, TaskRecord, TaskStatus
+from code_agent.core.task import (
+    TaskAuthorization,
+    TaskContract,
+    TaskRecord,
+    TaskStatus,
+)
 
 
 class TaskTests(unittest.TestCase):
@@ -69,3 +74,33 @@ class TaskTests(unittest.TestCase):
         self.assertTrue(authorization.allow_local_execute)
         self.assertFalse(authorization.allow_network)
         self.assertFalse(authorization.allow_outside_workspace)
+
+    def test_runtime_selection_audit_facts_round_trip_as_one_complete_unit(self) -> None:
+        contract = TaskContract(
+            "repair",
+            TaskAuthorization.local_workspace("C:/repo"),
+            profile_id="gpt56_terra",
+            model="gpt-5.6-terra",
+            protocol="chat_completions",
+            endpoint_host="gateway.example.test",
+            agent_topology="team",
+            reasoning_effort="xhigh",
+            runtime_mode="medium",
+            runtime_selection_digest="a" * 64,
+        )
+
+        restored = TaskContract.from_dict(contract.to_dict())
+
+        self.assertEqual(restored, contract)
+
+    def test_partial_runtime_selection_audit_facts_are_rejected(self) -> None:
+        with self.assertRaisesRegex(ValueError, "runtime selection audit facts"):
+            TaskContract(
+                "repair",
+                TaskAuthorization.local_workspace("C:/repo"),
+                profile_id="gpt56_sol",
+                model="gpt-5.6-sol",
+                protocol="chat_completions",
+                endpoint_host="gateway.example.test",
+                agent_topology="single",
+            )

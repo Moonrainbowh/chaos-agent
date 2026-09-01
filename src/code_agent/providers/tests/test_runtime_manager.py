@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import sys
 import unittest
 from pathlib import Path
@@ -17,6 +18,17 @@ class _Client:
     async def aclose(self) -> None: self.closed = True
 
 
+class _RetryClient:
+    def __init__(self, failure: BaseException) -> None:
+        self.attempts, self.closed, self._failure = 0, False, failure
+
+    async def aclose(self) -> None:
+        self.attempts += 1
+        if self.attempts == 1:
+            raise self._failure
+        self.closed = True
+
+
 def _profile(name: str) -> ModelProfile:
     return ModelProfile(name, ProviderConfig("https://api.example.test", name, ApiProtocol.RESPONSES, "KEY"), 1000, 100)
 
@@ -32,8 +44,33 @@ class ProviderRuntimeManagerTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(current.runner, "runner-two")
         self.assertEqual(replaced, ["runner-two"])
+        await manager.aclose()
         self.assertTrue(old.closed)
-        self.assertFalse(new.closed)
+        self.assertTrue(new.closed)
+
+    async def test_committed_switch_ignores_retirement_failure_and_retries_on_close(self) -> None:
+        for failure in (RuntimeError("close failed"), asyncio.CancelledError()):
+            with self.subTest(failure=type(failure).__name__):
+                old, new, replaced = _RetryClient(failure), _Client(), []
+                first = ProviderRuntime(_profile("one"), old, "runner-one")
+
+                async def build(profile: ModelProfile) -> ProviderRuntime:
+                    return ProviderRuntime(profile, new, "runner-two")
+
+                manager = ProviderRuntimeManager(
+                    {"one": first.profile, "two": _profile("two")},
+                    first,
+                    build,
+                    replaced.append,
+                )
+
+                selected = await manager.switch("two", idle=True)
+                self.assertIs(manager.current, selected)
+                self.assertEqual(replaced, ["runner-two"])
+                await manager.aclose()
+                self.assertEqual(old.attempts, 2)
+                self.assertTrue(old.closed)
+                self.assertTrue(new.closed)
 
     async def test_failed_build_or_active_task_preserves_current_runtime(self) -> None:
         old = _Client(); first = ProviderRuntime(_profile("one"), old, object())
@@ -44,3 +81,27 @@ class ProviderRuntimeManagerTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(RuntimeError, "build failed"): await manager.switch("two", idle=True)
         self.assertIs(manager.current, first)
         self.assertFalse(old.closed)
+
+    async def test_failed_runner_replacement_closes_candidate_and_preserves_old(self) -> None:
+        old, candidate = _Client(), _Client()
+        first = ProviderRuntime(_profile("one"), old, "runner-one")
+
+        async def build(profile: ModelProfile) -> ProviderRuntime:
+            return ProviderRuntime(profile, candidate, "runner-two")
+
+        def replace(_: object) -> None:
+            raise RuntimeError("replace failed")
+
+        manager = ProviderRuntimeManager(
+            {"one": first.profile, "two": _profile("two")},
+            first,
+            build,
+            replace,
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "replace failed"):
+            await manager.switch("two", idle=True)
+
+        self.assertIs(manager.current, first)
+        self.assertFalse(old.closed)
+        self.assertTrue(candidate.closed)
