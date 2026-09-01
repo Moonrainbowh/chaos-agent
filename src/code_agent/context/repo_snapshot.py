@@ -5,19 +5,22 @@ from dataclasses import replace
 
 from .models import RepoEntry
 from .repo_scan import ImportRef, RepoFileFacts
+from .repo_semantic_graph import resolve_semantic_graph
 
 
 def publish_entries(
     records: Mapping[str, RepoFileFacts],
 ) -> tuple[RepoEntry, ...]:
     """Resolve cross-file facts into one deterministic snapshot entry set."""
-    module_index = _module_index(records)
+    dependencies, relations = resolve_semantic_graph(records)
     return tuple(
         RepoEntry(
             path,
             records[path].symbols,
-            _resolve_imports(path, records[path].imports, module_index),
+            dependencies[path],
             records[path].size_bytes,
+            records[path].signature,
+            relations[path],
         )
         for path in sorted(records, key=lambda item: (item.casefold(), item))
     )

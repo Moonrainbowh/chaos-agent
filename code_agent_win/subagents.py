@@ -43,7 +43,7 @@ _WRITE_TOOLS = frozenset(
 )
 _READ_ONLY_TOOLS = frozenset(
     {
-        "read_file", "list_files", "search_text", "git_status", "git_diff",
+        "read_file", "read_code_slices", "list_files", "search_text", "git_status", "git_diff",
         "search_threads", "read_thread", "plan_workspace_edits_v1",
     }
 )

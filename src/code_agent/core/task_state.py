@@ -180,6 +180,18 @@ def reduce_task_state(state: TaskState, request: object, result: object) -> Task
             files_read=_append(state.files_read, path),
             verified_facts=_append(state.verified_facts, f"Read file: {path}"),
         )
+    if not is_error and name == "read_code_slices":
+        output = getattr(result, "output", {})
+        slices = output.get("slices") if isinstance(output, Mapping) else None
+        if isinstance(slices, Sequence) and not isinstance(slices, (str, bytes)):
+            files_read = state.files_read
+            facts = state.verified_facts
+            for item in slices:
+                item_path = item.get("path") if isinstance(item, Mapping) else None
+                if isinstance(item_path, str) and item_path:
+                    files_read = _append(files_read, item_path)
+                    facts = _append(facts, f"Read file: {item_path}")
+            return replace(state, files_read=files_read, verified_facts=facts)
     if not is_error and name in {"write_file", "replace_text"} and isinstance(path, str):
         return replace(
             state,

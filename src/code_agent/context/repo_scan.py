@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import ast
 import re
 from dataclasses import dataclass, field
 from pathlib import PurePosixPath
@@ -8,8 +7,14 @@ from pathlib import PurePosixPath
 from code_agent.workspace.errors import WorkspaceError
 from code_agent.workspace.files import WorkspaceFiles
 
-from .cache import FileSignature
-from .models import Symbol
+from .models import FileSignature, Symbol
+from .repo_paths import canonical_repo_path, logical_lines
+from .repo_python_semantics import (
+    ConfigAccess,
+    ImportRef,
+    PythonUse,
+    extract_python_semantics,
+)
 
 
 _MAX_SOURCE_BYTES = 256_000
@@ -55,25 +60,6 @@ _JVM_TYPE = re.compile(
 
 
 @dataclass(frozen=True)
-class ImportRef:
-    module: str
-    level: int = 0
-    names: tuple[str, ...] = ()
-
-    def __post_init__(self) -> None:
-        if not isinstance(self.module, str):
-            raise TypeError("module must be text")
-        if isinstance(self.level, bool) or not isinstance(self.level, int):
-            raise TypeError("level must be an integer")
-        if self.level < 0:
-            raise ValueError("level must not be negative")
-        names = tuple(self.names)
-        if not all(isinstance(item, str) and item for item in names):
-            raise ValueError("names must contain non-empty text")
-        object.__setattr__(self, "names", names)
-
-
-@dataclass(frozen=True)
 class RepoFileFacts:
     path: str
     signature: FileSignature
@@ -81,6 +67,10 @@ class RepoFileFacts:
     imports: tuple[ImportRef, ...] = field(default_factory=tuple)
     size_bytes: int = 0
     search_text: str = field(default="", repr=False)
+    uses: tuple[PythonUse, ...] = field(default_factory=tuple)
+    config_accesses: tuple[ConfigAccess, ...] = field(default_factory=tuple)
+    literal_all: tuple[str, ...] | None = None
+    dynamic_all: bool = False
 
     def __post_init__(self) -> None:
         if not isinstance(self.path, str) or not self.path:
@@ -89,10 +79,16 @@ class RepoFileFacts:
             raise TypeError("signature must be a FileSignature")
         symbols = tuple(self.symbols)
         imports = tuple(self.imports)
+        uses = tuple(self.uses)
+        config_accesses = tuple(self.config_accesses)
         if not all(isinstance(item, Symbol) for item in symbols):
             raise TypeError("symbols must contain Symbol values")
         if not all(isinstance(item, ImportRef) for item in imports):
             raise TypeError("imports must contain ImportRef values")
+        if not all(isinstance(item, PythonUse) for item in uses):
+            raise TypeError("uses must contain PythonUse values")
+        if not all(isinstance(item, ConfigAccess) for item in config_accesses):
+            raise TypeError("config_accesses must contain ConfigAccess values")
         if isinstance(self.size_bytes, bool) or not isinstance(
             self.size_bytes, int
         ):
@@ -103,6 +99,12 @@ class RepoFileFacts:
             raise TypeError("search_text must be text")
         object.__setattr__(self, "symbols", symbols)
         object.__setattr__(self, "imports", imports)
+        object.__setattr__(self, "uses", uses)
+        object.__setattr__(self, "config_accesses", config_accesses)
+        if self.literal_all is not None:
+            object.__setattr__(self, "literal_all", tuple(self.literal_all))
+        if not isinstance(self.dynamic_all, bool):
+            raise TypeError("dynamic_all must be a boolean")
 
 
 class RepoFileScanner:
@@ -120,8 +122,10 @@ class RepoFileScanner:
         metadata = absolute.stat()
         if not absolute.is_file():
             raise WorkspaceError(f"not a regular file: {absolute}")
-        relative = self.files.guard.relative(absolute).as_posix()
-        signature = FileSignature(metadata.st_size, metadata.st_mtime_ns)
+        relative = canonical_repo_path(
+            self.files.guard.relative(absolute).as_posix()
+        )
+        signature = FileSignature.from_stat(metadata)
         suffix = PurePosixPath(relative).suffix.casefold()
         try:
             document = self.files.read_text(
@@ -142,25 +146,34 @@ class RepoFileScanner:
                 search_text=search_text,
             )
         if suffix == _PYTHON_SUFFIX:
-            parsed = _parse_python(relative, document.text)
-            if parsed is None:
+            try:
+                parsed = extract_python_semantics(relative, document.text)
+            except (SyntaxError, ValueError, TypeError, MemoryError):
                 return RepoFileFacts(
                     relative,
                     signature,
                     size_bytes=metadata.st_size,
                     search_text=search_text,
                 )
-            symbols, imports = parsed
+            symbols, imports = parsed.symbols, parsed.imports
+            uses, config_accesses = parsed.uses, parsed.config_accesses
+            literal_all, dynamic_all = parsed.literal_all, parsed.dynamic_all
         else:
             symbols = _parse_declarations(relative, suffix, document.text)
             imports = ()
+            uses, config_accesses = (), ()
+            literal_all, dynamic_all = None, False
         return RepoFileFacts(
-            relative,
-            signature,
-            symbols,
-            imports,
-            metadata.st_size,
-            search_text,
+            path=relative,
+            signature=signature,
+            symbols=symbols,
+            imports=imports,
+            size_bytes=metadata.st_size,
+            search_text=search_text,
+            uses=uses,
+            config_accesses=config_accesses,
+            literal_all=literal_all,
+            dynamic_all=dynamic_all,
         )
 
 
@@ -172,63 +185,11 @@ def _sample_search_text(text: str) -> str:
     return f"{text[:head_size]}\n{text[-tail_size:]}"
 
 
-class _PythonSymbols(ast.NodeVisitor):
-    def __init__(self, path: str) -> None:
-        self.path = path
-        self.stack: list[str] = []
-        self.symbols: list[Symbol] = []
-
-    def visit_ClassDef(self, node: ast.ClassDef) -> None:
-        self._visit_named(node, "class")
-
-    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
-        self._visit_named(node, "function")
-
-    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
-        self._visit_named(node, "async_function")
-
-    def _visit_named(self, node: ast.AST, kind: str) -> None:
-        name = getattr(node, "name")
-        qualified = ".".join((*self.stack, name))
-        self.symbols.append(Symbol(self.path, qualified, kind, node.lineno))
-        self.stack.append(name)
-        self.generic_visit(node)
-        self.stack.pop()
-
-
-def _parse_python(
-    path: str, text: str
-) -> tuple[tuple[Symbol, ...], tuple[ImportRef, ...]] | None:
-    try:
-        tree = ast.parse(text)
-    except (SyntaxError, ValueError, TypeError, MemoryError):
-        return None
-    visitor = _PythonSymbols(path)
-    visitor.visit(tree)
-    imports: list[ImportRef] = []
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            imports.extend(ImportRef(alias.name) for alias in node.names)
-        elif isinstance(node, ast.ImportFrom):
-            imports.append(
-                ImportRef(
-                    node.module or "",
-                    node.level,
-                    tuple(
-                        alias.name
-                        for alias in node.names
-                        if alias.name != "*"
-                    ),
-                )
-            )
-    return tuple(visitor.symbols[:_MAX_SYMBOLS]), tuple(imports)
-
-
 def _parse_declarations(
     path: str, suffix: str, text: str
 ) -> tuple[Symbol, ...]:
     symbols: list[Symbol] = []
-    for line_number, line in enumerate(text.splitlines(), start=1):
+    for line_number, line in enumerate(logical_lines(text), start=1):
         if len(line) > _MAX_LINE_CHARS:
             continue
         declarations: list[tuple[str, str]] = []

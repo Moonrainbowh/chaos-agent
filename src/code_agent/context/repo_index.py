@@ -7,10 +7,11 @@ from threading import RLock
 from code_agent.workspace.errors import WorkspaceError
 from code_agent.workspace.files import WorkspaceFiles
 
-from .cache import FileSignature
+from .models import FileSignature
 from .errors import RepoMapError
 from .models import RepoEntry
 from .repo_scan import RepoFileFacts, RepoFileScanner
+from .repo_paths import canonical_repo_path
 from .repo_search import RepoLexicalRanks, SQLiteRepoSearch
 from .repo_search_documents import bound_search_facts
 from .repo_snapshot import publish_entries, strip_search_text
@@ -258,13 +259,15 @@ class RepoIndexService:
             metadata = absolute.stat()
             if not absolute.is_file():
                 return None
-            return FileSignature(metadata.st_size, metadata.st_mtime_ns)
+            return FileSignature.from_stat(metadata)
         except (OSError, WorkspaceError):
             return None
 
     def _normalize(self, path: str) -> str:
         resolved = self.files.guard.resolve(path)
-        return self.files.guard.relative(resolved).as_posix()
+        return canonical_repo_path(
+            self.files.guard.relative(resolved).as_posix()
+        )
 
     def _bounded(
         self,

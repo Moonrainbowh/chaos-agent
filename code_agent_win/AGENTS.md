@@ -9,8 +9,8 @@
 - 不负责：自动翻译任意 Shell 脚本、自动初始化 Git 仓库或把失败命令报告为成功。
 
 ## Units
-- `tool_definitions(include_git, powershell): tuple[ToolDefinition, ...]`: 声明严格且递归校验的工具 schema、不可变 `plan_workspace_edits_v1`/`apply_workspace_edit_plan_v1` 契约、冻结 PowerShell 方言/默认 Stop 与显式恢复提示、文件编码选项和 versioned `run_process_v1`，并按仓库能力省略 Git 工具 | 无副作用 | 多文件计划最多 32 个 write/replace/delete/move 操作，apply 只接受 plan ID 与小写 SHA-256；structured process 必须显式提供 `program`/`args`，不接受 shell/env/stdin；文件 auto 不猜 legacy code page；非 Git 工作区不得暴露 Git 工具
-- `RootActionDispatcher`: 在执行前验证 PowerShell/structured-process 契约、评估策略并请求交互审批，再调用 typed 文件、编辑、Git 或命令 Unit；为执行结果记录耗时，并将文件列表限制为最多 200 条及显式截断元数据 | 产生如实标记成功/失败且保留有界诊断的 tool result；成功编辑通知精确 dirty path，实际命令尝试和验证通知一次全量 reconciliation | 只有已通过策略的外部路径可抵达 workspace Unit
+- `tool_definitions(include_git, powershell): tuple[ToolDefinition, ...]`: 声明严格且递归校验的工具 schema、generation-aware `read_code_slices`、不可变 edit-plan 契约、冻结 PowerShell 方言和 versioned `run_process_v1`，并按仓库能力省略 Git 工具 | 无副作用 | batch slice 为 1–16 个 target，提示合并当前已知目标但允许新信息后的后续批次；structured process 不接受 shell/env/stdin；文件 auto 不猜 legacy code page
+- `RootActionDispatcher`: 在执行前验证 typed schema、评估策略并请求交互审批，再调用文件、编辑、Git 或命令 Unit；`read_code_slices` 先校验当前 RepoIndex generation/snapshot signatures，再委托 Workspace 前后复核 | 产生如实标记成功/失败且保留有界诊断的 tool result | batch 任一 stale 返回 `stale_repo_context` 且不含部分源码；只有已通过策略的外部路径可抵达 workspace Unit
 - `run_powershell_action(...)`、`run_process_action(...)`: 分别把冻结方言、默认 Stop 且保留 native 原始字节的脚本和 shell-free `program + args` 映射为 `CommandSpec` | 启动本地进程并失效工作区缓存 | structured process 拒绝 shell launcher、`.cmd/.bat`、NUL 与超限 Windows command line；stdout/stderr 独立严格解码并逐流报告截断，无法解码时返回完整 Base64/code page；legacy script 映射仅供旧 Runtime 兼容
 - Windows 路径能力在启动、`/状态` 和 Provider prompt 中可见；入口必须在 `Path.resolve()`、storage mkdir 或进程启动前检查 legacy/extended 预算，不能以“目录不存在”掩盖长路径策略缺失。
 - `list_action_result(...)`、`with_action_duration(...)`: Git 工作区根优先使用 tracked/non-ignored-untracked 快速候选清单并再次经过 Workspace 可见性过滤，同时为工具结果补充单调耗时 | Git/文件读取 | 普通目录和显式子目录保留受保护递归扫描；模型侧列表最多 200 条

@@ -11,8 +11,10 @@ from threading import RLock
 from typing import Callable, Iterator, Sequence
 
 from .errors import (
-    BinaryFileError, FileTooLargeError, WindowsLongPathError, WorkspaceError,
+    BinaryFileError, CodeSliceStaleError, FileTooLargeError,
+    WindowsLongPathError, WorkspaceError,
 )
+from code_agent.repo_paths import canonical_path_key, canonical_repo_path
 from ._file_walk import iter_workspace_files
 from ._known_files import known_workspace_files
 from ._text_search import (
@@ -29,6 +31,9 @@ DEFAULT_MAX_BYTES = 1_000_000
 DEFAULT_MAX_ENTRIES = 10_000
 DEFAULT_INVENTORY_TTL_S = 300.0
 MAX_INVENTORY_CACHE_ENTRIES = 16
+MAX_CODE_SLICE_TARGETS = 16
+MAX_CODE_SLICE_LINES = 400
+MAX_CODE_SLICE_BYTES = 128 * 1024
 
 
 @dataclass(frozen=True)
@@ -38,6 +43,46 @@ class TextDocument:
     total_lines: int
     start_line: int
     end_line: int
+    text_format: TextFileFormat
+
+
+@dataclass(frozen=True)
+class CodeSliceRequest:
+    path: str
+    start_line: int
+    end_line: int
+    expected_size_bytes: int
+    expected_modified_ns: int
+    expected_device_id: int = 0
+    expected_file_id: int = 0
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "path", canonical_repo_path(self.path))
+        for name in (
+            "start_line", "end_line", "expected_size_bytes", "expected_modified_ns",
+            "expected_device_id", "expected_file_id",
+        ):
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise TypeError(f"{name} must be an integer")
+        if self.start_line < 1 or self.end_line < self.start_line:
+            raise ValueError("code slice range must be positive and ordered")
+        if self.end_line - self.start_line + 1 > MAX_CODE_SLICE_LINES:
+            raise ValueError(f"a code slice may contain at most {MAX_CODE_SLICE_LINES} lines")
+        if any(getattr(self, name) < 0 for name in (
+            "expected_size_bytes", "expected_modified_ns",
+            "expected_device_id", "expected_file_id",
+        )):
+            raise ValueError("expected file signature values must not be negative")
+
+
+@dataclass(frozen=True)
+class CodeSlice:
+    path: str
+    start_line: int
+    end_line: int
+    total_lines: int
+    text: str
     text_format: TextFileFormat
 
 
@@ -198,6 +243,53 @@ class WorkspaceFiles:
             text_format=decoded.format,
         )
 
+    def read_code_slices(
+        self, targets: Sequence[CodeSliceRequest]
+    ) -> tuple[CodeSlice, ...]:
+        """Atomically read bounded canonical ranges tied to file signatures."""
+        requests = tuple(targets)
+        if not requests or len(requests) > MAX_CODE_SLICE_TARGETS:
+            raise ValueError(
+                f"targets must contain 1 to {MAX_CODE_SLICE_TARGETS} code slices"
+            )
+        if not all(isinstance(item, CodeSliceRequest) for item in requests):
+            raise TypeError("targets must contain CodeSliceRequest values")
+        _reject_conflicting_code_ranges(requests)
+
+        prepared: list[tuple[CodeSliceRequest, Path]] = []
+        for request in requests:
+            resolved = self.guard.resolve(request.path)
+            _require_code_signature(resolved, request)
+            prepared.append((request, resolved))
+
+        results: list[CodeSlice] = []
+        total_bytes = 0
+        for request, resolved in prepared:
+            document = self.read_text(
+                request.path,
+                start_line=request.start_line,
+                end_line=request.end_line,
+            )
+            logical = document.text.splitlines()
+            normalized_text = "\n".join(logical) + ("\n" if logical else "")
+            total_bytes += len(normalized_text.encode("utf-8"))
+            if total_bytes > MAX_CODE_SLICE_BYTES:
+                raise FileTooLargeError(
+                    f"code slices exceed {MAX_CODE_SLICE_BYTES} bytes"
+                )
+            results.append(CodeSlice(
+                document.relative_path,
+                document.start_line,
+                document.end_line,
+                document.total_lines,
+                normalized_text,
+                document.text_format,
+            ))
+
+        for request, resolved in prepared:
+            _require_code_signature(resolved, request)
+        return tuple(results)
+
     def _iter_external_files(
         self, root: str | os.PathLike[str], max_scanned_entries: int
     ) -> Iterator[str]:
@@ -280,6 +372,37 @@ def _read_limited(path: Path, max_bytes: int) -> bytes:
     if len(data) > max_bytes:
         raise FileTooLargeError(f"file exceeds {max_bytes} bytes: {path}")
     return data
+
+
+def _require_code_signature(path: Path, request: CodeSliceRequest) -> None:
+    try:
+        metadata = path.stat()
+    except OSError as error:
+        raise CodeSliceStaleError(f"code slice path is stale: {request.path}") from error
+    current = (
+        metadata.st_size,
+        metadata.st_mtime_ns,
+        int(getattr(metadata, "st_dev", 0)),
+        int(getattr(metadata, "st_ino", 0)),
+    )
+    expected = (
+        request.expected_size_bytes,
+        request.expected_modified_ns,
+        request.expected_device_id,
+        request.expected_file_id,
+    )
+    if not path.is_file() or current != expected:
+        raise CodeSliceStaleError(f"code slice signature is stale: {request.path}")
+
+
+def _reject_conflicting_code_ranges(targets: Sequence[CodeSliceRequest]) -> None:
+    previous: dict[str, list[tuple[int, int]]] = {}
+    for target in targets:
+        key = canonical_path_key(target.path)
+        ranges = previous.setdefault(key, [])
+        if any(target.start_line <= end and start <= target.end_line for start, end in ranges):
+            raise ValueError(f"code slice ranges overlap: {target.path}")
+        ranges.append((target.start_line, target.end_line))
 
 
 def _scan_limit(max_entries: int, supplied: int | None) -> int:

@@ -108,6 +108,7 @@ def replace_model(profile: ModelProfile, model: str) -> ModelProfile:
 def host_risks() -> dict[str, PluginRisk]:
     return {
         "read_file": PluginRisk.READ,
+        "read_code_slices": PluginRisk.READ,
         "list_files": PluginRisk.READ,
         "search_text": PluginRisk.READ,
         "git_status": PluginRisk.READ,

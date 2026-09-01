@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import OrderedDict
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from threading import RLock
 
 from code_agent.workspace.files import WorkspaceFiles
@@ -15,6 +16,14 @@ from .repo_ranking import rank_repo_entries
 from .repo_scan import RepoFileFacts, RepoFileScanner
 from .repo_search import RepoLexicalRanks
 from .tokens import estimate_tokens, truncate_to_tokens
+from .repo_paths import logical_lines
+from .repo_tiered_context import (
+    TOKENIZER_VERSION,
+    TierNode,
+    TierSelection,
+    render_tier_selection,
+    select_tiered_context,
+)
 
 
 @dataclass(frozen=True)
@@ -25,10 +34,11 @@ class _RepoViewKey:
     query: str
     touched_files: tuple[str, ...]
     token_budget: int
+    tokenizer_version: str
 
 
 class RepoMapViewCache:
-    """A bounded LRU of rendered views keyed by immutable index generation."""
+    """A bounded LRU of source-free selections keyed by index generation."""
 
     def __init__(self, *, max_entries: int = 64) -> None:
         if isinstance(max_entries, bool) or not isinstance(max_entries, int):
@@ -36,7 +46,7 @@ class RepoMapViewCache:
         if max_entries <= 0:
             raise ValueError("max_entries must be positive")
         self.max_entries = max_entries
-        self._entries: OrderedDict[_RepoViewKey, str] = OrderedDict()
+        self._entries: OrderedDict[_RepoViewKey, TierSelection] = OrderedDict()
         self._lock = RLock()
 
     def __len__(self) -> int:
@@ -46,8 +56,8 @@ class RepoMapViewCache:
     def get_or_build(
         self,
         key: _RepoViewKey,
-        build: Callable[[], str],
-    ) -> tuple[str, int, int]:
+        build: Callable[[], TierSelection],
+    ) -> tuple[TierSelection, int, int]:
         with self._lock:
             cached = self._entries.get(key)
             if cached is not None:
@@ -200,25 +210,55 @@ class RepoMapBuilder:
             raise ValueError("token_budget must not be negative")
         if token_budget == 0:
             return "", 0, 0
-        snapshot, lexical = self.index.query_for_turn(query)
-        key = _RepoViewKey(
-            self.index.view_identity,
-            snapshot.generation,
-            lexical.backend_key,
-            bound_repo_query(query),
-            _normalize_touched(checked_touched),
-            token_budget,
-        )
-        return self.view_cache.get_or_build(
-            key,
-            lambda: self.view.render(
-                snapshot,
-                query,
-                checked_touched,
+        total_hits = 0
+        total_misses = 0
+        for attempt in range(2):
+            snapshot, lexical = self.index.query_for_turn(query)
+            key = _RepoViewKey(
+                self.index.view_identity,
+                snapshot.generation,
+                lexical.backend_key,
+                bound_repo_query(query),
+                _normalize_touched(checked_touched),
                 token_budget,
-                lexical,
-            ),
-        )
+                TOKENIZER_VERSION,
+            )
+            ranked = self.view.build(snapshot, query, checked_touched, lexical)
+            selection, hits, misses = self.view_cache.get_or_build(
+                key,
+                lambda: select_tiered_context(
+                    snapshot,
+                    ranked,
+                    query,
+                    checked_touched,
+                    token_budget,
+                ),
+            )
+            total_hits += hits
+            total_misses += misses
+            try:
+                if self.index.snapshot_for_turn().generation != snapshot.generation:
+                    raise _StaleRepoContext(tuple(node.path for node in selection.l0))
+                sources = _read_l0_sources(self.files, selection)
+                if self.index.snapshot_for_turn().generation != snapshot.generation:
+                    raise _StaleRepoContext(tuple(node.path for node in selection.l0))
+            except _StaleRepoContext as error:
+                if error.paths:
+                    self.index.invalidate(error.paths)
+                if attempt == 0:
+                    continue
+                return "", total_hits, total_misses
+            rendered = render_tier_selection(selection, token_budget, sources)
+            if self.index.snapshot_for_turn().generation != snapshot.generation:
+                if attempt == 0:
+                    continue
+                return "", total_hits, total_misses
+            return (
+                rendered,
+                total_hits,
+                total_misses,
+            )
+        return "", total_hits, total_misses
 
     def invalidate(self, paths: Sequence[str]) -> None:
         self.index.invalidate(paths)
@@ -255,3 +295,52 @@ def _render_entry(entry: RepoEntry) -> str:
     if entry.dependencies:
         lines.append("  deps:" + ",".join(entry.dependencies))
     return "\n".join(lines)
+
+
+class _StaleRepoContext(RuntimeError):
+    def __init__(self, paths: Sequence[str]) -> None:
+        self.paths = tuple(dict.fromkeys(paths))
+        super().__init__("repository source changed during context assembly")
+
+
+def _read_l0_sources(
+    files: WorkspaceFiles,
+    selection: TierSelection,
+) -> dict[tuple[str, int, int], str]:
+    sources: dict[tuple[str, int, int], str] = {}
+    prepared: list[tuple[TierNode, Path]] = []
+    for node in selection.l0:
+        expected = node.signature
+        if expected is None:
+            raise _StaleRepoContext((node.path,))
+        absolute = files.guard.resolve(node.path)
+        before = absolute.stat()
+        if not expected.matches_stat(before):
+            raise _StaleRepoContext((node.path,))
+        prepared.append((node, absolute))
+    for node, absolute in prepared:
+        expected = node.signature
+        assert expected is not None
+        document = files.read_text(node.path, max_bytes=256_000)
+        lines = logical_lines(document.text)
+        if (
+            node.start_line < 1
+            or node.start_line > len(lines)
+            or node.end_line < node.start_line
+        ):
+            raise _StaleRepoContext((node.path,))
+        end_line = min(node.end_line, len(lines))
+        selected = "\n".join(lines[node.start_line - 1 : end_line])
+        if selected:
+            selected += "\n"
+        sources[(node.path, node.start_line, node.end_line)] = selected
+    stale: list[str] = []
+    for node, absolute in prepared:
+        expected = node.signature
+        assert expected is not None
+        after = absolute.stat()
+        if not expected.matches_stat(after):
+            stale.append(node.path)
+    if stale:
+        raise _StaleRepoContext(stale)
+    return sources

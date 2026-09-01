@@ -6,18 +6,10 @@ from pathlib import Path
 from threading import RLock
 from typing import Callable, Iterable, TypeVar
 
-from .models import RepoEntry
+from .models import FileSignature, RepoEntry
 
 
 T = TypeVar("T")
-
-
-@dataclass(frozen=True)
-class FileSignature:
-    """The file metadata used to decide whether a scan result remains valid."""
-
-    size_bytes: int
-    modified_ns: int
 
 
 @dataclass(frozen=True)
@@ -107,4 +99,4 @@ class RepoMapCache:
 
 def _signature(path: Path) -> FileSignature:
     metadata = path.stat()
-    return FileSignature(metadata.st_size, metadata.st_mtime_ns)
+    return FileSignature.from_stat(metadata)

@@ -19,6 +19,23 @@ from code_agent.core.task_state import (  # noqa: E402
 
 
 class TaskStateTests(unittest.TestCase):
+    def test_successful_batch_code_slices_record_each_unique_path(self) -> None:
+        state = reduce_task_state(
+            TaskState.empty(),
+            ActionRequest("batch-1", "read_code_slices", {"generation": 4, "targets": []}),
+            ActionResult("batch-1", "read_code_slices", {
+                "generation": 4,
+                "slices": [
+                    {"path": "src/a.py", "text": "a"},
+                    {"path": "src/a.py", "text": "b"},
+                    {"path": "src/b.py", "text": "c"},
+                ],
+            }),
+        )
+
+        self.assertEqual(state.files_read, ("src/a.py", "src/b.py"))
+        self.assertIn("Read file: src/b.py", state.verified_facts)
+
     def test_reducer_records_successful_read_write_and_failed_command(self) -> None:
         state = TaskState(objective="repair startup")
         state = reduce_task_state(

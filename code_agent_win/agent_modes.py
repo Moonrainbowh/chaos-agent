@@ -16,6 +16,7 @@ from code_agent.providers.config import ModelProfile
 
 READ_TOOLS = (
     "read_file",
+    "read_code_slices",
     "list_files",
     "search_text",
     "git_status",

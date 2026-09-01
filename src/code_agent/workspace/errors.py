@@ -55,6 +55,10 @@ class FileTooLargeError(WorkspaceError):
     """Raised when an operation would exceed its byte limit."""
 
 
+class CodeSliceStaleError(WorkspaceError):
+    """A batch code-slice request no longer matches its indexed files."""
+
+
 class EditConflictError(WorkspaceError):
     """Raised when an edit plan no longer matches on-disk state."""
 

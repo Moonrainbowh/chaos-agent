@@ -60,6 +60,17 @@ class PolicyModelTests(unittest.TestCase):
 
 
 class ActionClassifierTests(unittest.TestCase):
+    def test_batch_code_slices_is_a_low_risk_read(self) -> None:
+        classification = classify_action(request(
+            "read_code_slices",
+            generation=1,
+            targets=[{"path": "src/app.py"}],
+        ))
+
+        self.assertTrue(classification.known_tool)
+        self.assertEqual(classification.risk, RiskLevel.LOW)
+        self.assertIn(Capability.READ, classification.capabilities)
+
     def test_known_read_and_write_tools_receive_expected_capabilities(self) -> None:
         for name in ("read_file", "list_files", "search_text", "git_status", "git_diff"):
             with self.subTest(name=name):

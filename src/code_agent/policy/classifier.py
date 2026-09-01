@@ -16,7 +16,7 @@ from .models import Capability, RiskLevel
 
 _READ_TOOLS = frozenset(
     {
-        "read_file", "list_files", "search_text", "git_status", "git_diff",
+        "read_file", "read_code_slices", "list_files", "search_text", "git_status", "git_diff",
         "plan_workspace_edits_v1",
     }
 )

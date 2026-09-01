@@ -69,12 +69,14 @@ class RootActionDispatcher:
         invalidate_cache: Callable[[Sequence[str]], None] | None = None,
         edit_plans: WorkspaceEditPlanStore | None = None,
         workspace_fingerprint: str | None = None,
+        repo_index: object | None = None,
     ) -> None:
         self.files, self.editor, self.policy, self.approvals = files, editor, policy, approvals
         self.git, self.runtime, self.verification = git, runtime, verification
         self.mcp, self.plugins, self.subagents = mcp, plugins, subagents
         self.threads, self.peers, self.caller_thread = threads, peers, caller_thread
         self.capture = capture
+        self.repo_index = repo_index
         self.invalidate_cache = invalidate_cache
         self.edit_plans = edit_plans or WorkspaceEditPlanStore()
         captured = getattr(capture, "workspace_fingerprint", None)

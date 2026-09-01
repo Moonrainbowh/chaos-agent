@@ -37,6 +37,7 @@ class ToolSchemaTests(unittest.TestCase):
             set(definitions),
             {
                 "read_file",
+                "read_code_slices",
                 "list_files",
                 "search_text",
                 "write_file",
@@ -58,6 +59,12 @@ class ToolSchemaTests(unittest.TestCase):
             self.assertIsInstance(parameters["properties"], dict)
 
         self.assertEqual(definitions["read_file"]["required"], ["path"])
+        self.assertEqual(
+            definitions["read_code_slices"]["required"], ["generation", "targets"]
+        )
+        self.assertEqual(
+            definitions["read_code_slices"]["properties"]["targets"]["maxItems"], 16
+        )
         self.assertEqual(definitions["read_file"]["properties"]["path"]["type"], "string")
         text_encodings = ["auto", "windows-ansi", "windows-oem"]
         for name in ("read_file", "write_file", "replace_text"):

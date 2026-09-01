@@ -129,6 +129,7 @@ def _dispatcher(
         plugins=extensions.bridge,
         capture=rewind_write.capture,
         invalidate_cache=invalidate_workspace_context,
+        repo_index=repo_index,
     )
 
 

@@ -98,6 +98,7 @@ class TaskScopedDispatcher:
             invalidate_cache=lambda paths: _invalidate(service, paths),
             edit_plans=mutations.edit_plans,
             workspace_fingerprint=mutations.workspace_fingerprint,
+            repo_index=service.repo_index,
         )
         dispatcher.interactive = self.interactive
         return dispatcher

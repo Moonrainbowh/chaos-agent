@@ -38,6 +38,34 @@ def _stable_path(value: object, label: str) -> Path:
 
 
 @dataclass(frozen=True)
+class FileSignature:
+    """File metadata used to bind semantic facts to one source generation."""
+
+    size_bytes: int
+    modified_ns: int
+    device_id: int = 0
+    file_id: int = 0
+
+    def __post_init__(self) -> None:
+        _nonnegative_integer(self.size_bytes, "size_bytes")
+        _nonnegative_integer(self.modified_ns, "modified_ns")
+        _nonnegative_integer(self.device_id, "device_id")
+        _nonnegative_integer(self.file_id, "file_id")
+
+    @classmethod
+    def from_stat(cls, metadata: os.stat_result) -> "FileSignature":
+        return cls(
+            metadata.st_size,
+            metadata.st_mtime_ns,
+            int(getattr(metadata, "st_dev", 0)),
+            int(getattr(metadata, "st_ino", 0)),
+        )
+
+    def matches_stat(self, metadata: os.stat_result) -> bool:
+        return self == self.from_stat(metadata)
+
+
+@dataclass(frozen=True)
 class ContextConfig:
     workspace_root: Path
     cwd: Path
@@ -134,12 +162,59 @@ class Symbol:
     name: str
     kind: str
     line: int
+    end_line: Optional[int] = None
+    signature: str = ""
+    docstring: str = ""
 
     def __post_init__(self) -> None:
         for label in ("path", "name", "kind"):
             if not isinstance(getattr(self, label), str) or not getattr(self, label):
                 raise ValueError(f"{label} must be non-empty text")
         _positive_integer(self.line, "line")
+        if self.end_line is not None:
+            _positive_integer(self.end_line, "end_line")
+            if self.end_line < self.line:
+                raise ValueError("end_line must not precede line")
+        if not isinstance(self.signature, str):
+            raise TypeError("signature must be text")
+        if not isinstance(self.docstring, str):
+            raise TypeError("docstring must be text")
+        if len(self.signature) > 512:
+            raise ValueError("signature exceeds 512 characters")
+        if len(self.docstring) > 1_000:
+            raise ValueError("docstring exceeds 1,000 characters")
+
+
+@dataclass(frozen=True)
+class RepoRelation:
+    kind: str
+    source_symbol: str = ""
+    source_line: int = 0
+    target_path: str = ""
+    target_symbol: str = ""
+    target_line: int = 0
+    target_end_line: int = 0
+    resolution: str = "exact"
+    reason: str = ""
+    config_namespace: str = ""
+    config_key: str = ""
+    config_provenance: str = ""
+
+    def __post_init__(self) -> None:
+        if self.kind not in {"import", "reference", "call", "inherits", "config"}:
+            raise ValueError("unsupported repository relation kind")
+        if self.resolution not in {"exact", "heuristic"}:
+            raise ValueError("resolution must be exact or heuristic")
+        for label in ("source_symbol", "target_path", "target_symbol", "reason"):
+            if not isinstance(getattr(self, label), str):
+                raise TypeError(f"{label} must be text")
+        for label in ("source_line", "target_line", "target_end_line"):
+            _nonnegative_integer(getattr(self, label), label)
+        if self.kind == "config":
+            if not self.config_namespace or not self.config_key or not self.config_provenance:
+                raise ValueError("config relations require namespace, key, and provenance")
+        elif not self.target_path:
+            raise ValueError("non-config relations require target_path")
 
 
 @dataclass(frozen=True)
@@ -148,19 +223,27 @@ class RepoEntry:
     symbols: Tuple[Symbol, ...] = field(default_factory=tuple)
     dependencies: Tuple[str, ...] = field(default_factory=tuple)
     size_bytes: int = 0
+    signature: Optional[FileSignature] = None
+    relations: Tuple[RepoRelation, ...] = field(default_factory=tuple)
 
     def __post_init__(self) -> None:
         if not isinstance(self.path, str) or not self.path:
             raise ValueError("path must be non-empty text")
         symbols = tuple(self.symbols)
         dependencies = tuple(self.dependencies)
+        relations = tuple(self.relations)
         if not all(isinstance(item, Symbol) for item in symbols):
             raise TypeError("symbols must contain only Symbol values")
         if not all(isinstance(item, str) and item for item in dependencies):
             raise TypeError("dependencies must contain non-empty paths")
+        if self.signature is not None and not isinstance(self.signature, FileSignature):
+            raise TypeError("signature must be a FileSignature or None")
+        if not all(isinstance(item, RepoRelation) for item in relations):
+            raise TypeError("relations must contain RepoRelation values")
         _nonnegative_integer(self.size_bytes, "size_bytes")
         object.__setattr__(self, "symbols", symbols)
         object.__setattr__(self, "dependencies", dependencies)
+        object.__setattr__(self, "relations", relations)
 
 
 @dataclass(frozen=True)

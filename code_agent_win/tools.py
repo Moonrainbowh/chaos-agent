@@ -80,6 +80,38 @@ TOOL_DEFINITIONS: tuple[ToolDefinition, ...] = (
             ("path", "old_text", "new_text"),
         ),
     ),
+    ToolDefinition(
+        "read_code_slices",
+        "Batch all currently known code ranges into one generation-bound read when "
+        "possible. Later batches are allowed when new targets are discovered.",
+        _object_schema(
+            {
+                "generation": _integer_schema(0, 9_007_199_254_740_991),
+                "targets": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 16,
+                    "items": _object_schema(
+                        {
+                            "path": _nonempty_text_schema(),
+                            "start_line": _integer_schema(1, 2_147_483_647),
+                            "end_line": _integer_schema(1, 2_147_483_647),
+                            "expected_size_bytes": _integer_schema(0, 9_223_372_036_854_775_807),
+                            "expected_modified_ns": _integer_schema(0, 9_223_372_036_854_775_807),
+                            "expected_device_id": _integer_schema(0, 9_223_372_036_854_775_807),
+                            "expected_file_id": _integer_schema(0, 9_223_372_036_854_775_807),
+                        },
+                        (
+                            "path", "start_line", "end_line",
+                            "expected_size_bytes", "expected_modified_ns",
+                            "expected_device_id", "expected_file_id",
+                        ),
+                    ),
+                },
+            },
+            ("generation", "targets"),
+        ),
+    ),
     *EDIT_PLAN_TOOL_DEFINITIONS,
     ToolDefinition("git_status", "Read Git porcelain status.", _object_schema({})),
     ToolDefinition(
