@@ -6,6 +6,7 @@ from collections.abc import Callable, Sequence
 from code_agent.core.action_execution import ActionExecutionContext
 from code_agent.core.cancellation import CancellationError, CancellationToken
 from code_agent.core.models import ActionRequest, ActionResult, ToolDefinition
+from code_agent.capabilities.catalog import CONTRACT_TOOL_NAME, contract_result
 from code_agent.core.task import TaskAuthorization
 from code_agent.interfaces.approval import ApprovalBroker, ApprovalRequest
 from code_agent.mcp.registry import McpController
@@ -232,6 +233,8 @@ class RootActionDispatcher:
         gap_recorded: bool,
     ) -> ActionResult:
         arguments = request.arguments
+        if request.name == CONTRACT_TOOL_NAME:
+            return contract_result(request, self.tools())
         if request.name == "delegate_agent":
             if self.subagents is None:
                 return _error(request, "subagent runtime unavailable")

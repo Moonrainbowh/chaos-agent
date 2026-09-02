@@ -110,6 +110,8 @@ def _application(
         repo_index=host.repo_index,
         attachment_store=host.attachment_store,
         attachment_ingestor=host.attachment_ingestor,
+        sessions=host.sessions,
+        workspace_root=host.root,
     )
 
 

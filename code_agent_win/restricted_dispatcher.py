@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+from code_agent.capabilities.catalog import CONTRACT_TOOL_NAME, contract_result
 from code_agent.core.action_execution import ActionExecutionContext
 from code_agent.core.cancellation import CancellationToken
 from code_agent.core.models import ActionRequest, ActionResult, ToolDefinition
@@ -37,13 +38,17 @@ class RestrictedDispatcher:
         self._allowed = self._effective(tuple(updated))
 
     def _effective(self, values: Sequence[str]) -> frozenset[str]:
-        checked = self._validated(values)
+        checked = set(self._validated(values))
+        if any(
+            tool.name == CONTRACT_TOOL_NAME for tool in self._inner.tools()
+        ):
+            checked.add(CONTRACT_TOOL_NAME)
         if not self._allow_delegation:
             checked -= {"delegate_agent"}
         checked -= {"rename_agent"}
         if not self._allow_coordination:
             checked -= {"list_agents", "send_message"}
-        return checked
+        return frozenset(checked)
 
     @staticmethod
     def _validated(values: Sequence[str]) -> frozenset[str]:
@@ -77,6 +82,8 @@ class RestrictedDispatcher:
                 {"error": "child tool is outside its mode and role"},
                 is_error=True,
             )
+        if request.name == CONTRACT_TOOL_NAME:
+            return contract_result(request, self.tools())
         return await self._inner.dispatch(
             request,
             cancellation,

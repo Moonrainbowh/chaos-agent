@@ -12,8 +12,9 @@ It is a clean-room implementation. It takes architectural lessons from projects 
 - Freezes `low`, `medium`, `high`, or `ultra` task modes to an actual provider profile, model, prompt policy, tool set, reasoning effort, and execution limits. Modes never grant permission.
 - Runs bounded advisory Subagent, Oracle, Review, Search, and Librarian children through the same typed tools, policy checks, cancellation tree, and cumulative parent budget.
 - Loads trusted declarative plugins without executing plugin Python, shell, URLs, or terminal control sequences. Tools, namespaced commands and modes, custom Agents, typed events, and Host-owned interactions are wired through bounded controllers and policy checks.
+- Starts each Agent run with a compact capability directory and loads a full tool schema only after the model requests that tool's contract, reducing repeated tool context as built-ins, plugins, and MCP services grow.
 - Routes file reads, edits, Git inspection, structured local verification, and PowerShell commands through typed tools, central policy checks, audit events, and explicit approval.
-- Provides a Windows Terminal TUI (`chaos-agent`), a text CLI (`chaos-agent ask`), session resume (`chaos-agent resume`), and machine-readable events (`chaos-agent run --json`). The legacy `agent` command remains available during migration.
+- Provides a Windows Terminal TUI (`chaos-agent`), a text CLI (`chaos-agent ask`), session resume (`chaos-agent resume`), machine-readable events (`chaos-agent run --json`), and an ACP v1 editor adapter (`chaos-agent-acp`). The legacy `agent` command remains available during migration.
 
 ## Install
 
@@ -150,6 +151,32 @@ chaos-agent resume <thread-id>
 chaos-agent resume <thread-id> "continue the previous task"
 chaos-agent run --json "list the relevant files"
 ```
+
+### ACP editor adapter
+
+Editors that support Agent Client Protocol v1 can launch Chaos Agent as a
+stdio process from the workspace root:
+
+```json
+{
+  "command": "chaos-agent-acp",
+  "args": ["--profile", "fast"]
+}
+```
+
+`chaos-agent acp --profile fast` is the equivalent command. The adapter uses
+the normal provider configuration and persisted Chaos session IDs. It supports
+ACP initialization, session creation/listing/loading with message replay,
+prompt streaming, tool status updates, and cancellation. Text and resource
+links are accepted in prompts. Image/audio blocks, embedded resources,
+additional workspace roots, client-provided MCP servers, editor terminal
+proxying, and unsaved-buffer synchronization are not enabled in this first
+version. Stdout is reserved for ACP JSON-RPC while the adapter is running.
+
+Tool contract disclosure is scoped to one Agent run. The first model turn sees
+`load_tool_contract` plus a compact name/category/summary directory; after a
+successful contract lookup, the requested tool's full JSON Schema appears on
+the next model turn. Tool execution continues through the same typed dispatcher.
 
 The Windows UI appends completed user, agent, tool, diff, warning, and error
 entries to the normal Windows Terminal buffer. Windows Terminal owns selection,

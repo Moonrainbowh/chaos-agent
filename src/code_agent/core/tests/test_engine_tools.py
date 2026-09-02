@@ -32,6 +32,7 @@ from code_agent.core.tests._engine_support import (  # noqa: E402
     FakeModelClient,
     MemorySessionRepository,
 )
+from code_agent.capabilities.catalog import CONTRACT_TOOL_NAME  # noqa: E402
 
 
 def completed() -> ModelEvent:
@@ -39,6 +40,59 @@ def completed() -> ModelEvent:
 
 
 class AgentEngineToolTests(unittest.IsolatedAsyncioTestCase):
+    async def test_tool_schema_is_disclosed_only_after_loading_its_contract(self) -> None:
+        load = ToolCall(
+            "load-1", CONTRACT_TOOL_NAME, {"name": "read_file"}
+        )
+        read = ToolCall("read-1", "read_file", {"path": "a.txt"})
+        model = FakeModelClient(
+            (
+                (ModelEvent(ModelEventKind.TOOL_CALL, tool_call=load), completed()),
+                (ModelEvent(ModelEventKind.TOOL_CALL, tool_call=read), completed()),
+                (ModelEvent(ModelEventKind.TEXT_DELTA, text="done"), completed()),
+            )
+        )
+        loader_definition = ToolDefinition(
+            CONTRACT_TOOL_NAME, "Load a contract", {"type": "object"}
+        )
+        read_definition = ToolDefinition(
+            "read_file", "Read a file", {"type": "object"}
+        )
+        actions = FakeActionDispatcher(
+            (
+                ActionResult(
+                    "load-1",
+                    CONTRACT_TOOL_NAME,
+                    {"contract": read_definition.to_dict()},
+                    metadata={"disclosed_tool": "read_file"},
+                ),
+                ActionResult("read-1", "read_file", {"text": "contents"}),
+            )
+        )
+        actions._tools = (loader_definition, read_definition)
+
+        _ = [
+            event
+            async for event in AgentEngine(
+                model, FakeContextBuilder(), actions, MemorySessionRepository()
+            ).run("inspect")
+        ]
+
+        self.assertEqual(
+            [tool.name for tool in model.calls[0][2]], [CONTRACT_TOOL_NAME]
+        )
+        self.assertEqual(
+            [tool.name for tool in model.calls[1][2]],
+            [CONTRACT_TOOL_NAME, "read_file"],
+        )
+        self.assertEqual(
+            actions.requests,
+            [
+                ActionRequest("load-1", CONTRACT_TOOL_NAME, {"name": "read_file"}),
+                ActionRequest("read-1", "read_file", {"path": "a.txt"}),
+            ],
+        )
+
     async def test_tool_result_is_paired_and_returned_to_next_model_turn(self) -> None:
         call = ToolCall(id="call-1", name="read_file", arguments={"path": "a.txt"})
         model = FakeModelClient(

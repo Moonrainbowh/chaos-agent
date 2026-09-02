@@ -1,0 +1,142 @@
+from __future__ import annotations
+
+import re
+from collections.abc import Sequence
+
+from code_agent.core.models import ActionRequest, ActionResult, ToolDefinition
+
+
+CONTRACT_TOOL_NAME = "load_tool_contract"
+_SPACE = re.compile(r"\s+")
+_SUMMARY_LIMIT = 120
+
+
+def progressive_tools(
+    tools: Sequence[ToolDefinition], disclosed_names: Sequence[str]
+) -> tuple[ToolDefinition, ...]:
+    """Expose a compact directory plus contracts loaded in this Agent run."""
+    checked = tuple(tools)
+    if not all(isinstance(tool, ToolDefinition) for tool in checked):
+        raise TypeError("tools must contain ToolDefinition values")
+    loader = next(
+        (tool for tool in checked if tool.name == CONTRACT_TOOL_NAME), None
+    )
+    if loader is None:
+        return checked
+    candidates = tuple(
+        tool for tool in checked if tool.name != CONTRACT_TOOL_NAME
+    )
+    selected = frozenset(_checked_names(disclosed_names))
+    return (
+        _directory_definition(loader, candidates),
+        *(tool for tool in candidates if tool.name in selected),
+    )
+
+
+def contract_result(
+    request: ActionRequest, tools: Sequence[ToolDefinition]
+) -> ActionResult:
+    """Resolve one current tool definition without executing that tool."""
+    if not isinstance(request, ActionRequest):
+        raise TypeError("request must be an ActionRequest")
+    if request.name != CONTRACT_TOOL_NAME:
+        raise ValueError("request is not a tool-contract request")
+    if set(request.arguments) != {"name"}:
+        return _contract_error(request, "name is the only supported argument")
+    name = request.arguments.get("name")
+    if not isinstance(name, str) or not name.strip():
+        return _contract_error(request, "name must be non-blank text")
+    definitions = {
+        tool.name: tool
+        for tool in tools
+        if isinstance(tool, ToolDefinition) and tool.name != CONTRACT_TOOL_NAME
+    }
+    definition = definitions.get(name)
+    if definition is None:
+        return _contract_error(request, "tool contract is unavailable")
+    return ActionResult(
+        request.id,
+        request.name,
+        {
+            "contract": definition.to_dict(),
+            "availability": "next_model_turn",
+        },
+        metadata={"disclosed_tool": name},
+    )
+
+
+def disclosed_name(result: ActionResult) -> str | None:
+    """Return the newly disclosed name from a successful loader result."""
+    if not isinstance(result, ActionResult):
+        raise TypeError("result must be an ActionResult")
+    if result.name != CONTRACT_TOOL_NAME or result.is_error:
+        return None
+    name = result.metadata.get("disclosed_tool")
+    return name if isinstance(name, str) and name.strip() else None
+
+
+def _directory_definition(
+    loader: ToolDefinition, candidates: Sequence[ToolDefinition]
+) -> ToolDefinition:
+    names = [tool.name for tool in candidates]
+    lines = tuple(
+        f"- {tool.name} [{_access_kind(tool.name)}]: "
+        f"{_summary(tool.description)}"
+        for tool in candidates
+    )
+    description = _summary(loader.description)
+    if lines:
+        description += (
+            "\nAvailable capabilities (load a contract before calling it):\n"
+            + "\n".join(lines)
+        )
+    return ToolDefinition(
+        loader.name,
+        description,
+        {
+            "type": "object",
+            "properties": {"name": {"type": "string", "enum": names}},
+            "required": ["name"],
+            "additionalProperties": False,
+        },
+    )
+
+
+def _access_kind(name: str) -> str:
+    lowered = name.casefold()
+    if lowered.startswith(("read_", "list_", "search_", "git_", "plan_")):
+        return "read"
+    if lowered.startswith(("write_", "replace_", "apply_", "create_", "restore_")):
+        return "edit"
+    if lowered.startswith(("run_", "terminal.")):
+        return "execute"
+    if lowered.startswith(("delegate_", "send_", "rename_")):
+        return "coordinate"
+    if lowered.startswith(("mcp.", "plugin.")):
+        return "extension"
+    return "other"
+
+
+def _summary(value: str) -> str:
+    compact = _SPACE.sub(" ", value).strip()
+    if len(compact) <= _SUMMARY_LIMIT:
+        return compact
+    return compact[: _SUMMARY_LIMIT - 1].rstrip() + "…"
+
+
+def _checked_names(values: Sequence[str]) -> tuple[str, ...]:
+    if isinstance(values, (str, bytes, bytearray)):
+        raise TypeError("disclosed_names must be a sequence")
+    checked = tuple(values)
+    if not all(isinstance(value, str) and value.strip() for value in checked):
+        raise ValueError("disclosed_names must contain non-blank text")
+    return checked
+
+
+def _contract_error(request: ActionRequest, detail: str) -> ActionResult:
+    return ActionResult(
+        request.id,
+        request.name,
+        {"error": "tool contract could not be loaded", "detail": detail},
+        is_error=True,
+    )

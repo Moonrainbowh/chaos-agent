@@ -36,6 +36,7 @@ class ToolSchemaTests(unittest.TestCase):
         self.assertEqual(
             set(definitions),
             {
+                "load_tool_contract",
                 "read_file",
                 "read_code_slices",
                 "list_files",
@@ -58,6 +59,7 @@ class ToolSchemaTests(unittest.TestCase):
             self.assertIsInstance(parameters["required"], list)
             self.assertIsInstance(parameters["properties"], dict)
 
+        self.assertEqual(definitions["load_tool_contract"]["required"], ["name"])
         self.assertEqual(definitions["read_file"]["required"], ["path"])
         self.assertEqual(
             definitions["read_code_slices"]["required"], ["generation", "targets"]
@@ -156,6 +158,19 @@ class DispatcherValidationTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(result.output["bom"], True)
         self.assertEqual(result.output["newline"], "crlf")
         self.assertNotIn("code_page", result.output)
+
+    async def test_contract_loader_returns_current_schema_without_execution(self) -> None:
+        result = await self.dispatcher.dispatch(
+            ActionRequest(
+                "load-read", "load_tool_contract", {"name": "read_file"}
+            ),
+            CancellationToken(),
+        )
+
+        self.assertFalse(result.is_error)
+        self.assertEqual(result.output["contract"]["name"], "read_file")
+        self.assertEqual(result.output["availability"], "next_model_turn")
+        self.assertEqual(result.metadata["disclosed_tool"], "read_file")
 
     async def test_write_preserves_and_reports_existing_text_format(self) -> None:
         (self.root / "note.txt").write_bytes(

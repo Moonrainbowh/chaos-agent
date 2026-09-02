@@ -4,6 +4,8 @@ import json
 from collections.abc import Mapping
 from typing import AsyncIterator
 
+from code_agent.capabilities.catalog import disclosed_name, progressive_tools
+
 from ._tool_feedback import tool_failure
 from .action_execution import ActionExecutionContext, ActionLineage
 from .cancellation import CancellationError, CancellationToken
@@ -180,7 +182,6 @@ class AgentEngineActionMixin:
         token: CancellationToken,
         supervisor: TaskSupervisor | None,
         budget: TaskBudget,
-        tool_names: set[str],
     ) -> tuple[TaskBudget, tuple[AgentEvent, ...]] | None:
         verification = getattr(self, "_verification", None)
         if verification is None:
@@ -194,9 +195,16 @@ class AgentEngineActionMixin:
         if reserved is None:
             raise EngineLimitError("tool call budget exceeded")
         _, declared = await self._persist_assistant_message(thread_id, [], [suggestion])
+        available_names = {
+            tool.name for tool in self._actions.tools()
+            if isinstance(tool, ToolDefinition)
+        }
         events = (declared,) + tuple(
             [event async for event in self._dispatch(
-                thread_id, suggestion, token, is_available=suggestion.name in tool_names,
+                thread_id,
+                suggestion,
+                token,
+                is_available=suggestion.name in available_names,
                 task=task, supervisor=supervisor,
             )]
         )
@@ -212,7 +220,9 @@ class AgentEngineActionMixin:
         await self._journal.create_checkpoint(thread_id, "task-paused", {"task_id": paused.id, "status": paused.status.value, "reason": reason})
 
     def _advertised_tools(
-        self, allowed_names: frozenset[str] | None = None
+        self,
+        allowed_names: frozenset[str] | None = None,
+        disclosed_names: set[str] | frozenset[str] = frozenset(),
     ) -> tuple[tuple[ToolDefinition, ...], set[str]]:
         try:
             tools = tuple(self._actions.tools())
@@ -223,12 +233,25 @@ class AgentEngineActionMixin:
                 raise ModelStreamError("action dispatcher exposed duplicate tools")
             if allowed_names is not None:
                 tools = tuple(tool for tool in tools if tool.name in allowed_names)
-                names = {tool.name for tool in tools}
+            tools = progressive_tools(tools, tuple(disclosed_names))
+            names = {tool.name for tool in tools}
             return tools, names
         except ModelStreamError:
             raise
         except Exception:
             raise ModelStreamError("action dispatcher exposed invalid tools") from None
+
+    @staticmethod
+    def _disclosed_tool_from_event(event: AgentEvent) -> str | None:
+        if event.kind is not EventKind.ACTION_COMPLETED:
+            return None
+        raw = event.payload.get("result")
+        if not isinstance(raw, Mapping):
+            return None
+        try:
+            return disclosed_name(ActionResult.from_dict(raw))
+        except (KeyError, TypeError, ValueError):
+            return None
 
     def _accumulate_model_event(self, event: ModelEvent, text_parts: list[str], calls: list[ToolCall]) -> None:
         if not isinstance(event, ModelEvent):

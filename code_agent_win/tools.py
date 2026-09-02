@@ -30,6 +30,11 @@ def _text_encoding_schema() -> dict[str, object]:
 
 TOOL_DEFINITIONS: tuple[ToolDefinition, ...] = (
     ToolDefinition(
+        "load_tool_contract",
+        "Load the complete schema for one capability from the current directory.",
+        _object_schema({"name": _nonempty_text_schema()}, ("name",)),
+    ),
+    ToolDefinition(
         "read_file",
         "Read a strictly decoded workspace text file and report its format.",
         _object_schema(

@@ -100,6 +100,8 @@ class ApplicationConstructionTests(unittest.TestCase):
                             child_context = child_engine._context._inner
 
         self.assertIs(application.tui.sessions, application.tui.history)
+        self.assertIs(application.sessions, application.tui.sessions)
+        self.assertEqual(application.workspace_root, root)
         self.assertIs(application.tui.evidence, application.tui.sessions)
         self.assertEqual(application.mode.definition.mode.value, "medium")
         self.assertEqual(application.mode.model, "test")

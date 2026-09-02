@@ -91,13 +91,25 @@ def _capturing_child_runner(
     )
 
     def factory(agent, parent):
+        contract = ToolCall(
+            "contract", "load_tool_contract", {"name": "write_file"}
+        )
         call = ToolCall(
             "write", "write_file", {"path": "note.txt", "content": "after\n"}
         )
-        model = FakeModelClient(((
-            ModelEvent(ModelEventKind.TOOL_CALL, tool_call=call),
-            ModelEvent(ModelEventKind.COMPLETED),
-        ), (ModelEvent(ModelEventKind.COMPLETED),)))
+        model = FakeModelClient(
+            (
+                (
+                    ModelEvent(ModelEventKind.TOOL_CALL, tool_call=contract),
+                    ModelEvent(ModelEventKind.COMPLETED),
+                ),
+                (
+                    ModelEvent(ModelEventKind.TOOL_CALL, tool_call=call),
+                    ModelEvent(ModelEventKind.COMPLETED),
+                ),
+                (ModelEvent(ModelEventKind.COMPLETED),),
+            )
+        )
         lineage = ActionLineage(
             parent.owner_thread_id, parent.task_id, parent.request_id
         )

@@ -17,6 +17,7 @@ from code_agent.context.compaction import DeterministicCompactor  # noqa: E402
 from code_agent.context.models import ContextConfig  # noqa: E402
 from code_agent.context.repo_map import RepoMapBuilder  # noqa: E402
 from code_agent.context.rules import RuleLoader  # noqa: E402
+from code_agent.capabilities.catalog import CONTRACT_TOOL_NAME  # noqa: E402
 from code_agent.core.cancellation import CancellationError, CancellationToken  # noqa: E402
 from code_agent.core.engine import AgentEngine  # noqa: E402
 from code_agent.core.events import EventKind  # noqa: E402
@@ -41,11 +42,39 @@ from code_agent_win.app import RootActionDispatcher  # noqa: E402
 class FakeModel:
     def __init__(self, streams: Sequence[Sequence[ModelEvent]]) -> None:
         self.streams = list(streams)
+        self.contract_calls = 0
 
     def stream(
         self, system_prompt: str, messages: object, tools: Sequence[ToolDefinition]
     ) -> AsyncIterator[ModelEvent]:
-        stream = self.streams.pop(0)
+        stream = self.streams[0]
+        available = {tool.name for tool in tools}
+        requested = next(
+            (
+                event.tool_call
+                for event in stream
+                if event.kind is ModelEventKind.TOOL_CALL
+                and event.tool_call is not None
+            ),
+            None,
+        )
+        if (
+            requested is not None
+            and requested.name not in available
+            and CONTRACT_TOOL_NAME in available
+        ):
+            self.contract_calls += 1
+            contract = ToolCall(
+                f"contract-{self.contract_calls}",
+                CONTRACT_TOOL_NAME,
+                {"name": requested.name},
+            )
+            stream = (
+                ModelEvent(ModelEventKind.TOOL_CALL, tool_call=contract),
+                ModelEvent(ModelEventKind.COMPLETED),
+            )
+        else:
+            self.streams.pop(0)
 
         async def generate() -> AsyncIterator[ModelEvent]:
             for event in stream:

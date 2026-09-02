@@ -13,6 +13,9 @@ class RestrictedDispatcherTests(unittest.IsolatedAsyncioTestCase):
         class Inner:
             def tools(self):
                 return (
+                    ToolDefinition(
+                        "load_tool_contract", "Load.", {"type": "object"}
+                    ),
                     ToolDefinition("read_file", "Read.", {"type": "object"}),
                     ToolDefinition(
                         "delegate_agent", "Delegate.", {"type": "object"}
@@ -55,10 +58,19 @@ class RestrictedDispatcherTests(unittest.IsolatedAsyncioTestCase):
             allow_coordination=True,
         )
 
-        self.assertEqual(tuple(tool.name for tool in child.tools()), ("read_file",))
+        self.assertEqual(
+            tuple(tool.name for tool in child.tools()),
+            ("load_tool_contract", "read_file"),
+        )
         self.assertEqual(
             tuple(tool.name for tool in team_main.tools()),
-            ("read_file", "delegate_agent", "list_agents", "send_message"),
+            (
+                "load_tool_contract",
+                "read_file",
+                "delegate_agent",
+                "list_agents",
+                "send_message",
+            ),
         )
         rejected = await child.dispatch(
             ActionRequest("child", "delegate_agent", {}), CancellationToken()
@@ -66,8 +78,15 @@ class RestrictedDispatcherTests(unittest.IsolatedAsyncioTestCase):
         accepted = await team_main.dispatch(
             ActionRequest("main", "delegate_agent", {}), CancellationToken()
         )
+        hidden_contract = await child.dispatch(
+            ActionRequest(
+                "contract", "load_tool_contract", {"name": "delegate_agent"}
+            ),
+            CancellationToken(),
+        )
         self.assertTrue(rejected.is_error)
         self.assertFalse(accepted.is_error)
+        self.assertTrue(hidden_contract.is_error)
 
     async def test_restricted_dispatcher_forwards_execution_context_by_keyword(
         self,

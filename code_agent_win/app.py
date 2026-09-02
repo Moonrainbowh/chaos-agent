@@ -293,6 +293,8 @@ class _ApplicationComposer:
             attachment_ingestor=self.attachment_ingestor,
             runtime_selection=self.controls.runtime_selection,
             peers=self.peers,
+            sessions=self.sessions,
+            workspace_root=self.root,
         )
         self.application_ref.append(application)
         return application

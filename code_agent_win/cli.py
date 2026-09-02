@@ -6,6 +6,7 @@ from collections.abc import Sequence
 from importlib.metadata import PackageNotFoundError, version as package_version
 
 from .app import create_application
+from .acp_adapter import serve_acp
 from code_agent.config.loader import LocalConfigError, default_config_path, resolve_config_path
 from code_agent.interfaces.attachment_input import DEFAULT_ATTACHMENT_PROMPT
 from code_agent.interfaces.commands import CommandKind, execute_command, parse_command
@@ -26,6 +27,7 @@ _ATTACHMENT_COMMANDS = frozenset(
 _HELP = """Usage: chaos-agent [global options] [command]
 
 Commands:
+  acp                          Serve ACP v1 over stdio for editor clients
   ask <prompt>                 Run one request and print the result
   resume <thread-id> [prompt]  Resume a saved task or open it in the TUI
   run --json <prompt>          Stream machine-readable JSON events
@@ -43,6 +45,12 @@ Global options:
 Run without a command to open the Windows Terminal UI.
 """
 
+_ACP_HELP = """Usage: chaos-agent [global options] acp
+
+Serve Agent Client Protocol v1 over stdio for an editor client.
+The process working directory is the single ACP workspace root.
+"""
+
 
 async def run(arguments: Sequence[str]) -> int:
     try:
@@ -55,11 +63,23 @@ async def run(arguments: Sequence[str]) -> int:
                 raise ValueError("--attach is not supported by help or version")
             print(meta_output)
             return 0
-        command_arguments = _default_attachment_prompt(
-            command_arguments, bool(attachment_paths)
-        )
-        command = parse_command(command_arguments)
-        _require_attachment_consumer(command.kind, attachment_paths)
+        is_acp = command_arguments == ("acp",)
+        if is_acp and attachment_paths:
+            raise ValueError("--attach is not supported by acp")
+        if (
+            not is_acp
+            and command_arguments
+            and command_arguments[0] == "acp"
+        ):
+            raise ValueError("acp does not accept positional arguments")
+        if is_acp:
+            command = None
+        else:
+            command_arguments = _default_attachment_prompt(
+                command_arguments, bool(attachment_paths)
+            )
+            command = parse_command(command_arguments)
+            _require_attachment_consumer(command.kind, attachment_paths)
     except (TypeError, ValueError) as error:
         print(f"usage error: {error}", file=sys.stderr)
         return 2
@@ -69,6 +89,9 @@ async def run(arguments: Sequence[str]) -> int:
             model_name=model_name, profile_name=profile_name, mode_name=mode_name
         )
         await application.startup()
+        if command is None:
+            await serve_acp(application)
+            return 0
         application.dispatcher.interactive = command.kind is CommandKind.TUI
         attachments = ()
         if attachment_paths:
@@ -121,7 +144,14 @@ def _meta_command_output(arguments: Sequence[str]) -> str | None:
     values = tuple(arguments)
     if values in {("-h",), ("--help",)}:
         return _HELP.rstrip()
-    if values in {("-V",), ("--version",)}:
+    if values in {("acp", "-h"), ("acp", "--help")}:
+        return _ACP_HELP.rstrip()
+    if values in {
+        ("-V",),
+        ("--version",),
+        ("acp", "-V"),
+        ("acp", "--version"),
+    }:
         try:
             installed = package_version("chaos-agent")
         except PackageNotFoundError:

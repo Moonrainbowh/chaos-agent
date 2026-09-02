@@ -31,6 +31,8 @@ class Application:
     repo_index: Any = None
     attachment_store: Any = None
     attachment_ingestor: Any = None
+    sessions: Any = None
+    workspace_root: Path | None = None
 
     async def aclose(self) -> None:
         if self.subagents is not None:

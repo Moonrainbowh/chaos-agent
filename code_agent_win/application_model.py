@@ -35,6 +35,8 @@ class Application:
     attachment_ingestor: object | None = None
     runtime_selection: object | None = None
     peers: object | None = None
+    sessions: object | None = None
+    workspace_root: Path | None = None
     _closed: bool = field(default=False, init=False, repr=False)
 
     async def startup(self) -> None:
