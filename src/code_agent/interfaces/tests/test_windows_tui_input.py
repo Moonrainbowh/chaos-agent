@@ -19,6 +19,7 @@ from code_agent.interfaces.terminal_display import DisplayKind, clip_display, di
 from code_agent.interfaces.terminal_renderer import ColorMode, Theme, render_entries, render_entry, render_live_tail
 from code_agent.interfaces.terminal_tail import render_live_tail_frame
 from code_agent.interfaces.terminal_status import status_context, status_presentation
+from code_agent.interfaces.i18n import Language
 from code_agent.interfaces.terminal_io import BRACKETED_PASTE_DISABLE, BRACKETED_PASTE_ENABLE
 from code_agent.interfaces.terminal_state import ApprovalBroker, ApprovalRequest
 from code_agent.interfaces.tests._support import FakeEngine
@@ -68,5 +69,18 @@ class InputBufferTests(unittest.TestCase):
     def test_bracketed_paste_terminal_modes_are_explicit(self) -> None:
         self.assertEqual(BRACKETED_PASTE_ENABLE, "\x1b[?2004h")
         self.assertEqual(BRACKETED_PASTE_DISABLE, "\x1b[?2004l")
+
+    def test_pausing_has_a_distinct_animated_status(self) -> None:
+        label, first, _ = status_presentation(
+            "pausing", "", None, Language.ZH_CN,
+            Theme.SYMBOL, 0,
+        )
+        _, second, _ = status_presentation(
+            "pausing", "", None, Language.ZH_CN,
+            Theme.SYMBOL, 1,
+        )
+
+        self.assertIn("暂停", label)
+        self.assertNotEqual(first, second)
 
 if __name__ == "__main__": unittest.main()

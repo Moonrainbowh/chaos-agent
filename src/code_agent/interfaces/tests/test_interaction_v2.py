@@ -16,9 +16,6 @@ from code_agent.interfaces.interaction import (
 )
 from code_agent.interfaces.command_registry import REGISTRY
 from code_agent.interfaces.picker import PickerItem, PickerSource, PickerState, command_picker_items
-from code_agent.interfaces.steering_view import SteeringQueueView, SteeringStage
-from code_agent.interfaces.tui_interactions import TuiInteractions
-from code_agent.core.events import EventKind
 from code_agent.plugins.models import UiPrimitive, UiRequest
 from code_agent.interfaces.capability_view import ModePermissionView, PermissionSummary
 from code_agent.orchestration.modes import ModeRegistry, standard_mode_definitions
@@ -79,7 +76,7 @@ class PickerStateTests(unittest.TestCase):
         self.assertEqual(
             tuple(item.label for item in items),
             (
-                "/帮助", "/状态", "/新建", "/会话", "/任务", "/差异",
+                "/帮助", "/状态", "/新建", "/会话", "/任务",
                 "/附件", "/回退", "/模式", "/权限", "/退出",
             ),
         )
@@ -91,6 +88,14 @@ class PickerStateTests(unittest.TestCase):
                 self.assertTrue(picker.accept().completion.startswith("/" + spec.name))  # type: ignore[union-attr]
 
         self.assertFalse(any(item.label == "/证据" for item in items))
+
+        colon_items = command_picker_items(
+            REGISTRY.all(), services, command_prefix=":"
+        )
+        self.assertTrue(all(item.label.startswith(":") for item in colon_items))
+        panel = PickerState(colon_items).panel_rows(80)
+        self.assertIn("COMMAND · Tab complete", panel[0])
+        self.assertIn(":帮助", "\n".join(panel))
 
     def test_mode_is_a_root_parent_and_its_actions_inherit_unavailability(self) -> None:
         items = command_picker_items(REGISTRY.all(), set())
@@ -118,39 +123,6 @@ class PickerStateTests(unittest.TestCase):
         self.assertEqual(tuple(item.label for item in root).count("/会话"), 1)
         self.assertTrue(actions[0].enabled)
         self.assertTrue(all(not item.enabled for item in actions[1:]))
-
-
-class SteeringQueueViewTests(unittest.TestCase):
-    def test_stages_are_visible_ordered_and_never_move_backward(self) -> None:
-        queue = SteeringQueueView()
-        item = queue.queue("inspect tests first", "control-1")
-
-        self.assertEqual(queue.status_line(), "queued · queue 1")
-        queue.transition(item.identifier, SteeringStage.STEERED)
-        queue.transition(item.identifier, SteeringStage.DEQUEUED)
-        queue.transition(item.identifier, SteeringStage.APPLIED)
-        self.assertEqual(queue.status_line(), "applied · queue 0")
-        with self.assertRaises(ValueError):
-            queue.transition(item.identifier, SteeringStage.QUEUED)
-
-    def test_persisted_turn_and_context_events_drive_dequeued_and_applied(self) -> None:
-        class App:
-            def __init__(self):
-                self.lines = []
-
-            def _append(self, kind, text):
-                self.lines.append(text)
-
-        app = App()
-        interactions = TuiInteractions()
-        item = interactions.steering.queue("new direction", "control-1")
-        interactions.steering.transition(item.identifier, SteeringStage.STEERED)
-
-        interactions.observe_event(app, EventKind.TURN_STARTED)
-        self.assertEqual(interactions.steering.items[0].stage, SteeringStage.DEQUEUED)
-        interactions.observe_event(app, EventKind.CONTEXT_BUILT)
-        self.assertEqual(interactions.steering.items[0].stage, SteeringStage.APPLIED)
-        self.assertEqual(app.lines, ["dequeued · queue 1", "applied · queue 0"])
 
 
 class AgentRunStatusProjectionTests(unittest.TestCase):

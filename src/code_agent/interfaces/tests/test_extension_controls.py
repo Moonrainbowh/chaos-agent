@@ -167,7 +167,7 @@ class ExtensionControlTests(unittest.IsolatedAsyncioTestCase):
 
         rows = TuiInteractions().rows(App())
 
-        self.assertIn("review", rows[0])
+        self.assertIn("review", "\n".join(rows))
 
     async def test_plugin_adapter_displays_notify_and_brokers_answers(self) -> None:
         broker = InteractionBroker()

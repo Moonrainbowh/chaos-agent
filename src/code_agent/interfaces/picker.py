@@ -6,6 +6,7 @@ from typing import Iterable
 
 from .command_registry import CommandVisibility
 from .terminal_display import clip_display, safe_text
+from .picker_panel import render_picker_panel
 
 
 class PickerSource(str, Enum):
@@ -154,10 +155,17 @@ class PickerState:
             rows.append(clip_display("! " + safe_text(self.error), width))
         return tuple(rows)
 
+    def panel_rows(self, width: int) -> tuple[str, ...]:
+        """Render a compact command overlay with a stable two-column layout."""
+        return render_picker_panel(self, width)
+
 
 def command_picker_items(
-    specs: Iterable[object], services: set[str] | None = None, *, parent: object | None = None
+    specs: Iterable[object], services: set[str] | None = None, *,
+    parent: object | None = None, command_prefix: str = "/",
 ) -> tuple[PickerItem, ...]:
+    if command_prefix not in {"/", ":"}:
+        raise ValueError("command_prefix must be slash or colon")
     available = services or set()
     result = []
     values = (
@@ -175,12 +183,12 @@ def command_picker_items(
         )
     )
     for spec in values:
-        result.append(_command_picker_item(spec, available, parent))
+        result.append(_command_picker_item(spec, available, parent, command_prefix))
     return tuple(result)
 
 
 def _command_picker_item(
-    spec: object, available: set[str], parent: object | None
+    spec: object, available: set[str], parent: object | None, command_prefix: str
 ) -> PickerItem:
     requirements = (
         *getattr(parent, "requires", ()),
@@ -189,7 +197,7 @@ def _command_picker_item(
     missing = tuple(
         dict.fromkeys(value for value in requirements if value not in available)
     )
-    prefix = f"/{parent.name} " if parent is not None else "/"
+    prefix = f"{command_prefix}{parent.name} " if parent is not None else command_prefix
     has_next = bool(spec.usage or (parent is None and spec.actions))
     needs_space = has_next and (parent is None or spec.usage.startswith("<"))
     return PickerItem(

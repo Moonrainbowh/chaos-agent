@@ -60,7 +60,7 @@ class PromptBudget:
 
     max_prompt_tokens: int = 20_000
     max_rule_tokens: int = 3_000
-    max_tool_tokens: int = 1_500
+    max_tool_tokens: int = 2_000
     max_task_state_tokens: int = 1_000
     max_repo_map_tokens: int = 2_000
     max_message_tokens: int = 12_000

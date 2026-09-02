@@ -158,6 +158,24 @@ class CommandSecurityTests(unittest.TestCase):
                     self.auto.evaluate(action).outcome, DecisionOutcome.ASK
                 )
 
+    def test_raw_commands_keep_outside_and_protected_boundaries(self) -> None:
+        root = Path("C:/repo")
+        policy = ActionPolicy(PolicyConfig(ApprovalMode.AUTO, workspace_root=root))
+
+        outside = classify_action(
+            command_request('Get-Content "C:/Users/lack/notes.txt"'), root
+        )
+        protected = classify_action(
+            command_request("Get-Content .env"), root
+        )
+
+        self.assertIn(Capability.OUTSIDE_WORKSPACE, outside.capabilities)
+        self.assertIn(Capability.PROTECTED_PATH, protected.capabilities)
+        self.assertEqual(
+            policy.evaluate(command_request("python -m unittest")).outcome,
+            DecisionOutcome.ALLOW,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

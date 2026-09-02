@@ -66,7 +66,7 @@ class PromptBudgetTests(unittest.TestCase):
             ("tool_tokens", -1),
             ("task_state_tokens", -1),
             ("system_and_rules_tokens", 3_001),
-            ("tool_tokens", 1_501),
+            ("tool_tokens", 2_001),
             ("task_state_tokens", 1_001),
         ):
             with self.subTest(field=field, value=value), self.assertRaises(PromptBudgetError):

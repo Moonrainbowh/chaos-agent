@@ -49,7 +49,8 @@ def parse_tui_command(
     registry: CommandRegistry = REGISTRY,
 ) -> ParseOutcome:
     if not isinstance(text, str): raise TypeError("text must be a string")
-    if not text.startswith("/"): return ParseOutcome()
+    if not text.startswith(("/", ":")): return ParseOutcome()
+    text = "/" + text[1:]
     text = _compatibility_alias(text)
     effective = _DEFAULT_SERVICES if services is None else services
     raw_body = text[1:].lstrip()

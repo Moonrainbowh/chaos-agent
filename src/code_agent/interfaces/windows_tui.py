@@ -39,6 +39,7 @@ from .checkpoint_control import CheckpointControl
 from .checkpoint_tui import close_rewind_flow, wait_rewind_task
 from .tui_lifecycle import close_tasks, listen_approvals, listen_interactions, start_animation, stop_animation
 from .tui_peer_turn import yield_peer_slot
+from .tui_submission import SubmitMode, pause_active_task, submit_active_input, toggle_submit_mode
 from .tui_protocols import EvidenceReader, SessionBrowser
 
 class WindowsTerminalApp:
@@ -59,6 +60,7 @@ class WindowsTerminalApp:
         self.interactions = TuiInteractions(diff_source)
         self.attachment_draft = attachment_draft
         self.active_task_id: str | None = None; self.running = False; self._run_task: asyncio.Task[None] | None = None
+        self.submit_mode = SubmitMode.QUEUE
         self._peer_run_task: asyncio.Task[None] | None = None
         self._animation_task: asyncio.Task[None] | None = None; self._spinner_index = 0; self._redraw_dirty = True
         self._token: CancellationToken | None = None; self._approval_task: asyncio.Task[None] | None = None
@@ -107,7 +109,7 @@ class WindowsTerminalApp:
             self._append(DisplayKind.ERROR, str(error)); self.redraw(); return False
         self._append(DisplayKind.USER, prepared.display)
         if self.tasks and self.active_task_id and self._run_task and not self._run_task.done():
-            return await self._submit_steering(prepared)
+            return await submit_active_input(self, prepared)
         self._token = CancellationToken()
         self._run_started_at = time.monotonic()
         if self.tasks:
@@ -130,21 +132,6 @@ class WindowsTerminalApp:
                 )
             )
         self._start_animation(); self.redraw(); return True
-    async def _submit_steering(self, prepared: PreparedInput) -> bool:
-        try:
-            await self.interactions.steer(
-                self, self.active_task_id, prepared.prompt, prepared.attachments
-            )
-        except Exception as error:
-            self._append(
-                DisplayKind.ERROR,
-                f"steering submit failed ({type(error).__name__})",
-            )
-            self.redraw()
-            return False
-        self._acknowledge_submission(EventKind.MESSAGE_ADDED, prepared)
-        self.redraw()
-        return True
     async def wait_idle(self) -> None:
         if self._run_task: await self._run_task
         await stop_animation(self)
@@ -156,12 +143,13 @@ class WindowsTerminalApp:
             await handle_interrupt(self)
         elif await self.interactions.handle_key(self, key):
             pass
-        elif key == "\x1b" and self.tasks and self.active_task_id:
-            await self.tasks.pause(self.active_task_id, "user requested pause")
+        elif key == "\x1b" and await pause_active_task(self, "user requested pause"):
+            pass
         elif key.startswith("\x1b[200~") and key.endswith("\x1b[201~"):
             await apply_paste(self, key[6:-6])
         elif key == "\x16": await apply_clipboard_images(self)
         elif key == "\x15": self.input.clear()
+        elif key == "\t" and self._run_task and not self._run_task.done(): toggle_submit_mode(self)
         elif key == "\r": await self.submit(self.input.submit())
         elif key == "\n": self.input.insert_line_break()
         elif key == "left": self.input.move_left()
@@ -178,6 +166,7 @@ class WindowsTerminalApp:
         now = time.monotonic(); size = shutil.get_terminal_size((100, 30))
         palette = self.interactions.rows(self, max_rows=max(0, size.lines - 4))
         status, icon, status_color = status_presentation(self.state.status, self.state.execution_summary, self.state.active_action, self.catalog.language, self.theme, self._spinner_index)
+        if self._run_task and not self._run_task.done(): status += f" · 输入 [{self.submit_mode.label}]"
         if self.interactions.steering.pending_count: status += " · " + self.interactions.steering.status_line()
         frame = render_live_tail_frame(
             self.input.text,
@@ -252,7 +241,7 @@ class WindowsTerminalApp:
                 submitted = self._acknowledge_submission(event.kind, submitted)
                 if self.state.thread_id:
                     self.current_thread_id = self.state.thread_id
-                self.interactions.observe_event(self, event.kind)
+                self.interactions.observe_event(self, event)
                 terminal = terminal or event.kind is EventKind.COMPLETED or (
                     event.kind is EventKind.TASK_STATUS_CHANGED
                     and event.payload.get("status") in {"completed", "accepted_partial", "failed"}

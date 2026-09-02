@@ -119,14 +119,14 @@ class CommandRegistry:
     ) -> tuple[CommandSpec | None, tuple[str, ...], str | None]:
         if not isinstance(text, str):
             raise TypeError("command text must be a string")
-        if not text.startswith("/"):
+        if not text.startswith(("/", ":")):
             return None, (), None
         try:
             parts = tuple(shlex.split(text[1:], posix=False))
         except ValueError:
             return None, (), "invalid quoted command"
         if not parts:
-            return None, (), "slash command is required"
+            return None, (), "command is required"
         spec = self._lookup.get(parts[0].casefold())
         if spec is None or spec not in self.available(services):
             return None, (), "unknown or unavailable slash command"
@@ -138,7 +138,7 @@ class CommandRegistry:
         services: set[str] | None = None,
         limit: int = 6,
     ) -> tuple[CommandSpec, ...]:
-        if not isinstance(text, str) or not text.startswith("/"):
+        if not isinstance(text, str) or not text.startswith(("/", ":")):
             return ()
         query = text[1:].strip().casefold()
         return tuple(

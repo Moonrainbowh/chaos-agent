@@ -21,7 +21,7 @@
 - 负责：从不可信模型或工具文本中剥离终端控制序列；ANSI 样式只能由本地可信显示事件生成，并支持 `auto`、`always`、`never` 颜色模式及 ASCII 回退。
 - 负责：从单一命令注册表生成解析、帮助、调色板、补全、显示标签与动态可用性；命令只委托注入的控制器或只读服务，不直接执行工具、修改配置或调用 provider。
 - 负责：把动态插件命令以始终命名空间化的 ID 合并进不可变命令快照；动态贡献属于 `internal`，不得膨胀默认根 Picker；禁用、撤销或 digest 变化后不执行旧选择。
-- 负责：输入 `/` 时只展示固定的 11 个 `primary` 一级命令：帮助、状态、新建、会话、任务、差异、附件、回退、模式、权限、退出；`advanced`/`internal` 命令仍可完整输入并解析，`/帮助 全部` 展示完整注册表。
+- 负责：`Shift+:` 产生的 `:` 打开带边框、查询行、命令/说明两列和选中行的默认命令面板；`Tab` 补全、`Enter` 执行，旧 `/` 前缀保持兼容。默认面板只展示 `primary`，Diff 仅保留为可完整输入的 `advanced` 兼容命令。
 - 负责：选中无参数命令后一次 `Enter` 立即执行，选中复合命令后一次 `Enter` 进入由同一注册表生成的二级动作菜单；`/会话`、`/模式` 和 `/权限` 只作为根父项，其具体动作不得平铺到根面板。
 - 负责：`/模式` 二级面只暴露代理 `single|team`、已注册模型 profile 和思考深度 `low|medium|high|xhigh|max` 三个独立维度；短模型名只能唯一匹配 profile 后缀，切换只委托注入控件并遵守 idle 边界。
 - 负责：`/会话` 二级面把历史会话与同机在线 Agent、重命名、纯文本发送、入站策略及 held 消息处理分开；`/list-agents`、`/peers`、`/rename` 仅为隐藏兼容入口，不进入注册表、根 Picker 或默认帮助。
@@ -32,15 +32,15 @@
 - 不负责：复制 Agent 状态机、直接执行工具、直接访问 provider、切换活动任务的模型，或绕过 `ActionPolicy` 权限决定。
 - 不负责：接管 Windows Terminal 字体、调色板、复制设置或鼠标选择；不提供默认全屏仪表板、固定顶部栏或应用自有滚动历史。
 - 不负责：首版 Linux/macOS 端到端适配、IDE 插件、Web UI、远程多用户服务或桌面应用。
-- 同一 TUI 同时只管理一个前台任务；运行中的普通输入作为 steering 排队，而非创建第二任务。
-- `Esc` 暂停并创建 checkpoint，关闭 TUI 中断并创建 checkpoint，显式停止转为失败；运行中的普通输入作为 steering，不额外暴露重复命令。
+- 同一 TUI 同时只管理一个前台任务；运行中的 `Enter` 默认持久排队，当前回合收尾后再进入上下文，而非创建第二任务。`Tab` 在非命令输入中切换为转向，转向立即持久化并在下一模型安全边界生效，不硬杀当前工具。
+- `Esc` 先显示 `pausing` 再暂停并创建 checkpoint，关闭 TUI 中断并创建 checkpoint，显式停止转为失败；已持久化排队不因暂停或关闭丢失。
 - 负责在单栏转录中呈现 evidence-backed completion、partial/unverified 差异、当前未满足条件及 `/证据`、`/evidence` 查询；不自行判定验证成功。
 - 负责：在输入区上方提供键盘可操作的上下文 Picker；命令、会话、模式/模型、Skills、MCP 和插件贡献共用选择、过滤、补全、禁用原因与错误恢复语义。
 - 负责：提供 `/流程`、`/技能`、`/mcp` 与 `/插件` 控制面；所有动作只委托注入 Controller，运行中变更遵守下一任务或安全边界。
 - 负责：明确分开展示 Agent 模式与访问权限，并显示模式对应的实际模型、Oracle、成本/延迟定位和下一任务生效边界。
-- 负责：运行中普通提交仍作为同一前台任务的 steering，在转录和状态尾部显示 queued、steered、dequeued、applied 及队列数量；强制中断与安全边界注入保持独立语义，状态只依据内核持久事件更新。
+- 负责：在转录和状态尾部明示 `[排队]`/`[转向]`、队列数量与 applied 边界；排队提升只依据内核持久事件，转向的 dequeued/applied 只依据 `TURN_STARTED`/`CONTEXT_BUILT`。
 - 负责：以类型化状态快照呈现 running、verifying、paused、waiting decision、approval、partial 和 completed，不得把非空闲状态统一显示为“就绪”。
-- 负责：审批和结构化用户选择使用可取消的键盘交互，明确显示动作、风险、目标、选项和 `Enter`/`Esc` 结果，不在不可见状态下等待输入。
+- 负责：审批和结构化用户选择使用可取消的键盘交互，稀有审批卡明确显示动作、风险、目标、原因、仅此一次的选项和 `Enter`/`Esc` 结果；默认选中拒绝，不在不可见状态下等待输入。
 - 负责：统一渲染 Host 与插件声明的 `notify`、`confirm`、`input`、`select` 交互原语；插件不得直接生成终端控制序列或替用户回答。
 - 负责：`search_threads`、`read_thread` 的显示与工具调用不接收 caller thread ID；调用方身份只能由 Host 当前任务注入。
 - 负责：以紧凑追加行呈现工具和子 Agent 生命周期、目标、耗时、结果及有界事实；详细内容通过稳定 ID 按需查询，不重写历史滚动区。
@@ -69,7 +69,7 @@
 - `AgentController`、`ForegroundTaskController`: 向交互和非交互调用暴露同一核心事件与前台任务控制 | 调用内核 | steering 的用户消息与 task control 必须委托 Session 原子写入；仅实际 created/running 执行阻止并发启动
 - `ForegroundTaskController.interrupt(task_id, reason)`: 取消活动 token 并持久化 `INTERRUPTED` checkpoint | SQLite I/O | 不在 runner 返回时兜底完成任务
 - `parse_command`、`execute_command`: 解析并委托稳定 CLI 语义，文本命令复用可信 Markdown 终端渲染 | 写入调用方输出 | 不直接输出模型 Markdown 控制标记，不直接退出或组合依赖
-- `parse_tui_command(text)`、`filter_palette(input)`: 解析完整注册表中的斜杠命令并只从 `primary` 筛选默认候选 | 无副作用 | 精确命令名和别名优先于描述匹配，完整参数原样提交，以结构化错误恢复且不显示未接通、占位或危险命令
+- `parse_tui_command(text)`、`filter_palette(input)`: 解析 `:` 主命令和 `/` 兼容命令，并只从 `primary` 筛选默认候选 | 无副作用 | 精确命令名和别名优先于描述匹配，完整参数原样提交，Diff 与其他 advanced 命令不进入默认面板
 - `handle_tui_command(app, outcome)`：把已解析命令委托给有界的控制面处理器 | 调用注入服务 | 不直接执行工具或绕过策略，分支函数不超过 Unit 粒度上限
 - `CheckpointControl`、Checkpoint/Rewind TUI flow：通过窄协议列出/创建 checkpoint，并以 Picker、三模式有界预览、默认 No 确认和 single-flight 受管任务委托 Rewind；启动对账的内部恢复委托只传 operation ID | 调用注入 Controller/追加显示 | preview 可取消回收，durable execute 关闭时等待安全完成；不接受调用方重述的持久 rollback facts，不直接访问 Workspace、Git、SQLite 或 Runtime
 - `CommandAction`、`CommandVisibility`、`built_in_command_specs()`、`CommandRegistry`: 声明动作级依赖、`primary`/`advanced`/`internal` 可见性、命令、别名、参数与可用性 | 无副作用 | 默认帮助和根 Picker 只投影同一组 `primary`，隐藏兼容别名不污染注册表，解析与 `/帮助 全部` 保留完整目录
@@ -86,9 +86,11 @@
 - `WindowsTerminalApp`: 追加完成条目、继续当前未终结前台任务并维护输入/状态尾部 | 终端 I/O | 模型增量以 dirty/revision 合并重绘，其他事件立即刷新；可恢复的任务启动竞争显示为带内错误
 - `tui_lifecycle`：以确定性帧判定管理最高 30fps 动画、审批/交互监听与关闭清理 | 异步任务/终端重绘 | 关闭先请求 token 取消并完整等待持久 interrupt/checkpoint，再有界等待 runner，把残留草稿本地固化一次
 - `EditPlanApprovalView`、`ApprovalBroker`、`load_thread_history`: 提供严格有界且不可变的本地计划摘要/Diff、可取消审批和已保存会话读取 | 异步/SQLite 读取 | 计划预览只能作为 Host 构造的 typed field 注入，模型参数不能伪造；不伪造会话摘要
-- `PickerState`、`PickerItem`：统一命令、会话、模式、Skill、MCP 和插件候选的过滤、键盘选择、补全和禁用原因 | 进程内状态 | `Esc` 取消，不执行候选动作。
+- `approval_card_rows(request, selected)`: 渲染动作、风险、真实命令/路径目标、原因和一次性选择 | 无副作用 | 所有不可信字段单行化并有界截断，默认拒绝
+- `PickerState`、`PickerItem`、`render_picker_panel(...)`：统一命令、会话、模式、Skill、MCP 和插件候选的过滤、两列面板、键盘选择、`Tab` 补全和禁用原因 | 进程内状态 | `Esc` 取消，不执行候选动作
 - `skill_picker_items`、`mcp_picker_items`、`plugin_picker_items`：把 Controller snapshot 转换为共享 Picker 候选和完整命令补全 | 无副作用 | 不把 Skill/Plugin 正文放入候选，未批准 MCP server 显示禁用原因
-- `SteeringQueueView`：投影 queued、steered、dequeued、applied 及队列数量 | 进程内状态 | 只依据持久 `TURN_STARTED`、`CONTEXT_BUILT` 边界推进消费和应用状态。
+- `SubmitMode`、`submit_active_input(...)`、`SteeringQueueView`：分开默认排队与立即转向，投影 queued/steered/dequeued/applied 及数量 | 调用前台任务控制器/进程内状态 | 排队只由 `TASK_FOLLOWUPS_PROMOTED` 应用，转向只由 `TURN_STARTED`/`CONTEXT_BUILT` 推进
+- `pause_active_task(app, reason)`: 在取消令牌与持久 checkpoint 收尾期间投影 `pausing` | 调用前台任务控制器 | 只在活动 runner 上生效，不把请求中状态当成已暂停
 - `HostInteraction`、`InteractionBroker`、`plugin_interaction`：统一 Host 与插件的 `notify`、`confirm`、`input`、`select` 请求及可取消结果 | 异步状态 | 插件请求转换为 Host 所有的交互，不接受预填用户答案。
 - `PluginInteractionAdapter.notify`、`interact`：把 generation-bound PluginProposal 分流为直接 Host 显示或共享 InteractionBroker 请求 | 显示/异步等待 | notify 不等待答案，其余交互可取消且默认不自答
 - `DiffController.load(...)`、`DiffView`：优先从注入的只读 Git 服务读取真实 unified diff，并提供文件导航、路径过滤和评论 | 只读服务调用/进程内状态 | 不直接 stage、unstage 或执行 Git。

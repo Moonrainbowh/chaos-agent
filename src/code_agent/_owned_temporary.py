@@ -101,6 +101,8 @@ def _file_identity(path: Path) -> _FileIdentity:
 
 def _identity_from_stat(metadata: os.stat_result) -> _FileIdentity:
     created = metadata.st_ctime_ns
+    device = metadata.st_dev
     if os.name == "nt":
         created = created // 100 + 116_444_736_000_000_000
-    return metadata.st_dev, metadata.st_ino, created
+        device &= 0xFFFFFFFF
+    return device, metadata.st_ino, created

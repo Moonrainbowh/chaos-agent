@@ -16,6 +16,7 @@ _CLOSE_GRACE_SECONDS = 0.1
 _ANIMATED_STATUSES = frozenset(
     {
         "running",
+        "pausing",
         "building_context",
         "waiting_model",
         "reasoning",

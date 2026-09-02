@@ -12,10 +12,20 @@ class SteeringStage(str, Enum):
     APPLIED = "applied"
 
 
+class SteeringKind(str, Enum):
+    QUEUE = "queue"
+    STEER = "steer"
+
+    @property
+    def label(self) -> str:
+        return "排队" if self is SteeringKind.QUEUE else "转向"
+
+
 @dataclass(frozen=True)
 class SteeringItem:
     identifier: str
     instruction: str
+    kind: SteeringKind = SteeringKind.QUEUE
     stage: SteeringStage = SteeringStage.QUEUED
 
     def __post_init__(self) -> None:
@@ -25,6 +35,8 @@ class SteeringItem:
             raise ValueError("instruction must be bounded non-blank text")
         if not isinstance(self.stage, SteeringStage):
             raise TypeError("stage must be SteeringStage")
+        if not isinstance(self.kind, SteeringKind):
+            raise TypeError("kind must be SteeringKind")
 
 
 class SteeringQueueView:
@@ -33,9 +45,24 @@ class SteeringQueueView:
             raise ValueError("capacity must be positive")
         self._capacity = capacity
         self._items: list[SteeringItem] = []
+        self._early_applied: list[str] = []
 
-    def queue(self, instruction: str, identifier: str | None = None) -> SteeringItem:
-        item = SteeringItem(identifier or uuid.uuid4().hex, instruction)
+    def queue(
+        self,
+        instruction: str,
+        identifier: str | None = None,
+        *,
+        kind: SteeringKind = SteeringKind.QUEUE,
+    ) -> SteeringItem:
+        resolved = identifier or uuid.uuid4().hex
+        stage = (
+            SteeringStage.APPLIED
+            if resolved in self._early_applied
+            else SteeringStage.QUEUED
+        )
+        if stage is SteeringStage.APPLIED:
+            self._early_applied.remove(resolved)
+        item = SteeringItem(resolved, instruction, kind, stage)
         self._items.append(item)
         if len(self._items) > self._capacity:
             self._items.pop(0)
@@ -54,6 +81,20 @@ class SteeringQueueView:
             return updated
         raise KeyError("steering item is unknown")
 
+    def mark_applied(self, identifier: str) -> bool:
+        """Apply a promotion, retaining an event that raced ahead of its view item."""
+        if not isinstance(identifier, str) or not identifier.strip():
+            return False
+        try:
+            self.transition(identifier, SteeringStage.APPLIED)
+        except KeyError:
+            if identifier not in self._early_applied:
+                self._early_applied.append(identifier)
+                if len(self._early_applied) > self._capacity:
+                    self._early_applied.pop(0)
+            return False
+        return True
+
     @property
     def items(self) -> tuple[SteeringItem, ...]:
         return tuple(self._items)
@@ -66,7 +107,7 @@ class SteeringQueueView:
         if not self._items:
             return ""
         latest = self._items[-1]
-        return f"{latest.stage.value} · queue {self.pending_count}"
+        return f"[{latest.kind.label}] {latest.stage.value} · queue {self.pending_count}"
 
 
 _ORDER = {stage: index for index, stage in enumerate(SteeringStage)}

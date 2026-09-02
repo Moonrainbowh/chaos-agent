@@ -16,7 +16,7 @@ class AgentEngineTurnMixin:
     async def _run_turn(
         self, state: _RunState, number: int, user_input: str
     ) -> AsyncIterator[AgentEvent]:
-        async for event in self._before_model_turn(state):
+        async for event in self._before_model_turn(state, number):
             yield event
         if state.stop_requested:
             return
@@ -47,7 +47,7 @@ class AgentEngineTurnMixin:
             yield event
 
     async def _before_model_turn(
-        self, state: _RunState
+        self, state: _RunState, number: int
     ) -> AsyncIterator[AgentEvent]:
         if state.supervisor is None:
             return
@@ -71,6 +71,10 @@ class AgentEngineTurnMixin:
             task.id, state.supervisor.checkpoint_active_seconds()
         )
         await self._journal.consume_task_controls(task.id)
+        if number > 1:
+            followups = await self._promote_task_followups(state, task)
+            if followups is not None:
+                yield followups
 
     async def _start_turn(
         self,
@@ -121,6 +125,10 @@ class AgentEngineTurnMixin:
             await self._journal.record_task_active_seconds(
                 task.id, state.supervisor.checkpoint_active_seconds()
             )
+        followups = await self._promote_task_followups(state, task)
+        if followups is not None:
+            yield followups
+            return
         automatic = await self._run_suggested_verification(
             state.thread_id,
             task,
@@ -135,6 +143,10 @@ class AgentEngineTurnMixin:
                 yield event
             if self._should_stop_after_action(automatic_events):
                 state.stop_requested = True
+                return
+            followups = await self._promote_task_followups(state, task)
+            if followups is not None:
+                yield followups
                 return
             next_task = await self._resolve_task_completion(
                 task, state.thread_id
@@ -151,6 +163,23 @@ class AgentEngineTurnMixin:
         async for event in self._persist_completion_events(state, next_task):
             yield event
         state.stop_requested = True
+
+    async def _promote_task_followups(
+        self, state: _RunState, task: TaskRecord
+    ) -> AgentEvent | None:
+        promoted = await self._journal.promote_task_followups(task.id)
+        if not promoted:
+            return None
+        event = AgentEvent(
+            EventKind.TASK_FOLLOWUPS_PROMOTED,
+            {
+                "task_id": task.id,
+                "ids": [identifier for identifier, _ in promoted],
+                "count": len(promoted),
+            },
+        )
+        await self._journal.append_event(state.thread_id, event)
+        return event
 
     async def _persist_completion_events(
         self, state: _RunState, task: TaskRecord

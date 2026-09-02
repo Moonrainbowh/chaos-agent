@@ -17,6 +17,7 @@
 - `COMPLETED` 只能由最新 contract、subject generation 和 required evidence 的系统评估产生；模型文本或 completion candidate 不能直接完成任务。
 - 负责协调抽象 `VerificationService` 的完成评估与 `VERIFYING` 状态；不导入具体 verification 或 projects adapter。
 - 语义上下文构建消耗当前持久任务冻结的模型、profile、token、时间和取消预算，不存在隐藏的免费调用。
+- 负责：转向消息在下一模型回合前消费；排队 follow-up 仅在当前回合已无工具调用、任务完成/验证门之前按序提升，提升后继续同一任务而不发布虚假完成。
 
 - 负责：把 owner/origin thread、task、request 和 parent request 作为不可变 Action execution context 显式传给 dispatcher。
 - 不负责：工作区快照、mutation journal、coverage 或 rewind UI。
@@ -47,7 +48,7 @@
 - `TaskBudget`: 表达可恢复任务的模型名、限制和已消耗额度 | 无副作用 | 只允许单调增加的使用量
 - `TaskAuthorization`、`TaskContract`、`TaskRecord`、`TaskStatus`: 表达前台自主任务的范围、预算和生命周期 | 无副作用 | `ACCEPTED_PARTIAL` 只能由显式用户决定产生；`SUPERSEDED` 是不可恢复执行的终态
 - `TaskSupervisor.observe(...)`: 根据恢复后的持久预算、验证结果和失败指纹决定继续、checkpoint、暂停或等待决策 | 无副作用 | 累计活跃时间、重复失败和修复循环不依赖进程内状态
-- `AgentEngine.run(..., task=...)`: 在同一 thread 内执行显式任务并持久化任务事件 | 调用抽象模型、动作与会话协议 | root 动作使用 active thread/task 归因；安全边界消费 steering，自动验证通过后由持久完成门收尾
+- `AgentEngine.run(..., task=...)`: 在同一 thread 内执行显式任务并持久化任务事件 | 调用抽象模型、动作与会话协议 | 模型回合前消费 steering；无工具回合在完成门前原子提升 FIFO follow-up，发布 `TASK_FOLLOWUPS_PROMOTED` 后继续同一任务
 - `AgentEngine.run(user_input, thread_id, cancellation)`: 持久化并流式发布回合、模型、工具和终态事件 | 调用抽象模型、动作与会话协议 | ad-hoc root 的 owner/origin 均为 active thread，child engine 继承构造器 lineage；未声明工具、重复 ID、无完成事件和预算越界均失败闭合
 - `AgentEngine.run_peer(thread_id, cancellation)`: 不制造 user Message 地唤醒一个不可信 peer 回合，并在首个合法模型事件持久化后确认其上下文 | 调用抽象模型、上下文、动作与会话协议 | 工具强制投影到构造时冻结的 peer allowlist；默认空集，不能取得 TaskAuthorization
 - `SessionJournal`: 把会话协议异常转换为稳定的内核持久化错误 | 调用会话协议 | 不允许不可信历史消息进入上下文

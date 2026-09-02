@@ -23,6 +23,7 @@ from code_agent.interfaces.terminal_io import BRACKETED_PASTE_DISABLE, BRACKETED
 from code_agent.interfaces.terminal_state import ApprovalBroker, ApprovalRequest
 from code_agent.interfaces.tests._support import FakeEngine
 from code_agent.interfaces.windows_tui import WindowsTerminalApp, render_terminal
+from code_agent.interfaces.tui_submission import SubmitMode
 
 
 _ANSI = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
@@ -91,14 +92,50 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
     async def test_pending_approval_rejects_escape_and_locks_new_submission(self) -> None:
         broker = ApprovalBroker()
         app = WindowsTerminalApp(AgentController(FakeEngine(())), broker, write=lambda _: None)
-        request = ApprovalRequest("approval-1", "run_command", {"command": "Get-Date"})
+        request = ApprovalRequest(
+            "approval-1",
+            "run_command",
+            {"command": "Get-Date"},
+            "high",
+            "outside workspace",
+            "approval required for access outside the workspace",
+        )
         pending = asyncio.create_task(broker.request(request, CancellationToken()))
         app._pending_approval = await broker.next_request()
+
+        card = "\n".join(app.interactions.rows(app))
+        self.assertIn("动作: run_command", card)
+        self.assertIn("风险: high", card)
+        self.assertIn("目标: Get-Date", card)
+        self.assertIn("原因: approval required", card)
+        self.assertIn("仅允许这一次", card)
+        self.assertIn("› 拒绝", card)
 
         self.assertFalse(await app.submit("second request"))
         await app.handle_key("\x1b")
 
         self.assertFalse(await pending)
         self.assertIsNone(app._pending_approval)
+
+    async def test_tab_toggles_running_submit_from_queue_to_steer(self) -> None:
+        class Tasks:
+            async def steer(self, task_id: str, instruction: str) -> None:
+                self.seen = task_id, instruction
+
+        tasks = Tasks()
+        app = WindowsTerminalApp(
+            AgentController(FakeEngine(())), ApprovalBroker(), tasks=tasks, write=lambda _: None
+        )
+        app.active_task_id = "task-1"
+        app._run_task = asyncio.create_task(asyncio.sleep(10))
+        try:
+            await app.handle_key("\t")
+            self.assertIs(app.submit_mode, SubmitMode.STEER)
+            self.assertTrue(await app.submit("change direction"))
+        finally:
+            app._run_task.cancel()
+            await asyncio.gather(app._run_task, return_exceptions=True)
+
+        self.assertEqual(tasks.seen, ("task-1", "change direction"))
 
 if __name__ == "__main__": unittest.main()

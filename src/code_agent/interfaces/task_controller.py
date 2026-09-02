@@ -180,6 +180,27 @@ class ForegroundTaskController:
             control,
         )
 
+    async def queue(
+        self,
+        task_id: str,
+        instruction: str,
+        *,
+        attachments: Sequence[AttachmentRef] = (),
+    ) -> str:
+        checked = freeze_attachments(tuple(attachments))
+        if (
+            not isinstance(instruction, str)
+            or len(instruction) > 1024
+            or (not instruction.strip() and not checked)
+        ):
+            raise ValueError("instruction or attachments must be bounded input")
+        control = instruction if instruction.strip() else "apply attached user input"
+        return await self._sessions.record_task_followup(
+            task_id,
+            Message(role="user", content=instruction, attachments=checked),
+            control,
+        )
+
     async def reconcile_stale_tasks(self) -> tuple[str, ...]:
         reconcile = getattr(self._sessions, "reconcile_stale_tasks", None)
         if not callable(reconcile):

@@ -6,7 +6,13 @@ from pathlib import Path
 from typing import BinaryIO, Callable
 
 from . import _posix_io
-from ._secure_io import PathIdentity, TargetState, is_regular, verify_target_state
+from ._secure_io import (
+    PathIdentity,
+    TargetState,
+    identity_from_stat,
+    is_regular,
+    verify_target_state,
+)
 from ._secure_posix import open_verified_directory
 from .errors import FileTooLargeError, PathOutsideWorkspace, WorkspaceError
 from .paths import WorkspacePathGuard
@@ -59,14 +65,7 @@ def _verify_open_handle(
         metadata = os.fstat(stream.fileno())
     except OSError as error:
         raise WorkspaceError(f"cannot inspect open file: {state.target}") from error
-    opened = PathIdentity(
-        metadata.st_dev,
-        metadata.st_ino,
-        metadata.st_mode,
-        getattr(metadata, "st_file_attributes", 0),
-        metadata.st_size,
-        metadata.st_mtime_ns,
-    )
+    opened = identity_from_stat(metadata)
     if opened != state.identity or not _same_metadata(opened, state.identity):
         raise WorkspaceError(f"path changed during inventory: {state.target}")
     verify_target_state(state, guard, {}, context="inventory")

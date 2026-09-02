@@ -156,16 +156,32 @@ entries to the normal Windows Terminal buffer. Windows Terminal owns selection,
 copying, and scrollback. The default visual profile uses Unicode symbols,
 medium transcript spacing, cyan emphasis, dim-gray tool records, and green
 only for task-level completion. The live tail keeps a single bordered composer;
-typing `/` places keyboard-selectable command candidates above it; `Up`/`Down`
-move, `Enter` completes or selects, and `Esc` closes the Picker. Disabled
-candidates retain a visible reason. The root Picker and default `/帮助` contain
-exactly 11 everyday entries: `/帮助`, `/状态`, `/新建`, `/会话`, `/任务`, `/差异`,
-`/附件`, `/回退`, `/模式`, `/权限`, and `/退出`. Advanced commands remain directly
-typeable and `/帮助 全部` shows the complete registry. Compound commands open a
+pressing `Shift+:` opens a bordered command panel with search plus aligned
+command/description columns. `Up`/`Down` move, `Tab` completes, `Enter` executes
+or opens a child menu, and `Esc` closes the Picker. The old `/` prefix remains
+compatible. The root Picker and default `:帮助` contain ten everyday entries:
+`:帮助`, `:状态`, `:新建`, `:会话`, `:任务`, `:附件`, `:回退`, `:模式`, `:权限`,
+and `:退出`. Diff is deferred from the default TUI; `:差异` remains an advanced
+compatibility command. `:帮助 全部` shows the complete registry. Compound commands open a
 second-level action menu instead of flattening every action into the root.
 The status row keeps dynamic
 work on the left and model/elapsed context on the right when space allows.
 `NO_COLOR` disables ANSI color.
+
+While a foreground task is running, `Enter` defaults to durable `[排队]`: the
+message stays out of the current turn and is promoted FIFO when that turn
+reaches its safe completion boundary. `Tab` outside a command panel toggles the
+composer to `[转向]`; the next submission is persisted immediately and applies
+at the next model boundary without hard-killing an active tool. `Esc` shows
+`pausing` until cancellation and the pause checkpoint settle. Queued messages
+survive pause, interruption, and process restart.
+
+The default `auto` policy trusts recognized reads, writes, local PowerShell, and
+shell-free processes inside the selected workspace. Network operations,
+outside-workspace targets, protected paths/credentials, and irreversible
+system-level operations keep their approval or denial boundary. Approval cards
+default to reject and show action, target, risk, policy reason, and an
+allow-once choice.
 
 ### Same-machine session messaging
 
@@ -235,15 +251,15 @@ policy risks together.
 
 ## Safety Defaults
 
-- `CHAOS_APPROVAL_MODE=auto` is the default. Ordinary typed workspace reads and writes are allowed, while model-provided raw PowerShell requires TUI approval.
-- Use `/权限` (or `/permission`) while idle to select `unrestricted`, `plan`, `ask`, `auto`, `elevated`, or `full-local` for subsequent tasks. The same values are accepted by `[agent].approval_mode` and `CHAOS_APPROVAL_MODE`.
-- `plan` allows workspace reads only. `ask` approves writes and commands interactively. `auto` keeps command approval and asks for outside-workspace access. `elevated` and `full-local` retain their policy-level external-access rules, but production typed file tools still fail closed at the workspace boundary; approved typed external-file access is not implemented yet.
+- `CHAOS_APPROVAL_MODE=auto` is the default. Once the current workspace is selected, ordinary workspace reads, writes, non-critical local commands, and structured verification run without per-action approval. Network access, protected paths, and paths outside that workspace still require approval; unknown and critical actions remain denied.
+- Use `:权限` (or the compatible `/权限` and English `permission` alias) while idle to select `unrestricted`, `plan`, `ask`, `auto`, `elevated`, or `full-local` for subsequent tasks. The same values are accepted by `[agent].approval_mode` and `CHAOS_APPROVAL_MODE`.
+- `plan` allows workspace reads only. `ask` approves writes and commands interactively. `auto` and `elevated` trust recognized actions inside the configured workspace. `full-local` also allows recognized non-critical local actions but asks at network and outside-workspace boundaries. Production typed file tools still fail closed at the workspace boundary; approving typed external-file access is not implemented yet.
 - `unrestricted` is an explicit high-trust mode: recognized non-critical raw PowerShell and network actions run without per-action approval, and raw PowerShell can reach paths available to the current Windows user. Typed file tools remain workspace-contained, typed actions that explicitly target protected paths still require approval, and critical or unknown actions remain denied.
 - `allow_sensitive_paths = true` (or `CHAOS_ALLOW_SENSITIVE_PATHS=true`) is a separate explicit opt-in for typed workspace file tools to access `.env` files and private-key names. It is not an OS sandbox: approved raw PowerShell, and raw PowerShell in explicit `unrestricted` mode, runs as the current Windows user and can bypass typed file guards. `.git`, `.code-agent`, local API configuration directories, cross-task `chaos-agent-workspaces` access, and symlink/reparse paths remain protected from typed file tools at every level.
 - Configurations that omit `approval_mode` now resolve to `auto`. Set `unrestricted` explicitly only when the legacy high-trust behavior is intended.
 - Unknown and critical actions are denied. Destructive commands and unbounded output are rejected.
 - `delegate_agent` is a normal typed action. It is policy checked before a child starts; child output is explicitly advisory and never counts as verification evidence or parent completion.
-- `run_command` represents model-provided raw PowerShell in the frozen dialect. Its UTF-8 wrapper preserves top-level `using`/`param`/`return`, uses `ErrorActionPreference=Stop` by default, and treats explicit catch/`Continue`/`SilentlyContinue`/`Ignore` as script-controlled recovery. It never sends native stdout/stderr through a PowerShell object pipeline, so raw bytes, missing final newlines, and control characters remain intact; genuine native stderr with exit zero succeeds, while the last nonzero native exit code has priority. `run_process_v1` instead accepts only `program`, literal `args`, optional workspace-relative `cwd`, a bounded timeout, and independent stdout/stderr encodings; it has no shell parsing, environment override, stdin, redirection, pipeline, glob, or variable expansion, and rejects shell launchers plus `.cmd/.bat`. Both remain approval-requiring model-provided execution outside explicit non-critical `unrestricted` use, and every actual attempt invalidates older verification evidence. `run_verification` alone accepts a registered kind plus constrained relative paths and lets the local adapter generate fixed argv for trusted verification.
+- `run_command` represents model-provided raw PowerShell in the frozen dialect. Its UTF-8 wrapper preserves top-level `using`/`param`/`return`, uses `ErrorActionPreference=Stop` by default, and treats explicit catch/`Continue`/`SilentlyContinue`/`Ignore` as script-controlled recovery. It never sends native stdout/stderr through a PowerShell object pipeline, so raw bytes, missing final newlines, and control characters remain intact; genuine native stderr with exit zero succeeds, while the last nonzero native exit code has priority. `run_process_v1` instead accepts only `program`, literal `args`, optional workspace-relative `cwd`, a bounded timeout, and independent stdout/stderr encodings; it has no shell parsing, environment override, stdin, redirection, pipeline, glob, or variable expansion, and rejects shell launchers plus `.cmd/.bat`. In the default trusted-workspace flow, recognized non-critical commands run without per-action approval; network, protected-path, and outside-workspace signals still raise an approval card. Every actual attempt invalidates older verification evidence. `run_verification` accepts a registered kind plus constrained relative paths and lets the local adapter generate fixed argv for trusted verification.
 - Process output defaults to strict UTF-8; BOM or an explicit UTF-8/UTF-16/Windows ANSI/OEM selection is decoded per stream. Undecodable or mixed output is reported with exact Base64 and code-page metadata rather than replacement characters, and output-limit metadata identifies the stream that actually lost bytes. Typed file reads return encoding/BOM/newline/code-page metadata; edits preserve existing UTF-8/16/32 BOM and consistent newline style, while new files default to UTF-8 without BOM. Legacy ANSI/OEM files require an explicit encoding.
 - The local runtime is controlled process execution, not an OS-level sandbox. Typed verification executes user-authorized project code under the current Windows user and therefore does not isolate that code's indirect filesystem or network effects. Docker is optional and uses no network and no image pulls.
 - On Windows 10/11, each local command gets an anonymous Job Object configured with `KILL_ON_JOB_CLOSE`. The root process is created suspended, identity-bound, assigned to the Job, and only then resumed. Timeout, cancellation, and output-limit termination target the Job first; assignment or Job API failures are reported instead of silently running without containment. The runtime waits for Job accounting to reach zero, closes the Job, and requires both pipe readers to reach EOF before returning; ordinary inherited children left after a normal root exit are terminated during the same finalization. This process ownership boundary is not an OS sandbox and does not claim to contain service-mediated or explicit breakaway execution.

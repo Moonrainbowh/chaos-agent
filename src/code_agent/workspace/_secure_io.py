@@ -163,8 +163,11 @@ def _inspect_path(
 
 
 def identity_from_stat(metadata: os.stat_result) -> PathIdentity:
+    device = metadata.st_dev
+    if os.name == "nt":
+        device &= 0xFFFFFFFF
     return PathIdentity(
-        metadata.st_dev,
+        device,
         metadata.st_ino,
         metadata.st_mode,
         getattr(metadata, "st_file_attributes", 0),

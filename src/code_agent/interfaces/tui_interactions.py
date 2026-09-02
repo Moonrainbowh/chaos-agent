@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from .command_availability import available_services
+from .approval_card import approval_card_rows
 from .command_registry import REGISTRY
-from code_agent.core.attachments import AttachmentRef
 from .diff_interaction import DiffInteraction
 from .diff_view import DiffController, GitDiffSource
 from .tui_diff_commands import handle_diff_key, show_diff
@@ -12,7 +12,8 @@ from .picker import (
 )
 from .extension_picker import dynamic_picker_items, picker_context
 from .terminal_display import DisplayKind
-from .steering_view import SteeringQueueView, SteeringStage
+from .steering_view import SteeringQueueView
+from .tui_active_input import observe_active_input
 from code_agent.core.events import EventKind
 from .agent_status import AgentRunStatusProjection
 from .interaction import (
@@ -51,17 +52,7 @@ class TuiInteractions:
             )
             if plan_rows is not None:
                 return plan_rows
-            target = approval.target or approval.name
-            risk = f" · risk {approval.risk}" if approval.risk else ""
-            rows = [f"approval · {approval.name}{risk}", f"target: {target}"]
-            rows.extend(
-                (
-                    ("› " if self.approval_choice == 0 else "  ") + "No",
-                    ("› " if self.approval_choice == 1 else "  ") + "Yes",
-                    "Enter select · Esc cancel",
-                )
-            )
-            return tuple(rows)
+            return approval_card_rows(approval, self.approval_choice)
         interaction = getattr(app, "_pending_interaction", None)
         if interaction is not None:
             return render_interaction(interaction, self.interaction_choice)
@@ -76,52 +67,23 @@ class TuiInteractions:
             items, query = dynamic
             self.picker.set_items(items)
             self.picker.update_query(query)
-            return self.picker.rows(app._columns())
+            return self.picker.panel_rows(app._columns())
         registry = getattr(app, "command_registry", REGISTRY)
         parent, query = picker_context(app.input.text, registry)
-        self.picker.set_items(command_picker_items(registry.all(), services, parent=parent))
+        prefix = app.input.text[:1] if app.input.text[:1] in {":", "/"} else ":"
+        self.picker.set_items(
+            command_picker_items(
+                registry.all(), services, parent=parent, command_prefix=prefix
+            )
+        )
         self.picker.update_query(query)
-        if app.input.text.startswith("/"):
-            return self.picker.rows(app._columns())
+        if app.input.text.startswith(("/", ":")):
+            return self.picker.panel_rows(app._columns())
         draft = getattr(app, "attachment_draft", None)
         return draft.rows() if draft is not None and draft.items else ()
 
-    async def steer(
-        self,
-        app: object,
-        task_id: str,
-        instruction: str,
-        attachments: tuple[AttachmentRef, ...] = (),
-    ) -> None:
-        item = self.steering.queue(instruction)
-        app._append(DisplayKind.METADATA, f"queued · queue {self.steering.pending_count}")
-        if attachments:
-            await app.tasks.steer(
-                task_id, instruction, attachments=attachments
-            )
-        else:
-            await app.tasks.steer(task_id, instruction)
-        self.steering.transition(item.identifier, SteeringStage.STEERED)
-        app._append(DisplayKind.METADATA, f"steered · queue {self.steering.pending_count}")
-
-    def observe_event(self, app: object, kind: EventKind) -> None:
-        target = None
-        if kind is EventKind.TURN_STARTED:
-            target = SteeringStage.DEQUEUED
-        elif kind is EventKind.CONTEXT_BUILT:
-            target = SteeringStage.APPLIED
-        if target is None:
-            return
-        changed = False
-        for item in self.steering.items:
-            if target is SteeringStage.DEQUEUED and item.stage is SteeringStage.STEERED:
-                self.steering.transition(item.identifier, target)
-                changed = True
-            elif target is SteeringStage.APPLIED and item.stage is SteeringStage.DEQUEUED:
-                self.steering.transition(item.identifier, target)
-                changed = True
-        if changed:
-            app._append(DisplayKind.METADATA, self.steering.status_line())
+    def observe_event(self, app: object, event: object) -> None:
+        observe_active_input(self, app, event)
 
     def observe_agent(self, app: object, view: object) -> None:
         line = self.agent_status.observe(view)
@@ -191,7 +153,7 @@ class TuiInteractions:
         return True
 
     async def _handle_picker_key(self, app: object, key: str) -> bool:
-        if not app.input.text.startswith("/"):
+        if not app.input.text.startswith(("/", ":")):
             return False
         self.rows(app)
         if key == "up":
@@ -202,6 +164,11 @@ class TuiInteractions:
             return True
         if key == "\x1b":
             app.input.clear()
+            return True
+        if key == "\t":
+            selection = self.picker.accept()
+            if selection is not None:
+                app.input.replace(selection.completion)
             return True
         if key == "\r":
             if _is_complete_command(
@@ -218,7 +185,7 @@ class TuiInteractions:
                     getattr(app, "command_registry", REGISTRY),
                 )
                 if parent is not None:
-                    app.input.replace(f"/{parent.name} ")
+                    app.input.replace(f"{app.input.text[0]}{parent.name} ")
                     return True
                 await app.submit(app.input.submit())
                 return True
@@ -283,7 +250,7 @@ def _is_complete_command(
 
 
 def _compound_parent(text: str, registry: object = REGISTRY) -> object | None:
-    if not text.startswith("/") or any(
+    if not text.startswith(("/", ":")) or any(
         character.isspace() for character in text[1:]
     ):
         return None

@@ -53,8 +53,8 @@ class PathSecurityTests(unittest.TestCase):
         self.assertEqual(ask.evaluate(write).outcome, DecisionOutcome.DENY)
         self.assertEqual(elevated.evaluate(read).outcome, DecisionOutcome.ASK)
         self.assertEqual(elevated.evaluate(write).outcome, DecisionOutcome.ASK)
-        self.assertEqual(full.evaluate(read).outcome, DecisionOutcome.ALLOW)
-        self.assertEqual(full.evaluate(write).outcome, DecisionOutcome.ALLOW)
+        self.assertEqual(full.evaluate(read).outcome, DecisionOutcome.ASK)
+        self.assertEqual(full.evaluate(write).outcome, DecisionOutcome.ASK)
 
     def test_absolute_path_outside_workspace_is_high_risk(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

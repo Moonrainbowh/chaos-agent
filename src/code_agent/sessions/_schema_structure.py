@@ -7,6 +7,7 @@ from .errors import SessionCorruptionError
 
 
 _FOREIGN_KEYS = {
+    "task_followups": {("task_id", "tasks", "id", "CASCADE")},
     "workspace_lineages": {("owner_task_id", "tasks", "id", "NO ACTION")},
     "tasks": {("workspace_lineage_id", "workspace_lineages", "id", "NO ACTION")},
     "workspace_snapshots": {("lineage_id", "workspace_lineages", "id", "NO ACTION")},
@@ -62,6 +63,9 @@ _FOREIGN_KEYS = {
 }
 
 _INDEXES = {
+    "task_followups_task_sequence": (
+        "task_followups", ("task_id", "sequence"), False, False
+    ),
     "workspace_lineages_status_updated": (
         "workspace_lineages", ("status", "updated_at", "id"), False, False
     ),

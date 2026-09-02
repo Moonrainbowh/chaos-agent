@@ -1,6 +1,11 @@
 from __future__ import annotations
 
 
+FOLLOWUP_MIGRATION = (
+    "CREATE TABLE task_followups (sequence INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT NOT NULL UNIQUE, task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE, payload TEXT NOT NULL, instruction TEXT NOT NULL, created_at TEXT NOT NULL)",
+    "CREATE INDEX task_followups_task_sequence ON task_followups(task_id, sequence)",
+)
+
 REQUIRED_COLUMNS = {
     "threads": {"id", "created_at", "updated_at", "title", "status", "parent_thread_id"},
     "messages": {"sequence", "thread_id", "payload", "created_at"},
@@ -22,6 +27,9 @@ REQUIRED_COLUMNS = {
         "updated_at", "workspace_lineage_id",
     },
     "task_controls": {"sequence", "task_id", "instruction", "created_at"},
+    "task_followups": {
+        "sequence", "id", "task_id", "payload", "instruction", "created_at",
+    },
     "task_executions": {"task_id", "instance_id", "owner_pid", "owner_create_time", "started_at"},
     "task_contract_revisions": {"task_id", "revision", "payload", "created_at"},
     "verification_runs": {"id", "task_id", "generation", "subject_hash", "status", "created_at", "completed_at"},

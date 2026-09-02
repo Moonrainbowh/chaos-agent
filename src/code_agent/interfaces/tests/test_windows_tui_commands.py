@@ -68,13 +68,14 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
         help_text = app.state.entries[-1].text
         self.assertIn("通用\n", help_text)
         for name in (
-            "帮助", "状态", "新建", "会话", "任务", "差异", "附件",
+            "帮助", "状态", "新建", "会话", "任务", "附件",
             "回退", "模式", "权限", "退出",
         ):
-            self.assertIn(f"/{name}", help_text)
-        self.assertNotIn("/清屏", help_text)
-        self.assertNotIn("/证据", help_text)
-        self.assertNotIn("/插件", help_text)
+            self.assertIn(f":{name}", help_text)
+        self.assertNotIn(":差异", help_text)
+        self.assertNotIn(":清屏", help_text)
+        self.assertNotIn(":证据", help_text)
+        self.assertNotIn(":插件", help_text)
 
     async def test_help_all_includes_advanced_commands(self) -> None:
         app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker(), write=lambda _: None)
@@ -82,9 +83,9 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(await app.submit("/帮助 全部"))
 
         help_text = app.state.entries[-1].text
-        self.assertIn("/清屏", help_text)
-        self.assertIn("/证据", help_text)
-        self.assertIn("/插件", help_text)
+        self.assertIn(":清屏", help_text)
+        self.assertIn(":证据", help_text)
+        self.assertIn(":插件", help_text)
 
     async def test_mode_prefix_enters_runtime_selection_secondary_menu(self) -> None:
         class RuntimeSelection:

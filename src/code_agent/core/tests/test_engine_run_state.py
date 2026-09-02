@@ -23,7 +23,6 @@ from code_agent.core.models import (  # noqa: E402
     ToolDefinition,
     Usage,
 )
-from code_agent.core.cancellation import CancellationToken  # noqa: E402
 from code_agent.core.task_state import TaskState  # noqa: E402
 from code_agent.core.task import TaskAuthorization, TaskContract, TaskStatus  # noqa: E402
 from code_agent.sessions.repository import SQLiteSessionRepository  # noqa: E402
@@ -79,6 +78,148 @@ class AgentEngineRunTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertIn(Message("user", "change direction"), context.calls[0][0])
             self.assertEqual(await sessions.consume_task_controls(task.id), ())
+
+    async def test_queued_followup_is_promoted_only_after_current_turn_finishes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            sessions = SQLiteSessionRepository(Path(directory) / "sessions.sqlite3")
+            thread_id = await sessions.create_thread()
+            task = await sessions.create_task(
+                thread_id,
+                TaskContract("repair", TaskAuthorization.local_workspace(directory)),
+            )
+            task = await sessions.transition_task(task.id, TaskStatus.RUNNING)
+            queued = Message("user", "then update the docs")
+            await sessions.record_task_followup(task.id, queued, queued.content)
+            context = FakeContextBuilder()
+            engine = AgentEngine(
+                FakeModelClient(
+                    (
+                        (model_event(ModelEventKind.COMPLETED),),
+                        (model_event(ModelEventKind.COMPLETED),),
+                    )
+                ),
+                context,
+                FakeActionDispatcher(),
+                sessions,
+            )
+
+            events = [
+                event
+                async for event in engine.run(
+                    "repair", thread_id=thread_id, task=task
+                )
+            ]
+
+            self.assertNotIn(queued, context.calls[0][0])
+            self.assertIn(queued, context.calls[1][0])
+            self.assertEqual(
+                [event.kind for event in events].count(
+                    EventKind.TASK_FOLLOWUPS_PROMOTED
+                ),
+                1,
+            )
+
+    async def test_followup_queued_during_verification_is_promoted_after_tool(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            sessions = SQLiteSessionRepository(Path(directory) / "sessions.sqlite3")
+            thread_id = await sessions.create_thread()
+            task = await sessions.create_task(
+                thread_id,
+                TaskContract("repair", TaskAuthorization.local_workspace(directory)),
+            )
+            task = await sessions.transition_task(task.id, TaskStatus.RUNNING)
+            queued = Message("user", "use the new direction")
+
+            class QueueDuringVerificationEngine(AgentEngine):
+                verification_started = False
+
+                async def _run_suggested_verification(self, *args: object):
+                    if self.verification_started:
+                        return None
+                    self.verification_started = True
+                    await sessions.record_task_followup(
+                        task.id, queued, queued.content
+                    )
+                    return args[4], ()
+
+            context = FakeContextBuilder()
+            engine = QueueDuringVerificationEngine(
+                FakeModelClient(
+                    (
+                        (model_event(ModelEventKind.COMPLETED),),
+                        (model_event(ModelEventKind.COMPLETED),),
+                    )
+                ),
+                context,
+                FakeActionDispatcher(),
+                sessions,
+            )
+
+            events = [
+                event
+                async for event in engine.run(
+                    "repair", thread_id=thread_id, task=task
+                )
+            ]
+
+            self.assertIn(queued, context.calls[1][0])
+            self.assertEqual(
+                [event.kind for event in events].count(
+                    EventKind.TASK_FOLLOWUPS_PROMOTED
+                ),
+                1,
+            )
+
+    async def test_followup_queued_during_tool_is_in_the_next_model_turn(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            sessions = SQLiteSessionRepository(Path(directory) / "sessions.sqlite3")
+            thread_id = await sessions.create_thread()
+            task = await sessions.create_task(
+                thread_id,
+                TaskContract("repair", TaskAuthorization.local_workspace(directory)),
+            )
+            task = await sessions.transition_task(task.id, TaskStatus.RUNNING)
+            queued = Message("user", "change the next step")
+
+            class QueueDuringToolDispatcher(FakeActionDispatcher):
+                async def dispatch(self, *args: object, **kwargs: object) -> ActionResult:
+                    result = await super().dispatch(*args, **kwargs)  # type: ignore[arg-type]
+                    await sessions.record_task_followup(
+                        task.id, queued, queued.content
+                    )
+                    return result
+
+            call = ToolCall("call-1", "read_file", {"path": "README.md"})
+            model = FakeModelClient(
+                (
+                    (
+                        model_event(ModelEventKind.TOOL_CALL, tool_call=call),
+                        model_event(ModelEventKind.COMPLETED),
+                    ),
+                    (model_event(ModelEventKind.COMPLETED),),
+                )
+            )
+            dispatcher = QueueDuringToolDispatcher(
+                (ActionResult("call-1", "read_file", {"text": "ok"}),)
+            )
+            context = FakeContextBuilder()
+            engine = AgentEngine(model, context, dispatcher, sessions)
+
+            events = [
+                event
+                async for event in engine.run(
+                    "repair", thread_id=thread_id, task=task
+                )
+            ]
+
+            self.assertNotIn(queued, context.calls[0][0])
+            self.assertIn(queued, context.calls[1][0])
+            self.assertEqual(
+                [event.kind for event in events].count(
+                    EventKind.TASK_FOLLOWUPS_PROMOTED
+                ),
+                1,
+            )
 
     async def test_blank_user_input_is_rejected_before_thread_creation(self) -> None:
         sessions = MemorySessionRepository()

@@ -9,6 +9,7 @@ def status_presentation(
 ) -> tuple[str, str, str | None]:
     symbols = theme is Theme.SYMBOL
     if status in {
+        "pausing",
         "building_context",
         "waiting_model",
         "reasoning",
@@ -16,6 +17,7 @@ def status_presentation(
         "preparing_action",
     }:
         labels = {
+            "pausing": ("正在暂停", "pausing"),
             "building_context": ("正在准备工作区", "preparing workspace"),
             "waiting_model": ("正在等待模型", "waiting for model"),
             "reasoning": ("正在分析", "analyzing"),

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 from .command_registry import REGISTRY
 from .picker import mcp_picker_items, skill_picker_items
 from .plugin_picker import plugin_picker_items
@@ -17,7 +19,7 @@ _PLUGIN_ACTIONS = {"status", "状态", "enable", "启用", "disable", "禁用"}
 def picker_context(
     text: str, registry: object = REGISTRY
 ) -> tuple[object | None, str]:
-    if not text.startswith("/"):
+    if not text.startswith(("/", ":")):
         return None, ""
     body = text[1:]
     head, remainder = _split_token(body)
@@ -37,6 +39,19 @@ def dynamic_picker_items(
         return None
     command, action, query = parsed
     items = _resource_picker_items(app, command, action)
+    if items is not None and app.input.text.startswith(":"):
+        items = tuple(
+            replace(
+                item,
+                label=":" + item.label[1:] if item.label.startswith("/") else item.label,
+                completion=(
+                    ":" + item.completion[1:]
+                    if item.completion and item.completion.startswith("/")
+                    else item.completion
+                ),
+            )
+            for item in items
+        )
     return None if items is None else (items, query)
 
 
@@ -56,7 +71,7 @@ def _resource_picker_items(
 
 
 def _dynamic_request(text: str) -> tuple[str, str, str] | None:
-    if not text.startswith("/"):
+    if not text.startswith(("/", ":")):
         return None
     command, remainder = _split_token(text[1:])
     if remainder is None:

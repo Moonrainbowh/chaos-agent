@@ -12,7 +12,7 @@ from code_agent.sessions.repository import SQLiteSessionRepository
 
 
 class EditBatchMigrationTests(unittest.TestCase):
-    def test_v18_migrates_to_v19_with_empty_batch_tables(self) -> None:
+    def test_v18_migrates_through_v19_batch_tables(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             database = Path(temporary) / "sessions.sqlite3"
             with closing(sqlite3.connect(database)) as connection, connection:
@@ -42,8 +42,8 @@ class EditBatchMigrationTests(unittest.TestCase):
                         "PRAGMA table_info(workspace_edit_batch_operations)"
                     )
                 }
-            self.assertEqual(SCHEMA_VERSION, 19)
-            self.assertEqual(version, 19)
+            self.assertEqual(SCHEMA_VERSION, 20)
+            self.assertEqual(version, 20)
             self.assertEqual(counts, (0, 0))
             self.assertIn("workspace_edit_batches_one_unresolved", indexes)
             self.assertTrue(

@@ -248,16 +248,17 @@ class AttachmentTuiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(draft.items), 1)
         self.assertEqual(app.state.entries[-1].kind, DisplayKind.ERROR)
 
-    async def test_running_task_attachment_steering_uses_same_durable_path(self) -> None:
+    async def test_running_task_attachment_defaults_to_durable_queue(self) -> None:
         class Tasks:
-            async def steer(
+            async def queue(
                 self,
                 task_id: str,
                 instruction: str,
                 *,
                 attachments: tuple[AttachmentRef, ...],
-            ) -> None:
+            ) -> str:
                 self.seen = task_id, instruction, attachments
+                return "followup-1"
 
         tasks = Tasks()
         draft = AttachmentDraft(_Ingestor())

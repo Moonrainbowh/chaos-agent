@@ -40,4 +40,4 @@ class CommandSpec:
 
     @property
     def display(self) -> str:
-        return "/" + self.name + (" " + self.usage if self.usage else "")
+        return ":" + self.name + (" " + self.usage if self.usage else "")

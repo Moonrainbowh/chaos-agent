@@ -110,18 +110,27 @@ class TuiCommandTests(unittest.TestCase):
         self.assertEqual(
             tuple(spec.name for spec in REGISTRY.primary()),
             (
-                "帮助", "状态", "新建", "会话", "任务", "差异", "附件",
+                "帮助", "状态", "新建", "会话", "任务", "附件",
                 "回退", "模式", "权限", "退出",
             ),
         )
         self.assertTrue(
-            all(spec.visibility is CommandVisibility.ADVANCED for spec in REGISTRY.all()[11:])
+            all(
+                spec.visibility is not CommandVisibility.PRIMARY
+                for spec in REGISTRY.all()
+                if spec.name not in {item.name for item in REGISTRY.primary()}
+            )
         )
 
     def test_advanced_commands_remain_directly_parseable_but_not_filter_candidates(self) -> None:
         self.assertEqual(parse_tui_command("/清屏").command.kind, TuiCommandKind.CLEAR)
         self.assertEqual(parse_tui_command("/证据 T-042").command.kind, TuiCommandKind.EVIDENCE)
         self.assertEqual(REGISTRY.filter("/证", {"evidence"}), ())
+
+    def test_colon_is_the_primary_prefix_and_slash_remains_compatible(self) -> None:
+        self.assertEqual(parse_tui_command(":status").command.kind, TuiCommandKind.STATUS)
+        self.assertEqual(parse_tui_command("/status").command.kind, TuiCommandKind.STATUS)
+        self.assertEqual(REGISTRY.resolve("差异").visibility, CommandVisibility.ADVANCED)
 
     def test_attachment_command_preserves_windows_paths_verbatim(self) -> None:
         command = parse_tui_command(

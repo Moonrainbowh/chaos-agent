@@ -35,7 +35,7 @@ class StructuredProcessPolicyTests(unittest.TestCase):
         )
         self.assertEqual(decision.outcome, DecisionOutcome.ASK)
 
-    def test_task_authorization_cannot_auto_allow_model_process(self) -> None:
+    def test_task_authorization_allows_process_in_trusted_workspace(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()
             action = process("python.exe", "-V")
@@ -47,7 +47,7 @@ class StructuredProcessPolicyTests(unittest.TestCase):
                 action, TaskAuthorization.local_workspace(str(root))
             )
 
-        self.assertEqual(decision.outcome, DecisionOutcome.ASK)
+        self.assertEqual(decision.outcome, DecisionOutcome.ALLOW)
         self.assertIn(Capability.RAW_PROCESS, decision.capabilities)
 
     def test_plan_denies_process_and_unrestricted_allows_noncritical(self) -> None:
@@ -110,6 +110,26 @@ class StructuredProcessPolicyTests(unittest.TestCase):
 
         self.assertIn(Capability.OUTSIDE_WORKSPACE, classified.capabilities)
         self.assertEqual(decision.outcome, DecisionOutcome.ASK)
+
+    def test_outside_or_protected_process_argument_requires_approval(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            policy = ActionPolicy(
+                PolicyConfig(ApprovalMode.AUTO, workspace_root=root)
+            )
+            authorization = TaskAuthorization.local_workspace(str(root))
+            cases = (
+                (process("python.exe", str(root.parent / "input.py")), Capability.OUTSIDE_WORKSPACE),
+                (process("python.exe", ".git/config"), Capability.PROTECTED_PATH),
+            )
+
+            for action, capability in cases:
+                with self.subTest(argument=action.arguments["args"]):
+                    classified = classify_action(action, root)
+                    decision = policy.evaluate(action, authorization)
+
+                    self.assertIn(capability, classified.capabilities)
+                    self.assertEqual(decision.outcome, DecisionOutcome.ASK)
 
 
 if __name__ == "__main__":

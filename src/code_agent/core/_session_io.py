@@ -135,6 +135,22 @@ class SessionJournal:
         except Exception:
             raise SessionPersistenceError("could not consume task controls") from None
 
+    async def promote_task_followups(
+        self, task_id: str
+    ) -> tuple[tuple[str, Message], ...]:
+        try:
+            promoted = tuple(
+                await self._repository.promote_task_followups(task_id)
+            )
+            if not all(
+                isinstance(identifier, str) and isinstance(message, Message)
+                for identifier, message in promoted
+            ):
+                raise TypeError("promoted follow-ups must contain ids and messages")
+            return promoted
+        except Exception:
+            raise SessionPersistenceError("could not promote task follow-ups") from None
+
     @staticmethod
     def message_added(message: Message) -> AgentEvent:
         return AgentEvent(

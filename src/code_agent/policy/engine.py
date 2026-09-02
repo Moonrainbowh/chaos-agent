@@ -76,7 +76,37 @@ class ActionPolicy:
         )
         if explicit_edit_approval and request.name.casefold() != "apply_workspace_edit_plan_v1":
             raise ValueError("trusted edit risks require the edit-plan apply tool")
+        boundary = self._boundary_decision(classified)
+        if boundary is not None:
+            return boundary
 
+        mode = self.config.approval_mode
+        outside = Capability.OUTSIDE_WORKSPACE in classified.capabilities
+        network = Capability.NETWORK in classified.capabilities
+        trusted_workspace = self._trusted_workspace_action(
+            classified, task_authorization
+        )
+
+        explicit = self._explicit_edit_decision(
+            classified, explicit_edit_approval, trusted_workspace, mode
+        )
+        if explicit is not None:
+            return explicit
+
+        if mode is ApprovalMode.UNRESTRICTED:
+            return self._decision(
+                DecisionOutcome.ALLOW,
+                classified,
+                "allowed by unrestricted mode without approval",
+            )
+
+        return self._mode_decision(
+            classified, trusted_workspace, outside, network
+        )
+
+    def _boundary_decision(
+        self, classified: ActionClassification
+    ) -> PolicyDecision | None:
         if not classified.known_tool:
             return self._decision(
                 DecisionOutcome.DENY, classified, "denied because the tool is unknown"
@@ -87,43 +117,44 @@ class ActionPolicy:
                 classified,
                 "denied because critical-risk actions are never approved",
             )
-
         if Capability.PROTECTED_PATH in classified.capabilities:
             return self._decision(
-                DecisionOutcome.ASK,
-                classified,
-                "approval required for a protected path",
+                DecisionOutcome.ASK, classified, "approval required for a protected path"
             )
+        return None
 
-        if (
-            explicit_edit_approval
-            and self.config.approval_mode is not ApprovalMode.PLAN
-        ):
-            explicit = ActionClassification(
-                classified.capabilities | {Capability.EXPLICIT_APPROVAL},
-                RiskLevel.HIGH,
-                "trusted edit plan includes protected existing-file or destructive risk",
-            )
-            return self._decision(
-                DecisionOutcome.ASK,
-                explicit,
-                "explicit user approval required for the edit plan",
-            )
+    def _explicit_edit_decision(
+        self,
+        classified: ActionClassification,
+        required: bool,
+        trusted_workspace: bool,
+        mode: ApprovalMode,
+    ) -> PolicyDecision | None:
+        if not required or mode is ApprovalMode.PLAN or trusted_workspace:
+            return None
+        explicit = ActionClassification(
+            classified.capabilities | {Capability.EXPLICIT_APPROVAL},
+            RiskLevel.HIGH,
+            "trusted edit plan includes protected existing-file or destructive risk",
+        )
+        return self._decision(
+            DecisionOutcome.ASK,
+            explicit,
+            "explicit user approval required for the edit plan",
+        )
 
-        if self.config.approval_mode is ApprovalMode.UNRESTRICTED:
-            return self._decision(
-                DecisionOutcome.ALLOW,
-                classified,
-                "allowed by unrestricted mode without approval",
-            )
-
+    def _mode_decision(
+        self,
+        classified: ActionClassification,
+        trusted_workspace: bool,
+        outside: bool,
+        network: bool,
+    ) -> PolicyDecision:
         read_only = (
             classified.capabilities - frozenset({Capability.OUTSIDE_WORKSPACE})
             == frozenset({Capability.READ})
         )
         mode = self.config.approval_mode
-        outside = Capability.OUTSIDE_WORKSPACE in classified.capabilities
-
         if mode is ApprovalMode.PLAN:
             outcome = DecisionOutcome.ALLOW if read_only and not outside else DecisionOutcome.DENY
             reason = (
@@ -133,50 +164,22 @@ class ActionPolicy:
             )
             return self._decision(outcome, classified, reason)
 
-        if task_authorization is not None:
-            configured = self.config.workspace_root
-            authorized_root = Path(task_authorization.workspace_root).resolve(strict=False)
-            local = configured is not None and configured == authorized_root
-            blocked = Capability.NETWORK in classified.capabilities or Capability.OUTSIDE_WORKSPACE in classified.capabilities
-            if local and not blocked:
-                if classified.capabilities.intersection(
-                    {Capability.RAW_SHELL, Capability.RAW_PROCESS}
-                ):
-                    return self._decision(
-                        DecisionOutcome.ASK,
-                        classified,
-                        "approval required for model-provided command execution",
-                    )
-                if Capability.VERIFICATION in classified.capabilities and task_authorization.allow_local_execute:
-                    return self._decision(DecisionOutcome.ALLOW, classified, "allowed by foreground task authorization")
-                if Capability.WRITE in classified.capabilities and task_authorization.allow_workspace_write:
-                    return self._decision(DecisionOutcome.ALLOW, classified, "allowed by foreground task authorization")
-                if Capability.READ in classified.capabilities:
-                    return self._decision(DecisionOutcome.ALLOW, classified, "allowed by foreground task authorization")
+        if trusted_workspace:
+            return self._decision(
+                DecisionOutcome.ALLOW,
+                classified,
+                "allowed by trusted current-workspace authorization",
+            )
 
         if mode is ApprovalMode.ASK:
-            if outside:
-                outcome = DecisionOutcome.ASK if read_only else DecisionOutcome.DENY
-                reason = (
-                    "approval required for a single read outside the workspace"
-                    if read_only
-                    else "denied because ask mode does not permit writes outside the workspace"
-                )
-                return self._decision(outcome, classified, reason)
-            outcome = DecisionOutcome.ALLOW if read_only else DecisionOutcome.ASK
-            reason = (
-                "allowed because the action is read-only"
-                if read_only
-                else "approval required by ask mode for a non-read action"
-            )
-            return self._decision(outcome, classified, reason)
+            return self._ask_decision(classified, read_only, outside)
 
         if mode is ApprovalMode.FULL_LOCAL:
-            if Capability.EXECUTE in classified.capabilities:
+            if outside or network:
                 return self._decision(
                     DecisionOutcome.ASK,
                     classified,
-                    "approval required for every command execution",
+                    "approval required at the local workspace boundary",
                 )
             return self._decision(
                 DecisionOutcome.ALLOW,
@@ -184,6 +187,34 @@ class ActionPolicy:
                 "allowed by full-local mode for a non-critical typed action",
             )
 
+        return self._auto_decision(classified, read_only, outside, network)
+
+    def _ask_decision(
+        self, classified: ActionClassification, read_only: bool, outside: bool
+    ) -> PolicyDecision:
+        if outside:
+            outcome = DecisionOutcome.ASK if read_only else DecisionOutcome.DENY
+            reason = (
+                "approval required for a single read outside the workspace"
+                if read_only
+                else "denied because ask mode does not permit writes outside the workspace"
+            )
+            return self._decision(outcome, classified, reason)
+        outcome = DecisionOutcome.ALLOW if read_only else DecisionOutcome.ASK
+        reason = (
+            "allowed because the action is read-only"
+            if read_only
+            else "approval required by ask mode for a non-read action"
+        )
+        return self._decision(outcome, classified, reason)
+
+    def _auto_decision(
+        self,
+        classified: ActionClassification,
+        read_only: bool,
+        outside: bool,
+        network: bool,
+    ) -> PolicyDecision:
         if outside:
             return self._decision(
                 DecisionOutcome.ASK,
@@ -207,8 +238,7 @@ class ActionPolicy:
                 "approval required for a high-risk action",
             )
         if (
-            Capability.NETWORK in classified.capabilities
-            and not self.config.allow_network
+            network and not self.config.allow_network
         ):
             return self._decision(
                 DecisionOutcome.ASK,
@@ -220,3 +250,26 @@ class ActionPolicy:
             classified,
             "allowed by auto mode for a recognized non-critical action",
         )
+
+    def _trusted_workspace_action(
+        self,
+        classified: ActionClassification,
+        task_authorization: TaskAuthorization | None,
+    ) -> bool:
+        if self.config.workspace_root is None or classified.capabilities.intersection(
+            {Capability.NETWORK, Capability.OUTSIDE_WORKSPACE, Capability.PROTECTED_PATH}
+        ):
+            return False
+        if task_authorization is None:
+            return self.config.approval_mode in {
+                ApprovalMode.AUTO,
+                ApprovalMode.FULL_LOCAL,
+            }
+        authorized_root = Path(task_authorization.workspace_root).resolve(strict=False)
+        if self.config.workspace_root != authorized_root:
+            return False
+        if Capability.EXECUTE in classified.capabilities:
+            return task_authorization.allow_local_execute
+        if Capability.WRITE in classified.capabilities:
+            return task_authorization.allow_workspace_write
+        return Capability.READ in classified.capabilities

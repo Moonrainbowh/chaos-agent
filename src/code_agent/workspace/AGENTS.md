@@ -12,7 +12,7 @@
 - 不负责：未获上层策略授权的工作区之外路径、符号链接/reparse 目标或敏感文件。
 - 不负责：访问默认本地 API 配置目录及其内容，即使该目录被选作工作区。
 - 不负责：在普通目录中伪造 Git 状态、自动初始化仓库或决定上层是否注册 Git 工具。
-- 安全边界：POSIX inventory/restore/blob store 以 `dir_fd`、`O_NOFOLLOW` 和逐级目录句柄约束读写、建目录、替换、扫描与删除；受管 worktree lifecycle 以 storage 内 repository lock 协调遵守协议的跨进程 create/remove/prune；Windows 通用路径依赖静态 reparse 拒绝及副作用前后身份复验，精确批次 move/delete 额外持有逐级目录和源文件原生句柄并使用 no-replace rename/delete；这些约束仍不构成操作系统沙箱。
+- 安全边界：POSIX inventory/restore/blob store 以 `dir_fd`、`O_NOFOLLOW` 和逐级目录句柄约束读写、建目录、替换、扫描与删除；受管 worktree lifecycle 以 storage 内 repository lock 协调遵守协议的跨进程 create/remove/prune；Windows 通用路径依赖静态 reparse 拒绝及副作用前后身份复验，路径与句柄身份统一使用 Win32 低 32 位卷序列号和文件索引以兼容 Python 3.13 的扩展 `st_dev`，精确批次 move/delete 额外持有逐级目录和源文件原生句柄并使用 no-replace rename/delete；这些约束仍不构成操作系统沙箱。
 - Windows 长路径边界：每次 Git for Windows 调用以进程级 `core.longPaths=true` 运行且不修改用户/仓库配置；CPython 文件路径依赖系统 `LongPathsEnabled=1`，关闭时统一采用 240 UTF-16 code unit legacy-safe 预算并在文件系统副作用前显式失败，inventory 不得静默漏掉超限路径；Git worktree 另受不可由用户放宽的 215 单元/UTF-8 byte 预算约束；snapshot root 按最长派生 blob/temp 路径在构造期预检；`/状态` 与 Provider prompt 显示当前快照。
 - 依赖：Chaos Agent 和旧 code-agent 的本地配置目录均视为敏感路径；`chaos-agent-workspaces` 是产品保留目录名，从其他 workspace 或其父目录不可访问，存储根、`worktrees`/仓库中间层与 snapshot 子树也不得直接作为 workspace，只有 `worktrees/<repo>/<lineage>` 任务根及其子目录可正常操作相对内容。
 - 负责为成功 typed 写入记录 `ActionEffect` 所需的改动路径与内容 hash，并在有界扫描内计算当前 subject snapshot/hash；不判断业务正确性。

@@ -39,23 +39,18 @@ class EditPlanPolicyTests(unittest.TestCase):
                 self.assertTrue(requires_explicit_edit_plan_approval((flag,)))
         self.assertFalse(requires_explicit_edit_plan_approval(()))
 
-    def test_explicit_edit_risk_precedes_unrestricted_and_task_grant(self) -> None:
+    def test_workspace_task_grant_trusts_local_edit_risk(self) -> None:
         root = Path("C:/repo")
         grant = TaskAuthorization.local_workspace(str(root))
-        for mode, grant_value in (
-            (ApprovalMode.UNRESTRICTED, None),
-            (ApprovalMode.AUTO, grant),
-        ):
-            with self.subTest(mode=mode):
-                decision = ActionPolicy(
-                    PolicyConfig(mode, workspace_root=root)
-                ).evaluate(
-                    request("apply_workspace_edit_plan_v1"),
-                    grant_value,
-                    trusted_edit_risk_flags=("move",),
-                )
-                self.assertEqual(decision.outcome, DecisionOutcome.ASK)
-                self.assertIn(Capability.EXPLICIT_APPROVAL, decision.capabilities)
+        decision = ActionPolicy(
+            PolicyConfig(ApprovalMode.AUTO, workspace_root=root)
+        ).evaluate(
+            request("apply_workspace_edit_plan_v1"),
+            grant,
+            trusted_edit_risk_flags=("move",),
+        )
+        self.assertEqual(decision.outcome, DecisionOutcome.ALLOW)
+        self.assertNotIn(Capability.EXPLICIT_APPROVAL, decision.capabilities)
 
     def test_plan_mode_still_denies_apply_with_explicit_risk(self) -> None:
         decision = ActionPolicy(PolicyConfig(ApprovalMode.PLAN)).evaluate(

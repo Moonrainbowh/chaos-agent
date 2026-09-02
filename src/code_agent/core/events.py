@@ -15,6 +15,7 @@ class EventKind(str, Enum):
     TASK_BUDGET_WARNING = "task_budget_warning"
     TASK_PAUSED = "task_paused"
     TASK_DECISION_REQUIRED = "task_decision_required"
+    TASK_FOLLOWUPS_PROMOTED = "task_followups_promoted"
     RUN_STARTED = "run_started"
     TURN_STARTED = "turn_started"
     CONTEXT_BUILT = "context_built"

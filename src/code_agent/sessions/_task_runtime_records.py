@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import sqlite3
+import uuid
 
 from code_agent.core.limits import EngineLimits, TaskBudget
 from code_agent.core.models import Message, Usage
 from code_agent.core.task import TaskRecord
 
 from . import _evidence_ledger, _task_budget, _task_execution
-from ._codec import encode_datetime, encode_message, utc_now
+from ._codec import decode_message, encode_datetime, encode_message, utc_now
 from ._records import _text, _touch_thread
 from .errors import SessionNotFound
 
@@ -109,6 +110,87 @@ class TaskRuntimeRepositoryMixin:
             _touch_thread(connection, thread_id, timestamp)
 
         await self._database.write(write)  # type: ignore[attr-defined]
+
+    async def record_task_followup(
+        self, task_id: str, message: Message, instruction: str
+    ) -> str:
+        """Persist a user follow-up without exposing it to the current turn."""
+        task_id = _text(task_id, "task_id")
+        if not isinstance(message, Message) or message.role != "user":
+            raise TypeError("follow-up message must be a user Message")
+        payload = encode_message(message)
+        instruction = _text(instruction, "instruction")
+        timestamp = encode_datetime(utc_now())
+        identifier = uuid.uuid4().hex
+
+        def write(connection: sqlite3.Connection) -> None:
+            row = connection.execute(
+                "SELECT status FROM tasks WHERE id = ?", (task_id,)
+            ).fetchone()
+            if row is None:
+                raise SessionNotFound("task not found")
+            if row["status"] in {"completed", "accepted_partial", "failed", "superseded"}:
+                raise ValueError("cannot queue input for a terminal task")
+            connection.execute(
+                "INSERT INTO task_followups(id, task_id, payload, instruction, created_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (identifier, task_id, payload, instruction, timestamp),
+            )
+
+        await self._database.write(write)  # type: ignore[attr-defined]
+        return identifier
+
+    async def promote_task_followups(
+        self, task_id: str
+    ) -> tuple[tuple[str, Message], ...]:
+        """Atomically append queued follow-ups to their task thread in FIFO order."""
+        task_id = _text(task_id, "task_id")
+
+        def write(connection: sqlite3.Connection) -> tuple[tuple[str, Message], ...]:
+            task = connection.execute(
+                "SELECT thread_id FROM tasks WHERE id = ?", (task_id,)
+            ).fetchone()
+            if task is None:
+                raise SessionNotFound("task not found")
+            rows = connection.execute(
+                "SELECT id, payload, created_at FROM task_followups "
+                "WHERE task_id = ? ORDER BY sequence",
+                (task_id,),
+            ).fetchall()
+            promoted = tuple(
+                (row["id"], decode_message(row["payload"])) for row in rows
+            )
+            for row, (_, message) in zip(rows, promoted):
+                connection.execute(
+                    "INSERT INTO messages(thread_id, payload, created_at) VALUES (?, ?, ?)",
+                    (task["thread_id"], encode_message(message), row["created_at"]),
+                )
+            if rows:
+                connection.execute(
+                    "DELETE FROM task_followups WHERE task_id = ?", (task_id,)
+                )
+                _touch_thread(connection, task["thread_id"], encode_datetime(utc_now()))
+            return promoted
+
+        return await self._database.write(write)  # type: ignore[attr-defined]
+
+    async def list_task_followups(
+        self, task_id: str
+    ) -> tuple[tuple[str, Message], ...]:
+        task_id = _text(task_id, "task_id")
+
+        def read(connection: sqlite3.Connection) -> tuple[tuple[str, Message], ...]:
+            if connection.execute(
+                "SELECT 1 FROM tasks WHERE id = ?", (task_id,)
+            ).fetchone() is None:
+                raise SessionNotFound("task not found")
+            rows = connection.execute(
+                "SELECT id, payload FROM task_followups WHERE task_id = ? ORDER BY sequence",
+                (task_id,),
+            ).fetchall()
+            return tuple((row["id"], decode_message(row["payload"])) for row in rows)
+
+        return await self._database.read(read)  # type: ignore[attr-defined]
 
     async def consume_task_controls(self, task_id: str) -> tuple[str, ...]:
         task_id = _text(task_id, "task_id")

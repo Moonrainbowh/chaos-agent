@@ -6,6 +6,7 @@
 - 负责：首回合从完整持久 user Message 构建上下文，避免用纯文本 `user_input` 重建时丢失附件或重复消息。
 - 不负责：解析附件内容、生成 Provider content blocks，或让语义 summarizer 接触附件 blob。
 - 负责：稳定系统前缀、分层 `AGENTS.md` 规则发现、按需 repo map、相关文件选择和 token 预算。
+- 负责：默认工具预算覆盖当前内置 Host 工具目录；固定内容增长时优先压缩可选 Repo Map，不突破总提示预算或最小消息预算。
 - 负责：在进程内维护可增量更新、带 generation 的仓库事实快照，并从稳定快照生成本轮轻量 Repo Map。
 - 负责：用 SQLite FTS5 对有界源码正文、路径和符号进行词法召回，并与精确路径/符号、依赖图和 touched files 信号做确定性融合；FTS5 不可用时保留现有结构化排序。
 - 负责：保留近期原文的确定性压缩，并为后续实验性压缩策略提供接口。
@@ -18,7 +19,7 @@
 
 ## Units
 - `render_evidence_summary(...)`: 渲染当前 generation 的 required criteria 和有效 evidence 摘要 | 无副作用 | 优先保留失败/未满足条件，绝不输出完整 verifier 原始内容
-- `PromptBudget.allocate(system_and_rules_tokens, tool_tokens, task_state_tokens): PromptAllocation`: 在固定安全余量下为规则、工具、任务状态、repo map 和消息分配 token | 无副作用 | repo map 先于消息收缩，保留最小消息预算
+- `PromptBudget.allocate(system_and_rules_tokens, tool_tokens, task_state_tokens): PromptAllocation`: 在固定安全余量下为规则、工具、任务状态、repo map 和消息分配 token | 无副作用 | 默认 2,000 token 工具上限覆盖内置目录；repo map 先于消息收缩，保留最小消息预算
 - `ContextConfig`、`ProjectRule`、`Symbol`、`RepoEntry`、`CompactionResult`: 冻结上下文构建配置和中间结果 | 无副作用 | 路径和预算在构造时校验；旧 map/message 预算参数归一化为 `PromptBudget`
 - `estimate_tokens(text): int`、`truncate_to_tokens(text, budget): str`: 对 ASCII、多字节字符和代理对做确定性保守估算与截断 | 无副作用 | 不切断 Unicode 代理对
 - `RuleLoader.load(cwd): tuple[ProjectRule, ...]`: 按根规则、根目录直属扩展规则和目录链加载受边界保护的说明 | 读取已授权工作区文件 | 以根目录 mtime 复用直属扩展名称，不递归扫描工作区；严格受单文件和总字节预算约束

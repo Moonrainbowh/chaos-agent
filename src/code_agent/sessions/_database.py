@@ -16,9 +16,9 @@ from .errors import (
     SessionStorageError,
 )
 from ._schema_structure import validate_schema_structure
-from ._schema_validation import REQUIRED_COLUMNS
+from ._schema_validation import FOLLOWUP_MIGRATION, REQUIRED_COLUMNS
 
-SCHEMA_VERSION = 19
+SCHEMA_VERSION = 20
 _BUSY_TIMEOUT_MS = 5_000
 _SQLITE_CORRUPT = 11
 _SQLITE_NOTADB = 26
@@ -130,8 +130,8 @@ _MIGRATIONS: dict[int, tuple[str, ...]] = {
         "CREATE INDEX peer_messages_dedupe ON peer_messages(sender_instance_id, receiver_instance_id, content_sha256, created_at)",
     ),
     19: EDIT_BATCH_MIGRATION,
+    20: FOLLOWUP_MIGRATION,
 }
-
 
 class SessionDatabase:
     """Open short-lived SQLite connections around bounded transactions."""

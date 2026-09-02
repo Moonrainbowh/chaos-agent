@@ -61,18 +61,36 @@ _SHELL_LAUNCHERS = frozenset(
     {"pwsh", "pwsh.exe", "powershell", "powershell.exe", "cmd", "cmd.exe",
      "bash", "bash.exe", "sh", "sh.exe", "wsl", "wsl.exe"}
 )
+_COMMAND_PATH = re.compile(
+    r'(?<![A-Za-z0-9])(?:"(?P<double>(?:[A-Za-z]:[\\/]|\\\\|\.\.[\\/])[^"\r\n]+)"'
+    r"|'(?P<single>(?:[A-Za-z]:[\\/]|\\\\|\.\.[\\/])[^'\r\n]+)'"
+    r"|(?P<plain>(?:[A-Za-z]:[\\/]|\\\\|\.\.[\\/])[^\s;&|]+))"
+)
+_COMMAND_PROTECTED = re.compile(
+    r"(?:^|[\\/\s'\"])(?:\.env|\.git|\.chaos-agent|\.code-agent|"
+    r"chaos-agent-workspaces|id_rsa|id_ecdsa|id_ed25519|private[_-]?key)"
+    r"(?:$|[\\/\s'\"])",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
 class CommandRisk:
     network: bool
     critical: bool
+    protected: bool = False
+    paths: tuple[str, ...] = ()
 
 
 def command_risk(command: str) -> CommandRisk:
     return CommandRisk(
         network=_matches_any(command, _NETWORK_PATTERNS),
         critical=_is_critical(command),
+        protected=_COMMAND_PROTECTED.search(command) is not None,
+        paths=tuple(
+            next(value for value in match.groups() if value is not None)
+            for match in _COMMAND_PATH.finditer(command)
+        ),
     )
 
 
@@ -88,7 +106,12 @@ def process_risk(program: str, arguments: tuple[str, ...]) -> CommandRisk:
         (".cmd", ".bat")
     )
     result = command_risk(command)
-    return CommandRisk(result.network, result.critical or shell_launcher)
+    return CommandRisk(
+        result.network,
+        result.critical or shell_launcher,
+        result.protected,
+        result.paths,
+    )
 
 
 def _matches_any(command: str, patterns: tuple[re.Pattern[str], ...]) -> bool:

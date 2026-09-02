@@ -185,7 +185,7 @@ class CommandIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.policy.evaluate.assert_not_called()
         runtime.run.assert_not_awaited()
 
-    async def test_raw_shell_requires_approval_even_when_text_is_compatible(self) -> None:
+    async def test_local_raw_shell_runs_under_current_workspace_trust(self) -> None:
         runtime = Mock()
         runtime.run = AsyncMock(return_value=command_result())
 
@@ -199,11 +199,10 @@ class CommandIntegrationTests(unittest.IsolatedAsyncioTestCase):
             TaskAuthorization.local_workspace(str(self.root)),
         )
 
-        self.assertTrue(result.is_error)
-        self.assertEqual(result.output["error_code"], "approval_required")
-        runtime.run.assert_not_awaited()
+        self.assertFalse(result.is_error)
+        runtime.run.assert_awaited_once()
 
-    async def test_raw_shell_does_not_reach_runtime_without_approval(self) -> None:
+    async def test_local_raw_shell_reports_runtime_failure_without_approval(self) -> None:
         runtime = Mock()
         runtime.run = AsyncMock(return_value=command_result(7))
 
@@ -218,8 +217,9 @@ class CommandIntegrationTests(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertTrue(result.is_error)
-        self.assertEqual(result.output["error_code"], "approval_required")
-        runtime.run.assert_not_awaited()
+        self.assertEqual(result.output["error"], "command failed")
+        self.assertEqual(result.output["returncode"], 7)
+        runtime.run.assert_awaited_once()
 
     async def test_git_error_keeps_the_actionable_reason(self) -> None:
         result = await self.dispatcher(git=GitWorkspace(self.root)).dispatch(

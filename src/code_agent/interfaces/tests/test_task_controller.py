@@ -81,6 +81,22 @@ class ForegroundTaskControllerTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(messages[-1].attachments, (attachment,))
             self.assertEqual(messages[-1].content, "")
 
+    async def test_queued_input_is_durable_but_hidden_from_current_messages(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = SQLiteSessionRepository(root / "sessions.sqlite3")
+            controller = ForegroundTaskController(
+                AgentController(_IdleRunner()), repository, root
+            )
+            task = await controller.start("inspect")
+
+            identifier = await controller.queue(task.id, "then update docs")
+
+            self.assertEqual(await repository.load_messages(task.thread_id), ())
+            queued = await repository.list_task_followups(task.id)
+            self.assertEqual(queued[0][0], identifier)
+            self.assertEqual(queued[0][1].content, "then update docs")
+
     async def test_failed_steering_transaction_leaves_no_orphan_or_duplicate(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
