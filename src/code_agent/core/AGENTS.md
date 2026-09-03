@@ -51,7 +51,7 @@
 - `TaskSupervisor.observe(...)`: 根据恢复后的持久预算、验证结果和失败指纹决定继续、checkpoint、暂停或等待决策 | 无副作用 | 累计活跃时间、重复失败和修复循环不依赖进程内状态
 - `AgentEngine.run(..., task=...)`: 在同一 thread 内执行显式任务并持久化任务事件 | 调用抽象模型、动作与会话协议 | 模型回合前消费 steering；无工具回合在完成门前原子提升 FIFO follow-up，发布 `TASK_FOLLOWUPS_PROMOTED` 后继续同一任务
 - `AgentEngine.run(user_input, thread_id, cancellation)`: 持久化并流式发布回合、模型、工具和终态事件 | 调用抽象模型、动作与会话协议 | ad-hoc root 的 owner/origin 均为 active thread，child engine 继承构造器 lineage；未声明工具、重复 ID、无完成事件和预算越界均失败闭合
-- `AgentEngine._advertised_tools(...)`: 校验 dispatcher 快照并应用本次 run 冻结的能力策略投影 | 无副作用 | hybrid 预热不基于名称前缀推断扩展工具；读取契约不执行目标工具或扩大授权
+- `AgentEngine._advertised_tools(...)`: 校验 dispatcher 快照并按 `name + schema digest` 应用本次 run 冻结的能力策略投影 | 无副作用 | MCP/Plugin schema 重载变化后旧披露自动失效；读取契约不执行目标工具或扩大授权
 - `AgentEngine.run_peer(thread_id, cancellation)`: 不制造 user Message 地唤醒一个不可信 peer 回合，并在首个合法模型事件持久化后确认其上下文 | 调用抽象模型、上下文、动作与会话协议 | 工具强制投影到构造时冻结的 peer allowlist；默认空集，不能取得 TaskAuthorization
 - `SessionJournal`: 把会话协议异常转换为稳定的内核持久化错误 | 调用会话协议 | 不允许不可信历史消息进入上下文
 - `AgentEngineError` 及子类: 表达预算、模型流、上下文构建与持久化失败 | 无副作用 | 对外错误不包含上游异常文本

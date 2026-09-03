@@ -4,9 +4,8 @@ import json
 from collections.abc import Mapping
 from typing import AsyncIterator
 
-from code_agent.capabilities.catalog import disclosed_name, progressive_tools
-
 from ._tool_feedback import tool_failure
+from ._tool_disclosure import advertised_tools, disclosure_from_event
 from .action_execution import ActionExecutionContext, ActionLineage
 from .cancellation import CancellationError, CancellationToken
 from .errors import EngineLimitError, ModelStreamError
@@ -219,37 +218,20 @@ class AgentEngineActionMixin:
     def _advertised_tools(
         self,
         allowed_names: frozenset[str] | None = None,
-        disclosed_names: set[str] | frozenset[str] = frozenset(),
+        disclosed_tools: Mapping[str, str] | None = None,
     ) -> tuple[tuple[ToolDefinition, ...], set[str]]:
-        try:
-            tools = tuple(self._actions.tools())
-            if not all(isinstance(tool, ToolDefinition) for tool in tools):
-                raise TypeError("action dispatcher exposed an invalid tool")
-            names = {tool.name for tool in tools}
-            if len(names) != len(tools):
-                raise ModelStreamError("action dispatcher exposed duplicate tools")
-            if allowed_names is not None:
-                tools = tuple(tool for tool in tools if tool.name in allowed_names)
-            tools = progressive_tools(
-                tools, tuple(disclosed_names), strategy=self._capability_strategy)
-            names = {tool.name for tool in tools}
-            return tools, names
-        except ModelStreamError:
-            raise
-        except Exception:
-            raise ModelStreamError("action dispatcher exposed invalid tools") from None
+        return advertised_tools(
+            self._actions,
+            allowed_names,
+            disclosed_tools or {},
+            self._capability_strategy,
+        )
 
     @staticmethod
-    def _disclosed_tool_from_event(event: AgentEvent) -> str | None:
-        if event.kind is not EventKind.ACTION_COMPLETED:
-            return None
-        raw = event.payload.get("result")
-        if not isinstance(raw, Mapping):
-            return None
-        try:
-            return disclosed_name(ActionResult.from_dict(raw))
-        except (KeyError, TypeError, ValueError):
-            return None
+    def _disclosed_tool_from_event(
+        event: AgentEvent,
+    ) -> tuple[str, str] | None:
+        return disclosure_from_event(event)
 
     def _accumulate_model_event(self, event: ModelEvent, text_parts: list[str], calls: list[ToolCall]) -> None:
         if not isinstance(event, ModelEvent):

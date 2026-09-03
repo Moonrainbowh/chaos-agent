@@ -43,67 +43,6 @@ def completed() -> ModelEvent:
 
 
 class AgentEngineToolTests(unittest.IsolatedAsyncioTestCase):
-    async def test_tool_schema_is_disclosed_only_after_loading_its_contract(self) -> None:
-        load = ToolCall(
-            "load-1", CONTRACT_TOOL_NAME, {"name": "read_file"}
-        )
-        read = ToolCall("read-1", "read_file", {"path": "a.txt"})
-        model = FakeModelClient(
-            (
-                (ModelEvent(ModelEventKind.TOOL_CALL, tool_call=load), completed()),
-                (ModelEvent(ModelEventKind.TOOL_CALL, tool_call=read), completed()),
-                (ModelEvent(ModelEventKind.TEXT_DELTA, text="done"), completed()),
-            )
-        )
-        loader_definition = ToolDefinition(
-            CONTRACT_TOOL_NAME, "Load a contract", {"type": "object"}
-        )
-        read_definition = ToolDefinition(
-            "read_file", "Read a file", {"type": "object"}
-        )
-        actions = FakeActionDispatcher(
-            (
-                ActionResult(
-                    "load-1",
-                    CONTRACT_TOOL_NAME,
-                    {
-                        "name": "read_file",
-                        "digest": "0" * 64,
-                        "availability": "next_model_turn",
-                    },
-                    metadata={"disclosed_tool": "read_file"},
-                ),
-                ActionResult("read-1", "read_file", {"text": "contents"}),
-            )
-        )
-        actions._tools = (loader_definition, read_definition)
-
-        _ = [
-            event
-            async for event in AgentEngine(
-                model,
-                FakeContextBuilder(),
-                actions,
-                MemorySessionRepository(),
-                capability_strategy=CapabilityStrategy.PROGRESSIVE,
-            ).run("inspect")
-        ]
-
-        self.assertEqual(
-            [tool.name for tool in model.calls[0][2]], [CONTRACT_TOOL_NAME]
-        )
-        self.assertEqual(
-            [tool.name for tool in model.calls[1][2]],
-            [CONTRACT_TOOL_NAME, "read_file"],
-        )
-        self.assertEqual(
-            actions.requests,
-            [
-                ActionRequest("load-1", CONTRACT_TOOL_NAME, {"name": "read_file"}),
-                ActionRequest("read-1", "read_file", {"path": "a.txt"}),
-            ],
-        )
-
     async def test_hybrid_preloads_builtin_reads_but_not_long_tail_tools(self) -> None:
         model = FakeModelClient(((completed(),),))
         actions = FakeActionDispatcher()

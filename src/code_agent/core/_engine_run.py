@@ -35,7 +35,7 @@ class _RunState:
     total_usage: Usage = field(default_factory=Usage)
     stop_requested: bool = False
     allowed_tool_names: frozenset[str] | None = None
-    disclosed_tool_names: set[str] = field(default_factory=set)
+    disclosed_tool_digests: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(slots=True)

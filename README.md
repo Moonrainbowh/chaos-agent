@@ -189,11 +189,17 @@ name/category/summary directory, and the full provider definitions for
 coordination, and other long-tail tools remain progressive. A successful
 contract lookup returns only `name`, a stable schema `digest`, and
 `availability`; the complete JSON Schema appears only as a provider tool
-definition on the next model turn. `legacy` sends all active tool definitions
+definition on the next model turn. Disclosures are tracked only as tool name
+plus schema digest, so an MCP or plugin removal or schema-changing reload
+automatically hides the old definition until its current contract is loaded.
+`legacy` sends all active tool definitions
 without the loader, while `progressive` initially sends only the loader and
 directory. Configure `[agent].capability_strategy` or
 `CHAOS_CAPABILITY_STRATEGY`; the legacy `CODE_AGENT_CAPABILITY_STRATEGY` alias
 remains available. Tool execution continues through the same typed dispatcher.
+This deliberately stops short of a full Capability Manifest or lease layer;
+that boundary can be revisited when the tool inventory grows materially or a
+remote multi-user runtime creates a concrete need for generation and scope leases.
 
 The Windows UI appends completed user, agent, tool, diff, warning, and error
 entries to the normal Windows Terminal buffer. Windows Terminal owns selection,

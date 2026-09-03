@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from enum import Enum
 
 from code_agent.core.models import ActionRequest, ActionResult, ToolDefinition
@@ -21,6 +21,7 @@ HYBRID_EAGER_BUILTIN_NAMES = frozenset(
     }
 )
 _SPACE = re.compile(r"\s+")
+_DIGEST = re.compile(r"^[0-9a-f]{64}$")
 _SUMMARY_LIMIT = 120
 
 
@@ -32,7 +33,7 @@ class CapabilityStrategy(str, Enum):
 
 def progressive_tools(
     tools: Sequence[ToolDefinition],
-    disclosed_names: Sequence[str],
+    disclosed_tools: Mapping[str, str],
     *,
     strategy: CapabilityStrategy = CapabilityStrategy.HYBRID,
 ) -> tuple[ToolDefinition, ...]:
@@ -52,7 +53,12 @@ def progressive_tools(
     )
     if strategy is CapabilityStrategy.LEGACY:
         return candidates
-    selected = frozenset(_checked_names(disclosed_names))
+    disclosures = _checked_disclosures(disclosed_tools)
+    selected = {
+        tool.name
+        for tool in candidates
+        if disclosures.get(tool.name) == tool_definition_digest(tool)
+    }
     if strategy is CapabilityStrategy.HYBRID:
         selected |= HYBRID_EAGER_BUILTIN_NAMES
     return (
@@ -107,14 +113,31 @@ def tool_definition_digest(definition: ToolDefinition) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
-def disclosed_name(result: ActionResult) -> str | None:
-    """Return the newly disclosed name from a successful loader result."""
+def disclosed_contract(result: ActionResult) -> tuple[str, str] | None:
+    """Return a validated name/digest pair from a successful loader result."""
     if not isinstance(result, ActionResult):
         raise TypeError("result must be an ActionResult")
     if result.name != CONTRACT_TOOL_NAME or result.is_error:
         return None
     name = result.metadata.get("disclosed_tool")
-    return name if isinstance(name, str) and name.strip() else None
+    output = result.output
+    if not isinstance(name, str) or not name.strip() or not isinstance(output, Mapping):
+        return None
+    digest = output.get("digest")
+    if (
+        output.get("name") != name
+        or output.get("availability") != "next_model_turn"
+        or not isinstance(digest, str)
+        or _DIGEST.fullmatch(digest) is None
+    ):
+        return None
+    return name, digest
+
+
+def disclosed_name(result: ActionResult) -> str | None:
+    """Compatibility helper returning only a validated disclosed tool name."""
+    disclosure = disclosed_contract(result)
+    return disclosure[0] if disclosure is not None else None
 
 
 def _directory_definition(
@@ -167,12 +190,18 @@ def _summary(value: str) -> str:
     return compact[: _SUMMARY_LIMIT - 1].rstrip() + "…"
 
 
-def _checked_names(values: Sequence[str]) -> tuple[str, ...]:
-    if isinstance(values, (str, bytes, bytearray)):
-        raise TypeError("disclosed_names must be a sequence")
-    checked = tuple(values)
-    if not all(isinstance(value, str) and value.strip() for value in checked):
-        raise ValueError("disclosed_names must contain non-blank text")
+def _checked_disclosures(values: Mapping[str, str]) -> dict[str, str]:
+    if not isinstance(values, Mapping):
+        raise TypeError("disclosed_tools must be a mapping")
+    checked = dict(values)
+    if not all(
+        isinstance(name, str)
+        and name.strip()
+        and isinstance(digest, str)
+        and _DIGEST.fullmatch(digest) is not None
+        for name, digest in checked.items()
+    ):
+        raise ValueError("disclosed_tools must map non-blank names to SHA-256 digests")
     return checked
 
 

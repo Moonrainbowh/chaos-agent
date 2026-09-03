@@ -27,7 +27,7 @@ class AgentEngineTurnMixin:
             raise EngineLimitError("model turn budget exceeded")
         state.budget = reserved
         tools, tool_names = self._advertised_tools(
-            state.allowed_tool_names, state.disclosed_tool_names
+            state.allowed_tool_names, state.disclosed_tool_digests
         )
         turn = _TurnState(number, tools, tool_names)
         bundles: list[ContextBundle] = []
@@ -228,7 +228,8 @@ class AgentEngineTurnMixin:
                     state.messages += (message,)
                 disclosed = self._disclosed_tool_from_event(event)
                 if disclosed is not None:
-                    state.disclosed_tool_names.add(disclosed)
+                    name, digest = disclosed
+                    state.disclosed_tool_digests[name] = digest
                 yield event
                 if event.kind in {
                     EventKind.TASK_PAUSED,

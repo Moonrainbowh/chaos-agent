@@ -6,11 +6,12 @@ from code_agent.capabilities.catalog import (
     CapabilityStrategy,
     CONTRACT_TOOL_NAME,
     contract_result,
+    disclosed_contract,
     disclosed_name,
     progressive_tools,
     tool_definition_digest,
 )
-from code_agent.core.models import ActionRequest, ToolDefinition
+from code_agent.core.models import ActionRequest, ActionResult, ToolDefinition
 
 
 def _tool(name: str, description: str = "Use the tool.") -> ToolDefinition:
@@ -35,7 +36,7 @@ class ProgressiveToolCatalogTests(unittest.TestCase):
     def test_progressive_initial_projection_contains_only_directory_loader(self) -> None:
         projected = progressive_tools(
             (self.loader, self.read, self.run),
-            (),
+            {},
             strategy=CapabilityStrategy.PROGRESSIVE,
         )
 
@@ -50,7 +51,10 @@ class ProgressiveToolCatalogTests(unittest.TestCase):
     def test_loaded_contract_is_available_on_later_projection(self) -> None:
         projected = progressive_tools(
             (self.loader, self.read, self.run),
-            ("read_file", "removed_tool"),
+            {
+                "read_file": tool_definition_digest(self.read),
+                "removed_tool": "0" * 64,
+            },
             strategy=CapabilityStrategy.PROGRESSIVE,
         )
 
@@ -65,7 +69,7 @@ class ProgressiveToolCatalogTests(unittest.TestCase):
         plugin = _tool("plugin.read_file")
 
         projected = progressive_tools(
-            (self.loader, self.read, code, self.run, mcp, plugin), ()
+            (self.loader, self.read, code, self.run, mcp, plugin), {}
         )
 
         self.assertEqual(
@@ -77,7 +81,7 @@ class ProgressiveToolCatalogTests(unittest.TestCase):
         tools = (self.loader, self.read, self.run)
 
         projected = progressive_tools(
-            tools, (), strategy=CapabilityStrategy.LEGACY
+            tools, {}, strategy=CapabilityStrategy.LEGACY
         )
 
         self.assertEqual(projected, (self.read, self.run))
@@ -95,6 +99,10 @@ class ProgressiveToolCatalogTests(unittest.TestCase):
         self.assertEqual(result.output["name"], "read_file")
         self.assertEqual(result.output["digest"], tool_definition_digest(self.read))
         self.assertEqual(result.output["availability"], "next_model_turn")
+        self.assertEqual(
+            disclosed_contract(result),
+            ("read_file", tool_definition_digest(self.read)),
+        )
         self.assertEqual(disclosed_name(result), "read_file")
         self.assertNotIn("schema", repr(result.output).casefold())
         self.assertNotIn("description", repr(result.output).casefold())
@@ -113,6 +121,36 @@ class ProgressiveToolCatalogTests(unittest.TestCase):
         self.assertNotEqual(
             tool_definition_digest(self.read), tool_definition_digest(changed)
         )
+
+    def test_changed_extension_schema_invalidates_prior_disclosure(self) -> None:
+        for name in ("mcp.docs.lookup", "plugin.docs.lookup"):
+            with self.subTest(name=name):
+                previous = _tool(name, "Previous schema")
+                changed = _tool(name, "Changed schema")
+
+                projected = progressive_tools(
+                    (self.loader, changed),
+                    {name: tool_definition_digest(previous)},
+                    strategy=CapabilityStrategy.PROGRESSIVE,
+                )
+
+                self.assertEqual(
+                    [tool.name for tool in projected], [CONTRACT_TOOL_NAME]
+                )
+
+    def test_disclosure_pair_rejects_mismatched_result_fields(self) -> None:
+        result = ActionResult(
+            "call-1",
+            CONTRACT_TOOL_NAME,
+            {
+                "name": "other_tool",
+                "digest": tool_definition_digest(self.read),
+                "availability": "next_model_turn",
+            },
+            metadata={"disclosed_tool": "read_file"},
+        )
+
+        self.assertIsNone(disclosed_contract(result))
 
     def test_unknown_contract_fails_without_disclosing_a_tool(self) -> None:
         result = contract_result(
