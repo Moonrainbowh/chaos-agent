@@ -58,6 +58,31 @@ class ActionPolicyModeTests(unittest.TestCase):
     def test_policy_config_defaults_to_auto(self) -> None:
         self.assertIs(PolicyConfig().approval_mode, ApprovalMode.AUTO)
 
+    def test_permanent_process_rule_allows_after_hard_boundaries(self) -> None:
+        policy = self.policy(ApprovalMode.ASK)
+        allowed = policy.evaluate(
+            request(
+                "run_process_v1",
+                program="python",
+                args=["-m", "pytest"],
+                cwd=".",
+            ),
+            permanent_process_rule="rule-1",
+        )
+        critical = policy.evaluate(
+            request(
+                "run_process_v1",
+                program="powershell",
+                args=["-Command", "Get-Date"],
+                cwd=".",
+            ),
+            permanent_process_rule="rule-1",
+        )
+
+        self.assertIs(allowed.outcome, DecisionOutcome.ALLOW)
+        self.assertIn("rule-1", allowed.reason)
+        self.assertIs(critical.outcome, DecisionOutcome.DENY)
+
     def test_plan_mode_only_allows_read_only_actions(self) -> None:
         policy = self.policy(ApprovalMode.PLAN)
 

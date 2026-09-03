@@ -161,7 +161,7 @@ class CommandIntegrationTests(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertTrue(result.is_error)
-        self.assertEqual(result.output["error"], "approval required in TUI")
+        self.assertEqual(result.output["error_code"], "approval_required")
         self.assertEqual(policy.evaluate.call_count, 2)
         self.assertFalse((self.root / "note.txt").exists())
 

@@ -107,7 +107,13 @@ class ProviderControls:
             self._dispatcher_factory.plugin_mode_digests,
         )
         self.permission_control = PermissionControl(
-            approval_mode, self._apply_permission
+            approval_mode,
+            self._apply_permission,
+            rules=getattr(self._dispatcher, "process_rules", None),
+            workspace_root=self._root,
+            workspace_fingerprint=getattr(
+                self._dispatcher, "workspace_fingerprint", None
+            ),
         )
         self.runtime_selection = RuntimeSelectionControl(
             self._profiles,
@@ -129,6 +135,7 @@ class ProviderControls:
                 client, profile, context,
                 self._dispatcher_factory(self._build_snapshot),
                 self._sessions, self._root, self._build_snapshot,
+                capability_strategy=self._dispatcher_factory.capability_strategy,
             )
             return ProviderRuntime(profile, client, runner)
         except BaseException:

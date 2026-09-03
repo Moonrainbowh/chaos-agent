@@ -5,6 +5,7 @@ from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
+from code_agent.capabilities import CapabilityStrategy
 from code_agent.core.engine import AgentEngine
 from code_agent.core.task import TaskContract
 from code_agent.interfaces.controller import AgentController
@@ -62,6 +63,7 @@ def compose_runtime_controls(
     plugin_host: object, plugin_bridge: object, plugin_bindings: object,
     approval_mode: ApprovalMode, application_ref: list[object],
     tui_ref: list[ModeAwareWindowsTerminalApp],
+    capability_strategy: CapabilityStrategy = CapabilityStrategy.HYBRID,
     context_wrapper: Callable[[object], object] | None = None,
     activity_lock: asyncio.Lock | None = None,
 ) -> RuntimeControls:
@@ -71,6 +73,7 @@ def compose_runtime_controls(
         root=root, profiles=profiles, client_factory=client_factory,
         context_for=context_for, dispatcher=dispatcher, sessions=sessions,
         plugin_bridge=plugin_bridge, plugin_bindings=plugin_bindings,
+        capability_strategy=capability_strategy,
     )
     subagents = factory.attach_subagents(
         thread_binding=thread_binding, modes=modes,
@@ -133,6 +136,7 @@ def _initial_runtime(
     if context_wrapper is not None:
         context = context_wrapper(context)
     runner = engine_for(
-        model, initial, context, factory(snapshot), sessions, root, snapshot
+        model, initial, context, factory(snapshot), sessions, root, snapshot,
+        capability_strategy=factory.capability_strategy,
     )
     return AgentController(runner), model, runner

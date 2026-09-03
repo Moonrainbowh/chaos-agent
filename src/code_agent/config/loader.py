@@ -6,6 +6,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from code_agent.capabilities import CapabilityStrategy
+from code_agent.config.capability_strategy import configured_capability_strategy
+from code_agent.config._environment import environment_value as _environment_value
+
 try:
     import tomllib
 except ModuleNotFoundError:  # pragma: no cover - exercised on Python 3.10.
@@ -33,6 +37,7 @@ class RuntimeConfig:
     profiles: tuple[ModelProfile, ...] = ()
     mcp_servers: tuple[McpServer, ...] = ()
     powershell_dialect: ShellDialect | None = None
+    capability_strategy: CapabilityStrategy = CapabilityStrategy.HYBRID
 
     @property
     def key_status(self) -> str:
@@ -66,6 +71,10 @@ def load_runtime_config(
     document = _read_document(path)
     selected, values = _select_provider(document, source, cli_profile)
     provider = _provider_config(values, source, allow_environment=True)
+    try:
+        capability_strategy = configured_capability_strategy(document, source)
+    except ValueError as error:
+        raise LocalConfigError(str(error)) from None
     return RuntimeConfig(
         provider=provider,
         profile=selected,
@@ -74,6 +83,7 @@ def load_runtime_config(
         config_path=path, profiles=_profiles(document, source, selected, provider),
         mcp_servers=_mcp_servers(document),
         powershell_dialect=_powershell_dialect(document, source),
+        capability_strategy=capability_strategy,
     )
 
 
@@ -274,16 +284,6 @@ def _supported_config_path(path: Path) -> Path:
     canonical = path.resolve(strict=False)
     require_supported_windows_path(canonical, operation="configuration")
     return path
-
-
-def _environment_value(
-    env: Mapping[str, str], primary: str, legacy: str, default: Any = None
-) -> Any:
-    if primary in env:
-        return env[primary]
-    if legacy in env:
-        return env[legacy]
-    return default
 
 
 def _protocol(value: object) -> ApiProtocol:

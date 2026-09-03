@@ -1,26 +1,22 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
+from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import Any
 
 import acp.schema as schema
-from acp import (
-    PROTOCOL_VERSION,
-    RequestError,
-    update_agent_message_text,
-    update_user_message_text,
-)
+from acp import PROTOCOL_VERSION, RequestError
 
 from code_agent.core.cancellation import CancellationToken
 from code_agent.core.models import Message
+from code_agent.policy.models import ApprovalMode
 from code_agent.sessions.errors import SessionNotFound
 
+from .content import history_update, prompt_text
 from .event_bridge import acp_stop_reason, acp_updates
-
-
-_MAX_PROMPT_CHARS = 200_000
+from .session_permissions import SessionPermissions
 
 
 class ChaosAcpAgent:
@@ -33,6 +29,10 @@ class ChaosAcpAgent:
         workspace_root: Path,
         *,
         version: str = "unknown",
+        permission_scope: Callable[
+            [ApprovalMode, str], AbstractContextManager[None]
+        ]
+        | None = None,
     ) -> None:
         if not hasattr(controller, "ask"):
             raise TypeError("controller must provide ask")
@@ -46,6 +46,7 @@ class ChaosAcpAgent:
         self._sessions = sessions
         self._root = workspace_root.resolve()
         self._version = version
+        self._permissions = SessionPermissions(permission_scope)
         self._client: object | None = None
         self._prompt_lock = asyncio.Lock()
         self._active: dict[str, CancellationToken] = {}
@@ -54,6 +55,7 @@ class ChaosAcpAgent:
         if not hasattr(conn, "session_update"):
             raise TypeError("ACP client must provide session_update")
         self._client = conn
+        self._permissions.reset()
 
     async def initialize(
         self,
@@ -95,7 +97,10 @@ class ChaosAcpAgent:
         del kwargs
         self._validate_setup(cwd, additional_directories, mcp_servers)
         thread_id = await self._sessions.create_thread()
-        return schema.NewSessionResponse(sessionId=thread_id)
+        self._permissions.open(thread_id)
+        return schema.NewSessionResponse(
+            sessionId=thread_id, modes=self._permissions.state(thread_id)
+        )
 
     async def load_session(
         self,
@@ -108,12 +113,13 @@ class ChaosAcpAgent:
         del kwargs
         self._validate_setup(cwd, additional_directories, mcp_servers)
         messages = await self._messages(session_id)
+        self._permissions.ensure(session_id)
         client = self._require_client()
         for message in messages:
-            update = _history_update(message)
+            update = history_update(message)
             if update is not None:
                 await client.session_update(session_id, update)
-        return schema.LoadSessionResponse()
+        return schema.LoadSessionResponse(modes=self._permissions.state(session_id))
 
     async def list_sessions(
         self,
@@ -138,6 +144,29 @@ class ChaosAcpAgent:
         ]
         return schema.ListSessionsResponse(sessions=sessions)
 
+    async def set_session_mode(
+        self, session_id: str, mode_id: str, **kwargs: Any
+    ) -> schema.SetSessionModeResponse:
+        del kwargs
+        await self._messages(session_id)
+        if session_id in self._active:
+            raise RequestError.invalid_request(
+                {"sessionId": "permission mode cannot change during an active prompt"}
+            )
+        self._permissions.set(session_id, mode_id)
+        return schema.SetSessionModeResponse()
+
+    async def close_session(
+        self, session_id: str, **kwargs: Any
+    ) -> schema.CloseSessionResponse:
+        del kwargs
+        await self._messages(session_id)
+        token = self._active.get(session_id)
+        if token is not None:
+            token.cancel("ACP session closed")
+        self._permissions.close(session_id)
+        return schema.CloseSessionResponse()
+
     async def prompt(
         self,
         session_id: str,
@@ -146,7 +175,7 @@ class ChaosAcpAgent:
     ) -> schema.PromptResponse:
         del kwargs
         await self._messages(session_id)
-        text = _prompt_text(prompt)
+        text = prompt_text(prompt)
         if session_id in self._active:
             raise RequestError.invalid_request(
                 {"sessionId": "a prompt is already active"}
@@ -156,12 +185,13 @@ class ChaosAcpAgent:
         stop_reason: str | None = None
         try:
             async with self._prompt_lock:
-                async for event in self._controller.ask(
-                    text, thread_id=session_id, cancellation=token
-                ):
-                    for update in acp_updates(event):
-                        await self._require_client().session_update(session_id, update)
-                    stop_reason = acp_stop_reason(event) or stop_reason
+                with self._permissions.scope(session_id):
+                    async for event in self._controller.ask(
+                        text, thread_id=session_id, cancellation=token
+                    ):
+                        for update in acp_updates(event):
+                            await self._require_client().session_update(session_id, update)
+                        stop_reason = acp_stop_reason(event) or stop_reason
         except Exception as error:
             if stop_reason != "refusal":
                 raise RequestError.internal_error(
@@ -230,39 +260,5 @@ class ChaosAcpAgent:
         if self._client is None:
             raise RequestError.internal_error({"errorType": "ClientNotConnected"})
         return self._client
-
-
-def _prompt_text(blocks: Sequence[object]) -> str:
-    if isinstance(blocks, (str, bytes, bytearray)):
-        raise RequestError.invalid_params({"prompt": "must be a content block list"})
-    parts: list[str] = []
-    for block in blocks:
-        if isinstance(block, schema.TextContentBlock):
-            parts.append(block.text)
-        elif isinstance(block, schema.ResourceContentBlock):
-            parts.append(f"[Resource link: {block.name}] {block.uri}")
-        else:
-            raise RequestError.invalid_params(
-                {"prompt": f"unsupported content type: {type(block).__name__}"}
-            )
-    text = "\n\n".join(part for part in parts if part.strip())
-    if not text.strip():
-        raise RequestError.invalid_params({"prompt": "must contain text or a resource link"})
-    if len(text) > _MAX_PROMPT_CHARS:
-        raise RequestError.invalid_params(
-            {"prompt": f"must not exceed {_MAX_PROMPT_CHARS} characters"}
-        )
-    return text
-
-
-def _history_update(message: Message) -> object | None:
-    if not message.content:
-        return None
-    if message.role == "user":
-        return update_user_message_text(message.content)
-    if message.role == "assistant":
-        return update_agent_message_text(message.content)
-    return None
-
 
 __all__ = ["ChaosAcpAgent"]

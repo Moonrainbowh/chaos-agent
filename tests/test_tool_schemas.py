@@ -16,6 +16,7 @@ if str(SRC_ROOT) not in sys.path:
 
 from code_agent_win.app import RootActionDispatcher  # noqa: E402
 from code_agent_win.tools import tool_definitions  # noqa: E402
+from code_agent.capabilities import tool_definition_digest  # noqa: E402
 from code_agent.core.cancellation import CancellationToken  # noqa: E402
 from code_agent.core.models import ActionRequest  # noqa: E402
 from code_agent.interfaces.terminal_state import ApprovalBroker  # noqa: E402
@@ -159,7 +160,7 @@ class DispatcherValidationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.output["newline"], "crlf")
         self.assertNotIn("code_page", result.output)
 
-    async def test_contract_loader_returns_current_schema_without_execution(self) -> None:
+    async def test_contract_loader_returns_short_confirmation_without_execution(self) -> None:
         result = await self.dispatcher.dispatch(
             ActionRequest(
                 "load-read", "load_tool_contract", {"name": "read_file"}
@@ -168,7 +169,16 @@ class DispatcherValidationTests(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertFalse(result.is_error)
-        self.assertEqual(result.output["contract"]["name"], "read_file")
+        definition = next(
+            tool for tool in self.dispatcher.tools() if tool.name == "read_file"
+        )
+        self.assertEqual(
+            set(result.output), {"name", "digest", "availability"}
+        )
+        self.assertEqual(result.output["name"], "read_file")
+        self.assertEqual(
+            result.output["digest"], tool_definition_digest(definition)
+        )
         self.assertEqual(result.output["availability"], "next_model_turn")
         self.assertEqual(result.metadata["disclosed_tool"], "read_file")
 

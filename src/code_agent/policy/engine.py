@@ -69,6 +69,7 @@ class ActionPolicy:
         task_authorization: TaskAuthorization | None = None,
         *,
         trusted_edit_risk_flags: tuple[str, ...] = (),
+        permanent_process_rule: str | None = None,
     ) -> PolicyDecision:
         classified = classify_action(request, self.config.workspace_root, self.config.mcp_risks)
         explicit_edit_approval = requires_explicit_edit_plan_approval(
@@ -79,6 +80,17 @@ class ActionPolicy:
         boundary = self._boundary_decision(classified)
         if boundary is not None:
             return boundary
+
+        if permanent_process_rule is not None:
+            if request.name.casefold() != "run_process_v1":
+                raise ValueError("permanent process rules require run_process_v1")
+            if not isinstance(permanent_process_rule, str) or not permanent_process_rule.strip():
+                raise ValueError("permanent process rule id must be non-blank text")
+            return self._decision(
+                DecisionOutcome.ALLOW,
+                classified,
+                f"allowed by permanent command rule {permanent_process_rule}",
+            )
 
         mode = self.config.approval_mode
         outside = Capability.OUTSIDE_WORKSPACE in classified.capabilities

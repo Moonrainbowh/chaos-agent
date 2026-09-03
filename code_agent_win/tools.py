@@ -31,7 +31,8 @@ def _text_encoding_schema() -> dict[str, object]:
 TOOL_DEFINITIONS: tuple[ToolDefinition, ...] = (
     ToolDefinition(
         "load_tool_contract",
-        "Load the complete schema for one capability from the current directory.",
+        "Make one capability available next turn; returns name, digest, and "
+        "availability only.",
         _object_schema({"name": _nonempty_text_schema()}, ("name",)),
     ),
     ToolDefinition(

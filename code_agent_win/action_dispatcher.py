@@ -2,29 +2,33 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable, Sequence
+from pathlib import Path
 
 from code_agent.core.action_execution import ActionExecutionContext
 from code_agent.core.cancellation import CancellationError, CancellationToken
 from code_agent.core.models import ActionRequest, ActionResult, ToolDefinition
 from code_agent.capabilities.catalog import CONTRACT_TOOL_NAME, contract_result
 from code_agent.core.task import TaskAuthorization
-from code_agent.interfaces.approval import ApprovalBroker, ApprovalRequest
+from code_agent.interfaces.approval import ApprovalBroker
 from code_agent.mcp.registry import McpController
 from code_agent.policy.engine import ActionPolicy
-from code_agent.policy.models import DecisionOutcome
+from code_agent.policy.command_rules import ProcessRuleMatch, ProcessRuleStore
 from code_agent.runtime.local import WindowsLocalRuntime
 from code_agent.verification.local_adapter import LocalVerificationAdapter
 from code_agent.workspace.edits import WorkspaceEditor
 from code_agent.workspace.files import WorkspaceFiles
 from code_agent.workspace.git import GitCommandError, GitWorkspace
 
-from code_agent_win.edit_plan_dispatch import (
-    EditPlanAuthorization,
-    WorkspaceEditPlanActions,
-)
+from code_agent_win.edit_plan_dispatch import WorkspaceEditPlanActions
 from code_agent_win.edit_plan_preview import default_workspace_fingerprint
 from code_agent_win.edit_plan_store import EditPlanStoreError, WorkspaceEditPlanStore
 from code_agent_win.plugin_runtime import PluginToolBridge
+from code_agent_win.permission_dispatch import (
+    attach_permission_metadata,
+    authorize_action,
+    bind_process_rule,
+    match_process_rule,
+)
 from code_agent_win.process_actions import run_powershell_action, run_process_action
 from code_agent_win.rewind_capture_support import (
     mcp_requires_gap,
@@ -71,6 +75,10 @@ class RootActionDispatcher:
         edit_plans: WorkspaceEditPlanStore | None = None,
         workspace_fingerprint: str | None = None,
         repo_index: object | None = None,
+        process_rules: ProcessRuleStore | None = None,
+        permission_source: str | None = None,
+        permission_workspace_root: Path | None = None,
+        permission_workspace_fingerprint: str | None = None,
     ) -> None:
         self.files, self.editor, self.policy, self.approvals = files, editor, policy, approvals
         self.git, self.runtime, self.verification = git, runtime, verification
@@ -78,11 +86,20 @@ class RootActionDispatcher:
         self.threads, self.peers, self.caller_thread = threads, peers, caller_thread
         self.capture = capture
         self.repo_index = repo_index
+        self.process_rules = process_rules
+        self.permission_source = permission_source
         self.invalidate_cache = invalidate_cache
         self.edit_plans = edit_plans or WorkspaceEditPlanStore()
         captured = getattr(capture, "workspace_fingerprint", None)
         fingerprint = workspace_fingerprint or (
             captured if isinstance(captured, str) else default_workspace_fingerprint(editor)
+        )
+        self.workspace_fingerprint = fingerprint
+        self.permission_workspace_root = (
+            permission_workspace_root or editor.guard.root
+        ).resolve(strict=False)
+        self.permission_workspace_fingerprint = (
+            permission_workspace_fingerprint or fingerprint
         )
         self.edit_plan_actions = WorkspaceEditPlanActions(
             editor,
@@ -139,60 +156,26 @@ class RootActionDispatcher:
             )
         except (TypeError, ValueError) as error:
             return _error(request, "invalid edit plan context", str(error))
-        rejected = await self._authorize(
-            request,
+        process_rule = match_process_rule(
+            self.process_rules,
             translated,
-            cancellation,
-            task_authorization,
-            edit_authorization,
+            permission_root=self.permission_workspace_root,
+            permission_fingerprint=self.permission_workspace_fingerprint,
+            execution_root=self.editor.guard.root,
+        )
+        rejected = await authorize_action(
+            self.policy, self.approvals, self.interactive, request, translated,
+            cancellation, task_authorization, edit_authorization, process_rule,
         )
         if rejected is not None:
             return rejected
-        return await self._run(request, translated, cancellation, execution_context)
-
-    async def _authorize(
-        self,
-        request: ActionRequest,
-        translated: ActionRequest,
-        cancellation: CancellationToken,
-        task_authorization: TaskAuthorization | None,
-        edit_authorization: EditPlanAuthorization,
-    ) -> ActionResult | None:
-        def evaluate(item: ActionRequest):
-            risks = (
-                edit_authorization.risk_flags
-                if item.name == "apply_workspace_edit_plan_v1"
-                else ()
-            )
-            if risks:
-                return self.policy.evaluate(
-                    item,
-                    task_authorization,
-                    trusted_edit_risk_flags=risks,
-                )
-            return self.policy.evaluate(item, task_authorization)
-
-        decisions = (evaluate(request),)
-        if translated is not request:
-            decisions += (evaluate(translated),)
-        denied = next((item for item in decisions if item.outcome is DecisionOutcome.DENY), None)
-        if denied is not None:
-            return _error(request, "action denied", denied.reason)
-        asking = next((item for item in decisions if item.outcome is DecisionOutcome.ASK), None)
-        if asking is not None:
-            if not self.interactive:
-                return _error(request, "approval required in TUI", error_code="approval_required")
-            approved = await self.approvals.request(
-                ApprovalRequest(
-                    request.id, request.name, dict(request.arguments),
-                    asking.risk.value, translated.name, asking.reason,
-                    edit_authorization.view,
-                ),
-                cancellation,
-            )
-            if not approved:
-                return _error(request, "action denied by user")
-        return None
+        return await self._run(
+            request,
+            translated,
+            cancellation,
+            execution_context,
+            process_rule=process_rule,
+        )
 
     async def _run(
         self,
@@ -200,8 +183,12 @@ class RootActionDispatcher:
         translated: ActionRequest,
         cancellation: CancellationToken,
         context: ActionExecutionContext | None,
+        *,
+        process_rule: ProcessRuleMatch | None = None,
     ) -> ActionResult:
         try:
+            plugin_target = translated is not request
+            translated = bind_process_rule(translated, process_rule)
             plugin_gap = (
                 self.capture is not None
                 and plugin_requires_gap(self.plugins, request, translated)
@@ -213,7 +200,10 @@ class RootActionDispatcher:
                     translated, cancellation, context, gap_recorded=plugin_gap
                 )
             )
-            if translated is request:
+            result = attach_permission_metadata(
+                result, self.permission_source, process_rule
+            )
+            if not plugin_target:
                 return result
             return ActionResult(
                 request.id, request.name, result.output, result.is_error,

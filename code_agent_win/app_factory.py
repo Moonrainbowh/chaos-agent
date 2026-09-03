@@ -2,6 +2,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+from code_agent.capabilities import CapabilityStrategy
 from code_agent.context.cache import RepoMapCache
 from code_agent.context.repo_index import RepoIndexService
 from code_agent.context.repo_map import RepoMapViewCache
@@ -183,6 +184,11 @@ def _build_execution(
     model_factory: Callable[[object], object],
     context_factory: Callable[..., object],
 ) -> FactoryExecution:
+    capability_strategy = getattr(
+        getattr(host, "runtime_config", None),
+        "capability_strategy",
+        CapabilityStrategy.HYBRID,
+    )
     model_factory = profile_model_factory(
         model_factory,
         host.profiles,
@@ -202,6 +208,7 @@ def _build_execution(
     runner = build_engine(
         model, host.initial, _context_for(host, host.mode, context_factory), main_dispatcher,
         host.sessions, host.root, host.mode,
+        capability_strategy=capability_strategy,
     )
     controller = AgentController(runner)
 
@@ -212,6 +219,7 @@ def _build_execution(
             client, profile, _context_for(host, host.mode, context_factory),
             selected_dispatcher,
             host.sessions, host.root, host.mode,
+            capability_strategy=capability_strategy,
         )
         return ProviderRuntime(profile, client, next_runner)
 

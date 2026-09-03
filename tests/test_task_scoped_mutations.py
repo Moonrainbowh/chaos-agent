@@ -105,6 +105,31 @@ class TaskScopedMutationTests(unittest.IsolatedAsyncioTestCase):
             "owner", "origin", request_id, "task-1", "parent"
         )
 
+    def test_permission_scope_is_process_local_and_restores_previous_mode(self) -> None:
+        self.assertIs(
+            self.dispatcher._policy_for(self.source_root).config.approval_mode,
+            ApprovalMode.UNRESTRICTED,
+        )
+        with self.dispatcher.permission_scope(ApprovalMode.AUTO, "acp_auto"):
+            scoped = self.dispatcher._policy_for(self.source_root)
+            self.assertIs(scoped.config.approval_mode, ApprovalMode.AUTO)
+        self.assertIs(
+            self.dispatcher._policy_for(self.source_root).config.approval_mode,
+            ApprovalMode.UNRESTRICTED,
+        )
+
+    def test_task_dispatcher_keeps_source_identity_for_permanent_rules(self) -> None:
+        task_dispatcher = self.dispatcher._dispatcher(self.task)
+
+        self.assertEqual(task_dispatcher.editor.guard.root, self.task_root)
+        self.assertEqual(
+            task_dispatcher.permission_workspace_root, self.source_root
+        )
+        self.assertEqual(
+            task_dispatcher.permission_workspace_fingerprint,
+            self.dispatcher.workspace_fingerprint,
+        )
+
     async def _dispatch(self, request: ActionRequest):
         return await self.dispatcher.dispatch(
             request,

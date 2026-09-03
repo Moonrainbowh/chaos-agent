@@ -49,7 +49,7 @@ class RootActionRuntimeTests(unittest.IsolatedAsyncioTestCase):
             ),
             CancellationToken(),
         )
-        self.assertFalse(result.is_error)
+        self.assertFalse(result.is_error, result.output)
         self.assertIn("--- a/note.txt", result.metadata["diff"])
         self.assertEqual(
             (self.root / "note.txt").read_text(encoding="utf-8"), "after\n"
@@ -213,7 +213,8 @@ class RootActionRuntimeTests(unittest.IsolatedAsyncioTestCase):
             CancellationToken(),
         )
         self.assertTrue(result.is_error)
-        self.assertEqual(result.output["error"], "approval required in TUI")
+        self.assertEqual(result.output["error_code"], "approval_required")
+        self.assertIn("permission not granted", result.output["error"])
 
     async def test_delegate_agent_is_a_policy_checked_typed_action(self) -> None:
         class Subagents:

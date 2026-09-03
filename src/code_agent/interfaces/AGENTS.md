@@ -101,6 +101,7 @@
 - `_set_mode(app, instruction, action)`：优先把 topology、profile、reasoning effort 独立委托给 `runtime_selection`，缺少该控件时保留旧 `ModeControl` 兼容 | 调用注入控件/追加显示 | profile 短名必须唯一，失败不得改变当前运行时
 - `handle_session_command(app, action, instruction)`：委托历史会话或 peer facade 的 list/rename/send/policy/inbox/resolve 操作 | Controller I/O/追加显示 | 无 peers 时历史仍可用，peer 错误带内显示且正文有界
 - `PermissionControl.list()`、`use(name, idle)`：列出访问权限并在空闲边界委托中央策略切换 | 调用注入的异步回调 | 默认 `auto`，活动任务和未知权限失败闭合，模式切换不修改权限
+- `PermissionControl.allow_process/list_rules/revoke_rule(...)`、`handle_permission_command(...)`：管理当前工作区的精确 structured-process 永久规则 | 调用 Host 注入的规则仓库并追加结果 | raw PowerShell 不进入永久规则；规则绑定 executable、完整参数、workspace identity 和联网声明
 - `TuiInteractions`：把 Picker、可见审批、steering 生命周期和结构化 diff 委托给单栏 TUI，并以独立只读 modal 展示受信多文件计划 Diff | 终端显示/进程内状态 | 审批默认拒绝，`Enter` 明确选择，`Esc` 先关闭计划 Diff、再次取消审批；计划 Diff 不允许评论、刷新或发送。
 - `AgentRunStatusProjection.observe(view)`：将子 Agent 状态变化投影为去重、有界的生命周期行 | 进程内状态 | 只消费 Orchestration 快照，不从工具名称猜测状态。
 - `WorkflowView.render`、`detail`、`evidence`：把持久 WorkflowSnapshot 渲染为追加式 DAG、节点详情和 Evidence 引用 | 无副作用 | 过滤和窄屏有界，所有不可信文本先经 `safe_text`

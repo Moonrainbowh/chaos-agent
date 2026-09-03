@@ -9,6 +9,7 @@ from .tui_attachment_commands import handle_attachment_command
 from .tui_builtin_commands import handle_builtin_command
 from .tui_commands import ParseOutcome, TuiCommandKind
 from .tui_lifecycle import format_command_help
+from .tui_permission_commands import handle_permission_command
 from .tui_workflow_commands import handle_workflow_command
 
 
@@ -33,7 +34,9 @@ async def handle_tui_command(app: object, outcome: ParseOutcome) -> bool:
     elif command.kind is TuiCommandKind.MODE:
         return await _set_mode(app, command.instruction, command.action)
     elif command.kind is TuiCommandKind.PERMISSION:
-        return await _set_permission(app, command.instruction)
+        return await handle_permission_command(
+            app, command.instruction, command.action
+        )
     elif command.kind is TuiCommandKind.EVIDENCE:
         return await _show_evidence(app, command.instruction)
     elif app.tasks and command.kind is TuiCommandKind.TASKS:
@@ -235,29 +238,6 @@ def _host_runtime_suffix(app: object) -> str:
     if not isinstance(summary, str) or not summary.strip():
         return ""
     return " · host: " + summary
-
-
-async def _set_permission(app: object, instruction: str | None) -> bool:
-    if app.permissions is None:
-        app._append(DisplayKind.ERROR, "permission controls are unavailable")
-        return False
-    if instruction is None:
-        current = app.permissions.current
-        choices = " | ".join(item.name for item in app.permissions.list())
-        app._append(DisplayKind.METADATA, f"current {current.name} | {choices}")
-        return True
-    try:
-        selected = await app.permissions.use(
-            instruction, idle=app._run_task is None or app._run_task.done()
-        )
-    except (ValueError, RuntimeError) as error:
-        app._append(DisplayKind.ERROR, str(error))
-        return False
-    app._append(
-        DisplayKind.METADATA,
-        f"permission selected: {selected.name} · {selected.description}",
-    )
-    return True
 
 
 async def _show_evidence(app: object, instruction: str | None) -> bool:

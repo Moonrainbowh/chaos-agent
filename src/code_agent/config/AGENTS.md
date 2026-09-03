@@ -6,6 +6,7 @@
 - 负责：校验每个 profile 的 `api`、`base_url`、`model`、`context_window`、`max_output_tokens` 和恰好一种密钥来源，并单独解析各 profile 以避免全局环境污染。
 - 负责：校验每个 profile 的显式 `input_modalities`；缺失时默认仅 `text`，只接受受支持、去重的 `text`/`image` 组合。
 - 负责：分别解析配置与会话路径，兼容旧 `code-agent` 配置；不以新目录是否存在决定旧会话是否可见。
+- 负责：解析 `legacy` / `hybrid` / `progressive` 工具能力策略，缺失时采用推荐的 `hybrid`。
 - 负责：为上层提供只包含已配置 profile 标识、模型和非敏感能力摘要的只读目录；保留 profile 选择所需的私有配置，供安全任务边界重新构造运行时使用。
 - 负责：保存配置内明文 `api_key` 的私有表示，确保其不会出现在公开配置、诊断、序列化或异常内容中。
 - 不负责：发送网络请求、持久化会话、执行工具或渲染终端界面。
@@ -17,6 +18,7 @@
 ## Units
 - `default_config_path(env)`、`resolve_config_path(env)`: 解析默认或绝对覆盖配置文件路径 | 无副作用 | 相对 `CHAOS_CONFIG` 拒绝；无新配置时回退旧目录
 - `load_runtime_config(env, cli_profile)`: 读取、验证、选择并合并本地 provider 配置 | 文件 I/O | `CHAOS_*` 优先、`CODE_AGENT_*` 回退；异常不包含文件内容或密钥
-- `RuntimeConfig`: 冻结已选择的 Provider、profile、审批模式、敏感路径开关、PowerShell 方言请求和配置路径 | 无副作用 | 方言缺失为兼容期 `auto`，显式值只接受 `powershell_7` 或 `windows_powershell_5_1`；默认审批模式为 `auto`，`unrestricted` 必须由配置或环境变量显式选择；密钥状态只能显示脱敏描述
+- `RuntimeConfig`: 冻结已选择的 Provider、profile、审批模式、敏感路径开关、PowerShell 方言请求、能力策略和配置路径 | 无副作用 | 能力策略默认 hybrid 且只接受 legacy/hybrid/progressive；方言缺失为兼容期 `auto`；默认审批模式为 `auto`；密钥状态只能显示脱敏描述
+- `configured_capability_strategy(document, env)`: 合并 `[agent].capability_strategy` 与新旧环境变量 | 无副作用 | `CHAOS_CAPABILITY_STRATEGY` 优先，未知值失败闭合
 - `ProfileSummary`: 提供 profile 名、模型、协议、endpoint host、预算和密钥来源类型 | 无副作用 | 不包含密钥、URL 路径或认证头
 - `_input_modalities(values)`: 解析 profile 显式 `text`/`image` 输入能力 | 无副作用 | 默认仅 text，重复、未知和缺少 text 均失败闭合

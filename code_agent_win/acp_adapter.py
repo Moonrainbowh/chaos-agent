@@ -23,7 +23,13 @@ async def serve_acp(application: object) -> None:
     except PackageNotFoundError:
         current_version = "unknown"
     await run_agent(
-        ChaosAcpAgent(controller, sessions, root, version=current_version)
+        ChaosAcpAgent(
+            controller,
+            sessions,
+            root,
+            version=current_version,
+            permission_scope=getattr(dispatcher, "permission_scope", None),
+        )
     )
 
 

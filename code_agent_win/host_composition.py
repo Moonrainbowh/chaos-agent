@@ -99,6 +99,7 @@ def compose_host(
     peers: object | None = None,
     capture: object | None = None,
     mutations: WorkspaceMutationPool | None = None,
+    process_rules: object | None = None,
 ) -> HostComposition:
     risks: dict[str, str] = {
         "delegate_agent": "write",
@@ -128,6 +129,7 @@ def compose_host(
         sessions=sessions,
         thread_binding=thread_binding,
         peers=peers,
+        process_rules=process_rules,
     )
     bindings = PluginRuntimeBindings(dispatcher, plugin_host, plugin_bridge)
     return (
@@ -194,6 +196,7 @@ def _compose_dispatcher(
     sessions: object,
     thread_binding: object,
     peers: object | None,
+    process_rules: object | None,
 ) -> TaskScopedDispatcher:
     policy = ActionPolicy(
         PolicyConfig(
@@ -215,6 +218,7 @@ def _compose_dispatcher(
         threads=threads,
         caller_thread=thread_binding.current,
         peers=peers,
+        process_rules=process_rules,
     )
 
 

@@ -53,9 +53,17 @@ def built_in_command_specs() -> tuple[CommandSpec, ...]:
                 CommandAction("unrestricted", (), "高信任访问，受保护路径仍需审批"),
                 CommandAction("plan", (), "仅允许工作区只读操作"),
                 CommandAction("ask", (), "写入和命令逐次审批"),
-                CommandAction("auto", (), "普通读写自动执行，命令审批"),
+                CommandAction("auto", (), "工作区读写和已识别本地命令自动执行"),
                 CommandAction("elevated", (), "外部访问走审批，类型化文件仍限工作区"),
                 CommandAction("full-local", (), "本地高信任策略，类型化文件仍限工作区"),
+                CommandAction(
+                    "允许命令", ("allow-command",), "永久允许精确结构化命令",
+                    "[--network] <program> [args...]",
+                ),
+                CommandAction("规则", ("rules",), "列出当前工作区永久命令规则"),
+                CommandAction(
+                    "撤销", ("revoke",), "撤销永久命令规则", "<rule-id>"
+                ),
             ),
         ),
         CommandSpec("退出", ("exit", "quit"), "通用", "请求退出"),

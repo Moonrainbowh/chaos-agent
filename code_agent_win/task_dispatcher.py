@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import replace
 from pathlib import Path
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING, Iterator, Sequence
 
 from code_agent.core.models import ActionRequest, ActionResult, ToolDefinition
 from code_agent.core.task import TaskAuthorization
 from code_agent.policy.engine import ActionPolicy
+from code_agent.policy.models import ApprovalMode
 from code_agent.workspace.edits import WorkspaceEditor
 
 from code_agent_win.action_dispatcher import RootActionDispatcher
@@ -34,6 +37,10 @@ class TaskScopedDispatcher:
         self.peers = dependencies.get("peers")
         self.caller_thread = dependencies.get("caller_thread")
         self.capture = dependencies.get("capture")
+        self.process_rules = dependencies.get("process_rules")
+        self._permission_override: ContextVar[tuple[ApprovalMode, str] | None] = (
+            ContextVar(f"task-dispatcher-permission-{id(self)}", default=None)
+        )
         mutations = dependencies.get("mutations")
         if mutations is None:
             mutations = WorkspaceMutationPool(source_services, self.capture)
@@ -49,6 +56,24 @@ class TaskScopedDispatcher:
 
     def tools(self) -> Sequence[ToolDefinition]:
         return self._dispatcher(self._source).tools()
+
+    @property
+    def workspace_fingerprint(self) -> str:
+        return self._mutations.for_services(self._source).workspace_fingerprint
+
+    @contextmanager
+    def permission_scope(
+        self, mode: ApprovalMode, source: str = "session"
+    ) -> Iterator[None]:
+        if not isinstance(mode, ApprovalMode):
+            raise TypeError("mode must be an ApprovalMode")
+        if not isinstance(source, str) or not source.strip():
+            raise ValueError("permission source must be non-blank text")
+        token = self._permission_override.set((mode, source.strip()))
+        try:
+            yield
+        finally:
+            self._permission_override.reset(token)
 
     async def dispatch(
         self,
@@ -99,14 +124,26 @@ class TaskScopedDispatcher:
             edit_plans=mutations.edit_plans,
             workspace_fingerprint=mutations.workspace_fingerprint,
             repo_index=service.repo_index,
+            process_rules=self.process_rules,
+            permission_workspace_root=self._source.root,
+            permission_workspace_fingerprint=self.workspace_fingerprint,
+            permission_source=(
+                self._permission_override.get()[1]
+                if self._permission_override.get() is not None
+                else None
+            ),
         )
         dispatcher.interactive = self.interactive
         return dispatcher
 
     def _policy_for(self, root: Path) -> ActionPolicy:
+        override = self._permission_override.get()
         return ActionPolicy(
             replace(
                 self.policy.config,
+                approval_mode=(
+                    override[0] if override is not None else self.policy.config.approval_mode
+                ),
                 workspace_root=root,
                 mcp_risks=dict(self.policy.config.mcp_risks),
             )

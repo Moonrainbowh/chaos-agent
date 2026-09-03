@@ -1,23 +1,47 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 from collections.abc import Sequence
+from enum import Enum
 
 from code_agent.core.models import ActionRequest, ActionResult, ToolDefinition
 
 
 CONTRACT_TOOL_NAME = "load_tool_contract"
+HYBRID_EAGER_BUILTIN_NAMES = frozenset(
+    {
+        "read_file",
+        "read_code_slices",
+        "list_files",
+        "search_text",
+        "git_status",
+        "git_diff",
+    }
+)
 _SPACE = re.compile(r"\s+")
 _SUMMARY_LIMIT = 120
 
 
+class CapabilityStrategy(str, Enum):
+    LEGACY = "legacy"
+    HYBRID = "hybrid"
+    PROGRESSIVE = "progressive"
+
+
 def progressive_tools(
-    tools: Sequence[ToolDefinition], disclosed_names: Sequence[str]
+    tools: Sequence[ToolDefinition],
+    disclosed_names: Sequence[str],
+    *,
+    strategy: CapabilityStrategy = CapabilityStrategy.HYBRID,
 ) -> tuple[ToolDefinition, ...]:
-    """Expose a compact directory plus contracts loaded in this Agent run."""
+    """Project tool definitions according to the selected disclosure strategy."""
     checked = tuple(tools)
     if not all(isinstance(tool, ToolDefinition) for tool in checked):
         raise TypeError("tools must contain ToolDefinition values")
+    if not isinstance(strategy, CapabilityStrategy):
+        raise TypeError("strategy must be a CapabilityStrategy")
     loader = next(
         (tool for tool in checked if tool.name == CONTRACT_TOOL_NAME), None
     )
@@ -26,7 +50,11 @@ def progressive_tools(
     candidates = tuple(
         tool for tool in checked if tool.name != CONTRACT_TOOL_NAME
     )
+    if strategy is CapabilityStrategy.LEGACY:
+        return candidates
     selected = frozenset(_checked_names(disclosed_names))
+    if strategy is CapabilityStrategy.HYBRID:
+        selected |= HYBRID_EAGER_BUILTIN_NAMES
     return (
         _directory_definition(loader, candidates),
         *(tool for tool in candidates if tool.name in selected),
@@ -58,11 +86,25 @@ def contract_result(
         request.id,
         request.name,
         {
-            "contract": definition.to_dict(),
+            "name": definition.name,
+            "digest": tool_definition_digest(definition),
             "availability": "next_model_turn",
         },
         metadata={"disclosed_tool": name},
     )
+
+
+def tool_definition_digest(definition: ToolDefinition) -> str:
+    """Return a stable SHA-256 digest for one complete provider definition."""
+    if not isinstance(definition, ToolDefinition):
+        raise TypeError("definition must be a ToolDefinition")
+    encoded = json.dumps(
+        definition.to_dict(),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def disclosed_name(result: ActionResult) -> str | None:
@@ -87,7 +129,8 @@ def _directory_definition(
     description = _summary(loader.description)
     if lines:
         description += (
-            "\nAvailable capabilities (load a contract before calling it):\n"
+            "\nAvailable capabilities (load any capability whose full definition "
+            "is not present):\n"
             + "\n".join(lines)
         )
     return ToolDefinition(

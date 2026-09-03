@@ -203,8 +203,14 @@ class TuiCommandTests(unittest.TestCase):
 
         self.assertEqual(
             tuple(action.name for action in permission.actions),
-            ("unrestricted", "plan", "ask", "auto", "elevated", "full-local"),
+            (
+                "unrestricted", "plan", "ask", "auto", "elevated", "full-local",
+                "允许命令", "规则", "撤销",
+            ),
         )
+        allowed = parse_tui_command("/权限 允许命令 python -m pytest").command
+        self.assertEqual(allowed.action, "允许命令")
+        self.assertEqual(allowed.instruction, "允许命令 python -m pytest")
         self.assertEqual(
             parse_tui_command("/permission unrestricted").command.kind,
             TuiCommandKind.PERMISSION,

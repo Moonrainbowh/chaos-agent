@@ -4,6 +4,7 @@ import asyncio
 from collections.abc import Callable, Mapping
 from pathlib import Path
 
+from code_agent.capabilities import CapabilityStrategy
 from code_agent.core.engine import AgentEngine
 from code_agent.orchestration.models import (
     AgentDefinition,
@@ -31,11 +32,13 @@ class RuntimeDispatcherFactory:
         sessions: object,
         plugin_bridge: object,
         plugin_bindings: object,
+        capability_strategy: CapabilityStrategy = CapabilityStrategy.HYBRID,
     ) -> None:
         self._root, self._profiles = root, profiles
         self._client_factory, self._context_for = client_factory, context_for
         self._dispatcher, self._sessions = dispatcher, sessions
         self._plugin_bridge, self._plugin_bindings = plugin_bridge, plugin_bindings
+        self.capability_strategy = capability_strategy
         self._mcp_names: tuple[str, ...] = ()
         self._base_definitions: dict[AgentMode, object] = {}
         self.plugin_mode_digests: set[str] = set()
@@ -56,6 +59,7 @@ class RuntimeDispatcherFactory:
                 self._sessions,
                 self._root,
                 agent.mode,
+                capability_strategy=self.capability_strategy,
             )
             return engine, client
         except BaseException:

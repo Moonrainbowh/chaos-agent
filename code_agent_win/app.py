@@ -13,6 +13,7 @@ from code_agent.context.repo_scan import RepoFileScanner
 from code_agent.interfaces.approval import ApprovalBroker
 from code_agent.orchestration.models import AgentMode
 from code_agent.policy.models import ApprovalMode
+from code_agent.policy.command_rules import ProcessRuleStore
 from code_agent.runtime._powershell_runtime import resolved_powershell_runtime
 from code_agent.workspace.windows_paths import require_supported_windows_path
 from code_agent.sessions.repository import SQLiteSessionRepository
@@ -144,6 +145,9 @@ class _ApplicationComposer:
         )
         self.model_factory = profile_model_factory(_model_client, self.profiles, self.attachment_store)
         self.approvals = ApprovalBroker()
+        self.process_rules = ProcessRuleStore(
+            self.product_state_root / "permission-rules.sqlite3"
+        )
 
     def _configure_rewind(self) -> None:
         self.rewind_write = build_rewind_write_side(
@@ -219,6 +223,7 @@ class _ApplicationComposer:
             peers=self.peer_tools,
             capture=self.rewind_write.capture,
             mutations=self.mutations,
+            process_rules=self.process_rules,
         )
 
     def _configure_controls(self) -> None:
@@ -233,6 +238,7 @@ class _ApplicationComposer:
             plugin_host=self.plugin_host, plugin_bridge=self.plugin_bridge,
             plugin_bindings=self.plugin_bindings,
             approval_mode=self.runtime_config.approval_mode,
+            capability_strategy=self.runtime_config.capability_strategy,
             application_ref=self.application_ref, tui_ref=self.tui_ref,
             context_wrapper=self.peers.wrap_context,
             activity_lock=self.activity_lock,

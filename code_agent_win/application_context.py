@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import replace
 from pathlib import Path
 
+from code_agent.capabilities import CapabilityStrategy
 from code_agent.context.budget import PromptBudget
 from code_agent.context.models import ContextConfig
 from code_agent.context.repo_map import RepoMapBuilder
@@ -217,6 +218,8 @@ def engine_for(
     sessions: object,
     workspace_root: Path,
     mode: ModeSnapshot,
+    *,
+    capability_strategy: CapabilityStrategy = CapabilityStrategy.HYBRID,
 ) -> AgentEngine:
     mode_limits = mode.definition.limits
     limits = EngineLimits(
@@ -241,6 +244,7 @@ def engine_for(
         model_name=profile.provider.model,
         verification=TaskScopedVerificationService(sessions),
         peer_tool_names=("list_agents", "send_message"),
+        capability_strategy=capability_strategy,
     )
 
 

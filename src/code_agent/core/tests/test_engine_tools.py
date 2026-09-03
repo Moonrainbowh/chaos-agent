@@ -32,7 +32,10 @@ from code_agent.core.tests._engine_support import (  # noqa: E402
     FakeModelClient,
     MemorySessionRepository,
 )
-from code_agent.capabilities.catalog import CONTRACT_TOOL_NAME  # noqa: E402
+from code_agent.capabilities.catalog import (  # noqa: E402
+    CapabilityStrategy,
+    CONTRACT_TOOL_NAME,
+)
 
 
 def completed() -> ModelEvent:
@@ -63,7 +66,11 @@ class AgentEngineToolTests(unittest.IsolatedAsyncioTestCase):
                 ActionResult(
                     "load-1",
                     CONTRACT_TOOL_NAME,
-                    {"contract": read_definition.to_dict()},
+                    {
+                        "name": "read_file",
+                        "digest": "0" * 64,
+                        "availability": "next_model_turn",
+                    },
                     metadata={"disclosed_tool": "read_file"},
                 ),
                 ActionResult("read-1", "read_file", {"text": "contents"}),
@@ -74,7 +81,11 @@ class AgentEngineToolTests(unittest.IsolatedAsyncioTestCase):
         _ = [
             event
             async for event in AgentEngine(
-                model, FakeContextBuilder(), actions, MemorySessionRepository()
+                model,
+                FakeContextBuilder(),
+                actions,
+                MemorySessionRepository(),
+                capability_strategy=CapabilityStrategy.PROGRESSIVE,
             ).run("inspect")
         ]
 
@@ -91,6 +102,28 @@ class AgentEngineToolTests(unittest.IsolatedAsyncioTestCase):
                 ActionRequest("load-1", CONTRACT_TOOL_NAME, {"name": "read_file"}),
                 ActionRequest("read-1", "read_file", {"path": "a.txt"}),
             ],
+        )
+
+    async def test_hybrid_preloads_builtin_reads_but_not_long_tail_tools(self) -> None:
+        model = FakeModelClient(((completed(),),))
+        actions = FakeActionDispatcher()
+        actions._tools = (
+            ToolDefinition(CONTRACT_TOOL_NAME, "Load", {"type": "object"}),
+            ToolDefinition("read_file", "Read", {"type": "object"}),
+            ToolDefinition("run_command", "Run", {"type": "object"}),
+            ToolDefinition("mcp.docs.read_file", "MCP read", {"type": "object"}),
+        )
+
+        _ = [
+            event
+            async for event in AgentEngine(
+                model, FakeContextBuilder(), actions, MemorySessionRepository()
+            ).run("inspect")
+        ]
+
+        self.assertEqual(
+            [tool.name for tool in model.calls[0][2]],
+            [CONTRACT_TOOL_NAME, "read_file"],
         )
 
     async def test_tool_result_is_paired_and_returned_to_next_model_turn(self) -> None:

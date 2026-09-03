@@ -12,7 +12,7 @@ It is a clean-room implementation. It takes architectural lessons from projects 
 - Freezes `low`, `medium`, `high`, or `ultra` task modes to an actual provider profile, model, prompt policy, tool set, reasoning effort, and execution limits. Modes never grant permission.
 - Runs bounded advisory Subagent, Oracle, Review, Search, and Librarian children through the same typed tools, policy checks, cancellation tree, and cumulative parent budget.
 - Loads trusted declarative plugins without executing plugin Python, shell, URLs, or terminal control sequences. Tools, namespaced commands and modes, custom Agents, typed events, and Host-owned interactions are wired through bounded controllers and policy checks.
-- Starts each Agent run with a compact capability directory and loads a full tool schema only after the model requests that tool's contract, reducing repeated tool context as built-ins, plugins, and MCP services grow.
+- Uses a configurable `legacy` / `hybrid` / `progressive` tool-capability strategy. The recommended `hybrid` default preloads common built-in reads while progressively disclosing long-tail, plugin, and MCP schemas.
 - Routes file reads, edits, Git inspection, structured local verification, and PowerShell commands through typed tools, central policy checks, audit events, and explicit approval.
 - Provides a Windows Terminal TUI (`chaos-agent`), a text CLI (`chaos-agent ask`), session resume (`chaos-agent resume`), machine-readable events (`chaos-agent run --json`), and an ACP v1 editor adapter (`chaos-agent-acp`). The legacy `agent` command remains available during migration.
 
@@ -70,6 +70,8 @@ input_modalities = ["text", "image"]
 
 [agent]
 approval_mode = "auto"
+# Recommended default; alternatives are "legacy" and "progressive".
+capability_strategy = "hybrid"
 # Optional; "auto" probes PowerShell 7 first, then Windows PowerShell 5.1.
 # powershell_dialect = "powershell_7"
 # Optional alternatives:
@@ -172,11 +174,26 @@ links are accepted in prompts. Image/audio blocks, embedded resources,
 additional workspace roots, client-provided MCP servers, editor terminal
 proxying, and unsaved-buffer synchronization are not enabled in this first
 version. Stdout is reserved for ACP JSON-RPC while the adapter is running.
+New and loaded ACP sessions advertise `auto` and `session-all` modes. `auto`
+keeps the normal trusted-workspace behavior, including recognized local
+PowerShell. `session-all` applies explicit high-trust access only for that ACP
+session and is cleared when the session, connection, or process closes;
+unknown, critical, and protected actions remain blocked. ACP does not issue
+per-action `request_permission` calls.
 
-Tool contract disclosure is scoped to one Agent run. The first model turn sees
-`load_tool_contract` plus a compact name/category/summary directory; after a
-successful contract lookup, the requested tool's full JSON Schema appears on
-the next model turn. Tool execution continues through the same typed dispatcher.
+Tool contract disclosure is scoped to one Agent run. With the recommended
+`hybrid` strategy, the first model turn sees `load_tool_contract`, a compact
+name/category/summary directory, and the full provider definitions for
+`read_file`, `read_code_slices`, `list_files`, `search_text`, `git_status`, and
+`git_diff` when those built-ins are enabled. MCP, plugin, execution, editing,
+coordination, and other long-tail tools remain progressive. A successful
+contract lookup returns only `name`, a stable schema `digest`, and
+`availability`; the complete JSON Schema appears only as a provider tool
+definition on the next model turn. `legacy` sends all active tool definitions
+without the loader, while `progressive` initially sends only the loader and
+directory. Configure `[agent].capability_strategy` or
+`CHAOS_CAPABILITY_STRATEGY`; the legacy `CODE_AGENT_CAPABILITY_STRATEGY` alias
+remains available. Tool execution continues through the same typed dispatcher.
 
 The Windows UI appends completed user, agent, tool, diff, warning, and error
 entries to the normal Windows Terminal buffer. Windows Terminal owns selection,
@@ -280,6 +297,7 @@ policy risks together.
 
 - `CHAOS_APPROVAL_MODE=auto` is the default. Once the current workspace is selected, ordinary workspace reads, writes, non-critical local commands, and structured verification run without per-action approval. Network access, protected paths, and paths outside that workspace still require approval; unknown and critical actions remain denied.
 - Use `:权限` (or the compatible `/权限` and English `permission` alias) while idle to select `unrestricted`, `plan`, `ask`, `auto`, `elevated`, or `full-local` for subsequent tasks. The same values are accepted by `[agent].approval_mode` and `CHAOS_APPROVAL_MODE`.
+- Use `/权限 允许命令 [--network] <program> [args...]` to persist one exact `run_process_v1` rule for the current workspace. `/权限 规则` lists these rules and `/权限 撤销 <id-prefix>` removes one. A rule binds the resolved executable, complete argument list, workspace identity, descendant cwd scope, and network declaration; it never grants raw PowerShell.
 - `plan` allows workspace reads only. `ask` approves writes and commands interactively. `auto` and `elevated` trust recognized actions inside the configured workspace. `full-local` also allows recognized non-critical local actions but asks at network and outside-workspace boundaries. Production typed file tools still fail closed at the workspace boundary; approving typed external-file access is not implemented yet.
 - `unrestricted` is an explicit high-trust mode: recognized non-critical raw PowerShell and network actions run without per-action approval, and raw PowerShell can reach paths available to the current Windows user. Typed file tools remain workspace-contained, typed actions that explicitly target protected paths still require approval, and critical or unknown actions remain denied.
 - `allow_sensitive_paths = true` (or `CHAOS_ALLOW_SENSITIVE_PATHS=true`) is a separate explicit opt-in for typed workspace file tools to access `.env` files and private-key names. It is not an OS sandbox: approved raw PowerShell, and raw PowerShell in explicit `unrestricted` mode, runs as the current Windows user and can bypass typed file guards. `.git`, `.code-agent`, local API configuration directories, cross-task `chaos-agent-workspaces` access, and symlink/reparse paths remain protected from typed file tools at every level.

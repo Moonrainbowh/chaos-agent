@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import AsyncIterator, Mapping, Optional, Sequence
 
+from code_agent.capabilities import CapabilityStrategy
+
 from ._json import JSONValue, freeze_mapping
 from ._engine_run import AgentEngineRunMixin, _TurnState, _validate_run_arguments
 from ._engine_turn import AgentEngineTurnMixin
@@ -41,6 +43,7 @@ class AgentEngine(
         context_permission_snapshot: Mapping[str, JSONValue] | None = None,
         action_lineage: ActionLineage | None = None,
         peer_tool_names: Sequence[str] = (),
+        capability_strategy: CapabilityStrategy = CapabilityStrategy.HYBRID,
     ) -> None:
         self._model = model
         self._context = context
@@ -60,6 +63,9 @@ class AgentEngine(
         if len(set(peer_tools)) != len(peer_tools):
             raise ValueError("peer_tool_names must be unique")
         self._peer_tool_names = frozenset(peer_tools)
+        if not isinstance(capability_strategy, CapabilityStrategy):
+            raise TypeError("capability_strategy must be a CapabilityStrategy")
+        self._capability_strategy = capability_strategy
         self._context_mode_snapshot = freeze_mapping({} if context_mode_snapshot is None else context_mode_snapshot, "context_mode_snapshot")
         self._context_permission_snapshot = freeze_mapping({} if context_permission_snapshot is None else context_permission_snapshot, "context_permission_snapshot")
 

@@ -20,6 +20,7 @@
 - `classify_action(request, workspace_root): ActionClassification`: 从工具名、递归路径参数和 raw/argv 命令信号生成能力与风险提示 | 解析路径但不写入 | 路径执行 workspace containment；共享命令检查是保守启发式，不是 shell parser
 - `path_is_outside(...)`、`targets_outside_workspace(...)`、`targets_protected(...)`: 递归提取并判断结构化与命令文本中的路径边界 | 解析路径但不写入 | Windows 绝对路径、父级跳转和敏感名称均保守分类
 - `PolicyConfig`、`ActionPolicy.evaluate(request): PolicyDecision`: 以不可变模式、网络开关和 workspace root 执行访问级别决策表 | 无副作用 | 默认 `auto`；protected path 在 `unrestricted` 之前进入审批，critical 与未知工具始终拒绝
+- `ProcessRuleStore.allow/list/revoke/match(...)`: 在产品状态 SQLite 中保存并匹配结构化进程的精确永久授权 | SQLite I/O、解析 executable | 绑定解析后的程序路径、完整参数、workspace identity 和联网上限；不匹配 raw PowerShell、工作区外、protected、critical 或 unknown 动作
 - `ActionPolicy.evaluate(request, task_authorization)`: 在匹配的当前工作区授权下允许普通读写、本地 shell/process、typed verification 和 edit plan | 无副作用 | raw 命令中可见的绝对/父级路径与敏感名称保守分类，不自动放行边界能力
 - `sanitize_environment(host_env, allowed_names, explicit_env): dict`: 生成 Windows 子进程最小环境白名单 | 无副作用 | 名称不区分大小写，显式值仅限批准名称
 - `redact_sensitive(value): value`: 递归复制并遮盖敏感键对应的值 | 无副作用 | 不修改输入

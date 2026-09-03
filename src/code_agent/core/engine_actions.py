@@ -81,10 +81,7 @@ class AgentEngineActionMixin:
         yield added
 
     def _action_execution_context(
-        self,
-        thread_id: str,
-        request_id: str,
-        task: TaskRecord | None,
+        self, thread_id: str, request_id: str, task: TaskRecord | None,
     ) -> ActionExecutionContext:
         lineage: ActionLineage | None = self._action_lineage
         return ActionExecutionContext(
@@ -233,7 +230,8 @@ class AgentEngineActionMixin:
                 raise ModelStreamError("action dispatcher exposed duplicate tools")
             if allowed_names is not None:
                 tools = tuple(tool for tool in tools if tool.name in allowed_names)
-            tools = progressive_tools(tools, tuple(disclosed_names))
+            tools = progressive_tools(
+                tools, tuple(disclosed_names), strategy=self._capability_strategy)
             names = {tool.name for tool in tools}
             return tools, names
         except ModelStreamError:
@@ -299,4 +297,11 @@ def _validation_fingerprint(request: ActionRequest, result: object) -> str | Non
 
 def _requires_decision(result: object) -> bool:
     output = getattr(result, "output", None)
-    return bool(getattr(result, "is_error", False)) and isinstance(output, Mapping) and output.get("error") == "approval required in TUI"
+    return (
+        bool(getattr(result, "is_error", False))
+        and isinstance(output, Mapping)
+        and (
+            output.get("error_code") == "approval_required"
+            or output.get("error") == "approval required in TUI"
+        )
+    )

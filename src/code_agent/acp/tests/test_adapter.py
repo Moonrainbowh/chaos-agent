@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import unittest
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -78,12 +79,15 @@ class ChaosAcpAgentTests(unittest.IsolatedAsyncioTestCase):
         self.sessions.messages["thread-existing"] = ()
         self.client = FakeClient()
 
-    def agent(self, controller: object | None = None) -> ChaosAcpAgent:
+    def agent(
+        self, controller: object | None = None, *, permission_scope=None
+    ) -> ChaosAcpAgent:
         result = ChaosAcpAgent(
             controller or FakeController(()),
             self.sessions,
             self.root,
             version="1.0.3",
+            permission_scope=permission_scope,
         )
         result.on_connect(self.client)
         return result
@@ -110,8 +114,43 @@ class ChaosAcpAgentTests(unittest.IsolatedAsyncioTestCase):
         listed = await agent.list_sessions(str(self.root))
 
         self.assertEqual(created.session_id, "thread-new")
+        self.assertEqual(created.modes.current_mode_id, "auto")
+        self.assertEqual(
+            [mode.id for mode in created.modes.available_modes],
+            ["auto", "session-all"],
+        )
         self.assertEqual(listed.sessions[0].session_id, "thread-existing")
         self.assertEqual(listed.sessions[0].cwd, str(self.root))
+
+    async def test_session_all_is_scoped_to_prompt_and_close_revokes_it(self) -> None:
+        scopes: list[tuple[str, str]] = []
+
+        @contextmanager
+        def permission_scope(mode, source):
+            scopes.append((mode.value, source))
+            yield
+
+        controller = FakeController(
+            (AgentEvent(EventKind.COMPLETED, {"thread_id": "thread-existing"}),)
+        )
+        agent = self.agent(controller, permission_scope=permission_scope)
+
+        await agent.set_session_mode("thread-existing", "session-all")
+        await agent.prompt(
+            "thread-existing",
+            [schema.TextContentBlock(type="text", text="inspect")],
+        )
+        await agent.close_session("thread-existing")
+        loaded = await agent.load_session(str(self.root), "thread-existing")
+
+        self.assertEqual(scopes, [("unrestricted", "acp_session_all")])
+        self.assertEqual(loaded.modes.current_mode_id, "auto")
+
+    async def test_session_mode_rejects_unknown_values(self) -> None:
+        with self.assertRaises(RequestError) as raised:
+            await self.agent().set_session_mode("thread-existing", "danger")
+
+        self.assertEqual(raised.exception.code, -32602)
 
     async def test_session_setup_rejects_other_roots_and_client_mcp(self) -> None:
         agent = self.agent()

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Generic, TypeVar
 
+from code_agent.capabilities import CapabilityStrategy
 from code_agent.core._json import JSONValue
 from code_agent.core.action_execution import ActionExecutionContext, ActionLineage
 from code_agent.core.engine import AgentEngine
@@ -110,6 +111,7 @@ def build_engine(
     mode: ModeSnapshot,
     *,
     action_lineage: ActionLineage | None = None,
+    capability_strategy: CapabilityStrategy = CapabilityStrategy.HYBRID,
 ) -> AgentEngine:
     mode_limits = mode.definition.limits
     limits = EngineLimits(
@@ -134,6 +136,7 @@ def build_engine(
         model_name=profile.provider.model,
         verification=LedgerTaskVerificationService(workspace_root, sessions),
         action_lineage=action_lineage,
+        capability_strategy=capability_strategy,
     )
 
 
@@ -147,6 +150,11 @@ def build_child_engine_factory(
     def child_engine(
         agent: AgentDefinition, parent: ActionExecutionContext | None = None
     ) -> tuple[object, object]:
+        capability_strategy = getattr(
+            getattr(host, "runtime_config", None),
+            "capability_strategy",
+            CapabilityStrategy.HYBRID,
+        )
         profile = host.profiles[agent.mode.profile_id]
         client = model_factory(
             profile.provider,
@@ -171,6 +179,7 @@ def build_child_engine_factory(
             client, profile, context_factory(agent.mode, sessions),
             restricted, sessions, host.root, agent.mode,
             action_lineage=lineage,
+            capability_strategy=capability_strategy,
         )
         return engine, client
 
