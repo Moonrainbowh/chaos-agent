@@ -86,15 +86,21 @@ class ProviderTransport:
                     timeout=self._config.timeout_s,
                 ) as response:
                     if not response.is_success:
+                        error_body = await response.aread()
+                        body_text = error_body.decode("utf-8", errors="replace").strip()
                         retryable = response.status_code == 429 or (
                             500 <= response.status_code <= 599
                         )
                         if retryable and attempt < self._config.max_retries:
                             retry_delay = self._backoff(attempt)
                         else:
+                            detail = None
+                            if response.status_code not in {401, 403} and body_text:
+                                detail = f"Provider HTTP status {response.status_code}: {body_text}"
                             raise ProviderHTTPError(
                                 status=response.status_code,
                                 retryable=retryable,
+                                message=detail,
                             )
                     else:
                         decoder = SSEDecoder(self._config.max_event_bytes)

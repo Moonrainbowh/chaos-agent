@@ -200,6 +200,24 @@ class InventoryCaptureTests(WorkspaceInventoryTestCase):
         self.assertEqual(first.entries[0].size, 1)
         self.assertEqual(first.entries[0].mode, os.stat(self.root / "a.py").st_mode & 0o7777)
 
+    def test_executable_script_extensions_inventory_and_read(self) -> None:
+        self.write("run.cmd", b"@echo off\r\necho hello\r\n")
+        self.write("build.bat", b"@echo off\r\nexit /b 0\r\n")
+        self.write("app.exe", b"MZ_fake_binary_content")
+
+        inventory = WorkspaceInventory.capture(
+            self.root,
+            self.guard,
+            FixedPaths("run.cmd", "build.bat", "app.exe"),
+        )
+
+        self.assertEqual(inventory.paths, ("app.exe", "build.bat", "run.cmd"))
+        self.assertEqual(len(inventory.entries), 3)
+        for entry in inventory.entries:
+            target = self.root / entry.relative_path
+            self.assertEqual(entry.size, target.stat().st_size)
+            self.assertEqual(entry.mode, target.stat().st_mode & 0o7777)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -183,15 +183,24 @@ def _same_object(current: PathIdentity, expected: PathIdentity) -> bool:
 def _same_directory_object(
     current: PathIdentity | None, expected: PathIdentity | None
 ) -> bool:
-    return bool(
-        current is not None
-        and expected is not None
-        and current == expected
-        and stat.S_ISDIR(current.mode)
-        and stat.S_ISDIR(expected.mode)
-        and current.mode == expected.mode
-        and current.attributes == expected.attributes
-    )
+    if (
+        current is None
+        or expected is None
+        or current != expected
+        or not stat.S_ISDIR(current.mode)
+        or not stat.S_ISDIR(expected.mode)
+    ):
+        return False
+    if os.name == "nt":
+        mode_match = (current.mode & 0o600) == (expected.mode & 0o600)
+        stable_mask = 0xFFFF & ~0x20
+        attr_match = (
+            current.attributes & stable_mask
+        ) == (expected.attributes & stable_mask)
+    else:
+        mode_match = current.mode == expected.mode
+        attr_match = current.attributes == expected.attributes
+    return mode_match and attr_match
 
 
 def same_path_state(
@@ -200,10 +209,22 @@ def same_path_state(
     """Compare object identity plus mutation-relevant metadata."""
     if current is None or expected is None:
         return current is expected
+    if os.name == "nt":
+        mode_match = (
+            stat.S_IFMT(current.mode) == stat.S_IFMT(expected.mode)
+            and (current.mode & 0o600) == (expected.mode & 0o600)
+        )
+        stable_mask = 0xFFFF & ~0x20
+        attr_match = (
+            current.attributes & stable_mask
+        ) == (expected.attributes & stable_mask)
+    else:
+        mode_match = current.mode == expected.mode
+        attr_match = current.attributes == expected.attributes
     return (
         current == expected
-        and current.mode == expected.mode
-        and current.attributes == expected.attributes
+        and mode_match
+        and attr_match
         and current.size == expected.size
         and current.modified_ns == expected.modified_ns
     )

@@ -31,7 +31,13 @@ class ApplicationPathTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             local_app_data = Path(temporary).resolve()
             with patch.dict(
-                "os.environ", {"LOCALAPPDATA": str(local_app_data)}, clear=False
+                "os.environ",
+                {
+                    "LOCALAPPDATA": str(local_app_data),
+                    "CHAOS_WORKSPACE_STORAGE": "",
+                    "CODE_AGENT_WORKSPACE_STORAGE": "",
+                },
+                clear=False,
             ):
                 storage = _workspace_storage_path()
 

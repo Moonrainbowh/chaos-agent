@@ -31,6 +31,10 @@ def session_path() -> Path:
 
 
 def workspace_storage_path() -> Path:
+    override = os.getenv("CHAOS_WORKSPACE_STORAGE") or os.getenv("CODE_AGENT_WORKSPACE_STORAGE")
+    if override:
+        literal = Path(override).expanduser()
+        return resolve_managed_storage_root(literal)
     base = os.getenv("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
     # Keep managed worktrees outside the protected API configuration directory.
     return resolve_managed_storage_root(
