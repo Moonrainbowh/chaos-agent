@@ -25,7 +25,7 @@
 - `RuleLoader.load(cwd): tuple[ProjectRule, ...]`: 按根规则、根目录直属扩展规则和目录链加载受边界保护的说明 | 读取已授权工作区文件 | 以根目录 mtime 复用直属扩展名称，不递归扫描工作区；严格受单文件和总字节预算约束
 - `RuleLoader.render(rules): str`: 把规则序列编码为稳定、带路径边界的系统提示片段 | 无副作用
 - `RepoFileScanner.scan(path): RepoFileFacts`、`extract_python_semantics(...)`: 读取单个受保护文件并提取签名、有界检索正文、scope-aware Python 定义/import/use/config facts | 只读取指定文件 | 参数、局部变量、comprehension 和 shadowing 不得误标外部 exact 引用；二进制或解析失败降级为 path-only facts
-- `resolve_semantic_graph(records)`: 从同一批 File Facts 解析 `import/reference/call/inherits/config` 直接关系并整体发布 | 无副作用 | relative/alias/src/re-export 可解析；star import、动态派发和歧义名称不得标 exact；配置关系绑定 namespace/key/provenance；不保存 `test_impact`
+- `resolve_semantic_graph(records)`、`UnifiedSemanticGraph`: 从同一批 File Facts 解析 `import/reference/call/inherits/config` 关系，构建统一代码认知底座（Unified Semantic Graph），服务于 Context Selection、Test Impact Analysis、Change Risk 评估、Review Scope 圈定与 Refactor Planning 拓扑编排 | 无副作用 | relative/alias/src/re-export 可解析；star import、动态派发和歧义名称不得标 exact；配置关系绑定 namespace/key/provenance
 - `plan_repo_query(query): RepoQueryPlan`: 将不可信查询拆为有界字面 term、中文 trigram、短中文词和少量中英代码词汇别名 | 无副作用 | 通道和输入长度均有硬上限，不把原始输入拼入 FTS MATCH 语法
 - `SQLiteRepoSearch.sync(previous, current)`、`rank(query)`、`close()`: 以事务方式增量维护进程内 unicode61/trigram FTS5 文件索引并返回有界候选名次 | 维护内存 SQLite 连接 | 短 ASCII/CJK n-gram 使用索引字段；Feature contract 只索引正向职责；FTS5、trigram 或查询失败时降级为结构化检索
 - `rank_repo_entries(entries, query, touched_files, lexical)`: 用 RRF 融合词法、精确路径/符号、最强 Feature contract 范围、依赖图和 touched files 名次 | 无副作用 | 不混合不可比的原始 BM25 分值；测试/文档有稳定先验降权，路径稳定打破同分

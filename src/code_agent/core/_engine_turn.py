@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 from typing import AsyncIterator
 
+from ._tool_feedback import tool_failure
 from ._engine_run import _RunState, _TurnState
 from .errors import EngineLimitError, ModelStreamError
 from .events import AgentEvent, EventKind
@@ -213,27 +215,64 @@ class AgentEngineTurnMixin:
     async def _dispatch_tool_calls(
         self, state: _RunState, turn: _TurnState
     ) -> AsyncIterator[AgentEvent]:
-        for call in turn.calls:
-            state.used_call_ids.add(call.id)
-            async for event in self._dispatch(
-                state.thread_id,
-                call,
-                state.token,
-                is_available=call.name in turn.tool_names,
-                task=state.task,
-                supervisor=state.supervisor,
-            ):
-                if event.kind is EventKind.MESSAGE_ADDED:
-                    message = Message.from_dict(event.payload["message"])
-                    state.messages += (message,)
-                disclosed = self._disclosed_tool_from_event(event)
-                if disclosed is not None:
-                    name, digest = disclosed
-                    state.disclosed_tool_digests[name] = digest
-                yield event
-                if event.kind in {
-                    EventKind.TASK_PAUSED,
-                    EventKind.TASK_DECISION_REQUIRED,
-                }:
-                    state.stop_requested = True
-                    return
+        verification = getattr(self, "_verification", None)
+        in_turn_tx = False
+        if (
+            state.task is not None
+            and verification is not None
+            and hasattr(verification, "begin_logical_change")
+            and len(turn.calls) > 0
+        ):
+            verification.begin_logical_change(state.task.id)
+            in_turn_tx = True
+
+        try:
+            for call in turn.calls:
+                # Repetitive Action Circuit-Breaker: prevent infinite loops of same action
+                call_sig = f"{call.name}:{json.dumps(dict(call.arguments), sort_keys=True)}"
+                state.action_history.append(call_sig)
+                if state.action_history.count(call_sig) >= 3:
+                    fail_result = tool_failure(
+                        call,
+                        f"Action circuit breaker triggered: {call.name} with identical arguments was called {state.action_history.count(call_sig)} times. Do not repeat this action; proceed with your analysis or response.",
+                    )
+                    completed = AgentEvent(EventKind.ACTION_COMPLETED, {"result": fail_result.to_dict()})
+                    await self._journal.append_event(state.thread_id, completed)
+                    yield completed
+                    message = Message(role="tool", name=call.name, tool_call_id=call.id, content=json.dumps(fail_result.to_dict(), ensure_ascii=False))
+                    await self._journal.append_message(state.thread_id, message)
+                    added = self._journal.message_added(message)
+                    await self._journal.append_event(state.thread_id, added)
+                    yield added
+                    continue
+
+                state.used_call_ids.add(call.id)
+                async for event in self._dispatch(
+                    state.thread_id,
+                    call,
+                    state.token,
+                    is_available=call.name in turn.tool_names,
+                    task=state.task,
+                    supervisor=state.supervisor,
+                ):
+                    if event.kind is EventKind.MESSAGE_ADDED:
+                        message = Message.from_dict(event.payload["message"])
+                        state.messages += (message,)
+                    disclosed = self._disclosed_tool_from_event(event)
+                    if disclosed is not None:
+                        name, digest = disclosed
+                        state.disclosed_tool_digests[name] = digest
+                    yield event
+                    if event.kind in {
+                        EventKind.TASK_PAUSED,
+                        EventKind.TASK_DECISION_REQUIRED,
+                    }:
+                        state.stop_requested = True
+                        return
+        finally:
+            if in_turn_tx and state.task is not None and verification is not None:
+                current_state = await self._journal.load_task_state(state.thread_id)
+                settled_state, _ = await verification.commit_logical_change(
+                    state.task, current_state
+                )
+                await self._journal.save_task_state(state.thread_id, settled_state)

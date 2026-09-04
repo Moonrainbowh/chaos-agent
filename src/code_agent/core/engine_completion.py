@@ -23,11 +23,18 @@ class AgentEngineCompletionMixin:
             assessment = verification_assessment.assessment
             outcome = verification_assessment.outcome
         transition = decide_verification_transition(task.contract.intent, assessment, outcome)
-        if transition.action.value == "complete" and verification_assessment is not None:
-            await self._journal.transition_task(
-                task.id, TaskStatus.VERIFYING, "verifying current evidence"
+        if transition.action.value == "complete":
+            if (
+                verification_assessment is not None
+                and verification_assessment.verification_run_id is not None
+            ):
+                await self._journal.transition_task(
+                    task.id, TaskStatus.VERIFYING, "verifying current evidence"
+                )
+                return await self._verification.finalize(task, verification_assessment)
+            return await self._journal.transition_task(
+                task.id, TaskStatus.COMPLETED, "task completed"
             )
-            return await self._verification.finalize(task, verification_assessment)
         if transition.status is task.status:
             return task
         return await self._journal.transition_task(

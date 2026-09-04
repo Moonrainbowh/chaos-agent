@@ -18,4 +18,5 @@
 - `VerificationKind`、`VerificationRequest`、`VerificationCommand`、`VerificationUnavailable`: 冻结受限验证输入、固定 argv 和不可用结果 | 无副作用 | 路径只能是工作区相对 POSIX 路径
 - `PythonVerificationAdapter.build(request)`: 为 Python 验证 kind 生成固定 argv 或 unavailable | 只查询本地模块可用性 | 不执行命令、不安装依赖、不接收 shell 文本
 - `LocalVerificationAdapter.build(request)`: 为 Node/.NET 已声明脚本或项目生成固定 argv | 只读取 manifest、现有 node_modules 和本机 executable | `npm` 不安装依赖，`dotnet` 始终使用 `--no-restore`
-- `LedgerTaskVerificationService`: 为 typed 写入以及已实际尝试的 raw shell/structured process 推进 guarded subject generation，并将 typed verification 结果追加到持久账本 | 调用 workspace snapshot 和 session ledger | 任意命令尝试保守使旧 evidence 过期，但不产生 verifier evidence；完成仍由 sessions 原子复核
+- `VerificationPlanner`: 基于 ChangeSet、RiskTier 与 UnifiedSemanticGraph 规划三阶段渐进验证（In-Flight L0 语法截瘫、Local Milestone 影响域单测、Final Gate 全量门禁） | 无外部副作用 | 结合反向依赖图排查无关测试，提供审查范围与重构拓扑排序
+- `LedgerTaskVerificationService`: 支持 Logical Change 事务（解耦单个 Tool Call 与 Generation 递增，批次提交时单调递增一次）并结合 guarded subject snapshot 和 evidence ledger | 事务内多编辑共享 generation 并做 L0 fail-fast 校验；完成仍由 sessions 原子复核

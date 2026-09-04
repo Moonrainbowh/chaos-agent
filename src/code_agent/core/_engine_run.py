@@ -36,6 +36,7 @@ class _RunState:
     stop_requested: bool = False
     allowed_tool_names: frozenset[str] | None = None
     disclosed_tool_digests: dict[str, str] = field(default_factory=dict)
+    action_history: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -211,8 +212,10 @@ class AgentEngineRunMixin:
                         yield warning
         except (AgentEngineError, CancellationError):
             raise
-        except Exception:
-            raise ModelStreamError("model stream failed") from None
+        except Exception as exc:
+            import traceback
+            traceback.print_exc()
+            raise ModelStreamError(f"model stream failed: {exc}") from exc
         if not completed:
             raise ModelStreamError("model stream ended before completion")
 

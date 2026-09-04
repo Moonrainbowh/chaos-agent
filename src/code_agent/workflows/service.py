@@ -167,15 +167,14 @@ class WorkflowService:
             ),
             None,
         )
-        if verification is None:
-            raise ValueError("delivery requires completed verification")
+        parent_id = verification.id if verification is not None else _main_id(observation.task_id)
         if not _has_node(graph, observation.node_id):
             _add_dependent_node(
                 graph,
                 observation.node_id,
                 "delivery",
                 "Delivery",
-                verification.id,
+                parent_id,
             )
         _advance(graph, observation.node_id, observation.status)
         return graph.snapshot()
