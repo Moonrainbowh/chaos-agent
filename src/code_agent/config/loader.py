@@ -16,7 +16,7 @@ except ModuleNotFoundError:  # pragma: no cover - exercised on Python 3.10.
     import tomli as tomllib
 
 from code_agent.policy.models import ApprovalMode
-from code_agent.providers.config import ApiProtocol, ConfiguredApiKey, InputModality, ModelProfile, ProviderConfig
+from code_agent.providers.config import ApiProtocol, ConfiguredApiKey, InputModality, ModelProfile, ProviderConfig, optional_token_rate
 from code_agent.providers.errors import ProviderConfigError
 from code_agent.mcp.registry import McpRisk, McpServer
 from code_agent.runtime.models import ShellDialect
@@ -95,7 +95,7 @@ def _profiles(document: Mapping[str, Any], env: Mapping[str, str], selected: str
     for name, raw in configured.items():
         if not isinstance(name, str) or not isinstance(raw, dict): raise LocalConfigError("providers must map names to tables")
         current = provider if name == selected else _provider_config(raw, env, allow_environment=False)
-        values.append(ModelProfile(name, current, _required_positive(raw, "context_window"), _required_positive(raw, "max_output_tokens"), _positive(raw.get("max_agent_rounds", 50), "max_agent_rounds"), _positive(raw.get("max_tool_calls", 128), "max_tool_calls"), _positive(raw.get("max_tool_calls_per_round", 50), "max_tool_calls_per_round"), _input_modalities(raw)))
+        values.append(ModelProfile(name, current, _required_positive(raw, "context_window"), _required_positive(raw, "max_output_tokens"), _positive(raw.get("max_agent_rounds", 50), "max_agent_rounds"), _positive(raw.get("max_tool_calls", 128), "max_tool_calls"), _positive(raw.get("max_tool_calls_per_round", 50), "max_tool_calls_per_round"), _input_modalities(raw), optional_token_rate(raw.get("input_cost_per_million"), "input_cost_per_million"), optional_token_rate(raw.get("output_cost_per_million"), "output_cost_per_million")))
     return tuple(values)
 
 

@@ -151,6 +151,9 @@ class AgentEngineRunMixin:
         source_input = ""
         try:
             task_state = await self._journal.load_task_state(state.thread_id)
+            mode_snapshot = dict(self._context_mode_snapshot)
+            if state.task is not None:
+                mode_snapshot["interaction_mode"] = state.task.contract.interaction_mode
             request = ContextRequest(
                 thread_id=state.thread_id,
                 revision=state.budget.model_turns,
@@ -159,7 +162,7 @@ class AgentEngineRunMixin:
                 tools=turn.tools,
                 task_state=task_state,
                 cancellation=state.token,
-                mode_snapshot=self._context_mode_snapshot,
+                mode_snapshot=mode_snapshot,
                 permission_snapshot=self._context_permission_snapshot,
                 budget_lease=budget_lease(state.budget),
             )

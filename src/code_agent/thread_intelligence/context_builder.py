@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Sequence
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from typing import Protocol
 
 from code_agent.context.attachment_budget import attachment_metadata, message_tokens
@@ -13,8 +13,15 @@ from code_agent.core.protocols import ContextBuilder
 from code_agent.core.task_state import TaskState
 from code_agent.sessions.models import MessageRecord
 
-from .compaction import SemanticCompactor
-from .models import SourceAnchor, SourceKind, ThreadEntry, anchor_message
+from .compaction import SemanticCompactor, checkpoint_message
+from .models import (
+    SemanticCheckpoint,
+    SourceAnchor,
+    SourceKind,
+    ThreadEntry,
+    anchor_message,
+    source_range_digest,
+)
 
 
 class ThreadContextStore(Protocol):
@@ -25,6 +32,20 @@ class ThreadContextStore(Protocol):
     async def publish_semantic_checkpoint(
         self, checkpoint: object, entries: Sequence[ThreadEntry]
     ) -> None: ...
+
+    async def load_semantic_checkpoints(
+        self, thread_id: str
+    ) -> tuple[SemanticCheckpoint, ...]: ...
+
+
+@dataclass(frozen=True)
+class ManualCompactionReport:
+    before_messages: int
+    after_messages: int
+    before_tokens: int
+    after_tokens: int
+    checkpoint_id: str | None
+    fallback_used: bool
 
 
 class ThreadAwareContextBuilder:
@@ -68,12 +89,12 @@ class ThreadAwareContextBuilder:
         cancellation = request.cancellation
         cancellation.raise_if_cancelled()
         records = await self._store.load_message_records(thread_id)
-        durable = tuple(record.message for record in records)
+        durable, sequences = await self._effective_messages(thread_id, records)
         result = await self._compactor.compact(
             thread_id,
             request.revision,
             durable,
-            message_sequences=tuple(record.sequence for record in records),
+            message_sequences=sequences,
             context_tokens=_message_tokens(durable),
             context_limit=self._context_limit,
             target_tokens=self._target_tokens,
@@ -93,6 +114,55 @@ class ThreadAwareContextBuilder:
             request, messages=tuple(selected), user_input="", attachments=()
         )
         return await self._inner.build(delegated)
+
+    async def compact_context(
+        self,
+        thread_id: str,
+        cancellation: CancellationToken | None = None,
+    ) -> ManualCompactionReport:
+        """Force one semantic compaction attempt and persist its checkpoint."""
+        token = cancellation or CancellationToken()
+        token.raise_if_cancelled()
+        records = await self._store.load_message_records(thread_id)
+        if not records:
+            raise ValueError("the current thread has no messages to compact")
+        messages, sequences = await self._effective_messages(thread_id, records)
+        before_tokens = _message_tokens(messages)
+        result = await self._compactor.compact(
+            thread_id,
+            max(1, records[-1].sequence),
+            messages,
+            message_sequences=sequences,
+            context_tokens=self._context_limit,
+            context_limit=self._context_limit,
+            target_tokens=self._target_tokens,
+            cancellation=token,
+        )
+        if result.checkpoint is not None:
+            await self._store.publish_semantic_checkpoint(
+                result.checkpoint,
+                _index_entries(records, result.checkpoint.id, result.checkpoint.summary),
+            )
+        return ManualCompactionReport(
+            len(messages),
+            len(result.messages),
+            before_tokens,
+            _message_tokens(result.messages),
+            result.checkpoint.id if result.checkpoint else None,
+            result.fallback_used,
+        )
+
+    async def _effective_messages(
+        self, thread_id: str, records: Sequence[MessageRecord]
+    ) -> tuple[tuple[Message, ...], tuple[int, ...]]:
+        messages = tuple(record.message for record in records)
+        sequences = tuple(record.sequence for record in records)
+        loader = getattr(self._store, "load_semantic_checkpoints", None)
+        if not callable(loader):
+            return messages, sequences
+        checkpoints = await loader(thread_id)
+        applied = _apply_checkpoints(records, checkpoints)
+        return applied or (messages, sequences)
 
 
 def _resolve_request(
@@ -156,3 +226,58 @@ def _indexable_message(message: Message) -> str:
     if metadata:
         sections.append(f"Attachments: {metadata}")
     return "\n".join(section for section in sections if section)
+
+
+def _apply_checkpoints(
+    records: Sequence[MessageRecord], checkpoints: Sequence[SemanticCheckpoint]
+) -> tuple[tuple[Message, ...], tuple[int, ...]] | None:
+    selected: list[SemanticCheckpoint] = []
+    occupied: set[int] = set()
+    for checkpoint in reversed(checkpoints):
+        covered = set(range(
+            checkpoint.source_start.sequence, checkpoint.source_end.sequence + 1
+        ))
+        if covered.isdisjoint(occupied) and _checkpoint_is_valid(records, checkpoint):
+            selected.append(checkpoint)
+            occupied.update(covered)
+    if not selected:
+        return None
+    by_start = {item.source_start.sequence: item for item in selected}
+    messages: list[Message] = []
+    sequences: list[int] = []
+    for record in records:
+        checkpoint = by_start.get(record.sequence)
+        if checkpoint is not None:
+            messages.append(checkpoint_message(checkpoint))
+            sequences.append(record.sequence)
+        if record.sequence not in occupied:
+            messages.append(record.message)
+            sequences.append(record.sequence)
+    return tuple(messages), tuple(sequences)
+
+
+def _checkpoint_is_valid(
+    records: Sequence[MessageRecord], checkpoint: SemanticCheckpoint
+) -> bool:
+    selected = tuple(
+        record
+        for record in records
+        if checkpoint.source_start.sequence
+        <= record.sequence
+        <= checkpoint.source_end.sequence
+    )
+    if not selected:
+        return False
+    anchored = tuple(
+        anchor_message(record.thread_id, record.sequence, record.message)
+        for record in selected
+    )
+    if (
+        anchored[0].anchor.stable_id != checkpoint.source_start.stable_id
+        or anchored[-1].anchor.stable_id != checkpoint.source_end.stable_id
+        or anchored[0].anchor.digest != checkpoint.source_start.digest
+        or anchored[-1].anchor.digest != checkpoint.source_end.digest
+        or source_range_digest(anchored) != checkpoint.source_digest
+    ):
+        return False
+    return True

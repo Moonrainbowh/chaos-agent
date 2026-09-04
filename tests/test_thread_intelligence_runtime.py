@@ -203,7 +203,7 @@ class StructuredHostContextTests(unittest.IsolatedAsyncioTestCase):
             (),
             TaskState.empty(),
             CancellationToken(),
-            mode_snapshot={"mode": "high"},
+            mode_snapshot={"mode": "high", "interaction_mode": "plan"},
             permission_snapshot={"write": True},
             budget_lease={"model_turns": 8},
         )
@@ -214,6 +214,8 @@ class StructuredHostContextTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(binding.current(), "thread-a")
         self.assertEqual(skills.restored, ["thread-a"])
         self.assertEqual(bundle.system_prompt.count("SKILL_INJECTION_MARKER"), 1)
+        self.assertIn("Interaction mode: plan", bundle.system_prompt)
+        self.assertIn("Do not modify files", bundle.system_prompt)
 
     async def test_thread_root_passes_the_complete_request(self) -> None:
         class RootRuntime:

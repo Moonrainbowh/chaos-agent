@@ -27,6 +27,7 @@
 - `SemanticCheckpoint.create(sources, response): SemanticCheckpoint`：固化摘要来源范围、模型、用量、版本和范围 digest | 无副作用 | checkpoint 始终是不可信派生上下文。
 - `SemanticCompactor.compact(...): SemanticCompactionResult`：在上下文压力达到阈值时压缩闭合旧区间并保留最近原文 | 调用注入的摘要服务 | 取消向上传播，失败、超时、孤立工具消息或预算超限时使用确定性回退。
 - `ThreadAwareContextBuilder.build(...)`: 从 Sessions 稳定消息记录协调语义压缩并以结构化请求委托现有 ContextBuilder | 摘要调用与 SQLite I/O | 发布失败使用原始消息；委托时保留 revision、控制快照与预算租约
+- `ThreadAwareContextBuilder.compact_context(...)`: 显式触发语义压缩并返回前后消息/token 与 checkpoint 身份 | 摘要调用与 SQLite I/O | 后续 build 仅在来源锚点和范围 digest 仍有效时复用最新 checkpoint，原始消息永不删除
 - `BoundedThreadIndex.add(entry): None`：在显式授权的 thread tree 内维护容量受限的来源索引 | 超限时淘汰最旧条目 | stable ID 冲突会被拒绝。
 - `BoundedThreadIndex.search(query, ...): tuple[SearchHit, ...]`：对授权消息、事件、checkpoint 与 evidence 文本执行有界检索 | 无副作用 | 不接受任意 thread ID 越权查询。
 - `ThreadReader.read_thread(anchor, ...): ThreadRead`：读取稳定来源及其后续替代、回滚和实际工具结果 | 无副作用 | 推翻仅标记为冲突候选，不改写原始事实。

@@ -18,6 +18,32 @@ from code_agent.config.loader import (  # noqa: E402
 
 
 class LocalApiConfigTests(unittest.TestCase):
+    def test_loads_optional_token_pricing_as_a_complete_pair(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.toml"
+            path.write_text(
+                """
+[default]
+provider = "priced"
+[providers.priced]
+api = "responses"
+base_url = "https://api.example.test"
+model = "priced-model"
+api_key_env = "KEY"
+context_window = 1000
+max_output_tokens = 100
+input_cost_per_million = 0.4
+output_cost_per_million = 1.6
+""".strip(),
+                encoding="utf-8",
+            )
+
+            runtime = load_runtime_config(env={"CHAOS_CONFIG": str(path)})
+
+        profile = runtime.profiles[0]
+        self.assertEqual(profile.input_cost_per_million, 0.4)
+        self.assertEqual(profile.output_cost_per_million, 1.6)
+
     def test_prefers_chaos_configuration_and_falls_back_to_legacy_directory(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)

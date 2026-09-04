@@ -96,6 +96,7 @@ class TaskContract:
     reasoning_effort: str | None = None
     runtime_mode: str | None = None
     runtime_selection_digest: str | None = None
+    interaction_mode: str = "code"
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "objective", cast(str, _text(self.objective, "objective")))
@@ -103,6 +104,8 @@ class TaskContract:
             raise TypeError("authorization must be a TaskAuthorization")
         if not isinstance(self.intent, TaskIntent):
             raise TypeError("intent must be a TaskIntent")
+        if self.interaction_mode not in {"ask", "code", "plan"}:
+            raise ValueError("interaction_mode must be ask, code, or plan")
         profile_facts = (self.profile_id, self.model, self.protocol, self.endpoint_host)
         if any(value is not None for value in profile_facts) and not all(isinstance(value, str) and value.strip() for value in profile_facts):
             raise ValueError("profile audit facts must be complete non-blank text")
@@ -145,11 +148,11 @@ class TaskContract:
             object.__setattr__(self, name, _positive(getattr(self, name), name))
 
     def to_dict(self) -> dict[str, JSONValue]:
-        return {"objective": self.objective, "authorization": self.authorization.to_dict(), "max_active_seconds": self.max_active_seconds, "max_repair_cycles": self.max_repair_cycles, "max_repeated_failure_signatures": self.max_repeated_failure_signatures, "intent": self.intent.value, "profile_id": self.profile_id, "model": self.model, "protocol": self.protocol, "endpoint_host": self.endpoint_host, "agent_topology": self.agent_topology, "reasoning_effort": self.reasoning_effort, "runtime_mode": self.runtime_mode, "runtime_selection_digest": self.runtime_selection_digest}
+        return {"objective": self.objective, "authorization": self.authorization.to_dict(), "max_active_seconds": self.max_active_seconds, "max_repair_cycles": self.max_repair_cycles, "max_repeated_failure_signatures": self.max_repeated_failure_signatures, "intent": self.intent.value, "profile_id": self.profile_id, "model": self.model, "protocol": self.protocol, "endpoint_host": self.endpoint_host, "agent_topology": self.agent_topology, "reasoning_effort": self.reasoning_effort, "runtime_mode": self.runtime_mode, "runtime_selection_digest": self.runtime_selection_digest, "interaction_mode": self.interaction_mode}
 
     @classmethod
     def from_dict(cls, data: Mapping[str, object]) -> TaskContract:
-        return cls(objective=cast(str, data["objective"]), authorization=TaskAuthorization.from_dict(cast(Mapping[str, object], data["authorization"])), max_active_seconds=cast(int, data.get("max_active_seconds", 1200)), max_repair_cycles=cast(int, data.get("max_repair_cycles", 3)), max_repeated_failure_signatures=cast(int, data.get("max_repeated_failure_signatures", 3)), intent=TaskIntent(cast(str, data.get("intent", TaskIntent.MODIFY.value))), profile_id=cast(str | None, data.get("profile_id")), model=cast(str | None, data.get("model")), protocol=cast(str | None, data.get("protocol")), endpoint_host=cast(str | None, data.get("endpoint_host")), agent_topology=cast(str | None, data.get("agent_topology")), reasoning_effort=cast(str | None, data.get("reasoning_effort")), runtime_mode=cast(str | None, data.get("runtime_mode")), runtime_selection_digest=cast(str | None, data.get("runtime_selection_digest")))
+        return cls(objective=cast(str, data["objective"]), authorization=TaskAuthorization.from_dict(cast(Mapping[str, object], data["authorization"])), max_active_seconds=cast(int, data.get("max_active_seconds", 1200)), max_repair_cycles=cast(int, data.get("max_repair_cycles", 3)), max_repeated_failure_signatures=cast(int, data.get("max_repeated_failure_signatures", 3)), intent=TaskIntent(cast(str, data.get("intent", TaskIntent.MODIFY.value))), profile_id=cast(str | None, data.get("profile_id")), model=cast(str | None, data.get("model")), protocol=cast(str | None, data.get("protocol")), endpoint_host=cast(str | None, data.get("endpoint_host")), agent_topology=cast(str | None, data.get("agent_topology")), reasoning_effort=cast(str | None, data.get("reasoning_effort")), runtime_mode=cast(str | None, data.get("runtime_mode")), runtime_selection_digest=cast(str | None, data.get("runtime_selection_digest")), interaction_mode=cast(str, data.get("interaction_mode", "code")))
 
 
 @dataclass(frozen=True)

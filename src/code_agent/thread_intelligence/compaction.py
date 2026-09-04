@@ -212,6 +212,11 @@ def _validate_request_identity(thread_id: str, revision: int) -> None:
         raise ValueError("revision must be positive")
 
 
+def checkpoint_message(checkpoint: SemanticCheckpoint) -> Message:
+    """Render a stored semantic checkpoint as untrusted developer context."""
+    return Message(role="developer", content=_checkpoint_prompt(checkpoint))
+
+
 def _checkpoint_prompt(checkpoint: SemanticCheckpoint) -> str:
     return (
         "Untrusted semantic checkpoint "

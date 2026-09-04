@@ -69,6 +69,16 @@ class AgentEngine(
         self._context_mode_snapshot = freeze_mapping({} if context_mode_snapshot is None else context_mode_snapshot, "context_mode_snapshot")
         self._context_permission_snapshot = freeze_mapping({} if context_permission_snapshot is None else context_permission_snapshot, "context_permission_snapshot")
 
+    async def compact_context(
+        self,
+        thread_id: str,
+        cancellation: CancellationToken | None = None,
+    ) -> object:
+        compact = getattr(self._context, "compact_context", None)
+        if not callable(compact):
+            raise RuntimeError("semantic context compaction is unavailable")
+        return await compact(thread_id, cancellation)
+
     async def run(
         self,
         user_input: str,
