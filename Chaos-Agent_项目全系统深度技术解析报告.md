@@ -592,48 +592,48 @@ sequenceDiagram
     Sup->>DB: 记录 SESSION / TASK_CREATED 事件
     Sup->>WS: 捕获工作区初始快照 (CAS Snapshot)
     Sup->>Eng: 启动核心循环 (Mode: medium / auto)
-  
+
     loop 核心执行回合 (Turn Loop)
         Eng->>Ctx: 请求构建上下文 (ContextRequest)
         Ctx->>Ctx: 检索 AGENTS.md + L1/L2 Repo Map + PCL 工具目录 (<= 20k Tokens)
         Ctx-->>Eng: 返回精简上下文快照
-      
+
         Eng->>Prov: 发起流式推理 (HTTP/SSE)
         Prov-->>UI: 实时推送文本流 (打字机效果)
         Prov-->>Eng: 输出 ActionRequest: read_file("user_service.py")
-      
+
         Eng->>Pol: 策略审核: read_file
         Pol-->>Eng: 判定通过 (ALLOW)
         Eng->>WS: 执行安全只读，获取代码正文
         WS-->>Eng: 返回内容及 PathIdentity
         Eng->>DB: 持久化 ACTION_EXECUTED 事件
-      
+
         Eng->>Ctx: 注入工具结果，发起第二轮推理
         Eng->>Prov: 流式推理
         Prov-->>Eng: 输出 ActionRequest: apply_patch("user_service.py", diff)
-      
+
         Eng->>Pol: 策略审核: 工作区写入
         Pol-->>Eng: 模式为 auto 且在工作区内 -> 判定通过 (ALLOW)
-      
+
         Eng->>WS: 执行事务写入 (CAS 校验 -> 备份 Pre-Image -> 应用变更)
         WS->>WS: 物理落地并使既有测试证据失效 (Generation + 1)
         WS-->>Eng: 写入成功确认
         Eng->>DB: 持久化文件变更记录
-      
+
         Eng->>Ctx: 注入写入结果，发起第三轮推理
         Eng->>Prov: 流式推理
         Prov-->>Eng: 输出 ActionRequest: run_verification("python_test")
-      
+
         Eng->>Pol: 策略审核: 执行本地受限测试
         Pol-->>Eng: 判定通过 (ALLOW)
         Eng->>Ver: 调用测试适配器运行 pytest
         Ver-->>Eng: 测试全绿通过，产出客观证据 Hash
         Eng->>DB: 绑定客观证据至当前任务状态
-      
+
         Eng->>Prov: 注入测试通过客观事实
         Prov-->>Eng: 模型判定无后续动作，宣布任务结束
     end
-  
+
     Eng->>Sup: 标记任务 COMPLETED (具备客观证据支撑)
     Sup->>UI: 终端渲染任务完成卡片与修改统计
 ```

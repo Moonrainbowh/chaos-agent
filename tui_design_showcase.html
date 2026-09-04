@@ -16,16 +16,16 @@
       --bg-card: #0f141f;
       --bg-surface: #141b29;
       --bg-subtle: #172030;
-      
+
       --border-outer: #1c2638;
       --border-card: #223046;
       --border-focus: #38bdf8;
-      
+
       --text-head: #f1f5f9;
       --text-main: #cbd5e1;
       --text-muted: #73849c;
       --text-dim: #435066;
-      
+
       --accent-primary: #7dd3fc;        /* 柔和冰雾蓝 */
       --accent-primary-dim: rgba(125, 211, 252, 0.14);
       --accent-active: #e2b170;         /* 低饱和淡金沙 (运行中) */
@@ -36,12 +36,12 @@
       --accent-fail: #f87171;           /* 沉灰玫瑰红 */
       --accent-tag: #1c283d;
       --accent-tag-text: #93c5fd;
-      
+
       --diff-add-bg: rgba(110, 231, 183, 0.08);
       --diff-add-text: #6ee7b7;
       --diff-del-bg: rgba(248, 113, 113, 0.08);
       --diff-del-text: #f87171;
-      
+
       --kbd-bg: #162030;
       --kbd-border: #273750;
       --kbd-text: #94a3b8;
@@ -54,16 +54,16 @@
       --bg-card: #151518;
       --bg-surface: #1c1c20;
       --bg-subtle: #232328;
-      
+
       --border-outer: #232328;
       --border-card: #2c2c34;
       --border-focus: #d4a373;
-      
+
       --text-head: #f4f0ea;
       --text-main: #d1cdc7;
       --text-muted: #87847e;
       --text-dim: #52504b;
-      
+
       --accent-primary: #d4a373;
       --accent-primary-dim: rgba(212, 163, 115, 0.14);
       --accent-active: #d4a373;
@@ -74,12 +74,12 @@
       --accent-fail: #cf7971;
       --accent-tag: #25221d;
       --accent-tag-text: #d4a373;
-      
+
       --diff-add-bg: rgba(130, 159, 112, 0.09);
       --diff-add-text: #8fb47c;
       --diff-del-bg: rgba(207, 121, 113, 0.09);
       --diff-del-text: #d68981;
-      
+
       --kbd-bg: #1e1e22;
       --kbd-border: #2f2f36;
       --kbd-text: #a39f97;
@@ -92,16 +92,16 @@
       --bg-card: #121815;
       --bg-surface: #18221e;
       --bg-subtle: #202c27;
-      
+
       --border-outer: #1c2722;
       --border-card: #273730;
       --border-focus: #7ea894;
-      
+
       --text-head: #eef3f1;
       --text-main: #c7d2ce;
       --text-muted: #72827b;
       --text-dim: #44514b;
-      
+
       --accent-primary: #7ea894;
       --accent-primary-dim: rgba(126, 168, 148, 0.14);
       --accent-active: #94b2a4;
@@ -112,12 +112,12 @@
       --accent-fail: #c47676;
       --accent-tag: #1a2621;
       --accent-tag-text: #86bda4;
-      
+
       --diff-add-bg: rgba(104, 159, 132, 0.09);
       --diff-add-text: #73b092;
       --diff-del-bg: rgba(196, 118, 118, 0.09);
       --diff-del-text: #ca7f7f;
-      
+
       --kbd-bg: #19231f;
       --kbd-border: #2a3932;
       --kbd-text: #96a7a0;
@@ -125,7 +125,7 @@
 
     /* 全局基础设置 */
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    
+
     :root {
       --font-mono: "Cascadia Code", "JetBrains Mono", "Fira Code", Consolas, "SF Mono", monospace;
       --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
@@ -1237,7 +1237,7 @@
     function renderSchemeBanner() {
       const info = schemeInfo[currentScheme];
       const banner = document.getElementById("scheme-banner-info");
-      
+
       let chipsHtml = info.chips.map(c => `
         <div class="palette-chip">
           <span class="chip-swatch" style="background: ${c.color};"></span>

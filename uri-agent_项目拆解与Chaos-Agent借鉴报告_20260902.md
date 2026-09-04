@@ -1,8 +1,8 @@
 # URI Agent 项目拆解与 Chaos Agent 借鉴报告
 
-> 审计日期：2026-09-02  
-> URI Agent 审计基线：`b36f806db5ef3836ecdfa5063959f9c503d1e232`（`main`）  
-> Chaos Agent 对照基线：`6252b1fc61e2b13ec2d206428e8ca91da41be0b0`（本地 `main`，审计时领先远端 3 个提交）  
+> 审计日期：2026-09-02
+> URI Agent 审计基线：`b36f806db5ef3836ecdfa5063959f9c503d1e232`（`main`）
+> Chaos Agent 对照基线：`6252b1fc61e2b13ec2d206428e8ca91da41be0b0`（本地 `main`，审计时领先远端 3 个提交）
 > 审计方式：公开仓库源码、文档、提交历史、发布页和 CI 的只读静态审计；未安装依赖、未运行 URI Agent、未登录任何服务，也未改动 Chaos Agent 代码。
 
 ## 一、执行结论
@@ -15,7 +15,7 @@ URI Agent 不是一个“把工具改成 URI 写法”的小玩具，而是一�
 
 本报告给出的首选方向是一个组合创新：
 
-> **证据绑定的渐进能力租约（Progressive Capability Leasing, PCL）**  
+> **证据绑定的渐进能力租约（Progressive Capability Leasing, PCL）**
 > 先发现能力，再按需展开契约；策略层根据风险签发有范围、有期限、有代次的租约；执行仍走强类型 `ActionRequest`；完成后由验证器绑定证据，租约随任务边界失效。
 
 这不是把 Chaos Agent 变成 URI Agent，而是把 URI Agent 的低上下文成本、ACP 的互操作性、MCP 的生态能力，与 Chaos Agent 已有的权限和证据闭环合并起来。
@@ -70,35 +70,35 @@ flowchart TD
 
 模型面向的基本接口是 `read(uri, body)` 与 `exec(uri, body)`，复杂工具通过目标 scheme 的帮助文档解释参数。其价值不是 API 数量少本身，而是把“能力目录”和“完整参数契约”拆开：模型只有需要某项能力时才支付完整 schema 成本。
 
-**创新度：高。** 多数 Agent 框架把全部工具 schema 一次塞进提示词；URI Agent 把工具调用变成“发现—读契约—调用”。  
+**创新度：高。** 多数 Agent 框架把全部工具 schema 一次塞进提示词；URI Agent 把工具调用变成“发现—读契约—调用”。
 **代价：** 它把编译期/结构化 schema 的一部分清晰度转移成字符串协议、帮助文档和额外回合；复杂嵌套参数仍然需要 `_json` 等旁路，不能宣称 URI 天然比 typed tools 更可靠。
 
 #### 2. MCP 被包装为可懒加载的协议空间
 
 每个 MCP server 形成自己的 scheme；服务连接可以延迟建立，工具列表和 schema 只在查询时展开，查询体优先映射 `_body`，复杂参数可走 `_json`。这比“启动时把所有 MCP 工具注入模型”更适合工具数量大的环境。
 
-**可借鉴：高。** Chaos Agent 当前保留完整 typed MCP tool definitions，可以把“目录可见”和“schema 激活”拆开。  
+**可借鉴：高。** Chaos Agent 当前保留完整 typed MCP tool definitions，可以把“目录可见”和“schema 激活”拆开。
 **限制：** 源码仍留有 MCP OAuth 未实现项；接入 Streamable HTTP 之前必须先把认证、header 脱敏和会话存储边界补齐，不能只抄懒加载。
 
 #### 3. 会话采用追加事件和可丢弃索引
 
 消息、调用、结果和压缩都追加到 SQLite 事件流；resume index 带校验，可损坏后从事件重建。原始事件保留，压缩主要改变后续模型视图而不是销毁历史。这是比“只存最后一份消息数组”稳健得多的恢复模型。
 
-**可借鉴：中。** Chaos Agent 已有任务、检查点和证据对象，不需要替换成 URI Agent 的数据库；可以吸收“权威事件 + 可重建投影”的原则。  
+**可借鉴：中。** Chaos Agent 已有任务、检查点和证据对象，不需要替换成 URI Agent 的数据库；可以吸收“权威事件 + 可重建投影”的原则。
 **限制：** URI Agent 没有证明跨版本事件迁移策略，`sessions-v3` 文档反而明确没有旧格式迁移承诺。
 
 #### 4. 会话冻结与运行时可变配置分离
 
 启动时的系统提示、协议清单、技能名/描述/规范路径和 MCP 身份会冻结；提供商和部分连接配置可在调用时重新解析。这正确地区分了“保证重放一致性的身份”和“必须轮换的运行配置”。
 
-**可借鉴：中高。** 适合扩展成 Chaos Agent 的 catalog generation。  
+**可借鉴：中高。** 适合扩展成 Chaos Agent 的 catalog generation。
 **关键缺口：** 技能冻结的是规范路径和已生成的启动上下文，不是路径下所有未读资源的内容摘要。同一路径内容被替换后，恢复会话可能读取新字节。Chaos Agent 当前对技能保存 digest，并在恢复时检查漂移，安全性更强。
 
 #### 5. 工具结果、任务和完整输出被对象化
 
 前台 Shell 约 60 秒仍未结束时可转为 managed task；过大的输出保存到输出目录，并只把预览与 `file://` 引用交给模型。它有效控制上下文膨胀，也让长任务可以被观察。
 
-**可借鉴：高，但必须改语义。** “完整输出工件 + 截断预览 + 显式读取”很适合 Chaos Agent。  
+**可借鉴：高，但必须改语义。** “完整输出工件 + 截断预览 + 显式读取”很适合 Chaos Agent。
 **不应照搬：** 前台命令自动后台化会模糊“工具调用已返回”和“外部效果已完成”。Chaos Agent 的任务证据和不可重复副作用要求更严格；应由用户/策略显式选择 detach，并为输出工件设置 TTL、脱敏和捕获上限。
 
 #### 6. 插件同时支持原生协议和 WASM
@@ -119,7 +119,7 @@ URI Agent 支持 ACP v1 stdio，不启动 TUI；按项目建立运行时，并�
 
 CI 覆盖 Linux fmt/clippy/test/check，以及 Windows、macOS 测试；release workflow 构建多平台产物、校验版本、生成 checksum 并做安装器 smoke test，GitHub Actions 依赖固定到完整提交 SHA。
 
-**优点：** 发布链条已成形。  
+**优点：** 发布链条已成形。
 **风险：** 暂未看到 `SECURITY.md`、`CONTRIBUTING.md`、威胁模型、依赖安全审计、模糊测试或覆盖率门槛。代码也高度集中在少数大文件中，例如 runtime、controller、render、MCP 和 session 均在数千行规模。结合项目历史很短、人工提交主要集中于单一作者身份，当前更适合研究和受控试用，不宜直接当作高权限生产执行器。
 
 ## 四、与 Chaos Agent 的逐项比较
