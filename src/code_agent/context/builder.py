@@ -16,6 +16,7 @@ from .compaction import DeterministicCompactor
 from .errors import ContextBudgetError, RuleLimitError
 from .models import CompactionResult, ContextConfig
 from .repo_map import RepoMapBuilder
+from .repo_index import RepoIndexSnapshot
 from .rules import RuleLoader
 from .semantic import SemanticCompactor, compact_with_cancellation
 from .tokens import estimate_tokens
@@ -75,6 +76,10 @@ class WorkspaceContextBuilder:
         self.repo_map = repo_map
         self.compactor = compactor
         self.semantic_compactor = semantic_compactor
+
+    def semantic_snapshot_for_turn(self) -> RepoIndexSnapshot:
+        """Return the exact immutable repository snapshot used by Repo Map."""
+        return self.repo_map.index.snapshot_for_turn()
 
     async def build(
         self,

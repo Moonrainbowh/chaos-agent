@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from threading import RLock
 
 from code_agent.workspace.errors import WorkspaceError
@@ -14,6 +14,7 @@ from .repo_scan import RepoFileFacts, RepoFileScanner
 from .repo_paths import canonical_repo_path
 from .repo_search import RepoLexicalRanks, SQLiteRepoSearch
 from .repo_search_documents import bound_search_facts
+from .repo_semantic_graph import UnifiedSemanticGraph
 from .repo_snapshot import publish_entries, strip_search_text
 
 
@@ -26,6 +27,9 @@ class RepoIndexSnapshot:
 
     generation: int
     entries: tuple[RepoEntry, ...] = ()
+    semantic_graph: UnifiedSemanticGraph = field(
+        init=False, repr=False, compare=False
+    )
 
     def __post_init__(self) -> None:
         if isinstance(self.generation, bool) or not isinstance(
@@ -38,6 +42,9 @@ class RepoIndexSnapshot:
         if not all(isinstance(item, RepoEntry) for item in entries):
             raise TypeError("entries must contain RepoEntry values")
         object.__setattr__(self, "entries", entries)
+        object.__setattr__(
+            self, "semantic_graph", UnifiedSemanticGraph.from_entries(entries)
+        )
 
 
 class RepoIndexService:

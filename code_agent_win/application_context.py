@@ -14,9 +14,6 @@ from code_agent.core.limits import EngineLimits
 from code_agent.orchestration.models import ModeSnapshot
 from code_agent.providers.config import ModelProfile
 from code_agent.runtime._powershell_runtime import PowerShellRuntimeResolver
-from code_agent.verification.task_service import (
-    LedgerTaskVerificationService,
-)
 from code_agent_win.agent_modes import mode_prompt
 from code_agent_win.peer_context import PEER_CONTEXT_RESERVE_TOKENS
 from code_agent_win.context_runtime import build_context_runtime
@@ -25,6 +22,7 @@ from code_agent_win.runtime_extensions import (
     ModelSemanticSummarizer,
 )
 from code_agent_win.tool_support import windows_system_prompt
+from code_agent_win.task_verification import TaskScopedVerificationService
 
 
 class RuntimeContextFactory:
@@ -209,6 +207,40 @@ class _ThreadRootContextBuilder:
             active_thread_id, messages, user_input, tools, task_state, cancellation
         )
 
+    async def compact_context(
+        self,
+        thread_id: str,
+        cancellation: object = None,
+    ) -> object:
+        root = self._factory._workspace_runtime.root_for_thread(thread_id)
+        if root is None:
+            await self._factory._workspace_runtime.hydrate_bindings()
+            root = self._factory._workspace_runtime.root_for_thread(thread_id)
+        active_root = root or self._factory._root
+        builder = self._builders.get(active_root)
+        if builder is None:
+            builder = self._factory._build(
+                self._mode, self._client, self._profile, active_root
+            )
+            self._builders[active_root] = builder
+        compact = getattr(builder, "compact_context", None)
+        if not callable(compact):
+            raise RuntimeError("semantic context compaction is unavailable")
+        return await compact(thread_id, cancellation)
+
+    def semantic_snapshot_for_root(self, root: Path) -> object:
+        active_root = Path(root).resolve()
+        builder = self._builders.get(active_root)
+        if builder is None:
+            builder = self._factory._build(
+                self._mode, self._client, self._profile, active_root
+            )
+            self._builders[active_root] = builder
+        provider = getattr(builder, "semantic_snapshot_for_root", None)
+        if not callable(provider):
+            raise RuntimeError("semantic snapshot is unavailable")
+        return provider(active_root)
+
 
 def engine_for(
     model: object,
@@ -242,35 +274,10 @@ def engine_for(
         sessions,
         limits=limits,
         model_name=profile.provider.model,
-        verification=TaskScopedVerificationService(sessions),
+        verification=TaskScopedVerificationService(
+            sessions,
+            getattr(context, "semantic_snapshot_for_root", None),
+        ),
         peer_tool_names=("list_agents", "send_message"),
         capability_strategy=capability_strategy,
     )
-
-
-class TaskScopedVerificationService:
-    def __init__(self, sessions: object) -> None:
-        self._sessions = sessions
-
-    async def prepare(self, task: object, state: object) -> object:
-        return await self._service(task).prepare(task, state)
-
-    async def record_action(
-        self, task: object, request: object, result: object, state: object
-    ) -> object:
-        return await self._service(task).record_action(
-            task, request, result, state
-        )
-
-    async def assess(self, task: object, state: object) -> object:
-        return await self._service(task).assess(task, state)
-
-    async def suggest_verification(self, task: object, state: object) -> object:
-        return await self._service(task).suggest_verification(task, state)
-
-    async def finalize(self, task: object, assessment: object) -> object:
-        return await self._service(task).finalize(task, assessment)
-
-    def _service(self, task: object) -> LedgerTaskVerificationService:
-        root = Path(task.contract.authorization.workspace_root)
-        return LedgerTaskVerificationService(root, self._sessions)

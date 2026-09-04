@@ -19,6 +19,7 @@ class EvidenceOutcome(str, Enum):
 
 class EvidenceProvenance(str, Enum):
     SYSTEM_VERIFIER = "system_verifier"
+    SYSTEM_PLANNER = "system_planner"
     USER_COMMAND = "user_command"
     USER_CONFIRMATION = "user_confirmation"
 
@@ -60,8 +61,11 @@ class EvidenceRecord:
             raise TypeError("manual_only must be boolean")
         if self.outcome is EvidenceOutcome.USER_CONFIRMED and (self.provenance is not EvidenceProvenance.USER_CONFIRMATION or not self.manual_only):
             raise ValueError("user confirmation is only valid for manual criteria")
-        if self.provenance is EvidenceProvenance.SYSTEM_VERIFIER and self.outcome is EvidenceOutcome.USER_CONFIRMED:
-            raise ValueError("system verifier cannot emit user confirmation")
+        if self.provenance in {
+            EvidenceProvenance.SYSTEM_VERIFIER,
+            EvidenceProvenance.SYSTEM_PLANNER,
+        } and self.outcome is EvidenceOutcome.USER_CONFIRMED:
+            raise ValueError("system evidence cannot emit user confirmation")
         object.__setattr__(self, "diagnostic", bounded_diagnostic(self.diagnostic))
 
     @classmethod
@@ -86,4 +90,13 @@ def append_evidence(existing: Sequence[EvidenceRecord], record: EvidenceRecord) 
 
 
 def evidence_satisfies_required(record: EvidenceRecord) -> bool:
-    return record.outcome is EvidenceOutcome.PASS and record.provenance is EvidenceProvenance.SYSTEM_VERIFIER or (record.outcome is EvidenceOutcome.USER_CONFIRMED and record.provenance is EvidenceProvenance.USER_CONFIRMATION and record.manual_only)
+    trusted_pass = record.outcome is EvidenceOutcome.PASS and record.provenance in {
+        EvidenceProvenance.SYSTEM_VERIFIER,
+        EvidenceProvenance.SYSTEM_PLANNER,
+    }
+    user_pass = (
+        record.outcome is EvidenceOutcome.USER_CONFIRMED
+        and record.provenance is EvidenceProvenance.USER_CONFIRMATION
+        and record.manual_only
+    )
+    return trusted_pass or user_pass

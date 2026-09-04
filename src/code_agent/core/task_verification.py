@@ -21,7 +21,26 @@ class VerificationAssessment:
     verification_run_id: str | None = None
 
 
+class InFlightValidationError(RuntimeError):
+    """Report a failed post-write L0 check while preserving reduced task state."""
+
+    def __init__(self, state: TaskState, diagnostic: str) -> None:
+        if not isinstance(state, TaskState):
+            raise TypeError("state must be a TaskState")
+        if not isinstance(diagnostic, str) or not diagnostic.strip():
+            raise ValueError("diagnostic must be non-blank text")
+        super().__init__("in-flight validation failed")
+        self.state = state
+        self.diagnostic = diagnostic.strip()[:2_000]
+
+
 class TaskVerificationService(Protocol):
+    def begin_logical_change(self, task_id: str) -> None: ...
+
+    async def commit_logical_change(
+        self, task: TaskRecord, state: TaskState
+    ) -> tuple[TaskState, ToolCall | None]: ...
+
     async def prepare(self, task: TaskRecord, state: TaskState) -> TaskState: ...
 
     async def record_action(

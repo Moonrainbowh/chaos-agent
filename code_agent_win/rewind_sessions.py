@@ -23,6 +23,7 @@ from code_agent.workspace.snapshot_store import WorkspaceSnapshotStore
 from code_agent_win.rewind_capture import RewindCaptureCoordinator
 from code_agent_win.rewind_gate import WorkspaceMutationGate
 from code_agent_win.subagents import RestrictedDispatcher
+from code_agent_win.task_verification import TaskScopedVerificationService
 
 
 _Result = TypeVar("_Result")
@@ -127,6 +128,10 @@ def build_engine(
         ),
         mode_limits.max_assistant_chars,
     )
+    semantic_snapshot = getattr(context, "semantic_snapshot_for_root", None)
+    initial_verification = LedgerTaskVerificationService(
+        workspace_root, sessions
+    )
     return AgentEngine(
         model,
         context,
@@ -134,7 +139,11 @@ def build_engine(
         sessions,
         limits=limits,
         model_name=profile.provider.model,
-        verification=LedgerTaskVerificationService(workspace_root, sessions),
+        verification=TaskScopedVerificationService(
+            sessions,
+            semantic_snapshot if callable(semantic_snapshot) else None,
+            (workspace_root, initial_verification),
+        ),
         action_lineage=action_lineage,
         capability_strategy=capability_strategy,
     )

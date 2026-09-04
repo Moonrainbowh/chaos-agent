@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import sys
 from pathlib import Path
 
@@ -31,10 +32,10 @@ class PythonVerificationAdapter:
                 return VerificationUnavailable(request.kind, "python build module is unavailable")
             argv = (self._executable, "-m", "build", "--no-isolation")
         elif request.kind is VerificationKind.PYTHON_UNITTEST:
-            target = request.targets[0] if request.targets else "."
-            if len(request.targets) > 1:
-                return VerificationUnavailable(request.kind, "unittest accepts one discovery target")
-            argv = (self._executable, "-m", "unittest", "discover", "-s", target)
+            unittest_argv = self._unittest_argv(request)
+            if isinstance(unittest_argv, VerificationUnavailable):
+                return unittest_argv
+            argv = unittest_argv
         elif request.kind is VerificationKind.PYTEST:
             if importlib.util.find_spec("pytest") is None:
                 return VerificationUnavailable(request.kind, "pytest module is unavailable")
@@ -42,6 +43,37 @@ class PythonVerificationAdapter:
         else:
             argv = (self._executable, "-m", "compileall", *(request.targets or (".",)))
         return VerificationCommand(argv, request.cwd, request.timeout_s)
+
+    def _unittest_argv(
+        self, request: VerificationRequest
+    ) -> tuple[str, ...] | VerificationUnavailable:
+        if not request.targets:
+            return (self._executable, "-m", "unittest", "discover", "-s", ".")
+        resolved = tuple(self._resolve(target) for target in request.targets)
+        directory_flags = tuple(
+            path.is_dir() or not target.endswith(".py")
+            for target, path in zip(request.targets, resolved)
+        )
+        if any(directory_flags):
+            starts = tuple(
+                path if is_directory else path.parent
+                for path, is_directory in zip(resolved, directory_flags)
+            )
+            common = Path(os.path.commonpath(tuple(map(str, starts))))
+            relative = common.relative_to(self._root).as_posix() or "."
+            return (
+                self._executable,
+                "-m",
+                "unittest",
+                "discover",
+                "-s",
+                relative,
+            )
+        modules = tuple(
+            target[:-3].replace("/", ".") if target.endswith(".py") else target
+            for target in request.targets
+        )
+        return (self._executable, "-m", "unittest", *modules)
 
     def _resolve(self, relative_path: str) -> Path:
         candidate = (self._root / relative_path).resolve(strict=False)

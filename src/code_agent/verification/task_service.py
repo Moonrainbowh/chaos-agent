@@ -1,16 +1,12 @@
 from __future__ import annotations
 
-import hashlib
 import uuid
 from dataclasses import replace
 from pathlib import Path
-from typing import Mapping, Sequence
+from typing import Mapping
 
 from code_agent.core.completion_contract import (
-    AcceptanceCriterion,
     CompletionCandidate,
-    CriterionRequirement,
-    CriterionStrength,
     TaskContractRevision,
     TaskIntent,
     assess_completion,
@@ -18,18 +14,31 @@ from code_agent.core.completion_contract import (
 from code_agent.core.models import ActionRequest, ActionResult, ToolCall
 from code_agent.core.task import TaskRecord
 from code_agent.core.task_state import TaskState
-from code_agent.core.task_verification import VerificationAssessment
-from code_agent.core.verification_state import VerifierOutcome
+from code_agent.core.task_verification import (
+    InFlightValidationError,
+    VerificationAssessment,
+)
 from code_agent.workspace.paths import WorkspacePathGuard
 from code_agent.workspace.subject import snapshot_subject
-from code_agent.projects.discovery import ProjectKind, discover_projects
+from code_agent.projects.discovery import discover_projects
 
-from .evidence import EvidenceOutcome, EvidenceProvenance, EvidenceRecord, evidence_satisfies_required
+from .evidence import EvidenceRecord, evidence_satisfies_required
 from .planner import RiskTier, VerificationPhase, VerificationPlan, VerificationPlanner, check_syntax
-
-
-_PROJECT_TESTS_CRITERION = "project-tests"
-_INTEGRITY_CRITERION = "integrity"
+from .task_evidence import (
+    FINAL_TESTS_CRITERION,
+    INTEGRITY_CRITERION,
+    RISK_VALIDATION_CRITERION,
+    build_kind,
+    evidence_from_result,
+    has_passing,
+    is_legacy_default_contract,
+    planner_attestation_allowed,
+    record_planner_attestation,
+    test_kind,
+    validation_contract,
+    verifier_outcome,
+)
+from .task_plans import PlannedCallRegistry
 
 
 class LedgerTaskVerificationService:
@@ -45,14 +54,18 @@ class LedgerTaskVerificationService:
         self._sessions = sessions
         self._planner = planner or VerificationPlanner(self._guard.root)
         self._active_changes: dict[str, set[str]] = {}
+        self._syntax_failures: dict[str, tuple[str, ...]] = {}
+        self._planned_calls = PlannedCallRegistry()
 
     @property
     def planner(self) -> VerificationPlanner:
         return self._planner
 
     def set_semantic_graph(self, graph: object) -> None:
-        if hasattr(self._planner, "set_semantic_graph"):
-            self._planner.set_semantic_graph(graph)
+        self._planner.set_semantic_graph(graph)
+
+    def set_semantic_snapshot(self, snapshot: object) -> None:
+        self._planner.set_semantic_snapshot(snapshot)
 
     def begin_logical_change(self, task_id: str) -> None:
         """Open a logical change transaction for a task. Edits are batched until commit."""
@@ -67,8 +80,9 @@ class LedgerTaskVerificationService:
         return tuple(sorted(self._active_changes.get(task_id, set())))
 
     def rollback_logical_change(self, task_id: str) -> None:
-        """Discard pending changes in the current logical transaction."""
+        """Abandon pending validation metadata; workspace rollback is separate."""
         self._active_changes.pop(task_id, None)
+        self._syntax_failures.pop(task_id, None)
 
     async def commit_logical_change(
         self,
@@ -79,28 +93,31 @@ class LedgerTaskVerificationService:
         """Commit pending edits in a logical change transaction:
         monotonically advances generation once, snapshots subject, and plans verification."""
         pending = self._active_changes.pop(task.id, set())
+        failures = self._syntax_failures.pop(task.id, ())
         if not pending:
             return state, None
         new_generation = state.code_generation + 1
         state = await self._snapshot(task, state, new_generation)
         plan = self._planner.plan(tuple(sorted(pending)), phase=phase)
+        if failures:
+            return state, None
+        if plan.tier is RiskTier.LOW and planner_attestation_allowed(
+            plan.changed_files
+        ):
+            await record_planner_attestation(
+                self._sessions, task.id, state, plan
+            )
         return state, plan
 
     async def prepare(self, task: TaskRecord, state: TaskState) -> TaskState:
         contract = await self._sessions.load_task_contract_revision(task.id)
         if contract is None:
-            contract = TaskContractRevision(
-                1,
-                task.contract.intent,
-                (
-                    AcceptanceCriterion(
-                        _PROJECT_TESTS_CRITERION,
-                        "A trusted project test passes for the current workspace subject.",
-                        CriterionRequirement.REQUIRED,
-                        CriterionStrength.INTEGRITY,
-                    ),
-                ),
-            )
+            contract = validation_contract(1, task.contract.intent)
+            await self._sessions.save_task_contract_revision(task.id, contract)
+        elif isinstance(contract, TaskContractRevision) and is_legacy_default_contract(
+            contract
+        ):
+            contract = validation_contract(contract.revision + 1, contract.intent)
             await self._sessions.save_task_contract_revision(task.id, contract)
         if state.subject_hash:
             return state
@@ -109,36 +126,12 @@ class LedgerTaskVerificationService:
     async def record_action(
         self, task: TaskRecord, request: ActionRequest, result: ActionResult, state: TaskState
     ) -> TaskState:
-        is_edit = request.name in {"write_file", "replace_text"} and not result.is_error
-        edit_changed = (
-            request.name == "apply_workspace_edit_plan_v1"
-            and (result.output.get("workspace_may_have_changed") is True if isinstance(result.output, Mapping) else False)
-        )
+        changed_paths = _changed_paths(request, result)
+        if changed_paths is not None:
+            return await self._record_edit(task, state, changed_paths)
         is_attempted_cmd = request.name in {"run_command", "run_process_v1"} and (
             result.metadata.get("execution_attempted") is True
         )
-
-        if is_edit or edit_changed:
-            changed_paths: list[str] = []
-            if request.name in {"write_file", "replace_text"}:
-                arg_path = request.arguments.get("path") if isinstance(request.arguments, Mapping) else None
-                if isinstance(arg_path, str) and arg_path:
-                    changed_paths.append(arg_path)
-            elif edit_changed and isinstance(result.output, Mapping):
-                for p in result.output.get("paths", ()):
-                    if isinstance(p, str) and p:
-                        changed_paths.append(p)
-
-            # Phase 1: In-Flight L0 Fast Syntax Check (< 5ms)
-            for path in changed_paths:
-                if path.endswith((".py", ".json", ".toml")):
-                    check_syntax(path, workspace_root=self._guard.root)
-
-            if self.in_logical_change(task.id):
-                self._active_changes[task.id].update(changed_paths)
-                return state
-            return await self._snapshot(task, state, state.code_generation + 1)
-
         if is_attempted_cmd:
             if self.in_logical_change(task.id) and self._active_changes.get(task.id):
                 state, _ = await self.commit_logical_change(task, state)
@@ -156,12 +149,49 @@ class LedgerTaskVerificationService:
         await self._sessions.begin_verification_run(
             run_id, task.id, state.code_generation, state.subject_hash
         )
-        evidence = _evidence_from_result(
-            run_id, result, state.code_generation, state.subject_hash
+        criterion = self._planned_calls.consume_criterion(task.id, request.id)
+        kind = request.arguments.get("kind")
+        targets = request.arguments.get("targets", ())
+        if (
+            criterion == INTEGRITY_CRITERION
+            and kind in {"python_unittest", "pytest", "node_test", "dotnet_test"}
+            and not targets
+        ):
+            criterion = RISK_VALIDATION_CRITERION
+        evidence = evidence_from_result(
+            run_id,
+            result,
+            state.code_generation,
+            state.subject_hash,
+            criterion,
         )
         await self._sessions.append_verification_evidence(run_id, task.id, evidence)
         await self._sessions.close_verification_run(run_id, "completed")
         return state
+
+    async def _record_edit(
+        self, task: TaskRecord, state: TaskState, changed_paths: tuple[str, ...]
+    ) -> TaskState:
+        if self.in_logical_change(task.id):
+            self._active_changes[task.id].update(changed_paths)
+            updated = state
+        else:
+            updated = await self._snapshot(
+                task, state, state.code_generation + 1
+            )
+        failures = tuple(
+            result.format_diagnostic()
+            for result in (
+                check_syntax(path, workspace_root=self._guard.root)
+                for path in changed_paths
+                if path.endswith((".py", ".json", ".toml"))
+            )
+            if not result.is_valid
+        )
+        if failures:
+            self._syntax_failures[task.id] = failures
+            raise InFlightValidationError(updated, "; ".join(failures))
+        return updated
 
     async def assess(self, task: TaskRecord, state: TaskState) -> VerificationAssessment:
         state = await self._snapshot(task, state, state.code_generation)
@@ -180,7 +210,7 @@ class LedgerTaskVerificationService:
             for item in current
         )
         assessment = assess_completion(contract, state.code_generation, state.subject_hash, candidates)
-        outcome = _outcome(current)
+        outcome = verifier_outcome(current)
         run_id = await self._sessions.latest_completed_verification_run(
             task.id, state.code_generation, state.subject_hash
         )
@@ -189,43 +219,68 @@ class LedgerTaskVerificationService:
         )
 
     async def suggest_verification(self, task: TaskRecord, state: TaskState) -> ToolCall | None:
-        """Choose one available project test recipe only when no current test exists."""
+        """Choose the next Host-planned final-gate step for the current subject."""
         if task.contract.intent is not TaskIntent.MODIFY and not state.files_changed:
             return None
         current = tuple(
             item for item in await self._sessions.list_verification_evidence(task.id)
             if isinstance(item, EvidenceRecord)
-            and item.criterion_id == _PROJECT_TESTS_CRITERION
             and item.generation == state.code_generation
             and item.subject_hash == state.subject_hash
         )
-        if current:
+        if has_passing(current, RISK_VALIDATION_CRITERION):
             return None
+        plan = self._planner.plan(
+            state.files_changed, phase=VerificationPhase.FINAL_GATE
+        )
+        if plan.tier is RiskTier.LOW and planner_attestation_allowed(
+            state.files_changed
+        ):
+            await record_planner_attestation(
+                self._sessions, task.id, state, plan
+            )
+            return None
+        project = next(iter(discover_projects(self._guard.root, self._guard)), None)
+        if project is None:
+            return None
+        if plan.tier is RiskTier.CRITICAL and has_passing(
+            current, FINAL_TESTS_CRITERION
+        ):
+            return self._planned_calls.create(
+                task.id,
+                plan,
+                build_kind(project.kind),
+                project.root,
+                (),
+                "build",
+            )
+        kind = test_kind(project.kind, project.recipes)
+        if kind is None:
+            return None
+        targets = plan.targeted_tests if not plan.require_full_gate else ()
+        return self._planned_calls.create(
+            task.id, plan, kind, project.root, targets, "tests"
+        )
 
-        # Check with VerificationPlanner for changed files
-        if state.files_changed:
-            plan = self._planner.plan(state.files_changed, phase=VerificationPhase.FINAL_GATE)
-            if plan.skip_tests:
-                return None
-
-        for project in discover_projects(self._guard.root, self._guard):
-            kind = _test_kind(project.kind, project.recipes)
-            if kind is not None:
-                targets: list[str] = []
-                if state.files_changed:
-                    plan = self._planner.plan(state.files_changed, phase=VerificationPhase.FINAL_GATE)
-                    if plan.targeted_tests and not plan.require_full_gate:
-                        targets = list(plan.targeted_tests[:1]) if kind == "python_unittest" else list(plan.targeted_tests)
-
-                args: dict[str, object] = {"kind": kind, "cwd": project.root}
-                if targets:
-                    args["targets"] = targets
-                return ToolCall(
-                    f"system-verify-{uuid.uuid4().hex}",
-                    "run_verification",
-                    args,
-                )
-        return None
+    def milestone_verification(
+        self, task: TaskRecord, plan: VerificationPlan | None
+    ) -> ToolCall | None:
+        if plan is None or plan.skip_tests:
+            return None
+        project = next(iter(discover_projects(self._guard.root, self._guard)), None)
+        if project is None:
+            return None
+        kind = test_kind(project.kind, project.recipes)
+        if kind is None:
+            return None
+        return self._planned_calls.create(
+            task.id,
+            plan,
+            kind,
+            project.root,
+            plan.targeted_tests,
+            "tests",
+        )
 
     async def finalize(self, task: TaskRecord, assessment: VerificationAssessment) -> TaskRecord:
         if assessment.verification_run_id is None:
@@ -248,51 +303,20 @@ class LedgerTaskVerificationService:
         return updated
 
 
-def _evidence_from_result(
-    identifier: str, result: ActionResult, generation: int, subject_hash: str
-) -> EvidenceRecord:
-    output = result.output if isinstance(result.output, Mapping) else {}
-    diagnostic = str(output.get("stderr") or output.get("detail") or output.get("error") or "verification passed")
-    if not result.is_error:
-        outcome = EvidenceOutcome.PASS
-    elif output.get("error") == "verification unavailable":
-        outcome = EvidenceOutcome.UNAVAILABLE
-    else:
-        outcome = EvidenceOutcome.FAIL
-    return EvidenceRecord.from_output(
-        identifier,
-            _criterion_for(result),
-        outcome,
-        EvidenceProvenance.SYSTEM_VERIFIER,
-        generation,
-        subject_hash,
-        repr(dict(output)),
-        diagnostic,
+def _changed_paths(
+    request: ActionRequest, result: ActionResult
+) -> tuple[str, ...] | None:
+    if request.name in {"write_file", "replace_text"} and not result.is_error:
+        path = request.arguments.get("path")
+        return (path,) if isinstance(path, str) and path else ()
+    output = result.output
+    if (
+        request.name != "apply_workspace_edit_plan_v1"
+        or not isinstance(output, Mapping)
+        or output.get("workspace_may_have_changed") is not True
+    ):
+        return None
+    return tuple(
+        path for path in output.get("paths", ())
+        if isinstance(path, str) and path
     )
-
-
-def _outcome(records: Sequence[EvidenceRecord]) -> VerifierOutcome:
-    if any(item.outcome is EvidenceOutcome.UNAVAILABLE for item in records):
-        return VerifierOutcome.UNAVAILABLE
-    if any(item.outcome in {EvidenceOutcome.FAIL, EvidenceOutcome.ERROR, EvidenceOutcome.UNSTABLE} for item in records):
-        return VerifierOutcome.FAIL
-    if any(evidence_satisfies_required(item) for item in records):
-        return VerifierOutcome.PASS
-    return VerifierOutcome.NOT_RUN
-
-
-def _criterion_for(result: ActionResult) -> str:
-    """Only project tests can satisfy the default behavior-completion criterion."""
-    kind = result.output.get("kind") if isinstance(result.output, Mapping) else None
-    return _PROJECT_TESTS_CRITERION if kind in {"python_unittest", "pytest", "node_test", "dotnet_test"} else _INTEGRITY_CRITERION
-
-
-def _test_kind(kind: ProjectKind, recipes: Sequence[object]) -> str | None:
-    available = {getattr(recipe, "label", None) for recipe in recipes if getattr(recipe, "available", False)}
-    if kind is ProjectKind.PYTHON and "python unittest" in available:
-        return "python_unittest"
-    if kind is ProjectKind.NODE and "npm test" in available:
-        return "node_test"
-    if kind is ProjectKind.DOTNET and "dotnet test" in available:
-        return "dotnet_test"
-    return None
