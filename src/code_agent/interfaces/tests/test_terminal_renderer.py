@@ -167,3 +167,26 @@ class TerminalFirstRendererTests(unittest.TestCase):
 
         self.assertIn(f"\x1b[{BRIGHT_CYAN}m", rendered)
         self.assertIn(f"\x1b[{DIM_GRAY}m", rendered)
+
+    def test_markdown_strong_and_short_label_add_controlled_emphasis(self) -> None:
+        rendered = render_entry(
+            text_entry(DisplayKind.AGENT, "结论：**可以执行**，路径是 `src/app.py`。"),
+            80,
+            color=ColorMode.ALWAYS,
+        )
+
+        self.assertIn(f"\x1b[{BRIGHT_CYAN}m结论：可以执行\x1b[0m", rendered)
+        self.assertIn(f"\x1b[{BRAND_CYAN}msrc/app.py\x1b[0m", rendered)
+        self.assertNotIn("**", _plain(rendered))
+        self.assertNotIn("`", _plain(rendered))
+
+    def test_no_color_keeps_emphasis_readable_without_markdown_markers(self) -> None:
+        rendered = render_entry(
+            text_entry(DisplayKind.AGENT, "结论：**可以执行**，使用 `src/app.py`。"),
+            80,
+            color=ColorMode.NEVER,
+        )
+
+        self.assertIn("结论：可以执行，使用 src/app.py。", rendered)
+        self.assertNotIn("**", rendered)
+        self.assertNotIn("`", rendered)

@@ -5,6 +5,7 @@ import re
 import sys
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 SRC_ROOT = Path(__file__).resolve().parents[3]
 if str(SRC_ROOT) not in sys.path: sys.path.insert(0, str(SRC_ROOT))
@@ -21,6 +22,7 @@ from code_agent.interfaces.terminal_tail import render_live_tail_frame
 from code_agent.interfaces.terminal_status import status_context, status_presentation
 from code_agent.interfaces.terminal_io import BRACKETED_PASTE_DISABLE, BRACKETED_PASTE_ENABLE
 from code_agent.interfaces.terminal_state import ApprovalBroker, ApprovalRequest
+from code_agent.interfaces.task_mode_control import TaskModeControl
 from code_agent.interfaces.tests._support import FakeEngine
 from code_agent.interfaces.windows_tui import WindowsTerminalApp, render_terminal
 
@@ -33,6 +35,30 @@ def _plain(value: str) -> str:
 
 
 class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
+    async def test_compact_delegates_and_reports_persisted_checkpoint(self) -> None:
+        class Engine(FakeEngine):
+            async def compact_context(self, thread_id: str, cancellation: object):
+                self.compacted = thread_id
+                return SimpleNamespace(
+                    before_messages=20,
+                    after_messages=5,
+                    before_tokens=10_000,
+                    after_tokens=2_000,
+                    checkpoint_id="semantic-test",
+                    fallback_used=False,
+                )
+
+        engine = Engine(())
+        app = WindowsTerminalApp(
+            AgentController(engine), ApprovalBroker(), write=lambda _: None
+        )
+        app.current_thread_id = "thread-42"
+
+        self.assertTrue(await app.submit("/compact"))
+
+        self.assertEqual(engine.compacted, "thread-42")
+        self.assertIn("checkpoint semantic-test persisted", app.state.entries[-1].text)
+
     async def test_blank_submit_without_attachments_is_a_quiet_noop(self) -> None:
         output: list[str] = []
         app = WindowsTerminalApp(
@@ -68,9 +94,9 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
         help_text = app.state.entries[-1].text
         self.assertIn("General\n", help_text)
         for name in (
-            "help", "status", "clear", "compact", "cost", "doctor",
+            "status", "clear", "compact", "cost", "doctor",
             "exit", "diff", "review", "test", "rewind", "attach",
-            "mode", "permission", "mcp", "plugin", "tasks",
+            "model", "mode", "effort", "permission", "mcp", "plugin", "tasks",
         ):
             self.assertIn(f":{name}", help_text)
         self.assertNotIn(":sessions", help_text)
@@ -88,7 +114,7 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn(":evidence", help_text)
         self.assertIn(":restore", help_text)
 
-    async def test_mode_prefix_enters_runtime_selection_secondary_menu(self) -> None:
+    async def test_mode_prefix_enters_task_behavior_secondary_menu(self) -> None:
         class RuntimeSelection:
             current = type(
                 "Selection",
@@ -110,7 +136,8 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
                 return self.current
 
         runtime = RuntimeSelection()
-        app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker(), write=lambda _: None)
+        task_modes = TaskModeControl()
+        app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker(), task_modes=task_modes, write=lambda _: None)
         app.runtime_selection = runtime
         app.input.replace("/mode")
 
@@ -121,15 +148,13 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
 
         await app.handle_key("\r")
 
-        self.assertEqual(app.input.text, "/mode agent ")
-        app.input.insert("team")
-        await app.handle_key("\r")
-
-        self.assertEqual(runtime.seen, {"topology": "team", "idle": True})
+        self.assertFalse(hasattr(runtime, "seen"))
+        self.assertEqual(task_modes.current.name, "ask")
         self.assertEqual(app.input.text, "")
 
     async def test_clear_keeps_the_current_thread_identity(self) -> None:
-        app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker(), write=lambda _: None)
+        output: list[str] = []
+        app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker(), write=output.append)
         app.current_thread_id = "thread-42"
         app.state.entries.append(text_entry(DisplayKind.USER, "old transcript"))
 
@@ -137,6 +162,7 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(app.current_thread_id, "thread-42")
         self.assertEqual(app.state.entries, [])
+        self.assertTrue(any("\x1b[2J\x1b[H" in item for item in output))
 
     async def test_enter_submits_complete_restore_command_without_picker_replacement(self) -> None:
         app = WindowsTerminalApp(

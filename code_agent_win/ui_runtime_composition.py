@@ -57,6 +57,9 @@ class UiComposition:
     workflow_subscriber: Callable[[object, WorkflowService], None]
     verification_invalidator: Callable[..., object]
     attachment_draft: object | None = None
+    task_modes: object | None = None
+    costs: object | None = None
+    doctor: object | None = None
 
 
 def compose_ui_runtime(
@@ -128,6 +131,10 @@ class _UiComposer:
             workflows=self.workflows,
             plugin_events=self.plugin_events,
             workspace_runtime=parts.workspace_runtime,
+            task_mode_supplier=(
+                (lambda: parts.task_modes.current.name)
+                if parts.task_modes is not None else None
+            ),
         )
         plugin_commands = self.plugin_commands
         self.foreground.subscribe_settled(
@@ -176,8 +183,12 @@ class _UiComposer:
             plugin_errors=parts.plugin_errors,
             attachment_draft=parts.attachment_draft,
             runtime_selection=parts.runtime_selection,
+            task_modes=parts.task_modes,
+            costs=parts.costs,
+            doctor=parts.doctor,
             peers=parts.peers,
             project_name=parts.root.name,
+            workspace_root=parts.root,
         )
 
     def _finish(self) -> None:

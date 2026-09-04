@@ -4,12 +4,14 @@
 ## 边界
 - 负责：创建共享依赖、调度 typed tools、把策略审批结果传递给文件和运行时 Feature。
 - 负责：声明 Windows/PowerShell 执行契约，按工作区能力注册 Git 工具，并把方言不匹配、非零退出码和已知 Git 故障转换为可修复的结构化 tool result。
+- 负责：在基础 Provider 提示中声明克制的 Markdown 可读性约定，要求结果前置、短层级和有意义的重点标粗，不以装饰性格式虚构重要性。
 - 负责：发布 Chaos Agent 的 `chaos-agent` 命令与本地数据目录，并在迁移期保持旧 `agent` 命令和本地状态可用。
 - 不负责：重写 policy、workspace 或 runtime 的底层安全规则。
 - 不负责：自动翻译任意 Shell 脚本、自动初始化 Git 仓库或把失败命令报告为成功。
 
 ## Units
 - `tool_definitions(include_git, powershell): tuple[ToolDefinition, ...]`: 声明严格且递归校验的契约 loader、工具 schema、generation-aware `read_code_slices`、不可变 edit-plan 契约、冻结 PowerShell 方言和 versioned `run_process_v1`，并按仓库能力省略 Git 工具 | 无副作用 | batch slice 为 1–16 个 target，提示合并当前已知目标但允许新信息后的后续批次；structured process 不接受 shell/env/stdin；文件 auto 不猜 legacy code page
+- `windows_system_prompt(...)`：组合冻结的 PowerShell/Git 能力与用户正文的 Markdown 可读性约定 | 无副作用 | 强调仅服务于决策、风险、结果和下一步，不要求逐句装饰
 - `RootActionDispatcher`: 在执行前验证 typed schema、评估策略并请求交互审批，再调用文件、编辑、Git 或命令 Unit；`read_code_slices` 先校验当前 RepoIndex generation/snapshot signatures，再委托 Workspace 前后复核 | 产生如实标记成功/失败且保留有界诊断的 tool result | batch 任一 stale 返回 `stale_repo_context` 且不含部分源码；只有已通过策略的外部路径可抵达 workspace Unit
 - `run_powershell_action(...)`、`run_process_action(...)`: 分别把冻结方言、默认 Stop 且保留 native 原始字节的脚本和 shell-free `program + args` 映射为 `CommandSpec` | 启动本地进程并失效工作区缓存 | structured process 拒绝 shell launcher、`.cmd/.bat`、NUL 与超限 Windows command line；stdout/stderr 独立严格解码并逐流报告截断，无法解码时返回完整 Base64/code page；legacy script 映射仅供旧 Runtime 兼容
 - Windows 路径能力在启动、`/状态` 和 Provider prompt 中可见；入口必须在 `Path.resolve()`、storage mkdir 或进程启动前检查 legacy/extended 预算，不能以“目录不存在”掩盖长路径策略缺失。
@@ -33,6 +35,7 @@
 - `child_mode_for_role(...)`、`SubagentTool.dispatch(...)`、`EngineChildRunner.run(...)`：按 Search/Librarian→Low、Subagent→Medium、Review/Oracle→High 路由 profile，并把 `delegate_agent` 转换为受预算、取消和单写者约束的真实子 thread | provider/session/tool 调用 | 路由不依赖父模式；子结果始终 advisory，不产生 verification evidence。
 - `load_plugins(...)`、`PluginToolBridge`：发现可信 manifest 并把不可变工具贡献映射到 Host typed action | 读取 manifest/信任文件 | 插件风险与目标 action 风险必须分别通过中央策略。
 - `build_context_runtime(...)`、`PersistingAnchoredCompactor.compact(...)`：组合共享的本地确定性压缩器与语义压缩，并在 Host 持久化脱敏 checkpoint facts | 仅 Host 写入固定八项元数据 | Context Feature 不持久化；revision、summary、source text 和 messages 不进入 payload，持久化错误与取消原样传播。
+- `TaskScopedVerificationService`：按 task/workspace 复用验证事务，并从活动 Context 的同一 `RepoIndexSnapshot` 刷新 Planner | 维护进程内 task 到 service 绑定并触发 milestone/final verifier | workspace root 漂移失败闭合；不另建 RepoIndex，不接受模型伪造验证 scope
 - `WorkspaceEditPlanStore`、`create_stored_edit_plan(...)`、`WorkspaceEditPlanActions`、`edit_plan_results`：把模型提供的多文件意图转换为 Host 所有的不可变计划，以 ID/digest 分离 plan 与 apply，并显式编码工作区是否可能已变化及涉及路径 | 进程内保存有界计划、只读 Git tracked/dirty 状态和工作区预览 | apply 前重新 preflight；Git ignored/untracked 既有文件必须标记显式风险；计划只能消费一次，取消前不得进入 applying；完整回滚、预检冲突和拒绝不得宣称工作区变化，模型不能提交风险标志或可信 Diff
 - `WorkspaceMutationPool`：按 canonical workspace root 复用 editor、快照、gate、capture、计划仓库和 coordinated session facade | 延迟创建每个 source/task root 的持久状态依赖 | source 与 task worktree 绝不共用 mutation gate、snapshot 或计划；所有 facade 共用同一个基础 Sessions 仓库
 - `WorkspaceMutationGate`、`RewindCaptureCoordinator`、`CoordinatedSessionRepository`：共享一个基础回溯仓库并严格排序 mutation/checkpoint，批次 apply 在首次写前持久化 PRE/POST journal | 写入会话日志、快照和工作区 | 未知写者先持久化 gap；异常或取消先完成 owned-only 恢复再释放 gate，foreign 结果持久化为 conflict 并阻止后续写入
@@ -40,5 +43,6 @@
 - `WorkspaceSessionRouter`: 透传唯一 `RewindSessionRepository`，按 thread/owner 所属 workspace 把 checkpoint 路由到该 root 的 `CoordinatedSessionRepository` | 仅被选中的 facade 写入 checkpoint/coverage | 未绑定 child 回退 owner root，再回退 source root；任何 facade 必须共享同一基础仓库
 - `RewindRuntime`：基于基础仓库和同一快照存储生成双观测只读预览 | 只读会话、快照和工作区 | 不提供 apply、restore、approval、provider 或 Git reset。
 - `ModeAwareWindowsTerminalApp.update_capability(...)`、`GitDiffAdapter`：展示并刷新模式/权限分离信息，并把 staged/unstaged/untracked 快照交给只读 Diff 交互，把 `/rewind` 仅委托给 Interfaces handler | 终端/Git 读取 | mode 切换不修改权限；diff 和回溯预览不修改 Git index。
+- `SystemDoctor.run()`、`TaskCostControl.report(...)`：分别执行有界 host/TCP 诊断和持久预算费用投影 | 只读系统、网络探测与 Sessions 读取 | 不发送 API key 或 HTTP 请求；未配置 profile 价格时只报告真实 token，不估算费用
 - `PeerToolAdapter`、`PEER_TOOL_DEFINITIONS`: 独立暴露 `list_agents`、`send_message`、`rename_agent` typed tools | 仅委托已注册的 PeerMessagingService | 本 Unit 不接 Root dispatcher/UI，错误输出不回显正文，peer 输入仍不具有用户授权
 - `PeerRuntime`、`PeerDeliveryBuffer`、`PeerContextBuilder`: 仅随 Windows TUI 注册本机实例，续租并投递 queued 消息、提示 held 消息，把 PEER 正文以有界不可信 JSON 注入主上下文 | SQLite/模型回合/TUI 元数据 | task-owned thread 不后台恢复；taskless peer 回合只开放 list/send；失败指数退避，runtime 切换与 peer wake 共用 activity lock

@@ -4,12 +4,13 @@ from .command_availability import available_services
 from .evidence_view import format_evidence_summary
 from .i18n import localize_task_status
 from .terminal_display import DisplayKind
-from .terminal_status import status_snapshot
+from .status_report import format_status
 from .tui_attachment_commands import handle_attachment_command
 from .tui_builtin_commands import handle_builtin_command
 from .tui_commands import ParseOutcome, TuiCommandKind
 from .tui_lifecycle import format_command_help
 from .tui_permission_commands import handle_permission_command
+from .tui_runtime_commands import set_effort, set_model, set_task_mode, show_task_modes
 from .tui_workflow_commands import handle_workflow_command
 
 
@@ -31,6 +32,10 @@ async def handle_tui_command(app: object, outcome: ParseOutcome) -> bool:
         return await handle_workflow_command(app, command.instruction)
     elif command.kind is TuiCommandKind.PLUGIN:
         return await _run_plugin(app, command.command_name, command.instruction)
+    elif command.kind is TuiCommandKind.MODEL:
+        return await set_model(app, command.instruction)
+    elif command.kind is TuiCommandKind.EFFORT:
+        return await set_effort(app, command.instruction)
     elif command.kind is TuiCommandKind.MODE:
         return await _set_mode(app, command.instruction, command.action)
     elif command.kind is TuiCommandKind.PERMISSION:
@@ -40,11 +45,12 @@ async def handle_tui_command(app: object, outcome: ParseOutcome) -> bool:
     elif command.kind is TuiCommandKind.EVIDENCE:
         return await _show_evidence(app, command.instruction)
     elif app.tasks and command.kind is TuiCommandKind.TASKS:
-        records = await app.tasks.list(include_terminal=True)
-        value = " | ".join(
-            f"{item.id}:{localize_task_status(item.status.value, app.catalog)}"
+        records = await app.tasks.list(include_terminal=False)
+        value = "\n".join(
+            f"{item.id} · {localize_task_status(item.status.value, app.catalog)} "
+            f"· {item.contract.objective[:80]}"
             for item in records
-        )
+        ) or "no active or queued tasks"
         app._append(DisplayKind.METADATA, value)
     elif app.tasks and command.kind is TuiCommandKind.ACCEPT:
         task_id = command.task_id or app.active_task_id
@@ -60,11 +66,7 @@ async def handle_tui_command(app: object, outcome: ParseOutcome) -> bool:
 
 
 def _show_status(app: object) -> None:
-    task_id = app.active_task_id or app.state.task_id
-    value = status_snapshot(
-        app.state.status, task_id, app.current_thread_id, app._current_model()
-    )
-    app._append(DisplayKind.METADATA, value + _host_runtime_suffix(app))
+    app._append(DisplayKind.METADATA, format_status(app))
 
 
 def _show_help(app: object, instruction: str | None) -> bool:
@@ -109,21 +111,14 @@ async def _set_mode(
     instruction: str | None,
     action: str | None = None,
 ) -> bool:
+    task_mode = await set_task_mode(app, instruction, action)
+    if task_mode is not None:
+        return task_mode
+    if instruction is None:
+        return show_task_modes(app)
     runtime = getattr(app, "runtime_selection", None)
     if runtime is None:
         return await _set_legacy_mode(app, instruction)
-    if instruction is None:
-        current = runtime.current
-        profiles = " | ".join(
-            f"{_profile_name(item)}:{_profile_model(item)}"
-            for item in runtime.profiles()
-        )
-        app._append(
-            DisplayKind.METADATA,
-            "current " + _runtime_summary(current) + " | " + profiles
-            + _host_runtime_suffix(app),
-        )
-        return True
     if action not in {"agent", "model", "effort", "代理", "模型", "思考"}:
         if getattr(app, "modes", None) is not None:
             return await _set_legacy_mode(app, instruction)

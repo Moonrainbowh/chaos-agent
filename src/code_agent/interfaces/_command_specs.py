@@ -7,18 +7,39 @@ def built_in_command_specs() -> tuple[CommandSpec, ...]:
     advanced = CommandVisibility.ADVANCED
     internal = CommandVisibility.INTERNAL
     runtime = ("runtime_selection",)
+    task_modes = ("task_modes",)
     peers = ("peers",)
     return (
-        CommandSpec("help", ("帮助", "?"), "General", "Show available commands", "[command|all]"),
-        CommandSpec("status", ("s", "状态"), "General", "Show current runtime status"),
-        CommandSpec("clear", ("c", "清屏"), "General", "Clear screen and start a fresh session"),
-        CommandSpec("compact", (), "General", "Compact context memory to reduce token usage"),
-        CommandSpec("cost", ("tokens",), "General", "Show token consumption and budget stats"),
-        CommandSpec("doctor", (), "General", "Diagnose system, shell, and path health"),
+        CommandSpec(
+            "clear", ("c", "清屏"), "General",
+            "Clear the visible transcript and start a fresh turn",
+        ),
+        CommandSpec(
+            "compact", (), "General",
+            "Summarize stale context and persist a semantic checkpoint",
+        ),
+        CommandSpec(
+            "cost", ("tokens",), "General",
+            "Show durable prompt/completion usage and configured cost estimate",
+        ),
+        CommandSpec(
+            "status", ("s", "状态"), "General",
+            "Show model, task mode, permissions, workspace, and host runtime",
+        ),
+        CommandSpec(
+            "doctor", (), "General",
+            "Run PowerShell, Git, path, workspace, and endpoint diagnostics",
+        ),
         CommandSpec("exit", ("quit", "q", "退出"), "General", "Exit Chaos-Agent"),
         CommandSpec("diff", ("d", "差异"), "Workspace", "View uncommitted workspace diff"),
-        CommandSpec("review", (), "Workspace", "Review uncommitted changes for potential bugs"),
-        CommandSpec("test", ("verify",), "Workspace", "Run project test suite and verify changes"),
+        CommandSpec(
+            "review", (), "Workspace",
+            "Ask the agent to review uncommitted changes", "[scope]",
+        ),
+        CommandSpec(
+            "test", ("verify",), "Workspace",
+            "Ask the agent to run and report project verification", "[scope]",
+        ),
         CommandSpec(
             "rewind", ("undo", "回退"), "Workspace", "Time travel rollback to a checkpoint",
             "[checkpoint-id]", requires=("checkpoints",),
@@ -28,11 +49,20 @@ def built_in_command_specs() -> tuple[CommandSpec, ...]:
             "[path|clipboard|list|remove <id>|clear]", requires=("attachments",),
         ),
         CommandSpec(
-            "mode", ("m", "模式"), "Capability", "Switch task execution mode or agent profile", "<action>",
+            "model", ("m",), "Configuration",
+            "Show or switch the configured model profile", "[profile]",
+            requires=runtime,
+        ),
+        CommandSpec(
+            "mode", ("模式",), "Configuration",
+            "Choose ask, code, or read-only plan behavior", "<action>",
             actions=(
-                CommandAction("agent", ("topology", "代理"), "Choose single or team topology", "<single|team>", requires=runtime),
-                CommandAction("model", ("profile", "模型"), "Switch model profile", "<profile-or-sol|terra|luna>", requires=runtime),
-                CommandAction("effort", ("reasoning", "思考"), "Adjust reasoning effort depth", "<low|medium|high|xhigh|max>", requires=runtime),
+                CommandAction("ask", (), "Pure Q&A with a read-only task contract", requires=task_modes),
+                CommandAction("code", (), "Programming mode with permission-governed tools", requires=task_modes),
+                CommandAction("plan", (), "Read-only planning with no writes or local execution", requires=task_modes),
+                CommandAction("agent", ("topology", "代理"), "Legacy topology selector", "<single|team>", requires=runtime, visibility=internal),
+                CommandAction("model", ("profile", "模型"), "Legacy model selector", "<profile>", requires=runtime, visibility=internal),
+                CommandAction("effort", ("reasoning", "思考"), "Legacy effort selector", "<effort>", requires=runtime, visibility=internal),
                 CommandAction("low", (), "Legacy low effort", requires=("modes",), visibility=internal),
                 CommandAction("medium", (), "Legacy medium effort", requires=("modes",), visibility=internal),
                 CommandAction("high", (), "Legacy high effort", requires=("modes",), visibility=internal),
@@ -40,21 +70,26 @@ def built_in_command_specs() -> tuple[CommandSpec, ...]:
             ),
         ),
         CommandSpec(
-            "permission", ("p", "permissions", "权限"), "Capability", "Configure tool and sandbox execution permissions",
+            "effort", (), "Configuration",
+            "Show or switch reasoning depth", "[low|medium|high|xhigh|max]",
+            requires=runtime,
+        ),
+        CommandSpec(
+            "permission", ("p", "permissions", "权限"), "Configuration", "Configure tool and sandbox execution permissions",
             "<permission>", requires=("permissions",), actions=(
                 CommandAction("auto", (), "Auto-execute workspace reads/writes and commands"),
                 CommandAction("plan", (), "Read-only workspace analysis mode"),
                 CommandAction("ask", (), "Prompt for approval on every write and command"),
                 CommandAction("unrestricted", (), "High trust mode with protected path approval"),
-                CommandAction("elevated", (), "Elevated tool access mode"),
-                CommandAction("full-local", (), "Full local workspace trust mode"),
+                CommandAction("elevated", (), "Elevated tool access mode", visibility=advanced),
+                CommandAction("full-local", (), "Full local workspace trust mode", visibility=advanced),
                 CommandAction(
                     "allow-command", ("允许命令",), "Permanently allow a command",
-                    "[--network] <program> [args...]",
+                    "[--network] <program> [args...]", visibility=advanced,
                 ),
-                CommandAction("rules", ("规则",), "List permanent command permission rules"),
+                CommandAction("rules", ("规则",), "List permanent command permission rules", visibility=advanced),
                 CommandAction(
-                    "revoke", ("撤销",), "Revoke a permanent command rule", "<rule-id>"
+                    "revoke", ("撤销",), "Revoke a permanent command rule", "<rule-id>", visibility=advanced,
                 ),
             ),
         ),
@@ -81,6 +116,10 @@ def built_in_command_specs() -> tuple[CommandSpec, ...]:
             ),
         ),
         CommandSpec("tasks", ("t", "任务"), "Tasks", "List background and active tasks", requires=("tasks",)),
+        CommandSpec(
+            "help", ("帮助", "?"), "General", "Show available commands",
+            "[command|all]", visibility=advanced,
+        ),
         CommandSpec(
             "sessions", ("会话",), "Session", "Manage session threads and peer agents", "<action>",
             actions=(

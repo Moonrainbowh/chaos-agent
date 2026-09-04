@@ -70,15 +70,16 @@ class PickerStateTests(unittest.TestCase):
         services = {
             "sessions", "history", "tasks", "evidence", "modes", "permissions", "workflows",
             "skills", "mcp", "checkpoints", "plugins", "attachments",
+            "runtime_selection", "task_modes",
         }
         items = command_picker_items(REGISTRY.all(), services)
 
         self.assertEqual(
             tuple(item.label for item in items),
             (
-                "/help", "/status", "/clear", "/compact", "/cost",
+                "/clear", "/compact", "/cost", "/status",
                 "/doctor", "/exit", "/diff", "/review", "/test",
-                "/rewind", "/attach", "/mode", "/permission",
+                "/rewind", "/attach", "/model", "/mode", "/effort", "/permission",
                 "/mcp", "/plugin", "/tasks",
             ),
         )
@@ -97,7 +98,7 @@ class PickerStateTests(unittest.TestCase):
         self.assertTrue(all(item.label.startswith(":") for item in colon_items))
         panel = PickerState(colon_items).panel_rows(80)
         self.assertIn("COMMANDS · Tab complete", panel[0])
-        self.assertIn(":help", "\n".join(panel))
+        self.assertIn(":clear", "\n".join(panel))
 
     def test_mode_is_a_root_parent_and_its_actions_inherit_unavailability(self) -> None:
         items = command_picker_items(REGISTRY.all(), set())
@@ -109,11 +110,11 @@ class PickerStateTests(unittest.TestCase):
         self.assertFalse(any(item.label.startswith("/mode ") for item in items))
         self.assertEqual(
             tuple(item.label for item in modes),
-            ("/mode agent", "/mode model", "/mode effort"),
+            ("/mode ask", "/mode code", "/mode plan"),
         )
         self.assertTrue(all(not item.enabled for item in modes))
         self.assertTrue(
-            all(item.disabled_reason == "requires runtime_selection" for item in modes)
+            all(item.disabled_reason == "requires task_modes" for item in modes)
         )
 
     def test_session_actions_are_service_scoped_without_changing_the_root(self) -> None:

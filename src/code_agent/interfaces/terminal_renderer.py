@@ -6,6 +6,7 @@ from enum import Enum
 from typing import Iterable
 
 from .terminal_display import DisplayEntry, DisplayKind, display_width, safe_text, text_entry
+from .terminal_markdown import style_inline_markdown
 from .terminal_style import (
     BODY_WHITE,
     BORDER_GRAY,
@@ -17,7 +18,6 @@ from .terminal_style import (
     TOOL_GRAY,
     WARNING_YELLOW,
     ColorMode,
-    color_enabled,
     colorize,
 )
 from .terminal_tail import render_live_tail
@@ -283,11 +283,6 @@ def _pad_display(value: str, width: int) -> str:
 
 
 def _highlight_inline_spans(value: str, base_code: str, color: ColorMode) -> str:
-    if not color_enabled(color):
-        value = re.sub(r"\*\*(.+?)\*\*", r"\1", value)
-        value = re.sub(r"`([^`]+)`", r"\1", value)
-        return colorize(value, base_code, color)
-
     bullet_match = re.match(r"^(\s*[-*•])\s+(.+)$", value)
     if bullet_match:
         bullet_sym = bullet_match.group(1)
@@ -307,15 +302,7 @@ def _highlight_inline_spans(value: str, base_code: str, color: ColorMode) -> str
         quote_prefix = colorize("│", BORDER_GRAY, color)
         return f"{quote_prefix} {colorize(quote_match.group(2), DIM_GRAY, color)}"
 
-    def _replace_code(m: re.Match[str]) -> str:
-        return f"\x1b[{BRAND_CYAN}m{m.group(1)}\x1b[0m\x1b[{base_code}m"
-
-    def _replace_bold(m: re.Match[str]) -> str:
-        return f"\x1b[1;38;5;255m{m.group(1)}\x1b[0m\x1b[{base_code}m"
-
-    val = re.sub(r"`([^`]+)`", _replace_code, value)
-    val = re.sub(r"\*\*(.+?)\*\*", _replace_bold, val)
-    return colorize(val, base_code, color)
+    return style_inline_markdown(value, base_code, color)
 
 
 def _style_line(leader: str, value: str, code: str | None, color: ColorMode, *, role: str, kind: DisplayKind) -> str:
@@ -346,7 +333,11 @@ def _style_line(leader: str, value: str, code: str | None, color: ColorMode, *, 
     else:
         body_code = code
 
-    if kind in {DisplayKind.AGENT, DisplayKind.USER} and role not in {"code", "heading", "table_header", "table_border", "quote", "agent_header"}:
+    if kind in {DisplayKind.AGENT, DisplayKind.USER} and role in {"heading", "table_header"}:
+        styled_value = style_inline_markdown(
+            value, body_code, color, emphasize_label=False
+        )
+    elif kind in {DisplayKind.AGENT, DisplayKind.USER} and role not in {"code", "table_border", "quote", "agent_header"}:
         styled_value = _highlight_inline_spans(value, body_code, color)
     else:
         styled_value = colorize(value, body_code, color)

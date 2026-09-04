@@ -19,12 +19,13 @@ _DEFAULT_SERVICES = {
     "plugins",
     "attachments",
     "runtime_selection",
+    "task_modes",
     "peers",
 }
 
 
 class TuiCommandKind(str, Enum):
-    HELP = "help"; STATUS = "status"; CLEAR = "clear"; COMPACT = "compact"; EXIT = "exit"; NEW = "new"; SESSIONS = "sessions"; RESTORE = "restore"; TASKS = "tasks"; ACCEPT = "accept"; DIFF = "diff"; ATTACHMENT = "attachment"; EVIDENCE = "evidence"; CHECKPOINT = "checkpoint"; REWIND = "rewind"; MODE = "mode"; PERMISSION = "permission"; WORKFLOW = "workflow"; SKILL = "skill"; MCP = "mcp"; PLUGIN_CONTROL = "plugin_control"; PLUGIN = "plugin"; COST = "cost"; DOCTOR = "doctor"; REVIEW = "review"; TEST = "test"
+    HELP = "help"; STATUS = "status"; CLEAR = "clear"; COMPACT = "compact"; EXIT = "exit"; NEW = "new"; SESSIONS = "sessions"; RESTORE = "restore"; TASKS = "tasks"; ACCEPT = "accept"; DIFF = "diff"; ATTACHMENT = "attachment"; EVIDENCE = "evidence"; CHECKPOINT = "checkpoint"; REWIND = "rewind"; MODEL = "model"; MODE = "mode"; EFFORT = "effort"; PERMISSION = "permission"; WORKFLOW = "workflow"; SKILL = "skill"; MCP = "mcp"; PLUGIN_CONTROL = "plugin_control"; PLUGIN = "plugin"; COST = "cost"; DOCTOR = "doctor"; REVIEW = "review"; TEST = "test"
 
 
 @dataclass(frozen=True)
@@ -88,7 +89,8 @@ def parse_tui_command(
         "exit": "exit", "new": "new", "sessions": "sessions", "restore": "restore",
         "tasks": "tasks", "accept": "accept", "diff": "diff", "attach": "attachment",
         "evidence": "evidence", "checkpoint": "checkpoint", "rewind": "rewind",
-        "mode": "mode", "permission": "permission", "workflow": "workflow", "flow": "workflow",
+        "model": "model", "mode": "mode", "effort": "effort",
+        "permission": "permission", "workflow": "workflow", "flow": "workflow",
         "skill": "skill", "mcp": "mcp", "plugin": "plugin_control",
         "cost": "cost", "doctor": "doctor", "review": "review", "test": "test",
         # Legacy/Chinese aliases
@@ -100,7 +102,26 @@ def parse_tui_command(
     }
     kind = TuiCommandKind.PLUGIN if spec.source == "plugin" else TuiCommandKind(kinds[spec.name])
     value = " ".join(arguments) or None
-    return ParseOutcome(TuiCommand(kind, value if kind is TuiCommandKind.ACCEPT else None, value if kind in {TuiCommandKind.HELP, TuiCommandKind.SESSIONS, TuiCommandKind.RESTORE, TuiCommandKind.ATTACHMENT, TuiCommandKind.EVIDENCE, TuiCommandKind.CHECKPOINT, TuiCommandKind.REWIND, TuiCommandKind.MODE, TuiCommandKind.PERMISSION, TuiCommandKind.WORKFLOW, TuiCommandKind.SKILL, TuiCommandKind.MCP, TuiCommandKind.PLUGIN_CONTROL, TuiCommandKind.PLUGIN, TuiCommandKind.COMPACT, TuiCommandKind.COST, TuiCommandKind.DOCTOR, TuiCommandKind.REVIEW, TuiCommandKind.TEST} else None, spec.name if kind is TuiCommandKind.PLUGIN else None, normalized_action))
+    instructions = {
+        TuiCommandKind.HELP, TuiCommandKind.SESSIONS, TuiCommandKind.RESTORE,
+        TuiCommandKind.ATTACHMENT, TuiCommandKind.EVIDENCE,
+        TuiCommandKind.CHECKPOINT, TuiCommandKind.REWIND,
+        TuiCommandKind.MODEL, TuiCommandKind.MODE, TuiCommandKind.EFFORT,
+        TuiCommandKind.PERMISSION, TuiCommandKind.WORKFLOW,
+        TuiCommandKind.SKILL, TuiCommandKind.MCP,
+        TuiCommandKind.PLUGIN_CONTROL, TuiCommandKind.PLUGIN,
+        TuiCommandKind.COMPACT, TuiCommandKind.COST,
+        TuiCommandKind.DOCTOR, TuiCommandKind.REVIEW, TuiCommandKind.TEST,
+    }
+    return ParseOutcome(
+        TuiCommand(
+            kind,
+            value if kind is TuiCommandKind.ACCEPT else None,
+            value if kind in instructions else None,
+            spec.name if kind is TuiCommandKind.PLUGIN else None,
+            normalized_action,
+        )
+    )
 
 
 def _compatibility_alias(text: str) -> str:

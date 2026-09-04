@@ -41,7 +41,7 @@ class TuiCommandTests(unittest.TestCase):
             "/mode effort high", {"runtime_selection"}
         )
 
-        self.assertEqual(visible[0].name, "mode")
+        self.assertEqual(tuple(item.name for item in visible), ("model", "mode"))
         self.assertEqual(spec.name, "mode")
         self.assertEqual(arguments, ("effort", "high"))
         self.assertIsNone(error)
@@ -100,9 +100,10 @@ class TuiCommandTests(unittest.TestCase):
         self.assertEqual(
             tuple(spec.name for spec in REGISTRY.all()),
             (
-                "help", "status", "clear", "compact", "cost", "doctor", "exit",
-                "diff", "review", "test", "rewind", "attach", "mode", "permission",
-                "mcp", "plugin", "tasks", "sessions", "new", "restore", "accept",
+                "clear", "compact", "cost", "status", "doctor", "exit",
+                "diff", "review", "test", "rewind", "attach", "model", "mode",
+                "effort", "permission", "mcp", "plugin", "tasks", "help",
+                "sessions", "new", "restore", "accept",
                 "evidence", "checkpoint", "flow", "skill",
             ),
         )
@@ -111,9 +112,9 @@ class TuiCommandTests(unittest.TestCase):
         self.assertEqual(
             tuple(spec.name for spec in REGISTRY.primary()),
             (
-                "help", "status", "clear", "compact", "cost", "doctor", "exit",
-                "diff", "review", "test", "rewind", "attach", "mode", "permission",
-                "mcp", "plugin", "tasks",
+                "clear", "compact", "cost", "status", "doctor", "exit",
+                "diff", "review", "test", "rewind", "attach", "model", "mode",
+                "effort", "permission", "mcp", "plugin", "tasks",
             ),
         )
         self.assertTrue(
@@ -151,7 +152,7 @@ class TuiCommandTests(unittest.TestCase):
             ("list", "create"),
         )
 
-    def test_mode_declares_three_runtime_selection_actions(self) -> None:
+    def test_mode_declares_three_task_behavior_actions(self) -> None:
         mode = REGISTRY.resolve("mode")
 
         self.assertEqual(
@@ -160,12 +161,14 @@ class TuiCommandTests(unittest.TestCase):
                 for action in mode.actions
                 if action.visibility.value == "primary"
             ),
-            ("agent", "model", "effort"),
+            ("ask", "code", "plan"),
         )
         self.assertEqual(
-            parse_tui_command("/mode agent team").command.action,
-            "agent",
+            parse_tui_command("/mode ask").command.action,
+            "ask",
         )
+        self.assertEqual(parse_tui_command("/m sol").command.kind, TuiCommandKind.MODEL)
+        self.assertEqual(parse_tui_command("/effort high").command.kind, TuiCommandKind.EFFORT)
         self.assertEqual(
             parse_tui_command("/mode model sol").command.instruction,
             "model sol",

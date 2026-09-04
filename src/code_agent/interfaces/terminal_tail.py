@@ -10,6 +10,7 @@ from .terminal_display import (
     grapheme_width,
     safe_text,
 )
+from .terminal_markdown import render_streaming_markdown_rows
 from .terminal_style import BORDER_GRAY, BRAND_CYAN, BRIGHT_CYAN, DIM_GRAY, BODY_WHITE, SUCCESS_GREEN, WARNING_YELLOW, ColorMode, colorize
 
 
@@ -443,12 +444,15 @@ def _render_draft(value: str, width: int, max_rows: int, color: ColorMode, *, mo
     star = "✦" if modern else "◆"
     title = clip_display(f"{star} 正在回答", width)
     prefix = "  " if width > 2 else ""
-    rows = _wrap_plain(safe_text(value), max(1, width - display_width(prefix)))
+    content_width = max(1, width - display_width(prefix))
+    rows = render_streaming_markdown_rows(value, content_width, color)
+    if len(rows) > max_rows and content_width > 2:
+        rows = render_streaming_markdown_rows(value, content_width - 2, color)
     clipped = rows[-max_rows:]
     if len(rows) > len(clipped):
-        clipped[0] = clip_display("… " + clipped[0], width - display_width(prefix))
+        clipped[0] = colorize("… ", DIM_GRAY, color) + clipped[0]
     return [colorize(title, BRAND_CYAN, color)] + [
-        colorize(prefix + row, BODY_WHITE, color) for row in clipped
+        colorize(prefix, BODY_WHITE, color) + row for row in clipped
     ]
 
 

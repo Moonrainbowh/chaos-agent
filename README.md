@@ -65,6 +65,9 @@ model = "gpt-4.1-mini"
 api_key = "replace-with-your-key"
 context_window = 128000
 max_output_tokens = 16384
+# Optional USD rates used by /cost. Configure both or neither.
+input_cost_per_million = 0.40
+output_cost_per_million = 1.60
 # Declare image only when this exact model/profile accepts image input.
 input_modalities = ["text", "image"]
 
@@ -80,7 +83,7 @@ capability_strategy = "hybrid"
 # allow_sensitive_paths = true
 ```
 
-Every configured `[providers.<name>]` profile must declare `api`, `base_url`, `model`, exactly one of `api_key`/`api_key_env`, `context_window`, and `max_output_tokens`. Use `chaos-agent --profile <name>` or `CHAOS_PROFILE` to choose one; `CHAOS_CONFIG` may select another absolute config path. `CHAOS_API`, `CHAOS_BASE_URL`, `CHAOS_MODEL`, and `CHAOS_API_KEY_ENV` override only the selected profile. Legacy `CODE_AGENT_*` names remain fallback aliases during migration.
+Every configured `[providers.<name>]` profile must declare `api`, `base_url`, `model`, exactly one of `api_key`/`api_key_env`, `context_window`, and `max_output_tokens`. Optional `input_cost_per_million` and `output_cost_per_million` rates must be configured together; `/cost` always reports durable task tokens and adds an estimated USD breakdown only when those rates exist. Use `chaos-agent --profile <name>` or `CHAOS_PROFILE` to choose one; `CHAOS_CONFIG` may select another absolute config path. `CHAOS_API`, `CHAOS_BASE_URL`, `CHAOS_MODEL`, and `CHAOS_API_KEY_ENV` override only the selected profile. Legacy `CODE_AGENT_*` names remain fallback aliases during migration.
 
 `[agent].powershell_dialect` accepts `powershell_7` or
 `windows_powershell_5_1`; omit it (or set `auto`) for the migration default.
@@ -110,20 +113,29 @@ $env:CHAOS_BASE_URL = "https://api.openai.com"
 $env:CHAOS_MODEL = "gpt-4.1-mini"
 ```
 
-Profile limits belong in the TOML provider table. In the terminal, runtime
-topology, model profile, and reasoning effort are independent controls:
+Profile limits belong in the TOML provider table. The default command panel
+contains these 18 English commands (the `/` prefix remains compatible with the
+primary `:` prefix):
 
 ```text
-/模式 代理 single|team
-/模式 模型 <profile|sol|terra|luna>
-/模式 思考 low|medium|high|xhigh|max
+/clear  /compact  /cost  /status  /doctor  /exit
+/diff   /review   /test  /rewind  /attach
+/model  /mode     /effort  /permission
+/mcp    /plugin   /tasks
 ```
 
-Each selection rebuilds the main provider/runner while idle. `team` exposes
-real bounded child-Agent delegation to the main Agent; `single` removes that
-tool. The selected profile changes the actual provider model, while reasoning
+`/model <profile>` and `/effort <level>` independently rebuild the idle
+runtime. `/mode ask|code|plan` controls the next task contract: `ask` and
+`plan` disable workspace writes and local execution, while `code` remains
+governed by `/permission auto|plan|ask|unrestricted`. `/compact` persists a
+traceable semantic checkpoint when enough closed history exists; `/doctor`
+runs bounded PowerShell, Git, workspace, path-policy, and provider TCP checks.
+
+Model and effort selections rebuild the main provider/runner while idle. The
+hidden compatibility command `/mode agent single|team` still controls whether
+bounded child-Agent delegation is exposed. The selected profile changes the actual provider model, while reasoning
 effort is serialized into supported provider requests. The full runtime
-selection is frozen into durable task contracts. The older `/模式
+selection is frozen into durable task contracts. The older `/mode
 low|medium|high|ultra` forms remain hidden compatibility entries. Runtime
 selection never accepts a URL, protocol, API key, or permission change.
 `anthropic_messages` currently has no confirmed structured effort mapping:
@@ -209,10 +221,9 @@ only for task-level completion. The live tail keeps a single bordered composer;
 pressing `Shift+:` opens a bordered command panel with search plus aligned
 command/description columns. `Up`/`Down` move, `Tab` completes, `Enter` executes
 or opens a child menu, and `Esc` closes the Picker. The old `/` prefix remains
-compatible. The root Picker and default `:帮助` contain ten everyday entries:
-`:帮助`, `:状态`, `:新建`, `:会话`, `:任务`, `:附件`, `:回退`, `:模式`, `:权限`,
-and `:退出`. Diff is deferred from the default TUI; `:差异` remains an advanced
-compatibility command. `:帮助 全部` shows the complete registry. Compound commands open a
+compatible. The root Picker contains the 18 commands listed above; `:help`
+remains directly available as an advanced command, and `:help all` shows the
+complete compatibility registry. Compound commands open a
 second-level action menu instead of flattening every action into the root.
 The status row keeps dynamic
 work on the left and model/elapsed context on the right when space allows.

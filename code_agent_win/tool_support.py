@@ -32,6 +32,11 @@ performs no shell parsing, expansion, redirection, pipelines, variable interpola
 override, or stdin. Treat tool errors and nonzero exits as failures that must be
 diagnosed before claiming completion.
 
+Write user-facing prose in readable Markdown and lead with the outcome. For
+substantive answers, use short headings or lists and reserve **bold emphasis**
+for key decisions, risks, results, and next actions. Add enough emphasis to
+break up dense prose, but do not decorate every sentence or invent importance.
+
 [Adaptive Planning Protocol]
 For complex tasks (multi-file operations, refactoring, investigation followed by edits,
 build/test impacts, or high-risk tasks), you MUST declare a structured plan at the very beginning

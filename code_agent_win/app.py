@@ -11,6 +11,8 @@ from code_agent.context.repo_index import RepoIndexService
 from code_agent.context.repo_map import RepoMapViewCache
 from code_agent.context.repo_scan import RepoFileScanner
 from code_agent.interfaces.approval import ApprovalBroker
+from code_agent.interfaces.cost_control import TaskCostControl
+from code_agent.interfaces.task_mode_control import TaskModeControl
 from code_agent.orchestration.models import AgentMode
 from code_agent.policy.models import ApprovalMode
 from code_agent.policy.command_rules import ProcessRuleStore
@@ -42,6 +44,7 @@ from code_agent_win.workspace_runtime import ManagedWorkspaceRuntime
 from code_agent_win.workspace_mutation_pool import WorkspaceMutationPool
 from code_agent_win.workspace_session_router import WorkspaceSessionRouter
 from code_agent_win.workspace_context import workspace_uses_repo_map
+from code_agent_win.system_diagnostics import SystemDoctor
 from code_agent_win.app_paths import product_state_root as _product_state_root, session_path as _session_path, workspace_storage_path as _workspace_storage_path
 
 
@@ -244,6 +247,16 @@ class _ApplicationComposer:
             activity_lock=self.activity_lock,
         )
         self.snapshot = self.controls.runtime_selection.snapshot
+        self.task_modes = TaskModeControl()
+        self.costs = TaskCostControl(self.sessions, self.profiles)
+        self.doctor = SystemDoctor(
+            self.root,
+            powershell=self.powershell,
+            git=self.git,
+            base_url=lambda: self.profiles[
+                self.controls.runtime_selection.current.profile
+            ].provider.base_url,
+        )
 
     def _configure_ui(self) -> None:
         self.foreground, self.tui, self.workflows = compose_ui(
@@ -278,6 +291,9 @@ class _ApplicationComposer:
                 self.attachment_ingestor,
                 lambda: self.controls.manager.current.profile,
             ),
+            task_modes=self.task_modes,
+            costs=self.costs,
+            doctor=self.doctor,
         )
 
     def _finish(self) -> Application:

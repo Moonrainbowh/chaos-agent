@@ -23,6 +23,25 @@ class _IdleRunner:
 
 
 class ForegroundTaskControllerTests(unittest.IsolatedAsyncioTestCase):
+    async def test_read_only_task_modes_freeze_restricted_authorization(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = SQLiteSessionRepository(root / "sessions.sqlite3")
+            selected = "plan"
+            controller = ForegroundTaskController(
+                AgentController(_IdleRunner()),
+                repository,
+                root,
+                task_mode_supplier=lambda: selected,
+            )
+
+            task = await controller.start("design the repair")
+
+            self.assertEqual(task.contract.interaction_mode, "plan")
+            self.assertEqual(task.contract.intent.value, "analyze")
+            self.assertFalse(task.contract.authorization.allow_workspace_write)
+            self.assertFalse(task.contract.authorization.allow_local_execute)
+
     async def test_task_freezes_full_runtime_selection_and_resolves_it_on_resume(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

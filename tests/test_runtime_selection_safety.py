@@ -75,9 +75,9 @@ class RuntimeSelectionSafetyTests(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as directory:
             application = _application(Path(directory), profiles, real_client=False)
 
-            self.assertTrue(await application.tui.submit("/模式"))
+            self.assertTrue(await application.tui.submit("/model"))
             self.assertIn("sol:model-sol", application.tui.state.entries[-1].text)
-            self.assertTrue(await application.tui.submit("/模式 模型 terra"))
+            self.assertTrue(await application.tui.submit("/model terra"))
             self.assertEqual(application.runtime_selection.current.profile, "terra")
             await application.aclose()
 

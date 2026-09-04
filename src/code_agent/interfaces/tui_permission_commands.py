@@ -13,11 +13,11 @@ async def handle_permission_command(
     if app.permissions is None:
         app._append(DisplayKind.ERROR, "permission controls are unavailable")
         return False
-    if action == "允许命令":
+    if action in {"allow-command", "允许命令"}:
         return _allow_process(app, instruction)
-    if action == "规则":
+    if action in {"rules", "规则"}:
         return _list_rules(app)
-    if action == "撤销":
+    if action in {"revoke", "撤销"}:
         return _revoke_rule(app, instruction)
     if instruction is None:
         current = app.permissions.current
