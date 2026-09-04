@@ -8,7 +8,7 @@ async def handle_session_command(
     action: str | None,
     instruction: str | None,
 ) -> bool:
-    if action in {None, "历史"}:
+    if action in {None, "history", "历史"}:
         return await _show_history(app)
     peers = getattr(app, "peers", None)
     if peers is None:
@@ -16,20 +16,20 @@ async def handle_session_command(
         return False
     arguments = _arguments(instruction)
     try:
-        if action == "在线":
+        if action in {"online", "在线"}:
             return await _show_agents(app, peers)
-        if action == "重命名":
+        if action in {"rename", "重命名"}:
             session = await peers.rename(_unquote(arguments))
             app._append(
                 DisplayKind.METADATA,
                 f"renamed {_field(session, 'name')} · {_field(session, 'session_ref')}",
             )
-        elif action == "发送":
+        elif action in {"send", "发送"}:
             target, text = _send_arguments(arguments)
             result = await peers.send_message(target, text)
             message = getattr(result, "message", result)
             app._append(DisplayKind.METADATA, "sent " + _message_summary(message))
-        elif action == "接收":
+        elif action in {"inbound", "接收"}:
             if arguments not in {"auto", "accept", "hold", "refuse"}:
                 raise ValueError("inbound policy must be auto, accept, hold, or refuse")
             session = await peers.set_inbound_policy(arguments)
@@ -37,12 +37,12 @@ async def handle_session_command(
                 DisplayKind.METADATA,
                 "inbound " + _field(session, "inbound_policy"),
             )
-        elif action == "待处理":
+        elif action in {"inbox", "待处理"}:
             messages = await peers.list_inbox()
             app._append(DisplayKind.METADATA, _inbox_summary(messages))
-        elif action in {"接受", "拒绝"}:
+        elif action in {"accept", "接受", "refuse", "拒绝"}:
             message = await peers.resolve_held(
-                arguments, accept=action == "接受"
+                arguments, accept=action in {"accept", "接受"}
             )
             app._append(DisplayKind.METADATA, _message_summary(message))
         else:

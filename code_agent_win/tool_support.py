@@ -30,7 +30,20 @@ PowerShell error action; catch, Continue, SilentlyContinue, or Ignore only when
 recovery is intentional. run_process_v1 starts program + args directly: it
 performs no shell parsing, expansion, redirection, pipelines, variable interpolation, environment
 override, or stdin. Treat tool errors and nonzero exits as failures that must be
-diagnosed before claiming completion."""
+diagnosed before claiming completion.
+
+[Adaptive Planning Protocol]
+For complex tasks (multi-file operations, refactoring, investigation followed by edits,
+build/test impacts, or high-risk tasks), you MUST declare a structured plan at the very beginning
+of your response before calling tools or writing answers:
+<plan>
+1. [Phase/Target]: Specific action description
+2. [Phase/Target]: Specific action description
+3. [Phase/Target]: Specific action description
+</plan>
+If unexpected errors happen (e.g. tool fails or scope expands), declare <replan> with updated steps.
+For simple single-step tasks (reading a single file, answering a direct question, explaining an error),
+do NOT output a <plan> block; answer or execute directly."""
 
 
 def windows_system_prompt(

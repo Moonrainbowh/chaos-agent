@@ -208,7 +208,7 @@ def _command_picker_item(
         tuple(spec.aliases),
         enabled=not missing,
         disabled_reason=("requires " + ", ".join(missing)) if missing else None,
-        completion=prefix + spec.name + (" " if needs_space else ""),
+        completion=prefix + (spec.name if parent is None or prefix.endswith(" ") else spec.name) + (" " if needs_space else ""),
     )
 
 
@@ -216,6 +216,7 @@ def skill_picker_items(
     controller: object, action: str
 ) -> tuple[PickerItem, ...]:
     values = controller.list()
+    command_name = "skill" if action in {"list", "info", "enable", "disable", "source", "reload"} else "技能"
     return tuple(
         PickerItem(
             skill.identifier,
@@ -223,7 +224,7 @@ def skill_picker_items(
             PickerSource.SKILL,
             skill.description,
             (skill.digest, *getattr(skill, "sources", ())),
-            completion=f"/技能 {action} {skill.identifier}",
+            completion=f"/{command_name} {action} {skill.identifier}",
         )
         for skill in values
     )
@@ -254,8 +255,8 @@ def _command_source(value: object, parent: object | None) -> PickerSource:
     if (
         getattr(value, "source", "host") == "plugin"
         or getattr(parent, "source", "host") == "plugin"
-        or getattr(value, "name", None) == "插件"
-        or getattr(parent, "name", None) == "插件"
+        or getattr(value, "name", None) in {"plugin", "插件"}
+        or getattr(parent, "name", None) in {"plugin", "插件"}
     ):
         return PickerSource.PLUGIN
     return PickerSource.COMMAND

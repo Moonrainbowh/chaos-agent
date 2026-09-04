@@ -8,20 +8,20 @@ from code_agent.interfaces.tui_commands import TuiCommandKind, parse_tui_command
 
 class TuiCommandTests(unittest.TestCase):
     def test_parses_chinese_and_english_commands(self) -> None:
-        self.assertEqual(parse_tui_command("/任务").command.kind, TuiCommandKind.TASKS)
+        self.assertEqual(parse_tui_command("/tasks").command.kind, TuiCommandKind.TASKS)
         self.assertEqual(parse_tui_command("/evidence").command.kind, TuiCommandKind.EVIDENCE)
         self.assertEqual(parse_tui_command("/accept T-042").command.kind, TuiCommandKind.ACCEPT)
-        self.assertEqual(parse_tui_command("/接受 T-042").command.task_id, "T-042")
+        self.assertEqual(parse_tui_command("/accept T-042").command.task_id, "T-042")
         self.assertEqual(parse_tui_command("/pause T-042").error, "unknown or unavailable slash command")
         self.assertEqual(
-            parse_tui_command("/模式 思考 xhigh").command.instruction,
-            "思考 xhigh",
+            parse_tui_command("/mode effort xhigh").command.instruction,
+            "effort xhigh",
         )
-        self.assertEqual(parse_tui_command("/权限 unrestricted").command.kind, TuiCommandKind.PERMISSION)
-        self.assertEqual(parse_tui_command("/流程 失败").command.kind, TuiCommandKind.WORKFLOW)
+        self.assertEqual(parse_tui_command("/permission unrestricted").command.kind, TuiCommandKind.PERMISSION)
+        self.assertEqual(parse_tui_command("/flow failure").command.kind, TuiCommandKind.WORKFLOW)
         self.assertEqual(parse_tui_command("/flow review").command.instruction, "review")
         self.assertEqual(
-            parse_tui_command("/技能 启用 review").command.kind,
+            parse_tui_command("/skill enable review").command.kind,
             TuiCommandKind.SKILL,
         )
         self.assertEqual(
@@ -36,16 +36,16 @@ class TuiCommandTests(unittest.TestCase):
         self.assertEqual(parse_tui_command("/does-not-exist").error, "unknown or unavailable slash command")
 
     def test_registry_drives_parse_and_availability(self) -> None:
-        visible = REGISTRY.filter("/模", {"runtime_selection"})
+        visible = REGISTRY.filter("/mod", {"runtime_selection"})
         spec, arguments, error = REGISTRY.parse(
-            "/模式 思考 high", {"runtime_selection"}
+            "/mode effort high", {"runtime_selection"}
         )
 
-        self.assertEqual(visible[0].name, "模式")
-        self.assertEqual(spec.name, "模式")
-        self.assertEqual(arguments, ("思考", "high"))
+        self.assertEqual(visible[0].name, "mode")
+        self.assertEqual(spec.name, "mode")
+        self.assertEqual(arguments, ("effort", "high"))
         self.assertIsNone(error)
-        self.assertEqual(REGISTRY.parse("/模型", {"modes"})[2], "unknown or unavailable slash command")
+        self.assertEqual(REGISTRY.parse("/model", {"modes"})[2], "unknown or unavailable slash command")
 
     def test_every_registered_name_and_alias_resolves_to_its_own_command(self) -> None:
         services = {
@@ -62,17 +62,17 @@ class TuiCommandTests(unittest.TestCase):
                     self.assertIsNone(error)
 
     def test_rejects_arguments_and_unknown_compound_actions(self) -> None:
-        extra = parse_tui_command("/状态 unexpected")
-        unknown_action = parse_tui_command("/模式 extreme")
+        extra = parse_tui_command("/status unexpected")
+        unknown_action = parse_tui_command("/mode extreme")
 
         self.assertEqual(extra.error, "command does not accept arguments")
         self.assertEqual(unknown_action.error, "unknown slash command action")
 
     def test_preserves_optional_command_arguments(self) -> None:
-        help_command = parse_tui_command("/帮助 模式").command
-        evidence_command = parse_tui_command("/证据 T-042").command
+        help_command = parse_tui_command("/help mode").command
+        evidence_command = parse_tui_command("/evidence T-042").command
 
-        self.assertEqual(help_command.instruction, "模式")
+        self.assertEqual(help_command.instruction, "mode")
         self.assertEqual(evidence_command.instruction, "T-042")
 
     def test_checkpoint_and_rewind_have_chinese_and_english_aliases(self) -> None:
@@ -83,14 +83,14 @@ class TuiCommandTests(unittest.TestCase):
             TuiCommandKind.CHECKPOINT,
         )
         self.assertEqual(
-            parse_tui_command("/检查点 创建 发布前", services).command.instruction,
-            "创建 发布前",
+            parse_tui_command("/checkpoint create pre-release", services).command.instruction,
+            "create pre-release",
         )
         self.assertEqual(
             parse_tui_command("/rewind", services).command.kind,
             TuiCommandKind.REWIND,
         )
-        self.assertIsNone(parse_tui_command("/回退", services).command.instruction)
+        self.assertIsNone(parse_tui_command("/undo", services).command.instruction)
         self.assertEqual(
             parse_tui_command(f"/rewind {'3' * 32}", services).command.instruction,
             "3" * 32,
@@ -100,9 +100,10 @@ class TuiCommandTests(unittest.TestCase):
         self.assertEqual(
             tuple(spec.name for spec in REGISTRY.all()),
             (
-                "帮助", "状态", "新建", "会话", "任务", "差异", "附件",
-                "回退", "模式", "权限", "退出", "清屏", "恢复", "接受",
-                "证据", "检查点", "流程", "技能", "mcp", "插件",
+                "help", "status", "clear", "compact", "cost", "doctor", "exit",
+                "diff", "review", "test", "rewind", "attach", "mode", "permission",
+                "mcp", "plugin", "tasks", "sessions", "new", "restore", "accept",
+                "evidence", "checkpoint", "flow", "skill",
             ),
         )
 
@@ -110,8 +111,9 @@ class TuiCommandTests(unittest.TestCase):
         self.assertEqual(
             tuple(spec.name for spec in REGISTRY.primary()),
             (
-                "帮助", "状态", "新建", "会话", "任务", "附件",
-                "回退", "模式", "权限", "退出",
+                "help", "status", "clear", "compact", "cost", "doctor", "exit",
+                "diff", "review", "test", "rewind", "attach", "mode", "permission",
+                "mcp", "plugin", "tasks",
             ),
         )
         self.assertTrue(
@@ -123,14 +125,14 @@ class TuiCommandTests(unittest.TestCase):
         )
 
     def test_advanced_commands_remain_directly_parseable_but_not_filter_candidates(self) -> None:
-        self.assertEqual(parse_tui_command("/清屏").command.kind, TuiCommandKind.CLEAR)
-        self.assertEqual(parse_tui_command("/证据 T-042").command.kind, TuiCommandKind.EVIDENCE)
-        self.assertEqual(REGISTRY.filter("/证", {"evidence"}), ())
+        self.assertEqual(parse_tui_command("/new").command.kind, TuiCommandKind.NEW)
+        self.assertEqual(parse_tui_command("/evidence T-042").command.kind, TuiCommandKind.EVIDENCE)
+        self.assertEqual(REGISTRY.filter("/restore", {"history"}), ())
 
     def test_colon_is_the_primary_prefix_and_slash_remains_compatible(self) -> None:
         self.assertEqual(parse_tui_command(":status").command.kind, TuiCommandKind.STATUS)
         self.assertEqual(parse_tui_command("/status").command.kind, TuiCommandKind.STATUS)
-        self.assertEqual(REGISTRY.resolve("差异").visibility, CommandVisibility.ADVANCED)
+        self.assertEqual(REGISTRY.resolve("diff").visibility, CommandVisibility.PRIMARY)
 
     def test_attachment_command_preserves_windows_paths_verbatim(self) -> None:
         command = parse_tui_command(
@@ -146,11 +148,11 @@ class TuiCommandTests(unittest.TestCase):
 
         self.assertEqual(
             tuple(action.name for action in spec.actions),
-            ("列表", "创建"),
+            ("list", "create"),
         )
 
     def test_mode_declares_three_runtime_selection_actions(self) -> None:
-        mode = REGISTRY.resolve("模式")
+        mode = REGISTRY.resolve("mode")
 
         self.assertEqual(
             tuple(
@@ -158,59 +160,59 @@ class TuiCommandTests(unittest.TestCase):
                 for action in mode.actions
                 if action.visibility.value == "primary"
             ),
-            ("代理", "模型", "思考"),
+            ("agent", "model", "effort"),
         )
         self.assertEqual(
-            parse_tui_command("/mode topology team").command.action,
-            "代理",
+            parse_tui_command("/mode agent team").command.action,
+            "agent",
         )
         self.assertEqual(
-            parse_tui_command("/模式 模型 sol").command.instruction,
-            "模型 sol",
+            parse_tui_command("/mode model sol").command.instruction,
+            "model sol",
         )
         self.assertEqual(
-            parse_tui_command("/模式 思考").error,
+            parse_tui_command("/mode effort").error,
             "command action argument is required",
         )
 
     def test_session_actions_and_hidden_compatibility_aliases_parse_canonically(self) -> None:
         self.assertEqual(
-            tuple(action.name for action in REGISTRY.resolve("会话").actions),
-            ("历史", "在线", "重命名", "发送", "接收", "待处理", "接受", "拒绝"),
+            tuple(action.name for action in REGISTRY.resolve("sessions").actions),
+            ("history", "online", "rename", "send", "inbound", "inbox", "accept", "refuse"),
         )
-        self.assertEqual(parse_tui_command("/会话 在线").command.action, "在线")
-        self.assertEqual(parse_tui_command("/list-agents").command.action, "在线")
-        self.assertEqual(parse_tui_command("/peers").command.action, "在线")
+        self.assertEqual(parse_tui_command("/sessions online").command.action, "online")
+        self.assertEqual(parse_tui_command("/list-agents").command.action, "online")
+        self.assertEqual(parse_tui_command("/peers").command.action, "online")
         renamed = parse_tui_command("/rename worker one").command
         self.assertEqual(
             (renamed.action, renamed.instruction),
-            ("重命名", "重命名 worker one"),
+            ("rename", "rename worker one"),
         )
         self.assertIsNone(REGISTRY.resolve("list-agents"))
         self.assertIsNone(REGISTRY.resolve("peers"))
         self.assertIsNone(REGISTRY.resolve("rename"))
 
     def test_session_action_availability_keeps_history_without_peers(self) -> None:
-        self.assertIsNone(parse_tui_command("/会话 历史", {"sessions"}).error)
+        self.assertIsNone(parse_tui_command("/sessions history", {"sessions"}).error)
         self.assertEqual(
-            parse_tui_command("/会话 在线", {"sessions"}).error,
+            parse_tui_command("/sessions online", {"sessions"}).error,
             "unknown or unavailable slash command action",
         )
-        self.assertIsNone(parse_tui_command("/会话 在线", {"peers"}).error)
+        self.assertIsNone(parse_tui_command("/sessions online", {"peers"}).error)
 
     def test_permission_declares_direct_secondary_choices(self) -> None:
-        permission = REGISTRY.resolve("权限")
+        permission = REGISTRY.resolve("permission")
 
         self.assertEqual(
             tuple(action.name for action in permission.actions),
             (
-                "unrestricted", "plan", "ask", "auto", "elevated", "full-local",
-                "允许命令", "规则", "撤销",
+                "auto", "plan", "ask", "unrestricted", "elevated", "full-local",
+                "allow-command", "rules", "revoke",
             ),
         )
-        allowed = parse_tui_command("/权限 允许命令 python -m pytest").command
-        self.assertEqual(allowed.action, "允许命令")
-        self.assertEqual(allowed.instruction, "允许命令 python -m pytest")
+        allowed = parse_tui_command("/permission allow-command python -m pytest").command
+        self.assertEqual(allowed.action, "allow-command")
+        self.assertEqual(allowed.instruction, "allow-command python -m pytest")
         self.assertEqual(
             parse_tui_command("/permission unrestricted").command.kind,
             TuiCommandKind.PERMISSION,
@@ -218,7 +220,7 @@ class TuiCommandTests(unittest.TestCase):
 
     def test_skill_and_mcp_actions_validate_required_arguments(self) -> None:
         self.assertEqual(
-            parse_tui_command("/技能 启用").error,
+            parse_tui_command("/skill enable").error,
             "command action argument is required",
         )
         self.assertEqual(
@@ -226,20 +228,20 @@ class TuiCommandTests(unittest.TestCase):
             "command action argument is required",
         )
         self.assertEqual(
-            parse_tui_command("/技能 unknown").error,
+            parse_tui_command("/skill unknown").error,
             "unknown slash command action",
         )
 
     def test_plugin_control_actions_and_aliases_are_registered(self) -> None:
         plugin = REGISTRY.resolve("plugin")
 
-        self.assertEqual(plugin.name, "插件")
+        self.assertEqual(plugin.name, "plugin")
         self.assertEqual(
             tuple(action.name for action in plugin.actions),
             ("list", "status", "enable", "disable", "reload"),
         )
         self.assertEqual(
-            parse_tui_command("/插件 状态 reviewer").command.action,
+            parse_tui_command("/plugin status reviewer").command.action,
             "status",
         )
         self.assertEqual(

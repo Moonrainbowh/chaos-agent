@@ -124,22 +124,22 @@ async def _set_mode(
             + _host_runtime_suffix(app),
         )
         return True
-    if action not in {"代理", "模型", "思考"}:
+    if action not in {"agent", "model", "effort", "代理", "模型", "思考"}:
         if getattr(app, "modes", None) is not None:
             return await _set_legacy_mode(app, instruction)
         app._append(
             DisplayKind.ERROR,
-            "use /模式 代理, /模式 模型, or /模式 思考",
+            "use /mode agent, /mode model, or /mode effort",
         )
         return False
     argument = _action_argument(instruction)
     values: dict[str, object]
     try:
-        if action == "代理":
+        if action in {"agent", "代理"}:
             if argument not in {"single", "team"}:
                 raise ValueError("topology must be single or team")
             values = {"topology": argument}
-        elif action == "模型":
+        elif action in {"model", "模型"}:
             values = {"profile": _resolve_profile(argument, runtime.profiles())}
         else:
             if argument not in {"low", "medium", "high", "xhigh", "max"}:

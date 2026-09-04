@@ -10,15 +10,15 @@ class ColorMode(str, Enum):
     NEVER = "never"
 
 
-BRAND_CYAN = "38;5;80"
-BRIGHT_CYAN = "1;96"
-DIM_GRAY = "38;5;247"
-TOOL_GRAY = "38;5;250"
-BORDER_GRAY = "38;5;240"
+BRAND_CYAN = "38;5;117"
+BRIGHT_CYAN = "1;38;5;117"
+DIM_GRAY = "38;5;243"
+TOOL_GRAY = "38;5;248"
+BORDER_GRAY = "38;5;241"
 BODY_WHITE = "38;5;252"
-SUCCESS_GREEN = "38;5;114"
-WARNING_YELLOW = "33"
-ERROR_RED = "31"
+SUCCESS_GREEN = "38;5;115"
+WARNING_YELLOW = "38;5;179"
+ERROR_RED = "38;5;203"
 
 
 def color_enabled(mode: ColorMode, env: dict[str, str] | None = None) -> bool:

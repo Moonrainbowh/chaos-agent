@@ -177,6 +177,7 @@ class _UiComposer:
             attachment_draft=parts.attachment_draft,
             runtime_selection=parts.runtime_selection,
             peers=parts.peers,
+            project_name=parts.root.name,
         )
 
     def _finish(self) -> None:

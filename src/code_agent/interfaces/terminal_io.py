@@ -44,7 +44,10 @@ def _read_bracketed_paste(msvcrt: object) -> str:
 
 
 def stdout_write(value: str) -> None:
-    sys.stdout.write(value)
+    try:
+        sys.stdout.write(value)
+    except UnicodeEncodeError:
+        sys.stdout.buffer.write(value.encode("utf-8", errors="replace"))
     sys.stdout.flush()
 
 

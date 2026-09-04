@@ -56,9 +56,15 @@ async def animate(app: object) -> None:
         if spinner_due:
             app._spinner_index += 1
             app._next_spinner_at = now + _SPINNER_INTERVAL
+            update_title = getattr(app, "update_terminal_title", None)
+            if callable(update_title):
+                update_title(running=True)
         if redraw:
             app.redraw()
         await asyncio.sleep(_FRAME_INTERVAL)
+    on_finish = getattr(app, "on_task_finished", None)
+    if callable(on_finish):
+        on_finish()
 
 
 def needs_animation_frame(
@@ -76,16 +82,28 @@ async def listen_approvals(app: object) -> None:
     while True:
         app._pending_approval = await app.approvals.next_request()
         app._approval_done.clear()
+        on_approval = getattr(app, "on_approval_requested", None)
+        if callable(on_approval):
+            on_approval()
         app.redraw()
         await app._approval_done.wait()
+        update_title = getattr(app, "update_terminal_title", None)
+        if callable(update_title):
+            update_title()
 
 
 async def listen_interactions(app: object) -> None:
     while app.interaction_broker is not None:
         app._pending_interaction = await app.interaction_broker.next_request()
         app._interaction_done.clear()
+        on_approval = getattr(app, "on_approval_requested", None)
+        if callable(on_approval):
+            on_approval()
         app.redraw()
         await app._interaction_done.wait()
+        update_title = getattr(app, "update_terminal_title", None)
+        if callable(update_title):
+            update_title()
 
 
 async def close_tasks(app: object) -> None:

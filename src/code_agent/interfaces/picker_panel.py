@@ -7,7 +7,7 @@ def render_picker_panel(state: object, width: int) -> tuple[str, ...]:
     """Render a command picker as a compact bordered two-column overlay."""
     panel_width = max(5, width - 2)
     inner_width = max(1, panel_width - 4)
-    title = " COMMAND · Tab complete "
+    title = " COMMANDS · Tab complete · ↑↓ Select "
     top = "╭─" + clip_display(title, inner_width)
     top += "─" * max(0, panel_width - display_width(top) - 1) + "╮"
     query = clip_display("⌕ " + state.query, inner_width)
@@ -31,7 +31,7 @@ def render_picker_panel(state: object, width: int) -> tuple[str, ...]:
         )
     if len(state.matches) > len(visible):
         rows.append(
-            _panel_row(f"  {state.selected_index + 1}/{len(state.matches)}", inner_width)
+            _panel_row(f"  {state.selected_index + 1}/{len(state.matches)} matches", inner_width)
         )
     if state.error:
         rows.append(_panel_row("! " + safe_text(state.error), inner_width))

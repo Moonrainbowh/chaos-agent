@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import inspect
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from code_agent.core.attachments import AttachmentRef
@@ -255,7 +255,7 @@ class IntegratedForegroundTaskController(ForegroundTaskController):
 
     async def _observe_action(self, task_id: str, event: object) -> None:
         raw = event.payload.get("result")
-        if not isinstance(raw, dict):
+        if not isinstance(raw, Mapping):
             return
         result = ActionResult.from_dict(raw)
         if result.name == "run_verification":

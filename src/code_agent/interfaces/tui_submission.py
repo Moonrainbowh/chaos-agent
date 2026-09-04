@@ -15,7 +15,7 @@ class SubmitMode(str, Enum):
 
     @property
     def label(self) -> str:
-        return "排队" if self is SubmitMode.QUEUE else "转向"
+        return "queue" if self is SubmitMode.QUEUE else "steer"
 
 
 def toggle_submit_mode(app: object) -> SubmitMode:
@@ -23,7 +23,7 @@ def toggle_submit_mode(app: object) -> SubmitMode:
     app.submit_mode = (
         SubmitMode.STEER if current is SubmitMode.QUEUE else SubmitMode.QUEUE
     )
-    app._append(DisplayKind.METADATA, f"运行中提交模式 · [{app.submit_mode.label}]")
+    app._append(DisplayKind.METADATA, f"Submit mode · [{app.submit_mode.label}]")
     return app.submit_mode
 
 

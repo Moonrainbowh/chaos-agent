@@ -18,13 +18,13 @@ async def handle_checkpoint_command(
         return False
     argument = (instruction or "").partition(" ")[2].strip()
     try:
-        if action == "列表":
+        if action in {"list", "列表"}:
             app._append(
                 DisplayKind.METADATA,
                 checkpoint_list(await app.checkpoints.list(task_id)),
             )
             return True
-        if action == "创建":
+        if action in {"create", "创建"}:
             created = await app.checkpoints.create(task_id, argument or "manual")
             app._append(DisplayKind.METADATA, f"checkpoint created · {created.id}")
             return True

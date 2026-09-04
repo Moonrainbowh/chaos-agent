@@ -5,9 +5,10 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Iterable
 
-from .terminal_display import DisplayEntry, DisplayKind, display_width, safe_text
+from .terminal_display import DisplayEntry, DisplayKind, display_width, safe_text, text_entry
 from .terminal_style import (
     BODY_WHITE,
+    BORDER_GRAY,
     BRAND_CYAN,
     BRIGHT_CYAN,
     DIM_GRAY,
@@ -16,6 +17,7 @@ from .terminal_style import (
     TOOL_GRAY,
     WARNING_YELLOW,
     ColorMode,
+    color_enabled,
     colorize,
 )
 from .terminal_tail import render_live_tail
@@ -25,6 +27,7 @@ class Theme(str, Enum):
     SIGNAL = "signal"
     SYMBOL = "symbol"
     PLAIN = "plain"
+    MODERN = "modern"
 
 
 _MARKERS = {
@@ -33,6 +36,7 @@ _MARKERS = {
     DisplayKind.METADATA: ".", DisplayKind.DIFF_ADD: "+", DisplayKind.DIFF_REMOVE: "-",
 }
 _SYMBOLS = {**_MARKERS, DisplayKind.USER: "›", DisplayKind.AGENT: "◆", DisplayKind.TOOL: "↳", DisplayKind.SUCCESS: "✓", DisplayKind.ERROR: "×"}
+_MODERN = {**_SYMBOLS, DisplayKind.USER: "❯", DisplayKind.AGENT: "✦", DisplayKind.TOOL: "├─", DisplayKind.SUCCESS: "✓", DisplayKind.METADATA: "·"}
 _COLORS = {
     DisplayKind.USER: BRAND_CYAN, DisplayKind.AGENT: BRAND_CYAN, DisplayKind.PARTIAL_AGENT: WARNING_YELLOW,
     DisplayKind.TOOL: TOOL_GRAY, DisplayKind.SUCCESS: SUCCESS_GREEN,
@@ -49,12 +53,19 @@ class _RenderLine:
 
 
 def render_entry(entry: DisplayEntry, width: int, *, theme: Theme = Theme.SYMBOL, color: ColorMode = ColorMode.AUTO) -> str:
-    marker = (_SYMBOLS if theme is Theme.SYMBOL else _MARKERS)[entry.kind]
+    if theme is Theme.MODERN:
+        marker = _MODERN[entry.kind]
+    elif theme is Theme.SYMBOL:
+        marker = _SYMBOLS[entry.kind]
+    else:
+        marker = _MARKERS[entry.kind]
     prefix = f"[{marker}]" if theme is Theme.PLAIN else marker
     code = _COLORS.get(entry.kind)
     content_width = max(1, width - display_width(prefix) - 1)
     if entry.kind is DisplayKind.AGENT:
         lines = _markdown_lines(entry.text, content_width, theme)
+        if theme is Theme.MODERN:
+            lines = [_RenderLine("Chaos Agent", "agent_header"), *lines]
     elif entry.kind is DisplayKind.PARTIAL_AGENT:
         body = [_RenderLine(line) for line in safe_text(entry.text).splitlines() or [""]]
         lines = [_RenderLine("未完成回答", "partial_label"), *body]
@@ -69,12 +80,60 @@ def render_entry(entry: DisplayEntry, width: int, *, theme: Theme = Theme.SYMBOL
     return "\n".join(rendered)
 
 
+def _fold_tool_entries(entries: list[DisplayEntry]) -> list[DisplayEntry]:
+    result: list[DisplayEntry] = []
+    tool_group: list[DisplayEntry] = []
+
+    def flush_tools() -> None:
+        if not tool_group:
+            return
+        if len(tool_group) == 1:
+            single_text = tool_group[0].text
+            first_line = single_text.splitlines()[0] if single_text else "Tool completed"
+            result.append(text_entry(DisplayKind.TOOL, first_line))
+        else:
+            valid = [e for e in tool_group if "load_tool_contract" not in e.text]
+            if not valid:
+                valid = tool_group
+            read_count = sum(1 for e in valid if "Read file" in e.text)
+            has_list = any("List files" in e.text for e in valid)
+            has_verify = any("Run verification" in e.text for e in valid)
+            has_edit = any("Edit file" in e.text or "Write file" in e.text for e in valid)
+
+            parts = []
+            if has_list:
+                parts.append("扫描目录")
+            if read_count > 0:
+                parts.append(f"读取 {read_count} 个文件")
+            if has_edit:
+                parts.append("编辑代码")
+            if has_verify:
+                parts.append("工程验证")
+
+            detail = " · ".join(parts) if parts else "多项操作"
+            summary = f"已执行 {len(valid)} 项工具 ({detail})"
+            result.append(text_entry(DisplayKind.TOOL, summary))
+        tool_group.clear()
+
+    for entry in entries:
+        if entry.kind is DisplayKind.TOOL:
+            tool_group.append(entry)
+        else:
+            flush_tools()
+            result.append(entry)
+    flush_tools()
+    return result
+
+
 def render_entries(
     entries: Iterable[DisplayEntry], width: int, *, theme: Theme, color: ColorMode, previous: DisplayEntry | None = None
 ) -> str:
     rendered: list[str] = []
     prior = previous
-    for entry in entries:
+    entry_list = list(entries)
+    if theme is Theme.MODERN:
+        entry_list = _fold_tool_entries(entry_list)
+    for entry in entry_list:
         if prior is not None and _needs_gap(prior, entry):
             rendered.append("")
         rendered.append(render_entry(entry, width, theme=theme, color=color))
@@ -82,9 +141,37 @@ def render_entries(
     return "\n".join(rendered)
 
 
+def _format_plan_card(plan_text: str, width: int, theme: Theme) -> list[_RenderLine]:
+    raw_lines = [line.strip() for line in plan_text.strip().splitlines() if line.strip()]
+    if not raw_lines:
+        return []
+    box_w = min(width, 76)
+    rule = "─" * max(10, box_w - 18)
+    lines: list[_RenderLine] = [
+        _RenderLine(f"┌── 任务决策轨迹 {rule}┐", "table_border")
+    ]
+    for raw in raw_lines:
+        item = re.sub(r"^\d+\.\s*", "", raw)
+        lines.append(_RenderLine(f"│ [ ] {item}", "plan_step"))
+    lines.append(_RenderLine(f"└{'─' * max(10, box_w - 2)}┘", "table_border"))
+    return lines
+
+
 def _markdown_lines(value: str, width: int, theme: Theme) -> list[_RenderLine]:
+    # Extract <plan>...</plan> or <replan>...</replan> blocks for trajectory rendering
+    plan_match = re.search(r"<(?:plan|replan)>(.*?)</(?:plan|replan)>", value, re.DOTALL)
+    plan_lines: list[_RenderLine] = []
+    if plan_match:
+        plan_content = plan_match.group(1)
+        plan_lines = _format_plan_card(plan_content, width, theme)
+        value = (value[:plan_match.start()] + "\n" + value[plan_match.end():]).strip()
+
     source = safe_text(value).splitlines()
     lines: list[_RenderLine] = []
+    if plan_lines:
+        lines.extend(plan_lines)
+        lines.append(_RenderLine(""))
+
     in_code = False
     index = 0
     while index < len(source):
@@ -109,6 +196,9 @@ def _markdown_lines(value: str, width: int, theme: Theme) -> list[_RenderLine]:
         heading = re.match(r"^#{1,6}\s+(.+)$", stripped)
         if heading:
             lines.append(_RenderLine(_inline_markdown(heading.group(1)), "heading")); index += 1; continue
+        quote = re.match(r"^>\s*(.+)$", stripped)
+        if quote:
+            lines.append(_RenderLine(quote.group(1), "quote")); index += 1; continue
         lines.append(_RenderLine(_inline_markdown(stripped)))
         index += 1
     return lines or [_RenderLine("")]
@@ -158,7 +248,7 @@ def _format_table(rows: list[list[str]], width: int, theme: Theme) -> list[_Rend
         if widths[widest] <= minimum:
             break
         widths[widest] -= 1
-    rule = ("─" if theme is Theme.SYMBOL else "-") * min(width, sum(widths) + 3 * (columns - 1))
+    rule = ("─" if theme in {Theme.SYMBOL, Theme.MODERN} else "-") * min(width, sum(widths) + 3 * (columns - 1))
     lines = [_RenderLine(rule, "table_border")]
     for row_index, row in enumerate(rows):
         cells = [_wrap_display(cell, widths[column]) for column, cell in enumerate(row)]
@@ -173,8 +263,6 @@ def _format_table(rows: list[list[str]], width: int, theme: Theme) -> list[_Rend
 
 
 def _inline_markdown(value: str) -> str:
-    value = re.sub(r"\*\*(.+?)\*\*", r"\1", value)
-    value = re.sub(r"`([^`]+)`", r"\1", value)
     return value
 
 
@@ -194,15 +282,59 @@ def _pad_display(value: str, width: int) -> str:
     return value + " " * max(0, width - display_width(value))
 
 
+def _highlight_inline_spans(value: str, base_code: str, color: ColorMode) -> str:
+    if not color_enabled(color):
+        value = re.sub(r"\*\*(.+?)\*\*", r"\1", value)
+        value = re.sub(r"`([^`]+)`", r"\1", value)
+        return colorize(value, base_code, color)
+
+    bullet_match = re.match(r"^(\s*[-*•])\s+(.+)$", value)
+    if bullet_match:
+        bullet_sym = bullet_match.group(1)
+        rest = bullet_match.group(2)
+        styled_bullet = colorize(bullet_sym, BRAND_CYAN, color)
+        return f"{styled_bullet} {_highlight_inline_spans(rest, base_code, color)}"
+
+    num_match = re.match(r"^(\s*\d+\.)\s+(.+)$", value)
+    if num_match:
+        num_sym = num_match.group(1)
+        rest = num_match.group(2)
+        styled_num = colorize(num_sym, BRAND_CYAN, color)
+        return f"{styled_num} {_highlight_inline_spans(rest, base_code, color)}"
+
+    quote_match = re.match(r"^(\s*>)\s*(.+)$", value)
+    if quote_match:
+        quote_prefix = colorize("│", BORDER_GRAY, color)
+        return f"{quote_prefix} {colorize(quote_match.group(2), DIM_GRAY, color)}"
+
+    def _replace_code(m: re.Match[str]) -> str:
+        return f"\x1b[{BRAND_CYAN}m{m.group(1)}\x1b[0m\x1b[{base_code}m"
+
+    def _replace_bold(m: re.Match[str]) -> str:
+        return f"\x1b[1;38;5;255m{m.group(1)}\x1b[0m\x1b[{base_code}m"
+
+    val = re.sub(r"`([^`]+)`", _replace_code, value)
+    val = re.sub(r"\*\*(.+?)\*\*", _replace_bold, val)
+    return colorize(val, base_code, color)
+
+
 def _style_line(leader: str, value: str, code: str | None, color: ColorMode, *, role: str, kind: DisplayKind) -> str:
     plain = f"{leader} {value}"
     styled_leader = colorize(leader, code, color) if leader.strip() else leader
-    if role == "partial_label":
+    if role == "agent_header":
+        return colorize(f"{leader} {value}", BRIGHT_CYAN, color)
+    elif role == "quote":
+        styled_leader = colorize("│", BRAND_CYAN, color)
+        styled_value = _highlight_inline_spans(value, DIM_GRAY, color)
+        return f"{styled_leader} {styled_value}"
+    elif role == "partial_label":
         body_code = WARNING_YELLOW
     elif role in {"heading", "table_header"}:
         body_code = BRIGHT_CYAN
     elif role == "table_border":
         body_code = DIM_GRAY
+    elif role == "plan_step":
+        body_code = BRAND_CYAN
     elif role == "code":
         body_code = BRAND_CYAN
     elif kind is DisplayKind.SUCCESS:
@@ -213,7 +345,11 @@ def _style_line(leader: str, value: str, code: str | None, color: ColorMode, *, 
         body_code = TOOL_GRAY
     else:
         body_code = code
-    styled_value = colorize(value, body_code, color)
+
+    if kind in {DisplayKind.AGENT, DisplayKind.USER} and role not in {"code", "heading", "table_header", "table_border", "quote", "agent_header"}:
+        styled_value = _highlight_inline_spans(value, body_code, color)
+    else:
+        styled_value = colorize(value, body_code, color)
     return f"{styled_leader} {styled_value}"
 
 

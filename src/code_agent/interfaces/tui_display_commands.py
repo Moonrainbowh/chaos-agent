@@ -28,7 +28,7 @@ def _theme(app: Any, command: TuiCommand) -> bool:
     try:
         app.theme = Theme(command.instruction or "")
     except ValueError:
-        app._append(DisplayKind.ERROR, "theme must be signal, symbol, or plain")
+        app._append(DisplayKind.ERROR, "theme must be modern, signal, symbol, or plain")
         return False
     app._append(DisplayKind.METADATA, "theme updated")
     return True

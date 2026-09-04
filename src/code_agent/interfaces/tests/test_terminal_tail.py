@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 
 from code_agent.interfaces.terminal_renderer import ColorMode, render_live_tail
+from code_agent.interfaces.terminal_style import BRAND_CYAN
 from code_agent.interfaces.terminal_tail import _wrap_plain, render_live_tail_frame
 from code_agent.interfaces.i18n import Language
 from code_agent.interfaces.terminal_renderer import Theme
@@ -48,8 +49,8 @@ class TerminalTailPaletteTests(unittest.TestCase):
             palette=("  first", "› second", "  third"),
         )
 
-        self.assertIn("\x1b[38;5;80m  › second\x1b[0m", rendered)
-        self.assertNotIn("\x1b[38;5;80m    first\x1b[0m", rendered)
+        self.assertIn(f"\x1b[{BRAND_CYAN}m  › second\x1b[0m", rendered)
+        self.assertNotIn(f"\x1b[{BRAND_CYAN}m    first\x1b[0m", rendered)
 
     def test_non_idle_task_states_never_fall_back_to_ready(self) -> None:
         expected = {

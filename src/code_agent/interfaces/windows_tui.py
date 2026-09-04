@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+from pathlib import Path
 import shutil
 import time
 from collections.abc import Callable, Sequence
@@ -42,12 +43,18 @@ from .tui_peer_turn import yield_peer_slot
 from .tui_submission import SubmitMode, pause_active_task, submit_active_input, toggle_submit_mode
 from .tui_protocols import EvidenceReader, SessionBrowser
 
+_SPINNER_FRAMES = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
+
 class WindowsTerminalApp:
     """Append-only Windows Terminal interaction without alternate-screen control."""
 
-    def __init__(self, controller: AgentController, approvals: ApprovalBroker, *, sessions: Optional[SessionBrowser] = None, peers: object | None = None, evidence: Optional[EvidenceReader] = None, tasks: ForegroundTaskController | None = None, history: Optional[ThreadHistoryReader] = None, profiles: ProfileControl | None = None, modes: ModeControl | None = None, runtime_selection: object | None = None, permissions: PermissionControl | None = None, skills: SkillActivation | None = None, mcp: McpRegistry | None = None, workflows: object | None = None, plugins: object | None = None, checkpoints: CheckpointControl | None = None, interaction_broker: InteractionBroker | None = None, command_registry: CommandRegistry = REGISTRY, diff_source: GitDiffSource | None = None, attachment_draft: AttachmentDraft | None = None, write: Optional[Callable[[str], object]] = None) -> None:
+    def __init__(self, controller: AgentController, approvals: ApprovalBroker, *, sessions: Optional[SessionBrowser] = None, peers: object | None = None, evidence: Optional[EvidenceReader] = None, tasks: ForegroundTaskController | None = None, history: Optional[ThreadHistoryReader] = None, profiles: ProfileControl | None = None, modes: ModeControl | None = None, runtime_selection: object | None = None, permissions: PermissionControl | None = None, skills: SkillActivation | None = None, mcp: McpRegistry | None = None, workflows: object | None = None, plugins: object | None = None, checkpoints: CheckpointControl | None = None, interaction_broker: InteractionBroker | None = None, command_registry: CommandRegistry = REGISTRY, diff_source: GitDiffSource | None = None, attachment_draft: AttachmentDraft | None = None, write: Optional[Callable[[str], object]] = None, project_name: str | None = None) -> None:
         self.controller, self.approvals = controller, approvals
         self.sessions, self.peers, self.evidence, self.tasks, self.history, self.profiles, self.modes, self.runtime_selection, self.permissions, self.skills, self.mcp, self.workflows, self.plugins, self.checkpoints, self.command_registry, self._write = sessions, peers, evidence, tasks, history, profiles, modes, runtime_selection, permissions, skills, mcp, workflows, plugins, checkpoints, command_registry, write or stdout_write
+        self.project_name = project_name or Path.cwd().name or "chaos-agent"
+        self._last_terminal_title: str | None = None
+        self._has_completed_task = False
+        self._task_finished_handled = False
         self.state = TerminalState(); self.input = InputBuffer(); self.current_thread_id: str | None = None
         self.exit_guard = ExitGuard()
         self.interaction_broker = interaction_broker
@@ -70,6 +77,56 @@ class WindowsTerminalApp:
         self._run_started_at: float | None = None; self._drawn_draft_revision = -1; self._drawn_size: tuple[int, int] | None = None; self._next_spinner_at = time.monotonic() + 0.1
         self.theme, self.color = Theme.SYMBOL, ColorMode.AUTO
         self.catalog = catalog_for(select_runtime_language())
+
+    def set_terminal_title(self, title: str) -> None:
+        if title != self._last_terminal_title:
+            self._last_terminal_title = title
+            self._write(f"\x1b]0;{title}\x07")
+
+    def update_terminal_title(self, *, running: bool | None = None) -> None:
+        if running is None:
+            running = bool(self._run_task and not self._run_task.done())
+        if running:
+            frame = _SPINNER_FRAMES[self._spinner_index % len(_SPINNER_FRAMES)]
+            self.set_terminal_title(f"{frame} {self.project_name}")
+        elif self._pending_approval is not None:
+            self.set_terminal_title(f"🔔 {self.project_name}")
+        elif self._has_completed_task:
+            self.set_terminal_title(f"🔔 {self.project_name}")
+        else:
+            self.set_terminal_title(self.project_name)
+
+    def reset_terminal_title(self) -> None:
+        self.set_terminal_title("PowerShell")
+
+    def play_sound(self, *, alert: bool = False) -> None:
+        try:
+            self._write("\a")
+        except Exception:
+            pass
+        try:
+            if os.name == "nt":
+                import winsound
+                flag = winsound.MB_ICONEXCLAMATION if alert else winsound.MB_ICONASTERISK
+                winsound.MessageBeep(flag)
+        except Exception:
+            pass
+
+    def on_approval_requested(self) -> None:
+        self.set_terminal_title(f"🔔 {self.project_name}")
+        self.play_sound(alert=True)
+
+    def on_task_finished(self) -> None:
+        if self._closing or self._task_finished_handled:
+            return
+        self._task_finished_handled = True
+        if self.state.status == "paused":
+            self.set_terminal_title(self.project_name)
+            return
+        self._has_completed_task = True
+        self.set_terminal_title(f"🔔 {self.project_name}")
+        self.play_sound(alert=False)
+
     async def run(self, *, thread_id: str | None = None) -> None:
         if os.name != "nt": raise RuntimeError("WindowsTerminalApp requires Windows")
         if self.tasks:
@@ -78,13 +135,16 @@ class WindowsTerminalApp:
         start_peers = getattr(self.peers, "start", None)
         if callable(start_peers):
             await start_peers()
+        self.update_terminal_title()
         self._write(BRACKETED_PASTE_ENABLE); self.running = True; self._approval_task = asyncio.create_task(listen_approvals(self))
         if self.interaction_broker is not None:
             self._interaction_task = asyncio.create_task(listen_interactions(self))
         self.redraw()
         try:
             while self.running: await self.handle_key(await asyncio.to_thread(read_key))
-        finally: self._write(BRACKETED_PASTE_DISABLE); await close_tasks(self)
+        finally:
+            self.reset_terminal_title()
+            self._write(BRACKETED_PASTE_DISABLE); await close_tasks(self)
     async def submit(
         self,
         text: str,
@@ -112,20 +172,25 @@ class WindowsTerminalApp:
             return await submit_active_input(self, prepared)
         self._token = CancellationToken()
         self._run_started_at = time.monotonic()
+        self._task_finished_handled = False
+        self.update_terminal_title(running=True)
         if self.tasks:
+            self.state.begin_run()
+            self.redraw()
             if self.active_task_id:
                 task_id = self.active_task_id
             else:
                 try: record = await self.tasks.start(prepared.prompt)
-                except RuntimeError as error: self._append(DisplayKind.ERROR, str(error)); self.redraw(); return False
+                except (RuntimeError, ValueError) as error: self._append(DisplayKind.ERROR, str(error)); self.redraw(); return False
                 task_id = record.id; self.active_task_id = task_id
-            self.state.begin_run()
             self._run_task = asyncio.create_task(
                 self._consume_task(
                     task_id, prepared.prompt, prepared.attachments, prepared
                 )
             )
         else:
+            self.state.begin_run()
+            self.redraw()
             self._run_task = asyncio.create_task(
                 self._consume(
                     prepared.prompt, self._token, prepared.attachments, prepared
@@ -166,7 +231,7 @@ class WindowsTerminalApp:
         now = time.monotonic(); size = shutil.get_terminal_size((100, 30))
         palette = self.interactions.rows(self, max_rows=max(0, size.lines - 4))
         status, icon, status_color = status_presentation(self.state.status, self.state.execution_summary, self.state.active_action, self.catalog.language, self.theme, self._spinner_index)
-        if self._run_task and not self._run_task.done(): status += f" · 输入 [{self.submit_mode.label}]"
+        if self._run_task and not self._run_task.done(): status += f" [{self.submit_mode.label}]"
         if self.interactions.steering.pending_count: status += " · " + self.interactions.steering.status_line()
         frame = render_live_tail_frame(
             self.input.text,
@@ -183,9 +248,13 @@ class WindowsTerminalApp:
                 self._current_model(),
                 self._run_started_at,
                 now,
-                self.state.token_rate.rate(now),
+                self.state.token_rate.rate(now) or self.state.last_rate,
+                tokens=self.state.total_tokens,
+                context_window=self._context_window(),
+                branch=self._git_branch(),
             ),
             previous=self._tail_geometry,
+            theme=self.theme,
         )
         self._write(frame.text)
         self._tail_geometry = frame.geometry; self._redraw_dirty = False; self._drawn_draft_revision = self.state.draft_revision; self._drawn_size = (size.columns, size.lines)
@@ -220,7 +289,12 @@ class WindowsTerminalApp:
         except CancellationError:
             self.state.status = "paused"
         except Exception as error:
-            self._append(DisplayKind.ERROR, type(error).__name__)
+            import traceback
+            traceback.print_exc()
+            self._append(DisplayKind.ERROR, f"{type(error).__name__}: {error}")
+        finally:
+            self.on_task_finished()
+            self._request_redraw(immediate=True)
     async def _consume_task(
         self,
         task_id: str,
@@ -252,15 +326,40 @@ class WindowsTerminalApp:
         except CancellationError:
             self.state.status = "paused"
             self._append(DisplayKind.METADATA, "task paused")
-        except Exception as error: self._append(DisplayKind.ERROR, type(error).__name__)
+        except Exception as error:
+            self.active_task_id = None
+            self._append(DisplayKind.ERROR, f"{type(error).__name__}: {error}")
         finally:
-            if terminal and self.active_task_id == task_id: self.active_task_id = None
+            self.on_task_finished()
+            if (terminal or self.state.status in {"failed", "error"}) and self.active_task_id == task_id:
+                self.active_task_id = None
+            self._request_redraw(immediate=True)
     async def _handle_command(self, outcome: ParseOutcome) -> bool:
         return await handle_tui_command(self, outcome)
     def _current_model(self) -> str | None:
         control = self.runtime_selection or self.modes
         if control is not None: return control.current.model
         return self.profiles.current.model if self.profiles else None
+
+    def _git_branch(self) -> str | None:
+        try:
+            head_path = Path(".git/HEAD")
+            if head_path.exists():
+                content = head_path.read_text(encoding="utf-8", errors="ignore").strip()
+                if content.startswith("ref: refs/heads/"):
+                    return content[len("ref: refs/heads/"):] + "*"
+                return "detached"
+        except Exception:
+            pass
+        return None
+
+    def _context_window(self) -> int:
+        if self.profiles and hasattr(self.profiles, "_profiles"):
+            curr = getattr(self.profiles, "_current", None)
+            if curr and curr in self.profiles._profiles:
+                profile = self.profiles._profiles[curr]
+                return getattr(profile, "context_window", 128_000)
+        return 128_000
     def _append(self, kind: DisplayKind, value: object) -> None:
         self.state.entries.append(text_entry(kind, value)); self.state.transcript.append(self.state.entries[-1].text); self._flush_pending_entries()
     def _flush_pending_entries(self) -> None:

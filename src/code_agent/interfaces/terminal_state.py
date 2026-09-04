@@ -35,6 +35,10 @@ class TerminalState:
         self.task_budget_line: Optional[str] = None
         self.pending_decision: Optional[str] = None
         self.token_rate = TokenRateTracker()
+        self.total_tokens: int = 0
+        self.input_tokens: int = 0
+        self.output_tokens: int = 0
+        self.last_rate: float | None = None
 
     @property
     def draft_answer(self) -> str:
@@ -175,6 +179,9 @@ class TerminalState:
                 )
         elif model_event.kind is ModelEventKind.USAGE and model_event.usage is not None:
             self.token_rate.calibrate(model_event.usage.output_tokens)
+            self.input_tokens = model_event.usage.input_tokens
+            self.output_tokens = model_event.usage.output_tokens
+            self.total_tokens = model_event.usage.total_tokens
 
     def _apply_completed_message(self, event: AgentEvent) -> None:
         raw = event.payload.get("message")

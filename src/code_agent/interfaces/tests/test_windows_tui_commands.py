@@ -47,7 +47,7 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_palette_executes_leaf_and_keeps_mode_as_a_root_parent(self) -> None:
         app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker(), write=lambda _: None)
-        app.input.replace("/状态")
+        app.input.replace("/status")
 
         await app.handle_key("\r")
 
@@ -55,37 +55,38 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(app.state.entries[-1].kind, DisplayKind.METADATA)
 
         app.modes = type("Modes", (), {"current": type("Mode", (), {"model": "test-model"})()})()
-        app.input.replace("/模式")
+        app.input.replace("/mode")
         rows = app.interactions.rows(app)
-        self.assertTrue(any("/模式" in row for row in rows))
-        self.assertFalse(any("/模式 low" in row for row in rows))
+        self.assertTrue(any("/mode" in row for row in rows))
+        self.assertFalse(any("/mode low" in row for row in rows))
 
     async def test_default_help_matches_the_compact_root_surface(self) -> None:
         app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker(), write=lambda _: None)
 
-        self.assertTrue(await app.submit("/帮助"))
+        self.assertTrue(await app.submit("/help"))
 
         help_text = app.state.entries[-1].text
-        self.assertIn("通用\n", help_text)
+        self.assertIn("General\n", help_text)
         for name in (
-            "帮助", "状态", "新建", "会话", "任务", "附件",
-            "回退", "模式", "权限", "退出",
+            "help", "status", "clear", "compact", "cost", "doctor",
+            "exit", "diff", "review", "test", "rewind", "attach",
+            "mode", "permission", "mcp", "plugin", "tasks",
         ):
             self.assertIn(f":{name}", help_text)
-        self.assertNotIn(":差异", help_text)
-        self.assertNotIn(":清屏", help_text)
-        self.assertNotIn(":证据", help_text)
-        self.assertNotIn(":插件", help_text)
+        self.assertNotIn(":sessions", help_text)
+        self.assertNotIn(":new", help_text)
+        self.assertNotIn(":restore", help_text)
+        self.assertNotIn(":evidence", help_text)
 
     async def test_help_all_includes_advanced_commands(self) -> None:
         app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker(), write=lambda _: None)
 
-        self.assertTrue(await app.submit("/帮助 全部"))
+        self.assertTrue(await app.submit("/help all"))
 
         help_text = app.state.entries[-1].text
-        self.assertIn(":清屏", help_text)
-        self.assertIn(":证据", help_text)
-        self.assertIn(":插件", help_text)
+        self.assertIn(":sessions", help_text)
+        self.assertIn(":evidence", help_text)
+        self.assertIn(":restore", help_text)
 
     async def test_mode_prefix_enters_runtime_selection_secondary_menu(self) -> None:
         class RuntimeSelection:
@@ -111,16 +112,16 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
         runtime = RuntimeSelection()
         app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker(), write=lambda _: None)
         app.runtime_selection = runtime
-        app.input.replace("/模式")
+        app.input.replace("/mode")
 
         await app.handle_key("\r")
 
         self.assertFalse(hasattr(runtime, "seen"))
-        self.assertEqual(app.input.text, "/模式 ")
+        self.assertEqual(app.input.text, "/mode ")
 
         await app.handle_key("\r")
 
-        self.assertEqual(app.input.text, "/模式 代理 ")
+        self.assertEqual(app.input.text, "/mode agent ")
         app.input.insert("team")
         await app.handle_key("\r")
 
@@ -132,7 +133,7 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
         app.current_thread_id = "thread-42"
         app.state.entries.append(text_entry(DisplayKind.USER, "old transcript"))
 
-        self.assertTrue(await app.submit("/清屏"))
+        self.assertTrue(await app.submit("/clear"))
 
         self.assertEqual(app.current_thread_id, "thread-42")
         self.assertEqual(app.state.entries, [])
@@ -148,7 +149,7 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
             return True
 
         app.restore_thread = restore
-        app.input.replace("/恢复 T-042")
+        app.input.replace("/restore T-042")
 
         await app.handle_key("\r")
 
@@ -168,7 +169,7 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
         app = WindowsTerminalApp(
             AgentController(FakeEngine(())), ApprovalBroker(), modes=modes, write=lambda _: None,
         )
-        app.input.replace("/模式 high")
+        app.input.replace("/mode high")
 
         await app.handle_key("\r")
 
@@ -196,7 +197,7 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
             permissions=permissions,
             write=lambda _: None,
         )
-        app.input.replace("/权限 unrestricted")
+        app.input.replace("/permission unrestricted")
 
         await app.handle_key("\r")
 

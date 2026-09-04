@@ -82,14 +82,14 @@ class CommandRegistry:
             raise ValueError("plugin modes must be namespaced")
         specs = []
         for spec in self._specs:
-            if spec.name != "模式":
+            if spec.name not in {"mode", "模式"}:
                 specs.append(spec)
                 continue
             additions = tuple(
                 CommandAction(
                     identifier,
                     (),
-                    "插件提供的受限模式",
+                    "Plugin restricted mode",
                     source="plugin",
                     requires=("modes",),
                 )
