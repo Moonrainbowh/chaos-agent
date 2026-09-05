@@ -44,7 +44,7 @@ class WorkflowViewTests(unittest.TestCase):
     def test_renders_branch_snapshot_and_sanitizes_titles(self) -> None:
         rendered = WorkflowView().render(_snapshot(), width=80)
 
-        self.assertIn("任务：Repair", rendered)
+        self.assertIn("Task: Repair", rendered)
         self.assertIn("├─✓", rendered)
         self.assertIn("└─×", rendered)
         self.assertNotIn("\x1b", rendered)
@@ -61,9 +61,9 @@ class WorkflowViewTests(unittest.TestCase):
         detail = WorkflowView().detail(snapshot, "review", width=80)
         evidence = WorkflowView().evidence(snapshot, "review", width=80)
 
-        self.assertIn("节点 review", detail)
-        self.assertIn("状态：failed", detail)
-        self.assertIn("证据：无", evidence)
+        self.assertIn("Node review", detail)
+        self.assertIn("Status: failed", detail)
+        self.assertIn("evidence: none", evidence)
 
 
 if __name__ == "__main__":

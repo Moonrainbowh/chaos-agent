@@ -65,6 +65,8 @@ class PickerState:
         self.query = ""
         self.selected_index = 0
         self.error: str | None = None
+        self.title = "COMMANDS"
+        self.hint = ""
 
     def set_items(self, items: Iterable[PickerItem]) -> None:
         updated = _unique(items)
@@ -90,7 +92,7 @@ class PickerState:
             text = " ".join((item.label, item.identifier, item.detail, *item.keywords)).casefold()
             if not all(term in text for term in terms):
                 continue
-            label = item.label.casefold().lstrip("/")
+            label = item.label.casefold().lstrip("/:")
             label_tail = label.rsplit(" ", 1)[-1]
             keywords = tuple(value.casefold() for value in item.keywords)
             score = sum(
@@ -163,6 +165,7 @@ class PickerState:
 def command_picker_items(
     specs: Iterable[object], services: set[str] | None = None, *,
     parent: object | None = None, command_prefix: str = "/",
+    include_advanced: bool = False,
 ) -> tuple[PickerItem, ...]:
     if command_prefix not in {"/", ":"}:
         raise ValueError("command_prefix must be slash or colon")
@@ -173,13 +176,13 @@ def command_picker_items(
             action
             for action in parent.actions
             if getattr(action, "visibility", CommandVisibility.PRIMARY)
-            == CommandVisibility.PRIMARY
+            in ({CommandVisibility.PRIMARY, CommandVisibility.ADVANCED} if include_advanced else {CommandVisibility.PRIMARY})
         )
         if parent is not None
         else tuple(
             spec for spec in specs
             if getattr(spec, "visibility", CommandVisibility.PRIMARY)
-            == CommandVisibility.PRIMARY
+            in ({CommandVisibility.PRIMARY, CommandVisibility.ADVANCED} if include_advanced else {CommandVisibility.PRIMARY})
         )
     )
     for spec in values:
@@ -235,7 +238,7 @@ def mcp_picker_items(
 ) -> tuple[PickerItem, ...]:
     result = []
     for server in controller.status():
-        enabled = server.approved
+        enabled = server.approved or action not in {"enable", "启用", "restart", "重启"}
         reason = None if enabled else "server is not approved"
         result.append(
             PickerItem(

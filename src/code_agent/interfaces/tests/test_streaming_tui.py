@@ -85,7 +85,7 @@ class StreamingTuiTests(unittest.IsolatedAsyncioTestCase):
         await app.wait_idle()
 
         plain = _plain("".join(output))
-        self.assertEqual(plain.count("! 未完成回答"), 1)
+        self.assertEqual(plain.count("! Incomplete response"), 1)
         self.assertNotIn("unfinished", app.state.transcript)
 
 

@@ -83,6 +83,8 @@ class AttachmentTuiTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(draft.items, (_image_ref(),))
         self.assertEqual(app.state.entries[-1].kind, DisplayKind.ERROR)
+        self.assertEqual(app.state.status, "error")
+        self.assertIsNone(app._run_started_at)
 
     async def test_task_stream_failure_before_message_ack_keeps_draft(self) -> None:
         class Tasks:
@@ -111,6 +113,8 @@ class AttachmentTuiTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(draft.items, (_image_ref(),))
         self.assertEqual(app.state.entries[-1].kind, DisplayKind.ERROR)
+        self.assertEqual(app.state.status, "error")
+        self.assertIsNone(app._run_started_at)
 
     async def test_message_ack_removes_only_submitted_digests(self) -> None:
         release = asyncio.Event()

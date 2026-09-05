@@ -26,6 +26,7 @@ _DEFAULT_SERVICES = {
 
 
 class TuiCommandKind(str, Enum):
+    THEME = "theme"
     HELP = "help"; STATUS = "status"; CLEAR = "clear"; COMPACT = "compact"; EXIT = "exit"; NEW = "new"; SESSIONS = "sessions"; RESTORE = "restore"; TASKS = "tasks"; ACCEPT = "accept"; DIFF = "diff"; MAP = "map"; ATTACHMENT = "attachment"; EVIDENCE = "evidence"; CHECKPOINT = "checkpoint"; REWIND = "rewind"; MODEL = "model"; MODE = "mode"; EFFORT = "effort"; PERMISSION = "permission"; WORKFLOW = "workflow"; SKILL = "skill"; MCP = "mcp"; PLUGIN_CONTROL = "plugin_control"; PLUGIN = "plugin"; COST = "cost"; DOCTOR = "doctor"; REVIEW = "review"; TEST = "test"
 
 
@@ -90,7 +91,7 @@ def parse_tui_command(
 
 def _parsed_command(spec: object, arguments: tuple[str, ...], normalized_action: str | None) -> ParseOutcome:
     kinds = {
-        "help": "help", "status": "status", "clear": "clear", "compact": "compact",
+        "theme": "theme", "help": "help", "status": "status", "clear": "clear", "compact": "compact",
         "exit": "exit", "new": "new", "sessions": "sessions", "restore": "restore",
         "tasks": "tasks", "accept": "accept", "diff": "diff", "map": "map", "attach": "attachment",
         "evidence": "evidence", "checkpoint": "checkpoint", "rewind": "rewind",
@@ -117,7 +118,7 @@ def _parsed_command(spec: object, arguments: tuple[str, ...], normalized_action:
         TuiCommandKind.PLUGIN_CONTROL, TuiCommandKind.PLUGIN,
         TuiCommandKind.COMPACT, TuiCommandKind.COST,
         TuiCommandKind.DOCTOR, TuiCommandKind.REVIEW, TuiCommandKind.TEST,
-        TuiCommandKind.MAP,
+        TuiCommandKind.MAP, TuiCommandKind.THEME,
     }
     return ParseOutcome(
         TuiCommand(

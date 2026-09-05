@@ -59,7 +59,7 @@ class CommandRegistry:
                 CommandSpec(
                     qualified_id,
                     (),
-                    "插件",
+                    "Plugins",
                     descriptor.description,
                     "[args...]",
                     requires=("plugins",),

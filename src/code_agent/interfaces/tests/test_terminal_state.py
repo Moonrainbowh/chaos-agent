@@ -144,7 +144,7 @@ class TerminalStateTests(unittest.TestCase):
         self.assertTrue(any("write_file" in line for line in state.timeline))
         self.assertEqual(state.diff, "--- a/x\n+++ b/x")
         self.assertEqual(state.status, "completed")
-        self.assertEqual(state.execution_summary, "已完成 1 项操作")
+        self.assertEqual(state.execution_summary, "1 action finished")
 
     def test_restore_projects_persisted_thread_state(self) -> None:
         state = TerminalState()

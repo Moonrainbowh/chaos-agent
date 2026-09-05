@@ -152,7 +152,8 @@ class FullStackTests(unittest.IsolatedAsyncioTestCase):
 
             events = [event async for event in controller.events(task.id)]
 
-            self.assertEqual((await sessions.load_task(task.id)).status, TaskStatus.VERIFYING)
+            self.assertEqual((await sessions.load_task(task.id)).status, TaskStatus.WAITING_DECISION)
+            self.assertIn(EventKind.TASK_DECISION_REQUIRED, [event.kind for event in events])
             self.assertNotIn(EventKind.COMPLETED, [event.kind for event in events])
 
     async def test_model_completion_automatically_runs_discovered_project_tests(self) -> None:
@@ -224,7 +225,8 @@ class FullStackTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(len(first_runtime.commands), 1)
             self.assertIn("-m unittest discover -s .", first_runtime.commands[0])
             self.assertEqual(resumed_runtime.commands, [])
-            self.assertEqual((await sessions.load_task(task.id)).status, TaskStatus.VERIFYING)
+            self.assertEqual((await sessions.load_task(task.id)).status, TaskStatus.WAITING_DECISION)
+            self.assertIn(EventKind.TASK_DECISION_REQUIRED, [event.kind for event in events])
             self.assertGreaterEqual(len(await sessions.list_checkpoints(task.thread_id)), 2)
             self.assertNotEqual(events[-1].kind, EventKind.COMPLETED)
 

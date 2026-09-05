@@ -12,6 +12,8 @@
 - 不负责：为 Repo Map、bug 定位或 dead-code 分析另建扫描缓存，也不因展示分析结果执行文件修改或验证命令。
 
 ## Units
+- `TaskScopedVerificationService.suggest_verification(...)`：仅对修改任务或实际变更刷新共享语义图；纯问答收尾直接委托验证服务的非修改路径 | 只读/调度 | 不改动修改任务的证据门，不把未执行的验证标记为通过。
+- `ModeAwareWindowsTerminalApp`：从 Interfaces 读取 `CHAOS_THEME`（默认 Aurora），委托紧凑启动摘要、三主题渲染与动效；完整能力仍通过 `:status` 访问 | 终端输出 | 不修改持久配置或接管 Windows Terminal 设置。
 - `tool_definitions(include_git, powershell): tuple[ToolDefinition, ...]`: 声明严格且递归校验的契约 loader、工具 schema、generation-aware `read_code_slices`、不可变 edit-plan 契约、冻结 PowerShell 方言和 versioned `run_process_v1`，并按仓库能力省略 Git 工具 | 无副作用 | batch slice 为 1–16 个 target，提示合并当前已知目标但允许新信息后的后续批次；structured process 不接受 shell/env/stdin；文件 auto 不猜 legacy code page
 - `windows_system_prompt(...)`：组合冻结的 PowerShell/Git 能力与用户正文的 Markdown 可读性约定 | 无副作用 | 强调仅服务于决策、风险、结果和下一步，不要求逐句装饰
 - `RootActionDispatcher`: 在执行前验证 typed schema、评估策略并请求交互审批，再调用文件、编辑、Git 或命令 Unit；`read_code_slices` 先校验当前 RepoIndex generation/snapshot signatures，再委托 Workspace 前后复核 | 产生如实标记成功/失败且保留有界诊断的 tool result | batch 任一 stale 返回 `stale_repo_context` 且不含部分源码；只有已通过策略的外部路径可抵达 workspace Unit

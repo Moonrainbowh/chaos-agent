@@ -4,7 +4,7 @@ from .terminal_display import graphemes, safe_text
 
 
 PARTIAL_TEXT_LIMIT = 4_096
-PARTIAL_TRUNCATION_MARKER = "\n… [本地截断]"
+PARTIAL_TRUNCATION_MARKER = "\n… [truncated locally]"
 
 
 class DraftBuffer:

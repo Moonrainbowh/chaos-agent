@@ -18,6 +18,9 @@ async def handle_builtin_command(app: Any, command: TuiCommand) -> bool | None:
     handled = await handle_general_command(app, command)
     if handled is not None:
         return handled
+    if command.kind in {TuiCommandKind.NEW, TuiCommandKind.RESTORE} and app._run_task and not app._run_task.done():
+        app._append(DisplayKind.ERROR, "Pause the running task before opening a different session.")
+        return False
     if command.kind is TuiCommandKind.NEW:
         app.state = TerminalState(); app.current_thread_id = None; app.active_task_id = None; app._flushed_entries = 0
     elif command.kind is TuiCommandKind.SESSIONS:

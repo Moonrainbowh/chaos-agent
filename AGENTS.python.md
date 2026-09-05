@@ -24,3 +24,8 @@
 - 根集成测试：`python -m unittest discover -s tests -p 'test_*.py'`
 - Feature 测试：`python -m unittest discover -s src/code_agent/<feature>/tests -p 'test_*.py'`
 - 打包：`python -m build`
+
+## 终端界面验证
+- 主题预览：`python -m code_agent.interfaces.theme_preview --theme aurora --animate`；离线示例不调用模型或工具。
+- 可交互对照页：`python -m code_agent.interfaces.theme_preview --html docs/ui-preview/index.html`；页面必须复用真实渲染器输出并明确标记示例数据。
+- 动效只刷新动态尾部，保持历史可选择、中文列宽与光标几何；新主题必须验证窄窗口、`NO_COLOR` 和 reduced motion。

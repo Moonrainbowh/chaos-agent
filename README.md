@@ -124,8 +124,20 @@ primary `:` prefix):
 /mcp    /plugin   /tasks
 ```
 
-`/model <profile>` and `/effort <level>` independently rebuild the idle
-runtime. `/mode ask|code|plan` controls the next task contract: `ask` and
+`/model` and `/effort` open searchable menus showing the current selection.
+Use Up/Down to move, Enter to apply, Tab to complete, and Esc to return one
+level. `/model <profile>` and `/effort <level>` also accept direct values.
+They rebuild the runtime for the next task; if a paused or waiting task still
+owns a frozen configuration, finish it or use `/new` before changing settings.
+Command errors preserve the input for correction, and commands with missing
+arguments show their usage. `/sessions history` opens a session picker.
+
+The UI defaults to English. During workspace preparation, the status and
+animation stay active and Esc cancels preparation. A completed task clears
+the busy/queue indicator; a task lacking verification evidence shows
+`Waiting for decision` with the missing evidence instead of staying busy.
+
+`/mode ask|code|plan` controls the next task contract: `ask` and
 `plan` disable workspace writes and local execution, while `code` remains
 governed by `/permission auto|plan|ask|unrestricted`. `/compact` persists a
 traceable semantic checkpoint when enough closed history exists; `/doctor`
@@ -282,6 +294,46 @@ outside-workspace targets, protected paths/credentials, and irreversible
 system-level operations keep their approval or denial boundary. Approval cards
 default to reject and show action, target, risk, policy reason, and an
 allow-once choice.
+
+### Terminal appearance
+
+New TUI instances use **Aurora**, a cyan rounded composer. Two alternatives are
+**Ember** (warm amber, square frame) and **Mono** (neutral, open rules).
+The themes cover responses, Markdown, commands, input, and task status.
+They work with the terminal's existing dark background and font settings.
+
+```text
+:theme aurora
+:theme ember
+:theme mono
+:theme motion off
+:theme motion on
+```
+
+`:theme` lists the choices. Changes apply to the current process and future output;
+existing scrollback remains selectable. To choose the startup theme in PowerShell:
+
+```powershell
+$env:CHAOS_THEME = 'ember'
+chaos-agent
+```
+
+`CHAOS_REDUCED_MOTION=1` or `NO_COLOR` disables decorative transitions. Startup,
+theme changes and task state changes use a short border transition; exit feedback
+runs only after durable interruption has finished. Enter sends, Ctrl+J inserts a
+newline; while running, Enter queues, Tab chooses steering, and Esc pauses.
+The status shows task token totals without implying model capacity or remaining quota.
+
+Compare all three themes and interaction states offline in
+[the appearance preview](docs/ui-preview/index.html), or run the production renderer:
+
+```powershell
+python -m code_agent.interfaces.theme_preview --theme aurora --animate
+python -m code_agent.interfaces.theme_preview --html docs/ui-preview/index.html
+```
+
+Preview conversations are illustrative and never call a model or execute tools.
+Legacy `modern`, `symbol`, `signal`, and `plain` themes remain available.
 
 ### Same-machine session messaging
 

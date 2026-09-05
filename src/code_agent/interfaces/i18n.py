@@ -35,10 +35,10 @@ def select_language(system_locale: str | None, explicit: str | None) -> Language
 
 
 def select_runtime_language(environ: Mapping[str, str] | None = None) -> Language:
-    """Select the TUI language from an explicit environment override or OS locale."""
+    """Use English UI by default; retain an explicit language override."""
     source = os.environ if environ is None else environ
     system_locale = locale.getlocale()[0]
-    explicit = source.get("CHAOS_LANGUAGE") or source.get("CODE_AGENT_LANGUAGE")
+    explicit = source.get("CHAOS_LANGUAGE") or source.get("CODE_AGENT_LANGUAGE") or "en"
     return select_language(system_locale, explicit)
 
 

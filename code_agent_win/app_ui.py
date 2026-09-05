@@ -10,6 +10,8 @@ from code_agent.interfaces.diff_view import DiffSourceDocument
 from code_agent.interfaces.rewind_models import RewindPreviewSource
 from code_agent.interfaces.terminal_display import DisplayKind
 from code_agent.interfaces.terminal_renderer import Theme
+from code_agent.interfaces.terminal_theme import preferred_theme
+from code_agent.interfaces.terminal_welcome import render_welcome
 from code_agent.interfaces.windows_tui import WindowsTerminalApp
 from code_agent.interfaces.mode_control import ModeSummary
 from code_agent.orchestration.models import ModeSnapshot
@@ -39,7 +41,7 @@ class ModeAwareWindowsTerminalApp(WindowsTerminalApp):
         **kwargs: object,
     ) -> None:
         super().__init__(*args, **kwargs)
-        self.theme = Theme.MODERN
+        self.theme = preferred_theme()
         self._capability = capability
         self._plugin_errors = plugin_errors
         self.rewind = rewind
@@ -69,9 +71,10 @@ class ModeAwareWindowsTerminalApp(WindowsTerminalApp):
             await self._recover_pending()
             self._recovered = True
         if not self._announced:
-            self._append(DisplayKind.METADATA, "✦ Chaos Agent v1.0.3 · 极简冷萃工作台")
-            for line in self._capability.lines():
-                self._append(DisplayKind.METADATA, line)
+            self._write(render_welcome(
+                self.project_name, self._capability, self.theme,
+                self._columns(), self.color,
+            ))
             if self._plugin_errors:
                 self._append(
                     DisplayKind.WARNING,

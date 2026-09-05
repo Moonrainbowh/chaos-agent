@@ -42,9 +42,9 @@ class WorkflowView:
             if filter_name not in {"失败", "failed"}
             or node.status in _FAILURE_STATUSES
         )
-        lines = [clip_display(f"任务：{safe_text(snapshot.workflow.title)}", width)]
+        lines = [clip_display(f"Task: {safe_text(snapshot.workflow.title)}", width)]
         if not selected:
-            lines.append(clip_display("（没有匹配的流程节点）", width))
+            lines.append(clip_display("No matching workflow nodes.", width))
             return "\n".join(lines)
         selected_ids = {node.id for node in selected}
         parents = {
@@ -82,13 +82,13 @@ class WorkflowView:
             if edge.target_node_id == node.id
         )
         rows = (
-            f"节点 {safe_text(node.id)} · {safe_text(node.title)}",
-            f"状态：{node.status.value}",
-            f"角色：{safe_text(node.role)}",
-            f"线程：{safe_text(node.assigned_thread_id or '无')}",
-            f"依赖：{', '.join(map(safe_text, dependencies)) or '无'}",
-            f"输入：{', '.join(map(safe_text, node.input_refs)) or '无'}",
-            f"输出：{', '.join(map(safe_text, node.output_refs)) or '无'}",
+            f"Node {safe_text(node.id)} · {safe_text(node.title)}",
+            f"Status: {node.status.value}",
+            f"Role: {safe_text(node.role)}",
+            f"Thread: {safe_text(node.assigned_thread_id or 'none')}",
+            f"Dependencies: {', '.join(map(safe_text, dependencies)) or 'none'}",
+            f"Inputs: {', '.join(map(safe_text, node.input_refs)) or 'none'}",
+            f"Outputs: {', '.join(map(safe_text, node.output_refs)) or 'none'}",
         )
         return "\n".join(clip_display(row, width) for row in rows)
 
@@ -97,9 +97,9 @@ class WorkflowView:
     ) -> str:
         _validate(snapshot, width)
         node = _find(snapshot, node_id)
-        value = ", ".join(map(safe_text, node.evidence_refs)) or "无"
+        value = ", ".join(map(safe_text, node.evidence_refs)) or "none"
         return clip_display(
-            f"节点 {safe_text(node.id)} 证据：{value}", width
+            f"Node {safe_text(node.id)} evidence: {value}", width
         )
 
     def _append_tree(

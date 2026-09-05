@@ -20,7 +20,7 @@ class TerminalTailPaletteTests(unittest.TestCase):
             color=ColorMode.NEVER,
         )
 
-        self.assertLess(frame.text.index("◆ 正在回答"), frame.text.index("╭"))
+        self.assertLess(frame.text.index("◆ Responding"), frame.text.index("╭"))
         self.assertIn("first", frame.text)
         self.assertIn("second", frame.text)
         self.assertGreater(frame.geometry.height, 4)
@@ -85,7 +85,7 @@ class TerminalTailPaletteTests(unittest.TestCase):
 
     def test_non_idle_task_states_never_fall_back_to_ready(self) -> None:
         expected = {
-            "building_context": "正在准备工作区",
+            "building_context": "正在准备上下文",
             "waiting_model": "正在等待模型",
             "verifying": "验证中",
             "paused": "已暂停",

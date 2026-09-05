@@ -15,6 +15,12 @@
 - 不负责：按模型名称推断多模态能力，或在配置中保存附件路径、blob 和 base64。
 - 依赖：Python 3.10+ 的 TOML 兼容解析器；默认配置目录为 `%LOCALAPPDATA%\\chaos-agent`，不属于工作区；读取旧 `%LOCALAPPDATA%\\code-agent` 配置和 `CODE_AGENT_*` 环境变量作为兼容迁移路径。
 
+### 预算框架需求（已确认，待实现）
+
+- 遵循 [Context 预算框架](../context/AGENTS.md)：分别表达 API 能力、换窗策略和任务累计预算，保留来源与生效范围；不得把某个固定窗口或阈值作为所有模型通用默认值。
+- 换窗策略只能在 API 有效硬上限内生效；任务预算独立于 `context_window` 和 `max_output_tokens`，不能通过改大窗口或切换策略隐式增加任务额度。
+- 配置字段名称、默认策略、所有数值、覆盖优先级及旧配置迁移办法仍待商讨；当前本地配置和旧解析行为保持为现状，不把缺失新字段解释为已启用换窗。
+
 ## Units
 - `default_config_path(env)`、`resolve_config_path(env)`: 解析默认或绝对覆盖配置文件路径 | 无副作用 | 相对 `CHAOS_CONFIG` 拒绝；无新配置时回退旧目录
 - `load_runtime_config(env, cli_profile)`: 读取、验证、选择并合并本地 provider 配置 | 文件 I/O | `CHAOS_*` 优先、`CODE_AGENT_*` 回退；异常不包含文件内容或密钥

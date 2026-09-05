@@ -100,6 +100,7 @@ class TuiCommandTests(unittest.TestCase):
         self.assertEqual(
             tuple(spec.name for spec in REGISTRY.all()),
             (
+                "theme",
                 "clear", "compact", "cost", "status", "doctor", "exit",
                 "diff", "map", "review", "test", "rewind", "attach", "model", "mode",
                 "effort", "permission", "mcp", "plugin", "tasks", "help",

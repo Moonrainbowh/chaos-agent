@@ -29,7 +29,7 @@ def plugin_picker_items(
         if not isinstance(identifier, str) or not identifier.strip():
             continue
         reason = _field(plugin, "disabled_reason")
-        selectable = not isinstance(reason, str) or not reason
+        selectable = action in {"status", "状态", "disable", "禁用"} or not isinstance(reason, str) or not reason
         state = _field(plugin, "status")
         if not isinstance(state, str):
             enabled = _field(plugin, "enabled")
@@ -48,7 +48,7 @@ def plugin_picker_items(
                 state,
                 enabled=selectable,
                 disabled_reason=reason if not selectable else None,
-                completion=f"/插件 {action} {identifier}",
+                completion=f"/plugin {action} {identifier}",
             )
         )
     return tuple(result)

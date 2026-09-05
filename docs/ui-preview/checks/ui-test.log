@@ -1,0 +1,35 @@
+.................Traceback (most recent call last):
+  File "F:\code-ai-chaos\chaos-16-agent\src\code_agent\interfaces\windows_tui.py", line 167, in _consume
+    async for event in self.controller.ask(
+  File "F:\code-ai-chaos\chaos-16-agent\src\code_agent\interfaces\controller.py", line 71, in ask
+    async for event in self._engine.run(user_input, **kwargs):
+  File "F:\code-ai-chaos\chaos-16-agent\src\code_agent\interfaces\tests\test_attachment_tui.py", line 70, in run
+    raise RuntimeError("persistence failed")
+RuntimeError: persistence failed
+..........................................................................................................................................................................................................................................................................F...F...........................................................................................................
+======================================================================
+FAIL: test_state_tracks_transcript_timeline_status_and_diff (test_terminal_state.TerminalStateTests.test_state_tracks_transcript_timeline_status_and_diff)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "F:\code-ai-chaos\chaos-16-agent\src\code_agent\interfaces\tests\test_terminal_state.py", line 147, in test_state_tracks_transcript_timeline_status_and_diff
+    self.assertEqual(state.execution_summary, "����� 1 �����")
+AssertionError: '1 actions finished' != '����� 1 �����'
+- 1 actions finished
++ ����� 1 �����
+
+
+======================================================================
+FAIL: test_non_idle_task_states_never_fall_back_to_ready (test_terminal_tail.TerminalTailPaletteTests.test_non_idle_task_states_never_fall_back_to_ready) (status='building_context')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "F:\code-ai-chaos\chaos-16-agent\src\code_agent\interfaces\tests\test_terminal_tail.py", line 101, in test_non_idle_task_states_never_fall_back_to_ready
+    self.assertEqual(presentation[0], label)
+AssertionError: '����׼��������' != '����׼��������'
+- ����׼��������
++ ����׼��������
+
+
+----------------------------------------------------------------------
+Ran 395 tests in 13.934s
+
+FAILED (failures=2)

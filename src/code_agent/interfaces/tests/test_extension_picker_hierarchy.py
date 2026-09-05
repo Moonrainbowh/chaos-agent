@@ -157,7 +157,7 @@ class PickerHierarchyTests(unittest.IsolatedAsyncioTestCase):
     def test_plugin_resource_picker_uses_controller_snapshot(self) -> None:
         item = plugin_picker_items(Plugins(), "enable")[0]
 
-        self.assertEqual(item.completion, "/插件 enable reviewer")
+        self.assertEqual(item.completion, "/plugin enable reviewer")
         self.assertEqual(item.source, PickerSource.PLUGIN)
 
 

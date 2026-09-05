@@ -23,7 +23,7 @@ def _semantic_map_spec() -> CommandSpec:
 
 
 def built_in_command_specs() -> tuple[CommandSpec, ...]:
-    return (*_general_specs(), *_workspace_specs(), *_runtime_specs(),
+    return (CommandSpec("theme", ("主题",), "Appearance", "Choose Aurora, Ember or Mono; control motion", "[aurora|ember|mono|motion on|motion off]", visibility=CommandVisibility.ADVANCED), *_general_specs(), *_workspace_specs(), *_runtime_specs(),
             *_extension_specs(), *_session_specs(), *_advanced_specs())
 
 
@@ -72,6 +72,13 @@ def _workspace_specs() -> tuple[CommandSpec, ...]:
         CommandSpec(
             "attach", ("attachments", "附件"), "Input", "Attach, view or manage local files/images",
             "[path|clipboard|list|remove <id>|clear]", requires=("attachments",),
+            actions=(
+                CommandAction("add", (), "Attach files by path; quote paths containing spaces", "<path...>"),
+                CommandAction("clipboard", (), "Attach clipboard images"),
+                CommandAction("list", (), "Show staged attachments"),
+                CommandAction("remove", (), "Remove a staged attachment", "<id>"),
+                CommandAction("clear", (), "Clear staged attachments"),
+            ),
         ),
     )
 
