@@ -68,10 +68,10 @@ async def apply_paste(app: Any, value: str) -> bool:
         return True
     try:
         event = paste_event(value)
+        app.input.insert(event.value)
     except (TypeError, ValueError) as error:
         app._append(DisplayKind.ERROR, str(error))
         return False
-    app.input.insert(event.value)
     app.exit_guard.input_received()
     return True
 
@@ -93,3 +93,11 @@ async def apply_clipboard_images(app: Any) -> bool:
     )
     app.exit_guard.input_received()
     return True
+
+
+def insert_input(app: Any, value: str) -> None:
+    """Reject oversized keyboard edits without changing or submitting the draft."""
+    try:
+        app.input.insert(value)
+    except ValueError as error:
+        app._append(DisplayKind.ERROR, str(error))

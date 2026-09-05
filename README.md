@@ -297,43 +297,49 @@ allow-once choice.
 
 ### Terminal appearance
 
-New TUI instances use **Aurora**, a cyan rounded composer. Two alternatives are
-**Ember** (warm amber, square frame) and **Mono** (neutral, open rules).
-The themes cover responses, Markdown, commands, input, and task status.
-They work with the terminal's existing dark background and font settings.
+The TUI uses **Muted Slate (方案 A / 冷萃冰阶)** as its single appearance:
+ice-blue accents, slate text, and pale gold activity feedback. A live status
+region sits above the follow-up composer while a task runs. The moving light
+rail indicates activity, not completion percentage. Responses, tools, Markdown,
+commands and input use the same palette; existing scrollback remains selectable.
+The application uses your terminal background and font without changing settings.
+
+#### Recommended Font & Display (推荐终端字体)
+
+为获得与 URI Agent 一致的高级感与清晰度，推荐使用支持字形连字与 CJK 宽字符的现代编程字体组合：
+- **等宽英文字体**：`Cascadia Code` / `Cascadia Mono` 或 `JetBrains Mono`（行高舒适、符号边缘锐利）
+- **中文字体回退**：`Microsoft YaHei UI` 或 `PingFang SC`（避免传统宋体锯齿）
+- **Windows Terminal 配置推荐**（`settings.json`）：
+  ```json
+  "font": {
+      "face": "Cascadia Code",
+      "size": 12.0,
+      "weight": "normal"
+  }
+  ```
 
 ```text
-:theme aurora
-:theme ember
-:theme mono
 :theme motion off
 :theme motion on
 ```
 
-`:theme` lists the choices. Changes apply to the current process and future output;
-existing scrollback remains selectable. To choose the startup theme in PowerShell:
+Theme switching has been removed; the retired `CHAOS_THEME` variable is ignored.
+`CHAOS_REDUCED_MOTION=1` or `NO_COLOR` disables decorative transitions.
+Input has a dark teal background. Markdown sections are separated by thin rules.
+The composer accepts up to 5120 UTF-8 bytes (about 1700 Chinese characters).
+Oversized insertions are rejected in full and retain the existing draft.
+Pasted newlines remain editable text; press Enter separately to send.
+Enter sends, Ctrl+J inserts a newline; while running, Enter queues, Tab chooses
+steering, and Esc pauses. Status and token totals come from runtime facts.
+
+Preview the production renderer offline (illustrative data, no provider calls):
 
 ```powershell
-$env:CHAOS_THEME = 'ember'
-chaos-agent
-```
-
-`CHAOS_REDUCED_MOTION=1` or `NO_COLOR` disables decorative transitions. Startup,
-theme changes and task state changes use a short border transition; exit feedback
-runs only after durable interruption has finished. Enter sends, Ctrl+J inserts a
-newline; while running, Enter queues, Tab chooses steering, and Esc pauses.
-The status shows task token totals without implying model capacity or remaining quota.
-
-Compare all three themes and interaction states offline in
-[the appearance preview](docs/ui-preview/index.html), or run the production renderer:
-
-```powershell
-python -m code_agent.interfaces.theme_preview --theme aurora --animate
+python -m code_agent.interfaces.theme_preview --animate
 python -m code_agent.interfaces.theme_preview --html docs/ui-preview/index.html
 ```
 
-Preview conversations are illustrative and never call a model or execute tools.
-Legacy `modern`, `symbol`, `signal`, and `plain` themes remain available.
+[Interactive state preview](docs/ui-preview/index.html).
 
 ### Same-machine session messaging
 

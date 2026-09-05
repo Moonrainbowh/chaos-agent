@@ -68,6 +68,9 @@ async def _compact(app: Any) -> bool:
     except (RuntimeError, TypeError, ValueError) as error:
         app._append(DisplayKind.ERROR, str(error))
         return False
+    if getattr(report, "status", None) == "queued":
+        app._append(DisplayKind.METADATA, "Context boundary queued; it will take effect before the next model request.")
+        return True
     checkpoint = getattr(report, "checkpoint_id", None)
     detail = (
         f"messages {report.before_messages} -> {report.after_messages}; "

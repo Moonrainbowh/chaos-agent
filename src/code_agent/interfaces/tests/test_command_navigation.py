@@ -96,14 +96,13 @@ class CommandNavigationTests(unittest.IsolatedAsyncioTestCase):
         await app.handle_key("\r")
         self.assertEqual(app.input.text, "")
 
-    async def test_saved_task_settings_cannot_be_silently_replaced(self):
+    async def test_saved_task_mode_cannot_be_silently_replaced(self):
         runtime = Runtime()
         app = make_app(runtime_selection=runtime, task_modes=TaskModeControl())
         app.active_task_id = "waiting-task"
         app.state.status = "waiting_decision"
-        for command in ("/model terra", "/effort high", "/mode ask"):
-            self.assertFalse(await app.submit(command))
-            self.assertIn("/new", app.state.entries[-1].text)
+        self.assertFalse(await app.submit("/mode ask"))
+        self.assertIn("/new", app.state.entries[-1].text)
         self.assertEqual(runtime.calls, [])
         self.assertEqual(app.task_modes.current.name, "code")
 

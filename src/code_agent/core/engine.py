@@ -117,12 +117,10 @@ class AgentEngine(
             await self._journal.append_event(state.thread_id, cancelled)
             yield cancelled
         except AgentEngineError as exc:
-            failed = AgentEvent(
-                kind=EventKind.ERROR,
-                payload={"code": exc.code, "error_type": type(exc).__name__},
-            )
-            await self._journal.append_event(state.thread_id, failed)
-            yield failed
+            async for failed in self._handle_run_failure(state, exc):
+                yield failed
+            if isinstance(exc, EngineLimitError) and state.task is not None:
+                return
             raise
 
     async def run_peer(

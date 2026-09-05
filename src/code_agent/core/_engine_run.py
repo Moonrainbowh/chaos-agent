@@ -18,7 +18,7 @@ from .models import (
     Usage,
 )
 from .attachments import AttachmentRef, freeze_attachments
-from .task import TaskRecord
+from .task import TaskRecord, TaskStatus
 from .task_supervisor import TaskSupervisor
 
 
@@ -97,6 +97,17 @@ async def _invoke_context_builder(
 class AgentEngineRunMixin:
     """Prepare one run and stream model events into its mutable state."""
 
+    async def _handle_run_failure(self, state, error):
+        if isinstance(error, EngineLimitError) and state.task is not None:
+            reason = str(error)
+            await self._journal.transition_task(state.task.id, TaskStatus.PAUSED, reason)
+            event = AgentEvent(EventKind.TASK_PAUSED, {"task_id": state.task.id,
+                "status": "paused", "reason": reason})
+        else:
+            event = AgentEvent(EventKind.ERROR, {"code": error.code, "error_type": type(error).__name__})
+        await self._journal.append_event(state.thread_id, event)
+        yield event
+
     async def _start_run(
         self,
         thread_id: Optional[str],
@@ -170,7 +181,7 @@ class AgentEngineRunMixin:
             if not isinstance(bundle, ContextBundle):
                 raise TypeError("context builder returned an invalid bundle")
             return bundle
-        except CancellationError:
+        except (CancellationError, EngineLimitError):
             raise
         except Exception:
             raise ContextBuildError("context build failed") from None

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from ._checkpoint_fork import CheckpointForkRepositoryMixin
+from ._context_journal import ContextJournalRepositoryMixin
+from ._context_notes import ContextNotesRepositoryMixin
 from ._database import SessionDatabase
 from ._peer_messages import PeerMessageRepositoryMixin
 from ._peer_sessions import PeerSessionRepositoryMixin
@@ -17,6 +19,8 @@ from ._workspace_snapshots import WorkspaceSnapshotRepositoryMixin
 
 
 class SQLiteSessionRepository(
+    ContextNotesRepositoryMixin,
+    ContextJournalRepositoryMixin,
     AtomicSessionRewindRepositoryMixin,
     CheckpointForkRepositoryMixin,
     RewindRepositoryMixin,

@@ -1,13 +1,13 @@
-"""Responsive composers for the three terminal designs."""
+"""Responsive composers for the Muted Slate terminal."""
 from __future__ import annotations
 
 from .terminal_display import clip_display, display_width, safe_text
-from .terminal_style import BODY_WHITE, BRAND_CYAN, DIM_GRAY, ColorMode, colorize
+from .terminal_style import BODY_WHITE, BRAND_CYAN, DIM_GRAY, ColorMode, colorize, color_enabled
 from .terminal_tail_content import _render_draft
 from .terminal_tail_geometry import (
     LiveTailFrame, LiveTailGeometry, _layout_input, _visible_input_rows, _rewrite_tail,
 )
-from .terminal_theme import Theme, design_for, recolor
+from .terminal_theme import Theme, design_for, recolor, ACTIVE_GOLD
 
 
 def render_designed_frame(
@@ -26,12 +26,16 @@ def render_designed_frame(
     if not supplied:
         placeholder = "Describe your next step..." if active else "What would you like to build?"
         rows = [clip_display(placeholder, text_width)]
-    rows, cursor_row = _visible_input_rows(rows, cursor_row, min(6, height - 3))
-    remaining = max(0, height - len(rows) - 3)
+    activity_height = 2 if active and height >= 7 else 0
+    rows, cursor_row = _visible_input_rows(rows, cursor_row, min(6, height - 3 - activity_height))
+    remaining = max(0, height - len(rows) - 3 - activity_height)
     items = palette[:min(14, remaining)]
     remaining -= len(items)
     draft_rows = _render_draft(draft, frame_width, max(0, remaining - 1), color, modern=True)
     lines = _palette_rows(items, frame_width, color) + draft_rows
+    if activity_height:
+        lines += [_status_row(status_icon, status, "", frame_width, color, status_color),
+                  activity_rail(frame_width, motion_progress, color)]
     offset = len(lines)
     lines += composer_rows(rows, frame_width, theme, color, not supplied, active, motion_progress, exiting)
     lines.append(_status_row(status_icon, status, context, frame_width, color, status_color))
@@ -45,10 +49,10 @@ def composer_rows(
     placeholder: bool, active: bool, progress: float, exiting: bool,
 ) -> list[str]:
     design = design_for(theme)
-    label = f" {design.name} / {'FOLLOW-UP' if active else 'COMPOSE'} "
+    label = f" {'FOLLOW-UP' if active else 'CHAOS AGENT'} "
     hint = " Enter queue · Tab steer · Esc pause " if active else " Enter send · Ctrl+J newline · : commands "
-    top = _rule(width, label, design.corners[:2], design.border, design.accent, color, progress, exiting)
-    bottom = _rule(width, hint, design.corners[2:], design.border, design.border, color, 1.0, False)
+    top = _rule(width, label, design.corners[:2], design.border, ACTIVE_GOLD if active else design.accent, color, progress, exiting)
+    bottom = _rule(width, hint, design.corners[2:], design.border, design.muted, color, 1.0, False)
     side = " " if theme is Theme.MONO else "│"
     body = []
     for number, row in enumerate(rows):
@@ -60,6 +64,9 @@ def composer_rows(
             + colorize(value, design.muted if placeholder else design.body, color)
             + colorize(" " + side, design.border, color)
         )
+    if color_enabled(color):
+        background = "\x1b[48;2;23;48;46m"
+        body = [background + row.replace("\x1b[0m", "\x1b[0m" + background) + "\x1b[0m" for row in body]
     return [top, *body, bottom]
 
 
@@ -96,3 +103,16 @@ def _palette_rows(items, width, color):
                  BRAND_CYAN if "› " in item[:5] else DIM_GRAY, color)
         for item in items
     ]
+
+
+def activity_rail(width: int, phase: float, color: ColorMode) -> str:
+    """An indeterminate light sweep; never represents task completion percent."""
+    center = round(max(0.0, min(1.0, phase)) * (width - 1))
+    radius = max(2, round(width * .19))
+    shades = ("38;2;67;61;53", "38;2;126;105;76", ACTIVE_GOLD)
+    cells = []
+    for column in range(width):
+        strength = max(0.0, 1 - abs(column - center) / radius)
+        code = shades[min(2, int(strength * 3))] if strength else "38;2;34;48;70"
+        cells.append(colorize("─", code, color))
+    return "".join(cells)

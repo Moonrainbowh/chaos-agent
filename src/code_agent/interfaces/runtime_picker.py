@@ -4,11 +4,11 @@ from .picker import PickerItem, PickerSource
 from .command_registry import REGISTRY
 
 
-def selection_blocked_reason(app: object) -> str | None:
+def selection_blocked_reason(app: object, *, new_conversation: bool = False) -> str | None:
     runner = getattr(app, "_run_task", None)
     if runner is not None and not runner.done():
         return "Finish or pause the running task before changing its settings."
-    if getattr(app, "active_task_id", None):
+    if getattr(app, "active_task_id", None) and not new_conversation:
         return "This task keeps its saved settings. Use /new to select settings for a new task."
     return None
 
@@ -35,9 +35,11 @@ def runtime_picker_items(app: object) -> tuple[tuple[PickerItem, ...], str] | No
     if runtime is None:
         return (), query
     options, current = _options(runtime, kind)
-    blocked = selection_blocked_reason(app)
+    blocked = selection_blocked_reason(app, new_conversation=kind in {"model", "effort"})
     result = []
     for value, detail in options:
+        if kind in {"model", "effort"} and value != current:
+            detail += " · Opens a new conversation"
         reason = blocked
         if kind == "effort" and getattr(runtime.current, "protocol", "") == "anthropic_messages" and value != "medium":
             reason = "This provider supports only the default medium policy."

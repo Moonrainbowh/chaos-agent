@@ -19,12 +19,10 @@
 - 密钥边界：配置保存环境变量名或私有、本地配置密钥来源；请求时才读取密钥，公开表示、序列化和异常不得包含认证头或明文密钥。
 - 资源边界：事件、完整响应、单个工具参数和工具调用总数分别受独立正数配置限制。
 
-### 预算框架需求（已确认，待实现）
+### 预算框架（显式启用的 v1 已实现）
 
-- 遵循 [Context 预算框架](../context/AGENTS.md)：能力绑定提供商、接入端点、模型版本及启用功能，分别表达输入、输出和合计上下文限制，并携带来源与确认状态。
-- 官方规格、网关声明、服务端能力返回和本地配置不能混为同一证据；未知能力显式标记，不能仅凭模型名或协议兼容性推断默认百万上下文。能力来源优先级、冲突处理和未知值回退规则待商讨。
-- 在既有安全 profile 生命周期内更新能力快照并触发重新计算；按协议提供计数与 usage 口径，使缓存、推理和输出既不漏记也不重复计入。能力查询的具体实现留到实现阶段。
-- 上下文与输出能力不再作为任务累计预算的推导依据；Provider 只提供能力与使用量，任务累计限制由 Core 管理。
+- ModelProfile 的 combined context_window、实际 max_output_tokens 与可选 api_input_tokens 共同约束输入；context_policy 必须显式启用。容量来源为配置，成功探测某一长度不等于发现 API 最大容量。
+- 2026-09-05 的配置、验证与实验边界见根目录 `docs/context-boundary-experiment.md` 和 `docs/context-boundary-results.md`；具体候选值可配置，实验结果不自动推广为默认策略。
 
 ## Units
 - `ProviderError` 及子类：表达配置、HTTP、协议和响应上限失败 | 无副作用 | 对外消息执行脱敏
@@ -39,3 +37,4 @@
 - `OpenAIChatClient.stream(system_prompt, messages, tools)`: 适配 Chat Completions 文本、推理、工具与用量流，并发送冻结的 `reasoning_effort`/`max_completion_tokens`；内部 developer checkpoint 合并到首个 system 消息 | 网络 I/O | 不向仅兼容传统 Chat 角色的服务发送 developer 角色
 - `OpenAIResponsesClient.stream(system_prompt, messages, tools)`: 适配 Responses item/call 事件并去重工具调用，发送冻结的 `reasoning.effort`/`max_output_tokens` | 网络 I/O
 - `AnthropicClient.stream(system_prompt, messages, tools)`: 适配 Messages content block、工具输入与累计用量，发送 profile `max_tokens` | 网络 I/O | 非空 reasoning effort 在构造期明确拒绝
+- `ModelProfile.context_policy`、`api_input_tokens`: 显式启用策略及输入上限；缺省保留旧策略 | 无副作用 | 配置能力不是 provider 发现

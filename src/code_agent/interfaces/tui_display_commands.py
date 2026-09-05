@@ -25,13 +25,8 @@ def _language(app: Any, command: TuiCommand) -> bool:
 
 
 def _theme(app: Any, command: TuiCommand) -> bool:
-    try:
-        app.theme = Theme(command.instruction or "")
-    except ValueError:
-        app._append(DisplayKind.ERROR, "theme must be modern, signal, symbol, or plain")
-        return False
-    app._append(DisplayKind.METADATA, "theme updated")
-    return True
+    from .tui_theme_commands import set_theme
+    return set_theme(app, command.instruction)
 
 
 def _color(app: Any, command: TuiCommand) -> bool:
@@ -49,7 +44,7 @@ def _glyphs(app: Any, command: TuiCommand) -> bool:
     if glyphs == "ascii":
         app.theme = Theme.SIGNAL
     elif glyphs == "unicode":
-        app.theme = Theme.SYMBOL
+        app.theme = Theme.SLATE
     else:
         app._append(DisplayKind.ERROR, "glyphs must be ascii or unicode")
         return False

@@ -11,7 +11,7 @@ def render_welcome(project: str, capability: object, theme: object, width: int, 
     """Render only facts supplied by the host; do not infer permission or readiness."""
     from .terminal_transcript_markdown import _wrap_display
     design = design_for(theme)
-    title = "CHAOS AGENT" + ("  /  " + design.name if design else "")
+    title = "CHAOS AGENT" + ("  /  MUTED SLATE" if design else "")
     title_lines = _wrap_display(title, max(1, width))
     title_rendered = "\n".join(colorize(line, BRIGHT_CYAN, color) for line in title_lines)
     permission = capability.permission
@@ -20,7 +20,7 @@ def render_welcome(project: str, capability: object, theme: object, width: int, 
         f"{safe_text(project)} · {capability.mode.model} · {capability.mode.effective_reasoning_effort}",
         f"permission: {permission.approval_mode.value} · write {'yes' if permission.allow_workspace_write else 'no'} · network {'yes' if permission.allow_network else 'no'}",
         f"runtime: {runtime} · :status for full workspace/path details",
-        ":theme to explore appearances · : for commands",
+        ": for commands · :theme motion off to reduce animations",
     )
     entries = (text_entry(DisplayKind.METADATA, line) for line in details)
     rendered = render_entries(entries, width, theme=theme, color=color)

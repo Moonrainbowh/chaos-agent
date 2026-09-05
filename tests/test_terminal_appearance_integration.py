@@ -13,7 +13,7 @@ from code_agent_win.app_ui import ModeAwareWindowsTerminalApp
 
 
 class AppearanceIntegrationTests(unittest.IsolatedAsyncioTestCase):
-    async def test_real_startup_theme_switch_and_exit_without_provider(self):
+    async def test_real_startup_fixed_theme_motion_and_exit_without_provider(self):
         output = []
         capability = SimpleNamespace(
             permission=SimpleNamespace(approval_mode=SimpleNamespace(value="plan"),
@@ -26,17 +26,17 @@ class AppearanceIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 AgentController(FakeEngine(())), ApprovalBroker(), capability=capability,
                 project_name="appearance-test", write=output.append,
             )
-        self.assertEqual(app.theme, Theme.AURORA)
-        keys = (":theme ember", "\r", ":theme mono", "\r", ":exit", "\r")
+        self.assertEqual(app.theme, Theme.SLATE)
+        keys = (":theme motion off", "\r", ":theme motion on", "\r", ":exit", "\r")
         with patch("code_agent.interfaces.windows_tui.read_key", side_effect=keys):
             await app.run()
         rendered = "".join(output)
         self.assertIn("CHAOS AGENT", rendered)
         self.assertIn("offline-model", rendered)
         self.assertIn("permission: plan", rendered)
-        self.assertIn("Appearance · ember", rendered)
-        self.assertIn("Appearance · mono", rendered)
-        self.assertEqual(app.theme, Theme.MONO)
+        self.assertIn("Motion off", rendered)
+        self.assertIn("Motion on", rendered)
+        self.assertEqual(app.theme, Theme.SLATE)
         self.assertIsNone(app._run_task)
         self.assertIsNone(app._tail_geometry)
         self.assertTrue(app._visual_task.done())

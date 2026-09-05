@@ -32,6 +32,13 @@ _CONTEXT_MEASUREMENT_KEYS = frozenset(
         "semantic_triggered",
         "semantic_fallback",
         "semantic_source_count",
+        "window_input_cap",
+        "window_number",
+        "window_preparing",
+        "context_tokens_remaining",
+        "task_tokens_spent",
+        "task_tokens_reserved",
+        "task_token_limit",
     }
 )
 

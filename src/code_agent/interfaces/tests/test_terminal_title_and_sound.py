@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import sys
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 SRC_ROOT = Path(__file__).resolve().parents[3]
@@ -31,7 +32,8 @@ class TerminalTitleAndSoundTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(app2.project_name, "chaos-17-ai修改word")
 
-    def test_terminal_title_transitions_and_bell(self) -> None:
+    @patch("code_agent.interfaces.tui_presentation.motion_allowed", return_value=True)
+    def test_terminal_title_transitions_and_bell(self, _motion) -> None:
         output: list[str] = []
         app = WindowsTerminalApp(
             AgentController(FakeEngine(())),

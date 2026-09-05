@@ -23,6 +23,7 @@ from code_agent_win.runtime_extensions import (
 )
 from code_agent_win.tool_support import windows_system_prompt
 from code_agent_win.task_verification import TaskScopedVerificationService
+from code_agent_win.managed_context import build_managed_context, wire_managed_engine
 
 
 class RuntimeContextFactory:
@@ -96,6 +97,13 @@ class RuntimeContextFactory:
             index=repo_index,
             view_cache=self._repo_view_cache,
         )
+        return self._strategy_context(config, rules, repo_map, client, profile)
+
+    def _strategy_context(self, config, rules, repo_map, client, profile):
+        """Select one complete history strategy for this frozen model profile."""
+        if profile.context_policy is not None:
+            return build_managed_context(config, rules, repo_map, self._skills,
+                self._sessions, self._thread_binding, client, profile)
         context_limit, target_tokens, summary_tokens, model_token_budget = (
             _semantic_limits(config, profile)
         )
@@ -173,7 +181,7 @@ class _ThreadRootContextBuilder:
         self._mode, self._client, self._profile = mode, client, profile
         default = factory._build(mode, client, profile, factory._root)
         self._builders = {factory._root: default}
-        self._inner = default._inner
+        self._inner = default if getattr(profile, "context_policy", None) is not None else default._inner
 
     async def build(
         self,
@@ -261,14 +269,11 @@ def engine_for(
             profile.max_tool_calls_per_round,
             mode_limits.max_tool_calls_per_round,
         ),
-        min(
-            profile.context_window + profile.max_output_tokens,
-            mode_limits.max_total_tokens,
-        ),
+        profile.context_policy.task_tokens if profile.context_policy is not None else mode_limits.max_total_tokens,
         mode_limits.max_assistant_chars,
     )
     return AgentEngine(
-        model,
+        wire_managed_engine(model, context, dispatcher),
         context,
         dispatcher,
         sessions,

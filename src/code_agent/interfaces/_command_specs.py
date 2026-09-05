@@ -23,7 +23,7 @@ def _semantic_map_spec() -> CommandSpec:
 
 
 def built_in_command_specs() -> tuple[CommandSpec, ...]:
-    return (CommandSpec("theme", ("主题",), "Appearance", "Choose Aurora, Ember or Mono; control motion", "[aurora|ember|mono|motion on|motion off]", visibility=CommandVisibility.ADVANCED), *_general_specs(), *_workspace_specs(), *_runtime_specs(),
+    return (CommandSpec("theme", ("主题",), "Appearance", "Muted Slate animation controls", "[motion on|motion off]", visibility=CommandVisibility.ADVANCED), *_general_specs(), *_workspace_specs(), *_runtime_specs(),
             *_extension_specs(), *_session_specs(), *_advanced_specs())
 
 
@@ -88,13 +88,13 @@ def _runtime_specs() -> tuple[CommandSpec, ...]:
     return (
         CommandSpec(
             "model", ("m",), "Configuration",
-            "Show or switch the configured model profile", "[profile]",
+            "Select a model; a changed selection opens a new conversation", "[profile]",
             requires=runtime,
         ),
         _mode_spec(),
         CommandSpec(
             "effort", (), "Configuration",
-            "Show or switch reasoning depth", "[low|medium|high|xhigh|max]",
+            "Select reasoning depth; a changed selection opens a new conversation", "[low|medium|high|xhigh|max]",
             requires=runtime,
         ),
         _permission_spec(),

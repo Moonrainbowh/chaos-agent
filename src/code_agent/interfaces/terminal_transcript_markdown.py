@@ -65,6 +65,8 @@ def _markdown_lines(value: str, width: int, theme: Theme) -> list[_RenderLine]:
         if in_code:
             lines.append(_RenderLine("  " + raw.rstrip(), "code")); index += 1; continue
         heading = re.match(r"^#{1,6}\s+(.+)$", stripped)
+        if heading and any(line.role == "heading" for line in lines):
+            lines.extend([_RenderLine("─" * max(1, width), "table_border"), _RenderLine("")])
         if heading:
             lines.append(_RenderLine(_inline_markdown(heading.group(1)), "heading")); index += 1; continue
         quote = re.match(r"^>\s*(.+)$", stripped)

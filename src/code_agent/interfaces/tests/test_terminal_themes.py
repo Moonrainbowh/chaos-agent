@@ -33,7 +33,7 @@ class DesignedTailTests(unittest.TestCase):
                     with self.subTest(theme=theme, width=width, height=height):
                         frame = render_live_tail_frame(
                             "中文路径/" * 30 + "\nlast", "等待审批", width,
-                            terminal_height=height, color=ColorMode.NEVER,
+                            terminal_height=height, color=ColorMode.NEVER, active=True,
                             theme=theme, cursor_index=10, assistant_draft="## 标题\n正文\n" * 20,
                             palette=("› selected command " + "x" * 80,) * 10,
                             status_context="model · task 3k tokens · 00:01",
@@ -89,8 +89,8 @@ class DesignedTailTests(unittest.TestCase):
         self.assertTrue(motion.active(11.1))
 
     def test_env_theme_has_safe_fallback(self):
-        self.assertEqual(preferred_theme({"CHAOS_THEME": "EMBER"}), Theme.EMBER)
-        self.assertEqual(preferred_theme({"CHAOS_THEME": "bad"}), Theme.AURORA)
+        self.assertEqual(preferred_theme({"CHAOS_THEME": "EMBER"}), Theme.SLATE)
+        self.assertEqual(preferred_theme({"CHAOS_THEME": "bad"}), Theme.SLATE)
 
 
 class ThemeInteractionTests(unittest.IsolatedAsyncioTestCase):
@@ -105,13 +105,16 @@ class ThemeInteractionTests(unittest.IsolatedAsyncioTestCase):
             self.assertIsNone(app._run_task)
         await app.submit(":theme motion off")
         self.assertFalse(app.motion.enabled)
+        for retired in ("aurora", "ember", "mono", "modern", "plain"):
+            self.assertFalse(await app.submit(":theme " + retired))
+            self.assertEqual(app.theme, Theme.SLATE)
         before = app.theme
         self.assertFalse(await app.submit(":theme invalid"))
         self.assertEqual(app.theme, before)
 
     async def test_no_color_and_reduced_motion_have_static_feedback(self):
         app = self.make_app()
-        app.theme = Theme.AURORA
+        app.theme = Theme.SLATE
         for environment in ({"NO_COLOR": "1"}, {"CHAOS_REDUCED_MOTION": "1"}):
             with patch.dict(os.environ, environment, clear=True):
                 self.assertFalse(motion_allowed(app))
@@ -120,7 +123,7 @@ class ThemeInteractionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_idle_visual_watcher_does_not_write_unchanged_frames(self):
         app = self.make_app()
-        app.theme = Theme.MONO
+        app.theme = Theme.SLATE
         app.running = True
         app.motion.enabled = False
         app.redraw()

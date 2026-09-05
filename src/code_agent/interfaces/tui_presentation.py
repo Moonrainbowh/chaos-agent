@@ -70,7 +70,7 @@ class TerminalPresentation:
         active = bool(self._run_task and not self._run_task.done())
         palette = self.interactions.rows(self, max_rows=max(0, size.lines - 4))
         self.motion.observe((self.theme, self.state.status, bool(palette)), now)
-        progress = self.motion.progress(now) if motion_allowed(self) else 1.0
+        progress = ((now % 2.4) / 2.4 if active else self.motion.progress(now)) if motion_allowed(self) else 1.0
         tick = self._spinner_index if not design_for(self.theme) or motion_allowed(self) else 0
         status, icon, status_color = status_presentation(self.state.status, self.state.execution_summary, self.state.active_action, self.catalog.language, self.theme, tick)
         if self._run_task and not self._run_task.done(): status += f" [{self.submit_mode.label}]"
@@ -91,9 +91,13 @@ class TerminalPresentation:
                 self._run_started_at,
                 now,
                 self.state.token_rate.rate(now) or self.state.last_rate,
-                tokens=self.state.total_tokens,
+                tokens=self.state.context_budget.context_tokens if self.state.context_budget.context_tokens is not None else self.state.total_tokens,
                 context_window=self._context_window(),
-                show_percentage=design_for(self.theme) is None,
+                show_percentage=self.state.context_budget.window_input_cap is not None or design_for(self.theme) is None,
+                window_number=self.state.context_budget.window_number,
+                task_spent=self.state.context_budget.task_tokens_spent,
+                task_limit=self.state.context_budget.task_token_limit,
+                task_reserved=self.state.context_budget.task_tokens_reserved,
                 branch=self._git_branch() if design_for(self.theme) is None else None,
             ),
             previous=self._tail_geometry,
@@ -116,6 +120,8 @@ class TerminalPresentation:
         return None
 
     def _context_window(self) -> int:
+        if self.state.context_budget.window_input_cap is not None:
+            return self.state.context_budget.window_input_cap
         if self.profiles and hasattr(self.profiles, "_profiles"):
             curr = getattr(self.profiles, "_current", None)
             if curr and curr in self.profiles._profiles:

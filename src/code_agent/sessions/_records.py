@@ -103,6 +103,8 @@ class RecordRepositoryMixin:
     ) -> str:
         thread_id = _text(thread_id, "thread_id")
         label = _text(label, "label")
+        if label.startswith("context:"):
+            raise ValueError("context: is reserved for the internal context journal")
         data: Mapping[str, JSONValue] = {} if metadata is None else metadata
         validate_json_mapping(data, "metadata")
         identifier = uuid.uuid4().hex
@@ -141,7 +143,7 @@ class RecordRepositoryMixin:
         def read(connection: sqlite3.Connection) -> tuple[CheckpointRecord, ...]:
             _require_thread(connection, thread_id)
             rows = connection.execute(
-                "SELECT * FROM checkpoints WHERE thread_id = ? ORDER BY created_at, id",
+                "SELECT * FROM checkpoints WHERE thread_id = ? AND label NOT LIKE 'context:%' ORDER BY created_at, id",
                 (thread_id,),
             ).fetchall()
             try:

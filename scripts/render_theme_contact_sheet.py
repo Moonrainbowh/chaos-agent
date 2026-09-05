@@ -18,13 +18,19 @@ CONTROL = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
 
 
 def font(name, size):
-    return ImageFont.truetype(str(Path("C:/Windows/Fonts") / name), size)
+    path = Path("C:/Windows/Fonts") / name
+    if not path.is_file() and "cascadia" in name.lower():
+        path = Path("C:/Windows/Fonts/consola.ttf")
+    return ImageFont.truetype(str(path), size)
 
 
 def ansi_color(code):
     if not code or code == "0":
         return "#eeeeee"
-    index = int(code.split(";")[-1])
+    parts = code.split(";")
+    if "38" in parts and parts[parts.index("38") + 1] == "2":
+        return tuple(map(int, parts[-3:]))
+    index = int(parts[-1])
     if index >= 232:
         return (8 + (index - 232) * 10,) * 3
     levels = (0, 95, 135, 175, 215, 255)
@@ -33,11 +39,12 @@ def ansi_color(code):
 
 
 def draw_terminal(draw, value, x, y, *, size=17, step=27):
-    latin = font("consola.ttf", size)
+    latin = font("CascadiaCode.ttf", size)
     chinese = font("msyh.ttc", size - 1)
     symbols = font("seguisym.ttf", size)
     cell = latin.getlength("M")
     column, color, offset = 0, "#eeeeee", 0
+    background = None
 
     def segment(text):
         nonlocal column, y
@@ -47,12 +54,19 @@ def draw_terminal(draw, value, x, y, *, size=17, step=27):
                 column, y = 0, y + step
                 continue
             face = chinese if display_width(cluster) == 2 else (symbols if ord(cluster[0]) > 255 and cluster not in "─│┌┐└┘╭╮╰╯" else latin)
+            if background:
+                draw.rectangle((x + column * cell, y, x + (column + display_width(cluster)) * cell, y + step), fill=background)
             draw.text((x + column * cell, y), cluster, fill=color, font=face)
             column += display_width(cluster)
 
     for match in SGR.finditer(value):
         segment(value[offset:match.start()])
-        color = ansi_color(match[1])
+        if match[1] == "0":
+            color, background = "#eeeeee", None
+        elif match[1].startswith("48;2;"):
+            background = tuple(map(int, match[1].split(";")[-3:]))
+        else:
+            color = ansi_color(match[1])
         offset = match.end()
     segment(value[offset:])
     return y
@@ -60,30 +74,21 @@ def draw_terminal(draw, value, x, y, *, size=17, step=27):
 
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
-    sheet = Image.new("RGB", (1620, 1720), "#101316")
+    sheet = Image.new("RGB", (1300, 1460), "#07090e")
     draw = ImageDraw.Draw(sheet)
-    draw.text((65, 40), "CHAOS / TERMINAL COLLECTION", font=font("consolab.ttf", 28), fill="#eeeeeb")
-    draw.text((65, 87), "三套界面，同一个专注的工作空间。", font=font("msyh.ttc", 23), fill="#b6bec4")
-    notes = (("01", "青蓝冷光 / 圆角边界", "#171c22"),
-             ("02", "暖金纸感 / 直角轮廓", "#211e19"),
-             ("03", "黑白层次 / 开放线框", "#171717"))
-    for index, ((theme, design), (number, subtitle, bg)) in enumerate(zip(DESIGNS.items(), notes)):
-        y = 155 + index * 490
-        accent = ansi_color(design.accent)
-        draw.rounded_rectangle((60, y, 1560, y + 455), radius=14 if index == 0 else 2,
-                               fill=bg, outline="#42484d", width=1)
-        draw.text((94, y + 22), number + " / " + design.name, font=font("consolab.ttf", 29), fill=accent)
-        draw.text((1160, y + 30), subtitle, font=font("msyh.ttc", 19), fill="#b8bec0")
-        draw.line((94, y + 71, 1526, y + 71), fill="#3c4145")
-        transcript = render_entries(SAMPLE, 95, theme=theme, color=ColorMode.ALWAYS)
-        end = draw_terminal(draw, transcript, 95, y + 91)
-        frame = preview_frame(theme, width=112)
-        draw_terminal(draw, frame.text, 95, end + 41)
-        draw.text((1285, y + 132), ":theme " + theme.value, font=font("consola.ttf", 18), fill=accent)
-        draw.text((1285, y + 175), "Enter  发送\nCtrl+J  换行\n:  命令面板", font=font("msyh.ttc", 17), fill="#acb1b5", spacing=13)
-    draw.text((65, 1650), "真实终端渲染器的静态输出 · 示例对话不代表实际执行 · 背景仅为深色终端参考", font=font("msyh.ttc", 18), fill="#a6adb3")
-    sheet.save(OUT / "three-themes.png")
-    print(OUT / "three-themes.png")
+    draw.text((50, 30), "CHAOS / MUTED SLATE", font=font("consolab.ttf", 28), fill="#7dd3fc")
+    draw.text((50, 76), "方案 A 冷萃冰阶 · 唯一默认主题", font=font("msyh.ttc", 23), fill="#cbd5e1")
+    theme = next(iter(DESIGNS))
+    for index, (state, label) in enumerate((("idle", "READY"), ("streaming_response", "STREAMING"), ("approval", "APPROVAL"))):
+        y = 130 + index * 420
+        draw.rounded_rectangle((40, y, 1260, y + 395), radius=10, fill="#0a0d14", outline="#223046")
+        draw.text((65, y + 16), label, font=font("consolab.ttf", 20), fill="#73849c")
+        transcript = render_entries(SAMPLE[:2], 95, theme=theme, color=ColorMode.ALWAYS)
+        end = draw_terminal(draw, transcript, 65, y + 55)
+        draw_terminal(draw, preview_frame(theme, state, width=112, progress=.5).text, 65, end + 35)
+    draw.text((50, 1410), "ANSI 渲染输出示意 · 非终端截图 · 对话和用量均为离线示例", font=font("msyh.ttc", 18), fill="#73849c")
+    sheet.save(OUT / "muted-slate.png")
+    print(OUT / "muted-slate.png")
 
 
 if __name__ == "__main__":

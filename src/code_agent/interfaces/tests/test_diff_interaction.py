@@ -173,7 +173,7 @@ class DiffInteractionStateTests(unittest.TestCase):
 
         self.assertIs(action, DiffAction.NONE)
         self.assertEqual(self.modal.mode, DiffMode.COMMENT)
-        self.assertIn("256 KiB", self.modal.error or "")
+        self.assertIn("5120 UTF-8 bytes", self.modal.error or "")
 
 
 class DiffTuiIntegrationTests(unittest.IsolatedAsyncioTestCase):

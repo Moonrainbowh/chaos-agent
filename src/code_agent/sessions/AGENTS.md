@@ -2,6 +2,7 @@
 把聊天、目标、动作、用量和 checkpoint 保存为可恢复、可迁移的结构化状态。
 
 ## 边界
+- 为 persistent context 提供任务内按路径笔记，覆盖/追加原子执行，保留版本和幂等操作记录；不改变原始消息或工作区文件。
 - 负责：随 Message JSON 持久化附件引用元数据，并在恢复、fork、checkpoint 与 rewind 后保持引用不变；旧消息缺少附件字段时继续兼容读取。
 - 不负责：在 SQLite 中保存附件 blob、base64 或原绝对路径，也不负责解析或修复附件内容。
 - 负责：原子持久化 lineage、snapshot manifest、checkpoint 游标与 rewind operation，并提供非破坏性任务分叉及 session Rewind 终态事务。
@@ -33,13 +34,13 @@
 - 负责：以 v19 companion 表持久化已批准多文件编辑批次、有序操作端点的 existence/hash/size 事实与进度，并与 parent mutation 原子闭合终态。
 - 不负责：读取或修改工作区、判定用户漂移、执行回滚或启动恢复；这些只消费 Sessions 中的持久事实。
 
-### 预算框架需求（已确认，待实现）
+### 预算框架（显式启用的 v1 已实现）
 
-- 遵循 [Context 预算框架](../context/AGENTS.md)：在同一 thread/task 下持久保存可恢复的窗口身份、原始消息范围和交接来源引用；窗口轮换不删除或覆盖原始历史，也不创建新的业务任务。
-- 窗口边界与交接引用必须一致提交并支持幂等恢复；任务累计使用量及既有控制/验证事实独立延续，不能因开启新窗口、重试或恢复而重置额度或重复记账。
-- 数据模型、迁移方案、History/Notes 存储细节和预算配置的持久化版本规则待商讨；本阶段不新增数据库 schema，也不预定窗口数量或保留容量。
+- ContextJournal 提供窗口 CAS、幂等笔记/请求及原子调用预算预留/结算。原始消息保持不变；内部 context: 标签不进入普通工作区检查点列表；旧任务消耗与冻结额度不会因换窗或重启归零。
+- 2026-09-05 的配置、验证与实验边界见根目录 `docs/context-boundary-experiment.md` 和 `docs/context-boundary-results.md`；具体候选值可配置，实验结果不自动推广为默认策略。
 
 ## Units
+- `ContextNotesRepositoryMixin`: 笔记覆盖/追加单事务、幂等工具请求、版本保留 | SQLite I/O | 虚拟相对路径、单文件 1MB；内部 context:note_file 记录不作为工作区恢复点
 - `ThreadStatus`、`GoalStatus`、`ThreadSummary`、`ThreadRelation`、`MessageRecord`、`GoalRecord`、`CheckpointRecord`: 表达不可变的会话、父子关系和 checkpoint 状态 | 无副作用 | 时间归一化为 UTC，元数据深度冻结
 - `WorkspaceLineageRecord`、`WorkspaceSnapshotRecord`、`CheckpointCursor`、`RewindOperationRecord`: 表达 lineage、manifest、会话游标与 Rewind 状态 | 无副作用 | UUID、枚举、绝对路径、摘要、时间、JSON 与容量均严格校验
 - `SQLiteSessionRepository`、`record_task_steering(...)`、`record_task_followup(...)`、`promote_task_followups(...)`: 组合短事务仓储，分别原子持久立即 steering 和隐藏于当前回合的 FIFO follow-up | SQLite I/O | follow-up 只能在 Core 收尾门一次性提升为 messages，附件不得成为孤立记录
@@ -52,3 +53,6 @@
 - `save_task_contract_revision`、`begin_verification_run`、`append_verification_evidence`、`finalize_task`: 保存 append-only 验证账本并原子完成 | SQLite I/O | 必须复核最新 generation、revision 与全部 required evidence
 - `SessionDatabase`、`migrate_legacy_session_database`、稳定 JSON codecs: 执行 v1-v20 migration、schema/index/FK 校验、旧库复制及含附件引用的 Message 编解码 | SQLite/JSON I/O | v20 新增任务 follow-up 队列；未来版本、缺表/索引、损坏数据失败闭合，旧库始终保留
 - `PeerSessionRepositoryMixin`、`PeerMessageRepositoryMixin`、`PeerInboxRepositoryMixin`: 原子注册/心跳/rename 本机实例并保存、领取/续租/查询显式 `peer` origin 纯文本 | SQLite I/O | v18；同名允许但 ref 唯一；held 与 claim lease 分离，过期 lease可恢复，closed 与消息终态不可回退
+- `ContextJournalRepositoryMixin`: 原子追加窗口/笔记/换窗请求与请求预算预留、用量结算 | SQLite I/O | CAS、幂等、未知请求保留预留；不覆盖原始消息
+
+- `context:` 为内部日志保留标签；普通检查点创建拒绝该命名空间，列表隐藏内部窗口/笔记/用量，防止工作区恢复误选。

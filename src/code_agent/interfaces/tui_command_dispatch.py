@@ -10,7 +10,7 @@ from .tui_builtin_commands import handle_builtin_command
 from .tui_commands import ParseOutcome, TuiCommandKind
 from .tui_lifecycle import format_command_help
 from .tui_permission_commands import handle_permission_command
-from .tui_runtime_commands import set_effort, set_model, set_task_mode, show_task_modes
+from .tui_runtime_commands import _host_runtime_suffix, set_effort, set_model, set_task_mode, show_task_modes
 from .runtime_picker import selection_blocked_reason
 from .tui_semantic_insight_commands import handle_semantic_insight_command
 from .tui_workflow_commands import handle_workflow_command
@@ -127,6 +127,10 @@ async def _set_mode(
         return task_mode
     if instruction is None:
         return show_task_modes(app)
+    if action in {"model", "模型"}:
+        return await set_model(app, _action_argument(instruction))
+    if action in {"effort", "思考"}:
+        return await set_effort(app, _action_argument(instruction))
     runtime = getattr(app, "runtime_selection", None)
     if runtime is None:
         return await _set_legacy_mode(app, instruction)
@@ -243,13 +247,6 @@ def _runtime_summary(selection: object) -> str:
         str(getattr(getattr(selection, name), "value", getattr(selection, name)))
         for name in ("topology", "profile", "model", "reasoning_effort")
     )
-
-
-def _host_runtime_suffix(app: object) -> str:
-    summary = getattr(app, "host_runtime_summary", None)
-    if not isinstance(summary, str) or not summary.strip():
-        return ""
-    return " · host: " + summary
 
 
 async def _show_evidence(app: object, instruction: str | None) -> bool:

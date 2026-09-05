@@ -215,8 +215,16 @@ class ModelProfile:
     )
     input_cost_per_million: float | None = None
     output_cost_per_million: float | None = None
+    context_policy: object | None = None
+    api_input_tokens: int | None = None
 
     def __post_init__(self) -> None:
+        from code_agent.context_windows.policy import ApiContextLimits, WindowPolicy
+        if self.context_policy is not None:
+            if not isinstance(self.context_policy, WindowPolicy):
+                raise ProviderConfigError("context_policy must be a WindowPolicy")
+            ApiContextLimits(self.context_window, self.max_output_tokens,
+                             self.api_input_tokens).input_cap(self.context_policy)
         if not isinstance(self.name, str) or not self.name.strip():
             raise ProviderConfigError("profile name must be a non-empty string")
         if not isinstance(self.provider, ProviderConfig):

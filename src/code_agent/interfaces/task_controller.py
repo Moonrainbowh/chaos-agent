@@ -52,6 +52,14 @@ class ForegroundTaskController:
     async def list(self, *, include_terminal: bool = False) -> tuple[TaskRecord, ...]:
         return await self._sessions.list_tasks(include_terminal=include_terminal)
 
+    async def restore_runtime_settings(self, task_id: str) -> None:
+        """Select a saved task's frozen runtime before displaying its conversation."""
+        task = await self._sessions.load_task(task_id)
+        if task.contract.runtime_selection_digest and self._runtime_resolver:
+            await self._runtime_resolver(task.contract)
+        elif task.contract.profile_id and self._profile_resolver:
+            await self._profile_resolver(task.contract.profile_id)
+
     async def events(
         self,
         task_id: str,

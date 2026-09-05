@@ -8,6 +8,7 @@ from typing import Any
 
 from code_agent.capabilities import CapabilityStrategy
 from code_agent.config.capability_strategy import configured_capability_strategy
+from code_agent.config.context_policy import configured_context_policy
 from code_agent.config._environment import environment_value as _environment_value
 
 try:
@@ -95,7 +96,7 @@ def _profiles(document: Mapping[str, Any], env: Mapping[str, str], selected: str
     for name, raw in configured.items():
         if not isinstance(name, str) or not isinstance(raw, dict): raise LocalConfigError("providers must map names to tables")
         current = provider if name == selected else _provider_config(raw, env, allow_environment=False)
-        values.append(ModelProfile(name, current, _required_positive(raw, "context_window"), _required_positive(raw, "max_output_tokens"), _positive(raw.get("max_agent_rounds", 50), "max_agent_rounds"), _positive(raw.get("max_tool_calls", 128), "max_tool_calls"), _positive(raw.get("max_tool_calls_per_round", 50), "max_tool_calls_per_round"), _input_modalities(raw), optional_token_rate(raw.get("input_cost_per_million"), "input_cost_per_million"), optional_token_rate(raw.get("output_cost_per_million"), "output_cost_per_million")))
+        values.append(ModelProfile(name, current, _required_positive(raw, "context_window"), _required_positive(raw, "max_output_tokens"), _positive(raw.get("max_agent_rounds", 50), "max_agent_rounds"), _positive(raw.get("max_tool_calls", 128), "max_tool_calls"), _positive(raw.get("max_tool_calls_per_round", 50), "max_tool_calls_per_round"), _input_modalities(raw), optional_token_rate(raw.get("input_cost_per_million"), "input_cost_per_million"), optional_token_rate(raw.get("output_cost_per_million"), "output_cost_per_million"), configured_context_policy(raw), raw.get("api_input_tokens")))
     return tuple(values)
 
 

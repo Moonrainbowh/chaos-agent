@@ -1,4 +1,6 @@
 from __future__ import annotations
+from .terminal_history_summary import _summary_lines
+from .terminal_context_budget import ContextBudgetDisplay
 
 from typing import Mapping, Optional
 
@@ -40,6 +42,7 @@ class TerminalState:
         self.input_tokens: int = 0
         self.output_tokens: int = 0
         self.last_rate: float | None = None
+        self.context_budget = ContextBudgetDisplay()
 
     @property
     def draft_answer(self) -> str:
@@ -53,6 +56,7 @@ class TerminalState:
 
     def restore(self, history: RestoredThread) -> None:
         """Project persisted thread records into a terminal-safe view model."""
+        self.context_budget = ContextBudgetDisplay()
         self.thread_id = history.thread_id
         self.transcript = _transcript_lines(history.messages)
         self.entries = [text_entry(DisplayKind.USER if line.startswith("user:") else DisplayKind.AGENT, line.split(": ", 1)[-1]) for line in self.transcript]
@@ -149,6 +153,7 @@ class TerminalState:
             self._action_requests[request["id"]] = request
 
     def _update_status(self, event: AgentEvent) -> None:
+        self.context_budget.apply(event)
         if event.kind in {EventKind.TASK_CREATED, EventKind.TASK_STATUS_CHANGED, EventKind.TASK_PAUSED}:
             self.task_id = event.payload.get("task_id", self.task_id)
             self.task_status = event.payload.get("status", self.task_status)
@@ -171,6 +176,7 @@ class TerminalState:
             self.status = status
 
     def _apply_model_event(self, event: AgentEvent) -> None:
+        self.context_budget.apply(event)
         raw = event.payload.get("event")
         if not isinstance(raw, Mapping):
             return
@@ -273,26 +279,3 @@ def _action_timeline(events: tuple[AgentEvent, ...]) -> list[str]:
         if event.kind in {EventKind.ACTION_REQUESTED, EventKind.ACTION_COMPLETED}
     ]
     return lines[-8:]
-
-
-def _summary_lines(history: RestoredThread, status: str) -> list[str]:
-    active_goal = next(
-        (goal.objective for goal in history.goals if goal.status is GoalStatus.ACTIVE),
-        None,
-    )
-    fallback_goal = next(
-        (message.content for message in history.messages if message.role == "user"),
-        None,
-    )
-    summary: list[str] = []
-    objective = active_goal if active_goal is not None else fallback_goal
-    if objective is not None:
-        summary.append("goal: " + _visible_text(objective))
-    summary.append("status: " + status)
-    if history.checkpoints:
-        summary.append("checkpoint: " + history.checkpoints[-1].label)
-    return summary
-
-
-def _visible_text(value: str) -> str:
-    return " ".join(value.split())[:120]

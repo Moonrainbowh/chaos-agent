@@ -1,55 +1,20 @@
-"""Self-contained visual comparison; terminal content comes from real renderers."""
-
-PAGE = r'''<!doctype html>
-<html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Chaos Agent — 三种工作状态</title>
+"""Offline, single-theme production renderer preview."""
+PAGE = r'''<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chaos Agent · Muted Slate</title>
 <style>
-:root{color-scheme:dark;--bg:#101316;--ink:#e9e9e3;--muted:#a2a7ab;--line:#32383d;--accent:#87d7ff}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px 'Segoe UI','Microsoft YaHei',sans-serif}
-button{font:inherit;color:inherit;cursor:pointer}button:focus-visible{outline:2px solid var(--accent);outline-offset:5px}
-button:hover{border-color:var(--accent)}a{color:inherit}main{max-width:1400px;margin:auto;padding:35px 54px 52px}
-nav{display:flex;justify-content:space-between;align-items:center;padding-bottom:25px;border-bottom:1px solid var(--line)}
-.brand{font:700 19px Consolas,monospace;letter-spacing:3px}.eyebrow{font:12px Consolas,monospace;letter-spacing:2px;color:var(--muted)}
-header{display:flex;align-items:end;justify-content:space-between;gap:30px;padding:36px 0 26px}h1{font:400 40px Georgia,'SimSun',serif;margin:10px 0 0;letter-spacing:1px}
-header p{color:var(--muted);line-height:1.9;max-width:390px;margin:0;font-size:14px}
-.themes{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.theme{background:transparent;border:1px solid var(--line);padding:17px 20px;text-align:left;border-radius:4px;transition:background .18s,border-color .18s,transform .18s}
-.theme[aria-pressed=true]{background:#1b2328;border-color:var(--accent)}.theme:hover{transform:translateY(-2px)}.theme b{font:20px Georgia,serif;letter-spacing:2px}.theme small{display:block;color:var(--muted);margin-top:9px}.theme i{font-style:normal;float:right;font-size:12px;color:var(--muted)}
-.swatch{display:inline-block;width:7px;height:20px;vertical-align:-3px;margin-right:12px;background:#87d7ff}.ember .swatch{background:#ffdf87}.mono .swatch{background:#eee}
-.workbench{margin-top:24px;border:1px solid #353c42;border-radius:10px;overflow:hidden;background:#171c22;box-shadow:0 18px 46px #0003}
-.windowbar{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:13px 22px;border-bottom:1px solid #ffffff16;color:#b5bac0;font:12px Consolas,monospace}
-.dots{display:inline-flex;gap:7px;margin-right:16px}.dots span{width:7px;height:7px;border-radius:100%;background:#56626a}.windowbar strong{font-weight:400;color:#e3e5e8}
-.terminal{padding:23px 25px 21px;overflow-x:auto;min-height:380px}.terminal pre{font:14px/1.8 Consolas,'Microsoft YaHei',monospace;white-space:pre;margin:0;tab-size:4}
-.terminal #tail{margin-top:24px;min-height:116px}.terminal #transcript{min-height:205px}
-.workbench[data-theme=ember]{background:#211e19;border-radius:2px;border-color:#615039}.workbench[data-theme=mono]{background:#171717;border-radius:0;border-color:#777}
-.controlbar{display:flex;justify-content:space-between;gap:15px;align-items:center;padding:15px 20px;background:#ffffff03;border-top:1px solid #ffffff12}
-.states{display:flex;gap:6px;flex-wrap:wrap}.states button,.motion{background:transparent;border:1px solid #42484c;border-radius:4px;padding:7px 12px;font-size:12px}.states button[aria-pressed=true]{color:var(--accent);border-color:var(--accent)}
-.motion{white-space:nowrap;color:var(--muted)}.details{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:28px;margin-top:25px}.details article{border-top:1px solid var(--line);padding-top:17px}.details b{font-size:13px;font-weight:500}.details p{color:var(--muted);font-size:12px;line-height:1.8;margin-bottom:0}.details code{color:var(--ink);font:13px Consolas,monospace}
-.footer{display:flex;justify-content:space-between;gap:20px;color:#929aa0;font-size:11px;margin-top:28px}.theme-note{color:var(--accent)}
-@media(max-width:760px){main{padding:24px 18px}header{display:block}h1{font-size:32px}header p{margin-top:20px}.themes{gap:8px}.theme{padding:14px 10px}.theme b{font-size:15px}.theme i{display:none}.swatch{margin-right:6px}.theme small{font-size:11px}.details{grid-template-columns:1fr}.controlbar{align-items:start;flex-direction:column}.terminal{padding:20px 15px}.footer{display:block;line-height:2}.windowbar .eyebrow{display:none}}
-@media(prefers-reduced-motion:reduce){*{transition:none!important}}
-</style>
-<main><nav><div class="brand">✦ CHAOS AGENT</div><span class="eyebrow">TERMINAL / APPEARANCE LAB</span></nav>
-<header><div><div class="eyebrow">THREE WAYS TO FIND YOUR FOCUS</div><h1>让思路，有一个舒服的落点。</h1></div><p>把对话放在前面，让工具退到后面。<br>三套终端主题，同一套流畅、克制的交互。</p></header>
-<section class="themes" aria-label="选择界面主题">
-<button class="theme" data-theme="aurora" aria-pressed="true"><i>01 / 默认</i><span class="swatch"></span><b>AURORA</b><small>青蓝冷光 · 圆角边界 · 清晰有序</small></button>
-<button class="theme ember" data-theme="ember" aria-pressed="false"><i>02 / 温暖</i><span class="swatch"></span><b>EMBER</b><small>暖金纸感 · 直角轮廓 · 稳定沉着</small></button>
-<button class="theme mono" data-theme="mono" aria-pressed="false"><i>03 / 专注</i><span class="swatch"></span><b>MONO</b><small>黑白层次 · 开放线框 · 少即是多</small></button>
-</section>
-<section class="workbench" data-theme="aurora"><div class="windowbar"><div><span class="dots"><span></span><span></span><span></span></span><strong>chaos-agent</strong> / appearance-preview</div><span class="eyebrow">真实渲染器 · 离线示例</span></div>
-<div class="terminal"><pre id="transcript"></pre><pre id="tail" aria-label="终端输入和状态"></pre></div>
-<div class="controlbar"><div class="states" aria-label="体验交互状态"><button data-state="idle" aria-pressed="true">入场 / 就绪</button><button data-state="building_context">处理中</button><button data-state="streaming_response">流式回答</button><button data-state="completed">完成</button><button data-state="paused">暂停</button><button data-state="approval">审批</button><button id="exit">离场</button></div><button class="motion" aria-pressed="true">动效：开</button></div></section>
-<section class="details"><article><b>立即切换</b><p><code id="command">:theme aurora</code><br>在新启动的 Chaos Agent 中输入；即时影响新输出。</p></article><article><b>每一次按键，都有清晰的去向</b><p>Enter 发送，Ctrl+J 换行。任务运行中，Enter 排队，Tab 转向，Esc 暂停。</p></article><article><b>有反馈，也有安静</b><p>短时边框过渡，历史对话保持稳定。<code>:theme motion off</code> 可关闭动效。</p></article></section>
-<div class="footer"><span>示例内容不代表真实执行结果。预览背景供深色终端参考，程序不修改 Windows Terminal 背景或字体。</span><span class="theme-note">AURORA / 01</span></div></main>
-<script>
-const data=__PREVIEW_DATA__;
-let theme='aurora',state='idle',timer=null,motion=!matchMedia('(prefers-reduced-motion: reduce)').matches;
-const tail=document.querySelector('#tail'), transcript=document.querySelector('#transcript');
-function render(animate=true,exit=false){clearInterval(timer);transcript.innerHTML=data[theme].transcript;let tick=motion&&animate?0:8;
-const draw=()=>{tail.innerHTML=data[theme].frames[state][exit?8-tick:tick];if(exit&&tick===8)tail.style.opacity='0';else tail.style.opacity='1'};draw();
-if(tick<8)timer=setInterval(()=>{tick++;draw();if(tick===8)clearInterval(timer)},35);}
-document.querySelectorAll('.theme').forEach(b=>b.onclick=()=>{theme=b.dataset.theme;document.querySelectorAll('.theme').forEach(x=>x.setAttribute('aria-pressed',x===b));document.querySelector('.workbench').dataset.theme=theme;document.documentElement.style.setProperty('--accent',{aurora:'#87d7ff',ember:'#ffdf87',mono:'#eeeeee'}[theme]);document.querySelector('#command').textContent=':theme '+theme;document.querySelector('.theme-note').textContent=theme.toUpperCase()+' / 0'+(['aurora','ember','mono'].indexOf(theme)+1);render()});
-document.querySelectorAll('[data-state]').forEach(b=>b.onclick=()=>{state=b.dataset.state;document.querySelectorAll('[data-state]').forEach(x=>x.setAttribute('aria-pressed',x===b));render()});
-document.querySelector('#exit').onclick=()=>render(true,true);
-function motionLabel(){document.querySelector('.motion').textContent='动效：'+(motion?'开':'关');document.querySelector('.motion').setAttribute('aria-pressed',motion)}
-document.querySelector('.motion').onclick=()=>{motion=!motion;motionLabel();render(false)};motionLabel();render();
-</script></html>'''
+body{background:#07090e;color:#cbd5e1;margin:40px;font:15px system-ui}
+main{max-width:1120px;margin:auto}h1{color:#7dd3fc;font-weight:500}
+p{color:#73849c}button{background:#141b29;color:#cbd5e1;border:1px solid #223046;padding:9px 16px;margin:5px;cursor:pointer}
+button[aria-pressed=true]{border-color:#7dd3fc;color:#7dd3fc}
+.terminal{background:#0a0d14;border:1px solid #223046;border-radius:10px;padding:24px;overflow:auto;margin-top:20px}
+pre{font:14px/1.6 "Cascadia Code","JetBrains Mono",Consolas,"Microsoft YaHei UI",monospace;white-space:pre;margin:0;font-feature-settings:"calt" 1,"liga" 1}
+</style><main><h1>冷萃冰阶 / Muted Slate</h1><p>方案 A · 唯一默认主题 · 真实终端渲染器输出 · 离线示例数据</p>
+<nav id="states"></nav><button id="motion">暂停动效</button>
+<div class="terminal"><pre id="transcript"></pre><pre id="tail"></pre></div>
+<p>Enter 发送 / 排队 · Ctrl+J 换行 · Tab 转向 · Esc 暂停。状态与用量为示例，不代表实际执行。</p>
+<p>终端动效使用字符颜色巡移；背景仅供深色终端参考，程序不修改终端设置。</p></main>
+<script>const data=__PREVIEW_DATA__.slate;let state='idle',tick=0,motion=!matchMedia('(prefers-reduced-motion: reduce)').matches;
+const labels={idle:'就绪',building_context:'准备上下文',streaming_response:'生成中',completed:'已完成',paused:'已暂停',approval:'等待审批'};
+for(const [key,label] of Object.entries(labels)){const b=document.createElement('button');b.textContent=label;b.onclick=()=>{state=key;tick=0;draw()};b.dataset.state=key;states.append(b)}
+function draw(){transcript.innerHTML=data.transcript+'\n\n';tail.innerHTML=data.frames[state][motion?tick:8];document.querySelectorAll('[data-state]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.state===state));document.querySelector('#motion').textContent=motion?'暂停动效':'开启动效'}
+document.querySelector('#motion').onclick=()=>{motion=!motion;draw()};setInterval(()=>{if(motion){tick=(tick+1)%9;draw()}},150);draw();</script></html>'''

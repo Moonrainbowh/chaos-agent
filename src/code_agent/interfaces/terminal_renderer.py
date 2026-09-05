@@ -52,11 +52,15 @@ def render_entry(entry: DisplayEntry, width: int, *, theme: Theme = Theme.SYMBOL
         marker = _MARKERS[entry.kind]
     if design_for(theme):
         if entry.kind is DisplayKind.TOOL:
-            marker = "↳"
+            marker = "├─" if theme is Theme.SLATE else "↳"
         if theme is Theme.MONO and entry.kind is DisplayKind.AGENT:
             marker = "·"
+    if theme is Theme.SLATE and entry.kind is DisplayKind.USER:
+        marker = "›"
     prefix = f"[{marker}]" if theme is Theme.PLAIN else marker
     code = _COLORS.get(entry.kind)
+    if theme is Theme.SLATE and entry.kind is DisplayKind.DIFF_ADD:
+        code = SUCCESS_GREEN
     content_width = max(1, width - display_width(prefix) - 1)
     if entry.kind is DisplayKind.AGENT:
         lines = _markdown_lines(entry.text, content_width, theme)

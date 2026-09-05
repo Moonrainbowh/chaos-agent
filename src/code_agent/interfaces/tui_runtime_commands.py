@@ -4,6 +4,7 @@ from typing import Any
 
 from .terminal_display import DisplayKind
 from .runtime_picker import selection_blocked_reason
+from .tui_new_conversation import reset_conversation
 
 
 async def set_model(app: Any, instruction: str | None) -> bool:
@@ -16,11 +17,11 @@ async def set_model(app: Any, instruction: str | None) -> bool:
         return True
     try:
         profile = _resolve_profile(instruction, runtime.profiles())
-        selected = await runtime.use(profile=profile, idle=_idle(app))
+        selected = await _select_for_new_conversation(app, profile=profile)
     except (RuntimeError, TypeError, ValueError) as error:
         app._append(DisplayKind.ERROR, str(error))
         return False
-    app._append(DisplayKind.METADATA, "model selected: " + _runtime_summary(selected))
+    app._append(DisplayKind.METADATA, "model selected: " + _runtime_summary(selected) + _host_runtime_suffix(app))
     return True
 
 
@@ -39,11 +40,11 @@ async def set_effort(app: Any, instruction: str | None) -> bool:
         app._append(DisplayKind.ERROR, "reasoning effort must be " + ", ".join(choices))
         return False
     try:
-        selected = await runtime.use(reasoning_effort=instruction, idle=_idle(app))
+        selected = await _select_for_new_conversation(app, reasoning_effort=instruction)
     except (RuntimeError, TypeError, ValueError) as error:
         app._append(DisplayKind.ERROR, str(error))
         return False
-    app._append(DisplayKind.METADATA, "reasoning effort selected: " + _runtime_summary(selected))
+    app._append(DisplayKind.METADATA, "reasoning effort selected: " + _runtime_summary(selected) + _host_runtime_suffix(app))
     return True
 
 
@@ -78,8 +79,21 @@ def show_task_modes(app: Any) -> bool:
     return True
 
 
-def _idle(app: Any) -> bool:
-    reason = selection_blocked_reason(app)
+async def _select_for_new_conversation(app: Any, **values: str) -> object:
+    """Apply validated settings first; detach saved context only on success."""
+    idle = _idle(app, new_conversation=True)
+    runtime = app.runtime_selection
+    current = runtime.current
+    if all(getattr(current, key) == value for key, value in values.items()):
+        return current
+    selected = await runtime.use(**values, idle=idle)
+    reset_conversation(app)
+    app._append(DisplayKind.METADATA, "New conversation opened; previous messages and context are not carried over.")
+    return selected
+
+
+def _idle(app: Any, *, new_conversation: bool = False) -> bool:
+    reason = selection_blocked_reason(app, new_conversation=new_conversation)
     if reason:
         raise RuntimeError(reason)
     return app._run_task is None or app._run_task.done()
@@ -114,3 +128,10 @@ def _runtime_summary(selection: object) -> str:
         str(getattr(selection, name))
         for name in ("topology", "profile", "model", "reasoning_effort")
     )
+
+
+def _host_runtime_suffix(app: object) -> str:
+    summary = getattr(app, "host_runtime_summary", None)
+    if not isinstance(summary, str) or not summary.strip():
+        return ""
+    return " · host: " + summary

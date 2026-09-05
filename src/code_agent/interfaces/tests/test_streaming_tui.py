@@ -56,7 +56,7 @@ class StreamingTuiTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("live text", _plain("".join(output)))
         release.set()
         await app.wait_idle()
-        self.assertEqual(_plain("".join(output)).count("◆ live text"), 1)
+        self.assertEqual(_plain("".join(output)).count("✦ Chaos Agent\n  live text"), 1)
 
     async def test_cancelled_draft_is_rendered_once_without_entering_transcript(self) -> None:
         release = asyncio.Event()

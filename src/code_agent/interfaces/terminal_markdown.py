@@ -44,6 +44,7 @@ def render_streaming_markdown_rows(
     """Render incomplete Markdown into width-bounded, locally styled rows."""
     rows: list[str] = []
     in_code = False
+    seen_heading = False
     for raw in safe_text(value).split("\n"):
         stripped = raw.strip()
         if stripped.startswith("```"):
@@ -54,6 +55,10 @@ def render_streaming_markdown_rows(
                 rows.append("")
             in_code = not in_code
             continue
+        if not in_code and re.match(r"^#{1,6}\s+", stripped):
+            if seen_heading:
+                rows.extend([colorize("─" * max(1, width), DIM_GRAY, color), ""])
+            seen_heading = True
         if in_code:
             spans = (_Span("  " + raw.rstrip(), BRAND_CYAN),)
         else:

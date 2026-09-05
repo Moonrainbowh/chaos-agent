@@ -29,7 +29,7 @@ from code_agent.mcp.registry import McpRegistry
 from .task_controller import ForegroundTaskController
 from .tui_commands import ParseOutcome
 from .i18n import catalog_for, select_runtime_language
-from .tui_input import apply_clipboard_images, apply_paste, handle_interrupt
+from .tui_input import apply_clipboard_images, apply_paste, handle_interrupt, insert_input
 from .tui_interactions import TuiInteractions
 from .diff_view import GitDiffSource
 from .tui_command_dispatch import handle_tui_command
@@ -80,7 +80,7 @@ class WindowsTerminalApp(TerminalPresentation):
         self._flushed_entries = 0
         self._tail_geometry: LiveTailGeometry | None = None
         self._run_started_at: float | None = None; self._drawn_draft_revision = -1; self._drawn_size: tuple[int, int] | None = None; self._next_spinner_at = time.monotonic() + 0.1
-        self.theme, self.color = Theme.SYMBOL, ColorMode.AUTO
+        self.theme, self.color = Theme.SLATE, ColorMode.AUTO
         self.motion = TailMotion()
         self._visual_task = None
         self.catalog = catalog_for(select_runtime_language())
@@ -134,7 +134,7 @@ class WindowsTerminalApp(TerminalPresentation):
         elif key == "\x15": self.input.clear()
         elif key == "\t" and self._run_task and not self._run_task.done(): toggle_submit_mode(self)
         elif key == "\r": await self.submit(self.input.submit())
-        elif key == "\n": self.input.insert_line_break()
+        elif key == "\n": insert_input(self, "\n")
         elif key == "left": self.input.move_left()
         elif key == "right": self.input.move_right()
         elif key == "home": self.input.move_home()
@@ -143,13 +143,19 @@ class WindowsTerminalApp(TerminalPresentation):
         elif key == "down" and not self.input.move_down(): self.input.next()
         elif key in {"\x08", "\x7f"}: self.input.backspace()
         elif key == "delete": self.input.delete()
-        elif key.isprintable(): self.exit_guard.input_received(); self.input.insert(key)
+        elif key.isprintable(): self.exit_guard.input_received(); insert_input(self, key)
         self.redraw()
     async def restore_thread(self, thread_id: str) -> bool:
         if self.history is None: self._append(DisplayKind.ERROR, "session history unavailable"); return False
-        try: history = await load_thread_history(self.history, thread_id)
+        try:
+            history = await load_thread_history(self.history, thread_id)
+            restored = TerminalState()
+            restored.restore(history)
+            restore_settings = getattr(self.tasks, "restore_runtime_settings", None)
+            if restored.task_id and callable(restore_settings):
+                await restore_settings(restored.task_id)
         except Exception: self._append(DisplayKind.ERROR, "session restore failed"); return False
-        restored = TerminalState(); restored.restore(history); self.state = restored; self.current_thread_id = thread_id
+        self.state = restored; self.current_thread_id = thread_id
         self.active_task_id = restored.task_id if restored.task_status not in {None, "completed", "failed", "accepted_partial", "superseded"} else None
         height = shutil.get_terminal_size((100, 30)).lines
         self._write(clear_live_tail(self._tail_geometry, terminal_height=height) + render_entries(restored.entries, 100, theme=self.theme, color=self.color) + "\n\r")

@@ -20,7 +20,7 @@ from .terminal_theme import DESIGNS, Theme
 SAMPLE = (
     text_entry(DisplayKind.USER, "帮我梳理项目结构，并找到最合适的修改位置。"),
     text_entry(DisplayKind.TOOL, "Read files · src/app.py, src/routes.py · 2 files"),
-    text_entry(DisplayKind.AGENT, "## 从这里开始\n入口位于 `src/app.py`，路由集中在 `src/routes.py`。\n\n- **先看入口**，确认数据如何进入应用。\n- **再看路由**，把本次改动控制在一个模块内。"),
+    text_entry(DisplayKind.AGENT, "## 从这里开始\n入口位于 `src/app.py`，路由集中在 `src/routes.py`。\n\n- **先看入口**，确认数据如何进入应用。\n- **再看路由**，把本次改动控制在一个模块内。\n\n## 验证方式\n先运行该模块的测试，再检查界面。"),
 )
 STATES = ("idle", "building_context", "streaming_response", "completed", "paused", "approval")
 SGR = re.compile(r"\x1b\[([0-9;]*)m")
@@ -42,21 +42,28 @@ def preview_frame(theme, state="idle", *, progress=1.0, previous=None, width=94)
 
 def ansi_html(value: str) -> str:
     """Export local SGR colors as escaped spans; discard cursor control codes."""
-    result, offset, style = [], 0, ""
+    result, offset, styles = [], 0, {}
     for match in SGR.finditer(value):
         text = CONTROL.sub("", value[offset:match.start()]).replace("\r", "")
+        style = ";".join(f"{key}:{item}" for key, item in styles.items())
         result.append(f'<span style="{style}">{html.escape(text)}</span>')
         codes = match[1].split(";")
-        style = "font-weight:700;" if codes[0] == "1" else ""
-        if "38" in codes and "5" in codes:
-            index = int(codes[-1])
-            levels = (0, 95, 135, 175, 215, 255)
-            if index >= 232:
-                rgb = (8 + (index - 232) * 10,) * 3
+        if codes == ["0"] or codes == [""]:
+            styles.clear()
+        if codes[0] == "1":
+            styles["font-weight"] = "700"
+        for token, property_name in (("38", "color"), ("48", "background-color")):
+            position = 1 if codes[0] == "1" else 0
+            if codes[position] != token:
+                continue
+            if codes[position + 1] == "2":
+                rgb = tuple(map(int, codes[position + 2:position + 5]))
             else:
+                index = int(codes[position + 2])
+                levels = (0, 95, 135, 175, 215, 255)
                 i = index - 16
-                rgb = (levels[i // 36], levels[(i // 6) % 6], levels[i % 6])
-            style += f"color:rgb{rgb};"
+                rgb = (8 + (index - 232) * 10,) * 3 if index >= 232 else (levels[i // 36], levels[(i // 6) % 6], levels[i % 6])
+            styles[property_name] = f"rgb{rgb}"
         offset = match.end()
     result.append(html.escape(CONTROL.sub("", value[offset:]).replace("\r", "")))
     return "".join(result)
@@ -79,7 +86,7 @@ def export_preview(path: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--theme", choices=[item.value for item in DESIGNS], default="aurora")
+    parser.add_argument("--theme", choices=[item.value for item in DESIGNS], default="slate")
     parser.add_argument("--html", type=Path)
     parser.add_argument("--animate", action="store_true")
     args = parser.parse_args()

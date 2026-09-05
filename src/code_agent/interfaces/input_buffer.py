@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 
+from .input_events import MAX_PASTE_BYTES
+
+
 class InputBuffer:
     """A small multiline editor for raw Windows console key events."""
 
@@ -12,7 +15,10 @@ class InputBuffer:
         self._draft = ""
 
     def insert(self, value: str) -> None:
-        self.text = self.text[:self.cursor] + value + self.text[self.cursor:]
+        candidate = self.text[:self.cursor] + value + self.text[self.cursor:]
+        if len(candidate.encode("utf-8")) > MAX_PASTE_BYTES:
+            raise ValueError("text exceeds 5 KiB (5120 UTF-8 bytes); input unchanged")
+        self.text = candidate
         self.cursor += len(value)
 
     def insert_line_break(self) -> None:

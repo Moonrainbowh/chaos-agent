@@ -24,3 +24,5 @@
 - `ActionPolicy.evaluate(request, task_authorization)`: 在匹配的当前工作区授权下允许普通读写、本地 shell/process、typed verification 和 edit plan | 无副作用 | raw 命令中可见的绝对/父级路径与敏感名称保守分类，不自动放行边界能力
 - `sanitize_environment(host_env, allowed_names, explicit_env): dict`: 生成 Windows 子进程最小环境白名单 | 无副作用 | 名称不区分大小写，显式值仅限批准名称
 - `redact_sensitive(value): value`: 递归复制并遮盖敏感键对应的值 | 无副作用 | 不修改输入
+- 当前任务 context_history 按 read 能力评估；context_note/new_context 按 write 能力评估，保持统一动作策略入口。
+- persistent 的 history_*、notes 读取和 get_context_remaining 按 read，notes 写入及 new_context 按 write；虚拟笔记路径不作为 OS 路径分类，具体路径有效性和任务隔离由工具服务验证。

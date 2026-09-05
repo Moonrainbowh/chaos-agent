@@ -3,6 +3,7 @@
 
 ## 边界
 - 负责：确定性的普通问候按分析意图建立新任务；含执行要求的输入仍保留修改验证门。模型和自动验证均已停止后，缺少证据的任务进入有原因的等待决定，不永久停在验证中。
+- ContextBundle 允许 `context_tokens_remaining` 非负估算计数，用于 persistent 工作窗提示；它不代表 provider 实测或累计任务额度。
 - 负责：以不可变、可序列化的附件引用扩展 user Message，并让 Engine 在首回合、恢复和 steering 中持久化完整用户输入；引用只含内容摘要、类型、大小和安全显示元数据。
 - 负责：附件仅允许出现在 user Message；空文本但有附件是有效输入，空文本且无附件仍失败闭合。
 - 不负责：读取附件 blob、解析图片、选择 Provider 多模态 schema，或把原绝对路径/base64 放入事件与会话消息。
@@ -24,12 +25,10 @@
 - 负责：把 owner/origin thread、task、request 和 parent request 作为不可变 Action execution context 显式传给 dispatcher。
 - 不负责：工作区快照、mutation journal、coverage 或 rewind UI。
 
-### 预算框架需求（已确认，待实现）
+### 预算框架（显式启用的 v1 已实现）
 
-- 遵循 [Context 预算框架](../context/AGENTS.md)：经抽象能力协调请求前硬检查；软提醒或模型主动换窗不能替代 Host 对完整请求的容量校验，预测越界时不得直接发送。
-- 换窗只在消息与工具调用/结果完整闭合的安全边界提交，并保持同一 thread/task；权限、用户意图、任务状态和验证证据不因换窗重置，持久化失败不能伪报换窗成功。
-- 独立执行任务累计预算，不以“上下文长度 + 最大输出”、窗口倍数或换窗次数推导额度；同一任务的模型调用及辅助调用均按实际 usage 归属累计，换窗、暂停和恢复不得清零。
-- 任务 token、费用、时间限制及到限行为、换窗控制接口与具体状态机留待商讨；本节不改变现有内核行为或新增 Units。
+- 通过 ContextRequest 传递完整任务状态；记录窗口/任务用量测量。请求预算不足时真实 TaskRecord 持久化为 paused；普通无 TaskRecord 运行保留显式错误。累计额度不再由 context_window + output 推导。
+- 2026-09-05 的配置、验证与实验边界见根目录 `docs/context-boundary-experiment.md` 和 `docs/context-boundary-results.md`；具体候选值可配置，实验结果不自动推广为默认策略。
 
 ## Units
 - `infer_task_intent(...)`、`is_small_talk(...)`：对新任务确定问候/只读意图并复用为上下文轻量路径 | 无副作用 | 问候后包含工作请求不能按闲聊处理，不修改已持久化任务的意图。

@@ -19,6 +19,7 @@ jobs:
       - run: python -m build --no-isolation --outdir .ci-dist
       - run: >-
           python -m pip download --dest .ci-dist --only-binary=:all:
+          "agent-client-protocol>=0.12,<0.13" "tiktoken>=0.12,<1"
           "httpx>=0.28,<0.29" "mcp>=1.0,<2" "Pillow>=10,<12"
           "psutil>=5.9" "regex>=2024.0" "tomli>=2.0,<3"
       - run: python -m venv .ci-venv

@@ -1,33 +1,40 @@
-# 终端外观验证记录
+# 方案 A 终端外观验证
 
-日期：2026-09-05。本次新增 Aurora、Ember、Mono 三套终端外观，默认使用 Aurora。
+日期：2026-09-05。唯一默认外观为冷萃冰阶（Muted Slate）；旧主题切换已移除。
 
-## 已完成
+## 输入与阅读体验增量验证
 
-- 64 项定向检查通过：新主题、中文/窄屏几何、Markdown 转录、流式回答、NO_COLOR、动效控制及真实 TUI 启动→主题切换→退出路径。
-- 新主题可通过 `:theme aurora|ember|mono` 直接切换；`CHAOS_THEME` 控制下一进程的默认主题，`:theme motion off` 和 `CHAOS_REDUCED_MOTION=1` 可关闭动效。
-- Python 编译和 `git diff --check` 通过。新主题模块均不超过 300 行，函数不超过 50 行。
-- 通过 setuptools 构建 wheel，并检查主题、动效与离线预览模块均在包内。当前环境缺少可运行的 `build` 前端，因此采用 `setuptools.build_meta.build_wheel` 直接构建；没有更改依赖或执行在线安装。
-- `index.html` 使用真实 ANSI 渲染器导出的内容，可离线切换主题和查看交互状态；`three-themes.png` 是同一渲染输出的静态绘图，已目视检查，不是 Windows Terminal 截图。
+- 增加深青灰输入底色、标题分隔线、UTF-8 5120 字节总输入上限。
+- 本次 Interfaces 415 项通过；追加 9 项输入/分隔线/底色与启动集成测试通过，包含未标记粘贴超限排空。
+- 本节之后的 2242 项全量回归是上一版主题的结果，本次不重复全量。
 
-## 回归边界
+## 上一版主题验证
 
-测试时同一工作区发生了并行编辑，涉及任务准备状态、终态、语言与 runtime/plugin Picker。这些改动被保留，以下是运行当时的证据，不代表后续编辑后的稳定结果。
+- 全量 `scripts/run_tests.py` 完成：25 个套件、2242 项测试，全部套件 OK，其中 20 项条件跳过；根集成 398 项通过。
 
-- 全量脚本 `scripts/run_tests.py` 在 Interfaces 停止：395 项中 3 failures、1 error。涉及 workspace/context 状态文案、action 完成文案、plugin 命令路径及 runtime Picker 测试替身属性。
-- 单独执行根集成套件：395 项中 4 failures、1 error。4 条断言期待 VERIFYING 而当前实现进入 WAITING_DECISION；1 条模型命令测试期待转录条目，而当前实现打开 Picker。
-- 因此不能把当前整个工作区标为全量回归通过。详细输出保存在 `checks/`。
-- 内置浏览器安全策略拒绝打开本地 `file:` 页面。没有绕过限制，未完成 HTML 的浏览器目视验收；原生终端中的手动选择、复制、滚动和实际显示器上的动画仍需交互验收。
+- Interfaces 408 项测试通过：输入、流式输出、取消、审批、中文列宽、安全清洗等现有交互。
+- 唯一主题专项覆盖运行态 8–160 列、4–24 行窗口，确保光标可见且不越界；旧主题命令被拒绝，旧环境偏好被忽略。
+- 真实应用类的离线启动 → 关闭/开启动效 → 退出集成测试通过，无 Provider 调用。
+- 静态 ANSI 输出图 `muted-slate.png` 已目视检查就绪、生成中、审批三种状态；快捷键对比度已提高。
+- 变更 Python 文件均不超过 300 行，函数不超过 50 行；语法解析与 `git diff --check` 通过。
+
+## 验收边界
+
+- `index.html` 来自生产渲染器，可离线切换示例状态；仅有一个主题。
+- 浏览器安全策略拒绝本地 file 页面，未绕过限制，HTML 浏览器目视验收未完成。
+- 静态图不是原生终端截图；实际显示器上的选择、复制、滚屏及动画观感仍需手动验收。
+- 程序不修改终端背景和字体；巡移光带仅表示活动，不表示完成百分比。示例模型、对话和用量不代表真实执行。
 
 ## 重现
 
-在仓库根目录使用当前 Python 环境：
+在已安装项目依赖的 Python 环境中运行：
 
 ```powershell
-.venv/Scripts/python.exe -m unittest code_agent.interfaces.tests.test_terminal_themes code_agent.interfaces.tests.test_terminal_renderer code_agent.interfaces.tests.test_windows_tui_rendering code_agent.interfaces.tests.test_streaming_final_fixes tests.test_terminal_appearance_integration
-.venv/Scripts/python.exe -m code_agent.interfaces.theme_preview --html docs/ui-preview/index.html
-.venv/Scripts/python.exe -m code_agent.interfaces.theme_preview --theme aurora --animate
-.venv/Scripts/python.exe scripts/render_theme_contact_sheet.py
+$env:PYTHONPATH = "$PWD/src;$PWD"
+python -m unittest discover -s src/code_agent/interfaces/tests -p 'test_*.py'
+python -m unittest tests.test_terminal_appearance_integration
+python -m code_agent.interfaces.theme_preview --animate
+python -m code_agent.interfaces.theme_preview --html docs/ui-preview/index.html
+python scripts/render_theme_contact_sheet.py
+python scripts/run_tests.py
 ```
-
-预览中的对话、模型名称和用量均为标记清楚的示例，不调用 Provider，不创建真实任务或执行工具。背景和字体是展示参考，程序不会修改 Windows Terminal 的背景或字体配置。

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from .i18n import Language
-from .terminal_theme import Theme, design_for
+from .terminal_theme import Theme, design_for, ACTIVE_GOLD
 from .terminal_style import (
     BRAND_CYAN,
     ERROR_RED,
@@ -74,13 +74,13 @@ def _activity_status(status, action, language, design, modern, symbols, spinner_
         return (
             zh if language is Language.ZH_CN else en,
             (design.frames if design else spinner)[spinner_index % len(design.frames if design else spinner)],
-            TOOL_GRAY,
+            ACTIVE_GOLD if design else TOOL_GRAY,
         )
     if status == "running":
         detail = action or "generating response"
         prefix = "Working · "
         spinner = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏" if modern else ("◐◓◑◒" if symbols else "|/-\\")
-        return prefix + detail, (design.frames if design else spinner)[spinner_index % len(design.frames if design else spinner)], WARNING_YELLOW
+        return prefix + detail, (design.frames if design else spinner)[spinner_index % len(design.frames if design else spinner)], ACTIVE_GOLD if design else WARNING_YELLOW
     return None
 
 
@@ -94,6 +94,10 @@ def status_context(
     context_window: int | None = None,
     branch: str | None = None,
     show_percentage: bool = True,
+    window_number: int | None = None,
+    task_spent: int | None = None,
+    task_limit: int | None = None,
+    task_reserved: int = 0,
 ) -> str:
     parts = [model] if model else []
     if branch:
@@ -102,7 +106,14 @@ def status_context(
         window = context_window or 128_000
         pct = max(1, int(tokens * 100 / window))
         formatted_tokens = f"{tokens / 1000:.1f}k" if tokens >= 1000 else str(tokens)
-        parts.append(f"{formatted_tokens} tokens ({pct}%)" if show_percentage else f"task {formatted_tokens} tokens")
+        label = f"window {window_number + 1}: " if window_number is not None else ""
+        parts.append(f"{label}{formatted_tokens} tokens ({pct}%)" if show_percentage else f"task {formatted_tokens} tokens")
+    if task_spent is not None and task_limit:
+        parts.append(f"task {task_spent:,}/{task_limit:,}")
+        if task_spent >= task_limit * .8:
+            parts.append("task budget >=80%")
+        if task_reserved:
+            parts.append(f"{task_reserved:,} reserved")
     if token_rate is not None:
         parts.append(f"{token_rate:.1f} token/s")
     if started_at is not None:
