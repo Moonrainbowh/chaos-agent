@@ -23,6 +23,12 @@ from code_agent.interfaces.terminal_status import status_context, status_present
 from code_agent.interfaces.terminal_io import BRACKETED_PASTE_DISABLE, BRACKETED_PASTE_ENABLE
 from code_agent.interfaces.terminal_state import ApprovalBroker, ApprovalRequest
 from code_agent.interfaces.task_mode_control import TaskModeControl
+from code_agent.semantic_insights.models import (
+    InsightItem,
+    InsightKind,
+    InsightSection,
+    SemanticInsightReport,
+)
 from code_agent.interfaces.tests._support import FakeEngine
 from code_agent.interfaces.windows_tui import WindowsTerminalApp, render_terminal
 
@@ -95,7 +101,7 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("General\n", help_text)
         for name in (
             "status", "clear", "compact", "cost", "doctor",
-            "exit", "diff", "review", "test", "rewind", "attach",
+            "exit", "diff", "map", "review", "test", "rewind", "attach",
             "model", "mode", "effort", "permission", "mcp", "plugin", "tasks",
         ):
             self.assertIn(f":{name}", help_text)
@@ -103,6 +109,37 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn(":new", help_text)
         self.assertNotIn(":restore", help_text)
         self.assertNotIn(":evidence", help_text)
+
+    async def test_map_command_renders_generation_and_passes_quoted_path(self) -> None:
+        class SemanticControl:
+            async def analyze(self, kind, arguments, *, thread_id=None):
+                self.seen = (kind, arguments, thread_id)
+                return SemanticInsightReport(
+                    InsightKind.RISK,
+                    9,
+                    "Pre-change Risk",
+                    "",
+                    (InsightSection("Risk", (InsightItem("HIGH", "fan-in"),)),),
+                )
+
+        control = SemanticControl()
+        app = WindowsTerminalApp(
+            AgentController(FakeEngine(())),
+            ApprovalBroker(),
+            write=lambda _: None,
+        )
+        app.semantic_graph = control
+        app.current_thread_id = "thread-9"
+
+        self.assertTrue(
+            await app.submit('/map risk "src/pkg/file with space.py"')
+        )
+
+        self.assertEqual(
+            control.seen,
+            ("risk", ("src/pkg/file with space.py",), "thread-9"),
+        )
+        self.assertIn("semantic generation 9", app.state.entries[-1].text)
 
     async def test_help_all_includes_advanced_commands(self) -> None:
         app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker(), write=lambda _: None)

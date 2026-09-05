@@ -21,6 +21,7 @@ def available_services(app: Any) -> set[str]:
             "attachments",
             "runtime_selection",
             "task_modes",
+            "semantic_graph",
             "peers",
         )
         if (

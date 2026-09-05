@@ -11,14 +11,14 @@ from .tui_commands import ParseOutcome, TuiCommandKind
 from .tui_lifecycle import format_command_help
 from .tui_permission_commands import handle_permission_command
 from .tui_runtime_commands import set_effort, set_model, set_task_mode, show_task_modes
+from .tui_semantic_insight_commands import handle_semantic_insight_command
 from .tui_workflow_commands import handle_workflow_command
 
 
 async def handle_tui_command(app: object, outcome: ParseOutcome) -> bool:
     command = outcome.command
     assert command is not None
-    builtin = await handle_builtin_command(app, command)
-    if builtin is not None:
+    if (builtin := await handle_builtin_command(app, command)) is not None:
         return builtin
     if command.kind is TuiCommandKind.DIFF:
         await app.interactions.show_diff(app)
@@ -26,6 +26,8 @@ async def handle_tui_command(app: object, outcome: ParseOutcome) -> bool:
         return await handle_attachment_command(app, command.instruction)
     elif command.kind is TuiCommandKind.STATUS:
         _show_status(app)
+    elif command.kind is TuiCommandKind.MAP:
+        return await handle_semantic_insight_command(app, command.instruction, command.action)
     elif command.kind is TuiCommandKind.HELP:
         return _show_help(app, command.instruction)
     elif command.kind is TuiCommandKind.WORKFLOW:

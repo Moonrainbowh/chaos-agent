@@ -23,14 +23,16 @@
 - 负责：把动态插件命令以始终命名空间化的 ID 合并进不可变命令快照；动态贡献属于 `internal`，不得膨胀默认根 Picker；禁用、撤销或 digest 变化后不执行旧选择。
 - 负责：`Shift+:` 产生的 `:` 打开带边框、查询行、命令/说明两列和选中行的默认命令面板；`Tab` 补全、`Enter` 执行，旧 `/` 前缀保持兼容。默认面板只展示 `primary`，Diff 仅保留为可完整输入的 `advanced` 兼容命令。
 - 负责：选中无参数命令后一次 `Enter` 立即执行，选中复合命令后一次 `Enter` 进入由同一注册表生成的二级动作菜单；`/会话`、`/模式` 和 `/权限` 只作为根父项，其具体动作不得平铺到根面板。
-- 负责：默认命令面精确暴露 18 个英文主命令；`/model`、`/mode`、`/effort` 分别管理模型 profile、`ask|code|plan` 任务行为和思考深度，旧复合 `/mode agent|model|effort` 仅作隐藏兼容入口；所有切换只委托注入控件并遵守 idle 边界。
+- 负责：默认命令面精确暴露 19 个英文主命令；`/model`、`/mode`、`/effort` 分别管理模型 profile、`ask|code|plan` 任务行为和思考深度，旧复合 `/mode agent|model|effort` 仅作隐藏兼容入口；所有切换只委托注入控件并遵守 idle 边界。
 - 负责：`/会话` 二级面把历史会话与同机在线 Agent、重命名、纯文本发送、入站策略及 held 消息处理分开；`/list-agents`、`/peers`、`/rename` 仅为隐藏兼容入口，不进入注册表、根 Picker 或默认帮助。
 - 不负责：把 peer 文本解释为用户授权、斜杠命令或附件，也不从界面直接访问 peer 存储。
 - 负责：`/清屏` 只清空本次转录，必须保留 `current_thread_id` 和当前会话语义。
 - 负责：`/compact` 委托 Context Controller 生成真实可复用语义 checkpoint；`/cost` 读取持久 task budget，未配置价格时不得伪造费用；`/doctor` 只委托注入的有界诊断控制器，网络结果不得硬编码。
+- 负责：`:map` 以独立用户入口展示共享语义图，并通过二级动作提供上下文选择、测试影响/优先级、修改风险、审查范围、重构规划、bug 定位和 dead-code 静态候选；结果必须显示 generation 与静态分析限制。
 - 负责：底部状态栏左侧显示动态任务状态，右侧显示模型、耗时等稳定上下文；窗口变窄时按优先级隐藏右侧信息，动态文本不得左右跳动。
 - 负责：底部状态栏实时显示当前模型回合的输出 token/s；首个文本增量开始计时，生成中使用确定性 token 估算，收到 provider 输出用量后校准。
 - 不负责：复制 Agent 状态机、直接执行工具、直接访问 provider、切换活动任务的模型，或绕过 `ActionPolicy` 权限决定。
+- 不负责：把启发式 bug/dead-code 候选渲染成确定根因或可安全删除结论，也不从界面维护第二份 Repo Index。
 - 不负责：接管 Windows Terminal 字体、调色板、复制设置或鼠标选择；不提供默认全屏仪表板、固定顶部栏或应用自有滚动历史。
 - 不负责：首版 Linux/macOS 端到端适配、IDE 插件、Web UI、远程多用户服务或桌面应用。
 - 同一 TUI 同时只管理一个前台任务；运行中的 `Enter` 默认持久排队，当前回合收尾后再进入上下文，而非创建第二任务。`Tab` 在非命令输入中切换为转向，转向立即持久化并在下一模型安全边界生效，不硬杀当前工具。
@@ -84,6 +86,7 @@
 - `DisplayKind.PARTIAL_AGENT`：标识取消、错误或关闭后固化的有界未完成回答，并以本地生成的警示与截断标签渲染 | 无副作用 | 正文保持 Agent 可读样式，不得按最终 assistant 消息或动态尾部处理，成功 final 不截断
 - `render_entry`、`render_entries`、`render_live_tail_frame`、`status_presentation`、`read_key`: 生成可信 ANSI 转录、Unicode/ASCII 回退、emoji presentation/grapheme 安全列宽、候选命令和有界临时 assistant 尾部；所有活动阶段持续刷新 spinner 与总耗时 | 无副作用（除读取按键） | resize 时旧尾清理受当前终端高度约束，极小高度可把草稿预算降为零
 - `render_streaming_markdown_rows(...)`、`style_inline_markdown(...)`：将增量/最终正文中的结构标记转换为本地可信语义样式，并按终端列宽安全折行 | 无副作用 | 增量允许未闭合粗体和代码标记，自动强调仅限短标签；任何输入 ANSI 均先清洗
+- `handle_semantic_insight_command(...)`、`format_semantic_insight(...)`：解析 `:map` 二级动作并把 generation、分区、分数、置信类型和静态限制渲染到终端 | 只委托注入的只读控制器 | 保留带空格的引号路径与动作别名；支持 `--limit=1..50`、`--offset=0..100000` 和 `--` 后的字面参数，分页明示 total；异常只显示有界错误，不回退成 Agent 自述
 - `TokenRateTracker`: 从首个文本增量开始统计当前模型回合的平均输出速度，并在 usage 到达后以真实 `output_tokens` 校准 | 读取可注入单调时钟 | 不把首字等待时间或输入 token 计入速度
 - `WindowsTerminalApp`: 追加完成条目、继续当前未终结前台任务并维护输入/状态尾部 | 终端 I/O | 模型增量以 dirty/revision 合并重绘，其他事件立即刷新；可恢复的任务启动竞争显示为带内错误
 - `tui_lifecycle`：以确定性帧判定管理最高 30fps 动画、审批/交互监听与关闭清理 | 异步任务/终端重绘 | 关闭先请求 token 取消并完整等待持久 interrupt/checkpoint，再有界等待 runner，把残留草稿本地固化一次

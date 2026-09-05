@@ -20,12 +20,13 @@ _DEFAULT_SERVICES = {
     "attachments",
     "runtime_selection",
     "task_modes",
+    "semantic_graph",
     "peers",
 }
 
 
 class TuiCommandKind(str, Enum):
-    HELP = "help"; STATUS = "status"; CLEAR = "clear"; COMPACT = "compact"; EXIT = "exit"; NEW = "new"; SESSIONS = "sessions"; RESTORE = "restore"; TASKS = "tasks"; ACCEPT = "accept"; DIFF = "diff"; ATTACHMENT = "attachment"; EVIDENCE = "evidence"; CHECKPOINT = "checkpoint"; REWIND = "rewind"; MODEL = "model"; MODE = "mode"; EFFORT = "effort"; PERMISSION = "permission"; WORKFLOW = "workflow"; SKILL = "skill"; MCP = "mcp"; PLUGIN_CONTROL = "plugin_control"; PLUGIN = "plugin"; COST = "cost"; DOCTOR = "doctor"; REVIEW = "review"; TEST = "test"
+    HELP = "help"; STATUS = "status"; CLEAR = "clear"; COMPACT = "compact"; EXIT = "exit"; NEW = "new"; SESSIONS = "sessions"; RESTORE = "restore"; TASKS = "tasks"; ACCEPT = "accept"; DIFF = "diff"; MAP = "map"; ATTACHMENT = "attachment"; EVIDENCE = "evidence"; CHECKPOINT = "checkpoint"; REWIND = "rewind"; MODEL = "model"; MODE = "mode"; EFFORT = "effort"; PERMISSION = "permission"; WORKFLOW = "workflow"; SKILL = "skill"; MCP = "mcp"; PLUGIN_CONTROL = "plugin_control"; PLUGIN = "plugin"; COST = "cost"; DOCTOR = "doctor"; REVIEW = "review"; TEST = "test"
 
 
 @dataclass(frozen=True)
@@ -84,10 +85,14 @@ def parse_tui_command(
         if len(arguments) == 1 and action.usage.startswith("<"):
             return ParseOutcome(error="command action argument is required")
         normalized_action = action.name
+    return _parsed_command(spec, arguments, normalized_action)
+
+
+def _parsed_command(spec: object, arguments: tuple[str, ...], normalized_action: str | None) -> ParseOutcome:
     kinds = {
         "help": "help", "status": "status", "clear": "clear", "compact": "compact",
         "exit": "exit", "new": "new", "sessions": "sessions", "restore": "restore",
-        "tasks": "tasks", "accept": "accept", "diff": "diff", "attach": "attachment",
+        "tasks": "tasks", "accept": "accept", "diff": "diff", "map": "map", "attach": "attachment",
         "evidence": "evidence", "checkpoint": "checkpoint", "rewind": "rewind",
         "model": "model", "mode": "mode", "effort": "effort",
         "permission": "permission", "workflow": "workflow", "flow": "workflow",
@@ -97,7 +102,7 @@ def parse_tui_command(
         "帮助": "help", "状态": "status", "清屏": "clear", "退出": "exit",
         "新建": "new", "会话": "sessions", "恢复": "restore", "任务": "tasks",
         "接受": "accept", "差异": "diff", "附件": "attachment", "证据": "evidence",
-        "检查点": "checkpoint", "回退": "rewind", "模式": "mode", "权限": "permission",
+        "检查点": "checkpoint", "回退": "rewind", "图谱": "map", "模式": "mode", "权限": "permission",
         "流程": "workflow", "技能": "skill", "插件": "plugin_control",
     }
     kind = TuiCommandKind.PLUGIN if spec.source == "plugin" else TuiCommandKind(kinds[spec.name])
@@ -112,6 +117,7 @@ def parse_tui_command(
         TuiCommandKind.PLUGIN_CONTROL, TuiCommandKind.PLUGIN,
         TuiCommandKind.COMPACT, TuiCommandKind.COST,
         TuiCommandKind.DOCTOR, TuiCommandKind.REVIEW, TuiCommandKind.TEST,
+        TuiCommandKind.MAP,
     }
     return ParseOutcome(
         TuiCommand(

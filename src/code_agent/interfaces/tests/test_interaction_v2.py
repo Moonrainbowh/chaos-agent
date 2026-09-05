@@ -70,7 +70,7 @@ class PickerStateTests(unittest.TestCase):
         services = {
             "sessions", "history", "tasks", "evidence", "modes", "permissions", "workflows",
             "skills", "mcp", "checkpoints", "plugins", "attachments",
-            "runtime_selection", "task_modes",
+            "runtime_selection", "task_modes", "semantic_graph",
         }
         items = command_picker_items(REGISTRY.all(), services)
 
@@ -78,7 +78,7 @@ class PickerStateTests(unittest.TestCase):
             tuple(item.label for item in items),
             (
                 "/clear", "/compact", "/cost", "/status",
-                "/doctor", "/exit", "/diff", "/review", "/test",
+                "/doctor", "/exit", "/diff", "/map", "/review", "/test",
                 "/rewind", "/attach", "/model", "/mode", "/effort", "/permission",
                 "/mcp", "/plugin", "/tasks",
             ),

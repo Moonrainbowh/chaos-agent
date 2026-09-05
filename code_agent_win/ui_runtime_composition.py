@@ -60,6 +60,7 @@ class UiComposition:
     task_modes: object | None = None
     costs: object | None = None
     doctor: object | None = None
+    semantic_graph: object | None = None
 
 
 def compose_ui_runtime(
@@ -190,6 +191,7 @@ class _UiComposer:
             project_name=parts.root.name,
             workspace_root=parts.root,
         )
+        self.tui.semantic_graph = parts.semantic_graph
 
     def _finish(self) -> None:
         parts = self.parts

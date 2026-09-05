@@ -101,7 +101,7 @@ class TuiCommandTests(unittest.TestCase):
             tuple(spec.name for spec in REGISTRY.all()),
             (
                 "clear", "compact", "cost", "status", "doctor", "exit",
-                "diff", "review", "test", "rewind", "attach", "model", "mode",
+                "diff", "map", "review", "test", "rewind", "attach", "model", "mode",
                 "effort", "permission", "mcp", "plugin", "tasks", "help",
                 "sessions", "new", "restore", "accept",
                 "evidence", "checkpoint", "flow", "skill",
@@ -113,7 +113,7 @@ class TuiCommandTests(unittest.TestCase):
             tuple(spec.name for spec in REGISTRY.primary()),
             (
                 "clear", "compact", "cost", "status", "doctor", "exit",
-                "diff", "review", "test", "rewind", "attach", "model", "mode",
+                "diff", "map", "review", "test", "rewind", "attach", "model", "mode",
                 "effort", "permission", "mcp", "plugin", "tasks",
             ),
         )
@@ -176,6 +176,26 @@ class TuiCommandTests(unittest.TestCase):
         self.assertEqual(
             parse_tui_command("/mode effort").error,
             "command action argument is required",
+        )
+
+    def test_map_declares_all_shared_graph_product_actions(self) -> None:
+        semantic_map = REGISTRY.resolve("map")
+
+        self.assertEqual(
+            tuple(action.name for action in semantic_map.actions),
+            (
+                "overview", "context", "impact", "tests", "risk",
+                "review", "refactor", "locate", "dead-code",
+            ),
+        )
+        parsed = parse_tui_command(
+            '/map impact "src/pkg/file with space.py"'
+        ).command
+        self.assertEqual(parsed.kind, TuiCommandKind.MAP)
+        self.assertEqual(parsed.action, "impact")
+        self.assertEqual(
+            parsed.instruction,
+            'impact "src/pkg/file with space.py"',
         )
 
     def test_session_actions_and_hidden_compatibility_aliases_parse_canonically(self) -> None:
