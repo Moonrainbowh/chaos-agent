@@ -33,6 +33,12 @@
 - 负责：以 v19 companion 表持久化已批准多文件编辑批次、有序操作端点的 existence/hash/size 事实与进度，并与 parent mutation 原子闭合终态。
 - 不负责：读取或修改工作区、判定用户漂移、执行回滚或启动恢复；这些只消费 Sessions 中的持久事实。
 
+### 预算框架需求（已确认，待实现）
+
+- 遵循 [Context 预算框架](../context/AGENTS.md)：在同一 thread/task 下持久保存可恢复的窗口身份、原始消息范围和交接来源引用；窗口轮换不删除或覆盖原始历史，也不创建新的业务任务。
+- 窗口边界与交接引用必须一致提交并支持幂等恢复；任务累计使用量及既有控制/验证事实独立延续，不能因开启新窗口、重试或恢复而重置额度或重复记账。
+- 数据模型、迁移方案、History/Notes 存储细节和预算配置的持久化版本规则待商讨；本阶段不新增数据库 schema，也不预定窗口数量或保留容量。
+
 ## Units
 - `ThreadStatus`、`GoalStatus`、`ThreadSummary`、`ThreadRelation`、`MessageRecord`、`GoalRecord`、`CheckpointRecord`: 表达不可变的会话、父子关系和 checkpoint 状态 | 无副作用 | 时间归一化为 UTC，元数据深度冻结
 - `WorkspaceLineageRecord`、`WorkspaceSnapshotRecord`、`CheckpointCursor`、`RewindOperationRecord`: 表达 lineage、manifest、会话游标与 Rewind 状态 | 无副作用 | UUID、枚举、绝对路径、摘要、时间、JSON 与容量均严格校验

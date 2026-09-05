@@ -11,21 +11,27 @@ from .tui_commands import ParseOutcome, TuiCommandKind
 from .tui_lifecycle import format_command_help
 from .tui_permission_commands import handle_permission_command
 from .tui_runtime_commands import set_effort, set_model, set_task_mode, show_task_modes
+from .runtime_picker import selection_blocked_reason
+from .tui_semantic_insight_commands import handle_semantic_insight_command
 from .tui_workflow_commands import handle_workflow_command
+from .tui_theme_commands import set_theme
 
 
 async def handle_tui_command(app: object, outcome: ParseOutcome) -> bool:
     command = outcome.command
     assert command is not None
-    builtin = await handle_builtin_command(app, command)
-    if builtin is not None:
+    if (builtin := await handle_builtin_command(app, command)) is not None:
         return builtin
+    if command.kind is TuiCommandKind.THEME:
+        return set_theme(app, command.instruction)
     if command.kind is TuiCommandKind.DIFF:
         await app.interactions.show_diff(app)
     elif command.kind is TuiCommandKind.ATTACHMENT:
         return await handle_attachment_command(app, command.instruction)
     elif command.kind is TuiCommandKind.STATUS:
         _show_status(app)
+    elif command.kind is TuiCommandKind.MAP:
+        return await handle_semantic_insight_command(app, command.instruction, command.action)
     elif command.kind is TuiCommandKind.HELP:
         return _show_help(app, command.instruction)
     elif command.kind is TuiCommandKind.WORKFLOW:
@@ -45,23 +51,28 @@ async def handle_tui_command(app: object, outcome: ParseOutcome) -> bool:
     elif command.kind is TuiCommandKind.EVIDENCE:
         return await _show_evidence(app, command.instruction)
     elif app.tasks and command.kind is TuiCommandKind.TASKS:
-        records = await app.tasks.list(include_terminal=False)
-        value = "\n".join(
-            f"{item.id} · {localize_task_status(item.status.value, app.catalog)} "
-            f"· {item.contract.objective[:80]}"
-            for item in records
-        ) or "no active or queued tasks"
-        app._append(DisplayKind.METADATA, value)
+        await _show_tasks(app)
     elif app.tasks and command.kind is TuiCommandKind.ACCEPT:
-        task_id = command.task_id or app.active_task_id
-        if not task_id:
-            app._append(DisplayKind.ERROR, "no active task")
-            return False
-        await app.tasks.accept_partial(
-            task_id, command.instruction or "user accepted partial delivery"
-        )
+        return await _accept_partial(app, command)
     else:
         app._append(DisplayKind.ERROR, "command is unavailable")
+    return True
+
+
+async def _accept_partial(app: object, command: object) -> bool:
+    task_id = command.task_id or app.active_task_id
+    if not task_id:
+        app._append(DisplayKind.ERROR, "no active task")
+        return False
+    await app.tasks.accept_partial(
+        task_id, command.instruction or "user accepted partial delivery"
+    )
+    if app.active_task_id == task_id:
+        app.active_task_id = None
+        app.state.status = "accepted_partial"
+        app.state.task_status = "accepted_partial"
+        app.state.pending_decision = None
+    app._append(DisplayKind.METADATA, "Partial delivery accepted; verification is not complete.")
     return True
 
 
@@ -127,21 +138,11 @@ async def _set_mode(
             "use /mode agent, /mode model, or /mode effort",
         )
         return False
-    argument = _action_argument(instruction)
-    values: dict[str, object]
     try:
-        if action in {"agent", "代理"}:
-            if argument not in {"single", "team"}:
-                raise ValueError("topology must be single or team")
-            values = {"topology": argument}
-        elif action in {"model", "模型"}:
-            values = {"profile": _resolve_profile(argument, runtime.profiles())}
-        else:
-            if argument not in {"low", "medium", "high", "xhigh", "max"}:
-                raise ValueError(
-                    "reasoning effort must be low, medium, high, xhigh, or max"
-                )
-            values = {"reasoning_effort": argument}
+        reason = selection_blocked_reason(app)
+        if reason:
+            raise RuntimeError(reason)
+        values = _runtime_axis_values(runtime, action, _action_argument(instruction))
         selected = await runtime.use(
             **values,
             idle=app._run_task is None or app._run_task.done(),
@@ -154,6 +155,19 @@ async def _set_mode(
         "runtime selected: " + _runtime_summary(selected) + _host_runtime_suffix(app),
     )
     return True
+
+
+def _runtime_axis_values(runtime: object, action: str, argument: str) -> dict[str, str]:
+    if action in {"agent", "代理"}:
+        if argument not in {"single", "team"}:
+            raise ValueError("topology must be single or team")
+        return {"topology": argument}
+    if action in {"model", "模型"}:
+        return {"profile": _resolve_profile(argument, runtime.profiles())}
+    efforts = getattr(runtime, "list_reasoning_efforts", lambda: ("low", "medium", "high", "xhigh", "max"))()
+    if argument not in efforts:
+        raise ValueError("reasoning effort must be " + ", ".join(efforts))
+    return {"reasoning_effort": argument}
 
 
 async def _set_legacy_mode(app: object, instruction: str | None) -> bool:
@@ -171,6 +185,9 @@ async def _set_legacy_mode(app: object, instruction: str | None) -> bool:
         )
         return True
     try:
+        reason = selection_blocked_reason(app)
+        if reason:
+            raise RuntimeError(reason)
         selected = await app.modes.use(
             instruction, idle=app._run_task is None or app._run_task.done()
         )
@@ -243,3 +260,13 @@ async def _show_evidence(app: object, instruction: str | None) -> bool:
     records = await app.evidence.list_verification_evidence(task_id)
     app._append(DisplayKind.METADATA, format_evidence_summary(records))
     return True
+
+
+async def _show_tasks(app: object) -> None:
+    records = await app.tasks.list(include_terminal=False)
+    value = "\n".join(
+        f"{item.id} · {localize_task_status(item.status.value, app.catalog)} "
+        f"· {item.contract.objective[:80]}"
+        for item in records
+    ) or "no active or queued tasks"
+    app._append(DisplayKind.METADATA, value)

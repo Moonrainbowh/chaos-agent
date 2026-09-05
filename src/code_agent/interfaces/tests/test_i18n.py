@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
 from code_agent.interfaces.i18n import Language, localize_task_status, select_language, select_runtime_language, ZH_CN
 
 
 class I18nTests(unittest.TestCase):
+    def test_runtime_defaults_to_english_on_chinese_windows(self) -> None:
+        with patch("code_agent.interfaces.i18n.locale.getlocale", return_value=("zh_CN", "UTF-8")):
+            self.assertEqual(select_runtime_language({}), Language.EN_US)
+
     def test_selects_chinese_windows_default_and_explicit_english(self) -> None:
         self.assertEqual(select_language("zh_CN", None), Language.ZH_CN)
         self.assertEqual(select_language("en_US", None), Language.EN_US)

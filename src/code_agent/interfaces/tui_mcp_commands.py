@@ -13,7 +13,7 @@ async def handle_mcp_command(app: Any, instruction: str | None) -> bool:
     try:
         if action in {"列表", "list", "状态", "status"}:
             servers = app.mcp.status(name or None)
-            app._append(DisplayKind.METADATA, " | ".join(f"{server.name}:{'enabled' if server.enabled else 'disabled'}" for server in servers))
+            app._append(DisplayKind.METADATA, " | ".join(f"{server.name}:{'enabled' if server.enabled else 'disabled'}" for server in servers) or "No MCP servers configured.")
         elif action in {"工具", "tools"}:
             definitions = app.mcp.definitions()
             if name:

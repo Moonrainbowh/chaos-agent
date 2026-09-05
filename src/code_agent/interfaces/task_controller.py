@@ -226,30 +226,9 @@ def freeze_task_contract(
     interaction_mode: str = "code",
 ) -> TaskContract:
     """Freeze provider facts and, when available, the full runtime selection."""
-    from code_agent.core.completion_contract import TaskIntent
+    from code_agent.core.task_intent import infer_task_intent
 
-    # Infer intent: read-only analysis vs modification (default is MODIFY)
-    lower = prompt.lower()
-    is_read_only = any(
-        lower.startswith(prefix)
-        for prefix in (
-            "explain ", "why ", "what is ", "how does ", "analyze ", "read ",
-            "解释", "分析", "为什么", "什么是",
-        )
-    ) and not any(
-        kw in lower
-        for kw in (
-            "fix", "refactor", "implement", "add", "remove", "update", "modify",
-            "rewrite", "change", "delete", "create", "build", "commit", "patch",
-            "edit", "repair", "test", "verify", "run",
-            "修复", "修改", "重构", "实现", "增加", "添加", "删除", "编写", "改写", "替换",
-        )
-    )
-    intent = (
-        TaskIntent.ANALYZE
-        if interaction_mode in {"ask", "plan"} or is_read_only
-        else TaskIntent.MODIFY
-    )
+    intent = infer_task_intent(prompt, interaction_mode)
 
     if profile is None:
         return TaskContract(

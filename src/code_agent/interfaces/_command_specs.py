@@ -3,12 +3,31 @@ from __future__ import annotations
 from ._command_models import CommandAction, CommandSpec, CommandVisibility
 
 
+def _semantic_map_spec() -> CommandSpec:
+    return CommandSpec(
+        "map", ("repo-map", "semantic-map", "图谱"), "Workspace",
+        "Explore the shared semantic repository graph", "[action]",
+        requires=("semantic_graph",),
+        actions=(
+            CommandAction("overview", ("tree",), "Show repository map, subsystems, and dependency hubs", "[prefix]"),
+            CommandAction("context", (), "Rank files to show the model for a query", "<query>"),
+            CommandAction("impact", (), "Show affected code and tests for paths", "<path...>"),
+            CommandAction("tests", (), "Prioritize impacted tests for paths", "<path...>"),
+            CommandAction("risk", (), "Predict change risk before editing paths", "<path...>"),
+            CommandAction("review", (), "Calculate the bounded review scope", "<path...>"),
+            CommandAction("refactor", (), "Plan refactor impact and dependency order", "<path...>"),
+            CommandAction("locate", ("bug",), "Rank static bug investigation candidates", "<query>"),
+            CommandAction("dead-code", ("dead",), "List conservative static dead-code candidates", "[prefix]"),
+        ),
+    )
+
+
 def built_in_command_specs() -> tuple[CommandSpec, ...]:
-    advanced = CommandVisibility.ADVANCED
-    internal = CommandVisibility.INTERNAL
-    runtime = ("runtime_selection",)
-    task_modes = ("task_modes",)
-    peers = ("peers",)
+    return (CommandSpec("theme", ("主题",), "Appearance", "Choose Aurora, Ember or Mono; control motion", "[aurora|ember|mono|motion on|motion off]", visibility=CommandVisibility.ADVANCED), *_general_specs(), *_workspace_specs(), *_runtime_specs(),
+            *_extension_specs(), *_session_specs(), *_advanced_specs())
+
+
+def _general_specs() -> tuple[CommandSpec, ...]:
     return (
         CommandSpec(
             "clear", ("c", "清屏"), "General",
@@ -31,7 +50,13 @@ def built_in_command_specs() -> tuple[CommandSpec, ...]:
             "Run PowerShell, Git, path, workspace, and endpoint diagnostics",
         ),
         CommandSpec("exit", ("quit", "q", "退出"), "General", "Exit Chaos-Agent"),
+    )
+
+
+def _workspace_specs() -> tuple[CommandSpec, ...]:
+    return (
         CommandSpec("diff", ("d", "差异"), "Workspace", "View uncommitted workspace diff"),
+        _semantic_map_spec(),
         CommandSpec(
             "review", (), "Workspace",
             "Ask the agent to review uncommitted changes", "[scope]",
@@ -47,13 +72,40 @@ def built_in_command_specs() -> tuple[CommandSpec, ...]:
         CommandSpec(
             "attach", ("attachments", "附件"), "Input", "Attach, view or manage local files/images",
             "[path|clipboard|list|remove <id>|clear]", requires=("attachments",),
+            actions=(
+                CommandAction("add", (), "Attach files by path; quote paths containing spaces", "<path...>"),
+                CommandAction("clipboard", (), "Attach clipboard images"),
+                CommandAction("list", (), "Show staged attachments"),
+                CommandAction("remove", (), "Remove a staged attachment", "<id>"),
+                CommandAction("clear", (), "Clear staged attachments"),
+            ),
         ),
+    )
+
+
+def _runtime_specs() -> tuple[CommandSpec, ...]:
+    runtime = ("runtime_selection",)
+    return (
         CommandSpec(
             "model", ("m",), "Configuration",
             "Show or switch the configured model profile", "[profile]",
             requires=runtime,
         ),
+        _mode_spec(),
         CommandSpec(
+            "effort", (), "Configuration",
+            "Show or switch reasoning depth", "[low|medium|high|xhigh|max]",
+            requires=runtime,
+        ),
+        _permission_spec(),
+    )
+
+
+def _mode_spec() -> CommandSpec:
+    runtime = ("runtime_selection",)
+    task_modes = ("task_modes",)
+    internal = CommandVisibility.INTERNAL
+    return CommandSpec(
             "mode", ("模式",), "Configuration",
             "Choose ask, code, or read-only plan behavior", "<action>",
             actions=(
@@ -68,13 +120,12 @@ def built_in_command_specs() -> tuple[CommandSpec, ...]:
                 CommandAction("high", (), "Legacy high effort", requires=("modes",), visibility=internal),
                 CommandAction("ultra", (), "Legacy orchestration mode", requires=("modes",), visibility=internal),
             ),
-        ),
-        CommandSpec(
-            "effort", (), "Configuration",
-            "Show or switch reasoning depth", "[low|medium|high|xhigh|max]",
-            requires=runtime,
-        ),
-        CommandSpec(
+    )
+
+
+def _permission_spec() -> CommandSpec:
+    advanced = CommandVisibility.ADVANCED
+    return CommandSpec(
             "permission", ("p", "permissions", "权限"), "Configuration", "Configure tool and sandbox execution permissions",
             "<permission>", requires=("permissions",), actions=(
                 CommandAction("auto", (), "Auto-execute workspace reads/writes and commands"),
@@ -92,7 +143,11 @@ def built_in_command_specs() -> tuple[CommandSpec, ...]:
                     "revoke", ("撤销",), "Revoke a permanent command rule", "<rule-id>", visibility=advanced,
                 ),
             ),
-        ),
+    )
+
+
+def _extension_specs() -> tuple[CommandSpec, ...]:
+    return (
         CommandSpec(
             "mcp", (), "Extensions", "Inspect and manage Model Context Protocol servers", "<action>",
             requires=("mcp",), actions=(
@@ -116,6 +171,13 @@ def built_in_command_specs() -> tuple[CommandSpec, ...]:
             ),
         ),
         CommandSpec("tasks", ("t", "任务"), "Tasks", "List background and active tasks", requires=("tasks",)),
+    )
+
+
+def _session_specs() -> tuple[CommandSpec, ...]:
+    advanced = CommandVisibility.ADVANCED
+    peers = ("peers",)
+    return (
         CommandSpec(
             "help", ("帮助", "?"), "General", "Show available commands",
             "[command|all]", visibility=advanced,
@@ -138,6 +200,12 @@ def built_in_command_specs() -> tuple[CommandSpec, ...]:
             "restore", ("恢复",), "Session", "Restore session from thread ID", "<thread-id>",
             requires=("history",), visibility=advanced,
         ),
+    )
+
+
+def _advanced_specs() -> tuple[CommandSpec, ...]:
+    advanced = CommandVisibility.ADVANCED
+    return (
         CommandSpec(
             "accept", ("接受",), "Tasks", "Accept partial delivery", "[task-id]",
             requires=("tasks",), visibility=advanced,

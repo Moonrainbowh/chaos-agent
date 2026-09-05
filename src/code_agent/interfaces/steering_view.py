@@ -18,7 +18,7 @@ class SteeringKind(str, Enum):
 
     @property
     def label(self) -> str:
-        return "排队" if self is SteeringKind.QUEUE else "转向"
+        return "queue" if self is SteeringKind.QUEUE else "steer"
 
 
 @dataclass(frozen=True)

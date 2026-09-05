@@ -20,6 +20,12 @@
 - `search_threads` 与 `read_thread` 的调用方身份由 Host 注入，模型和插件不得提交或覆盖 caller thread ID。
 - Plugin mode 或 custom Agent 只能移除线程工具，不能扩大授权范围；语义失败时保留现有确定性压缩结果。
 
+### 预算框架需求（已确认，待实现）
+
+- 遵循 [Context 预算框架](../context/AGENTS.md)：按稳定来源为换窗后的任务提供有界历史回查及交接上下文；History/Notes 进入模型请求后仍消耗 Context 的输入容量。
+- 换窗后的来源读取继续受 Host 身份和既有 thread tree 授权限制；历史、摘要及模型笔记不能自行升级为用户授权或已验证事实，交接内容不能代替原始历史。
+- 现有语义/确定性压缩与新换窗策略的关系、自动压缩是否默认关闭、History/Notes 的接口和交接格式均待商讨；旧 90% 压缩阈值不自动成为换窗阈值。
+
 ## Units
 - `ThreadAuthorization.authorized_threads(caller_thread_id)`、`ensure_can_read(...)`：只从持久化两级 thread tree 计算读取范围 | 读取关系存储 | 根可读直接子、子只可读父，兄弟和无关 thread 拒绝
 - `anchor_message(thread_id, sequence, message): AnchoredMessage`：为原始消息及其附件引用元数据生成稳定来源锚点和内容 digest | 无副作用 | 原消息或附件引用变化会使 digest 失效。

@@ -5,6 +5,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from code_agent.verification.task_service import LedgerTaskVerificationService
+from code_agent.core.completion_contract import TaskIntent
 
 
 class TaskScopedVerificationService:
@@ -58,7 +59,8 @@ class TaskScopedVerificationService:
 
     async def suggest_verification(self, task: object, state: object) -> object:
         service = self._service(task)
-        await self._refresh(service, self._root(task))
+        if task.contract.intent is TaskIntent.MODIFY or state.files_changed:
+            await self._refresh(service, self._root(task))
         return await service.suggest_verification(task, state)
 
     async def finalize(self, task: object, assessment: object) -> object:

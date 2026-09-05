@@ -42,6 +42,9 @@ async def handle_attachment_command(app: object, instruction: str | None) -> boo
 
 
 def _show(app: object, draft: object) -> None:
+    if not draft.items:
+        app._append(DisplayKind.METADATA, "No staged attachments. Use /attach add or /attach clipboard.")
+        return
     for row in draft.rows():
         app._append(DisplayKind.METADATA, row)
 

@@ -43,7 +43,11 @@ def _clear(app: Any) -> bool:
     height = shutil.get_terminal_size((100, 30)).lines
     app._write(clear_live_tail(app._tail_geometry, terminal_height=height))
     app._write("\x1b[2J\x1b[H")
-    app.state = TerminalState()
+    app.state.entries.clear()
+    app.state.transcript.clear()
+    app.state.timeline.clear()
+    app.state._draft.clear()
+    app.state.execution_summary = ""
     app._flushed_entries = 0
     app._tail_geometry = None
     return True

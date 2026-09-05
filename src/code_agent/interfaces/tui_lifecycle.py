@@ -6,6 +6,7 @@ import time
 from collections.abc import Sequence
 
 from .interaction import InteractionResult
+from .terminal_motion import exit_transition
 from .terminal_tail import clear_live_tail
 from .checkpoint_tui import close_rewind_flow
 
@@ -16,6 +17,7 @@ _CLOSE_GRACE_SECONDS = 0.1
 _ANIMATED_STATUSES = frozenset(
     {
         "running",
+        "preparing_workspace",
         "pausing",
         "building_context",
         "waiting_model",
@@ -108,6 +110,7 @@ async def listen_interactions(app: object) -> None:
 
 async def close_tasks(app: object) -> None:
     app._closing = True
+    app.running = False
     if app._pending_approval is not None:
         app.approvals.resolve(app._pending_approval.request_id, False)
         app._pending_approval = None
@@ -124,12 +127,22 @@ async def close_tasks(app: object) -> None:
         app._interaction_done.set()
     if app._token:
         app._token.cancel("TUI closed")
+    if getattr(app, "_starting_task", False) and app._run_task:
+        app._run_task.cancel()
+        await asyncio.gather(app._run_task, return_exceptions=True)
     await close_rewind_flow(app)
     await _await_durable_interrupt(app)
     await _allow_run_to_finish(app)
     if app.state.has_draft:
         app.state._freeze_partial_answer()
         app._flush_pending_entries()
+    await stop_animation(app)
+    visual_task = getattr(app, "_visual_task", None)
+    if visual_task:
+        visual_task.cancel()
+        await asyncio.gather(visual_task, return_exceptions=True)
+    if hasattr(app, "motion"):
+        await exit_transition(app)
     height = shutil.get_terminal_size((100, 30)).lines
     app._write(clear_live_tail(app._tail_geometry, terminal_height=height))
     app._tail_geometry = None

@@ -35,6 +35,14 @@ class AgentEngineCompletionMixin:
             return await self._journal.transition_task(
                 task.id, TaskStatus.COMPLETED, "task completed"
             )
+        # This is the final assessment after all suggested verifiers settled.
+        # A VERIFY/REASSESS decision cannot describe work still running here.
+        if transition.status is TaskStatus.VERIFYING:
+            missing = ", ".join(assessment.unmet_required) or "current verification evidence"
+            return await self._journal.transition_task(
+                task.id, TaskStatus.WAITING_DECISION,
+                "Verification did not complete. Missing: " + missing,
+            )
         if transition.status is task.status:
             return task
         return await self._journal.transition_task(
@@ -58,6 +66,10 @@ class AgentEngineCompletionMixin:
     ) -> tuple[AgentEvent, ...]:
         status = AgentEvent(
             EventKind.TASK_STATUS_CHANGED,
-            {"task_id": task.id, "status": task.status.value},
+            {"task_id": task.id, "status": task.status.value, "reason": task.stop_reason},
         )
-        return (status, self._completed_event(thread_id, budget, usage)) if task.status is TaskStatus.COMPLETED else (status,)
+        if task.status is TaskStatus.COMPLETED:
+            return (status, self._completed_event(thread_id, budget, usage))
+        if task.status is TaskStatus.WAITING_DECISION:
+            return (status, AgentEvent(EventKind.TASK_DECISION_REQUIRED, status.payload))
+        return (status,)

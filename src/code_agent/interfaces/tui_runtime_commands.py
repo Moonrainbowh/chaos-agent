@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from .terminal_display import DisplayKind
+from .runtime_picker import selection_blocked_reason
 
 
 async def set_model(app: Any, instruction: str | None) -> bool:
@@ -11,14 +12,7 @@ async def set_model(app: Any, instruction: str | None) -> bool:
         app._append(DisplayKind.ERROR, "model selection is unavailable")
         return False
     if instruction is None:
-        choices = " | ".join(
-            f"{_profile_name(item)}:{_profile_model(item)}"
-            for item in runtime.profiles()
-        )
-        app._append(
-            DisplayKind.METADATA,
-            f"current {runtime.current.profile}:{runtime.current.model} | {choices}",
-        )
+        app.input.replace("/model ")
         return True
     try:
         profile = _resolve_profile(instruction, runtime.profiles())
@@ -39,10 +33,7 @@ async def set_effort(app: Any, instruction: str | None) -> bool:
         getattr(runtime, "list_reasoning_efforts", lambda: ("low", "medium", "high", "xhigh", "max"))()
     )
     if instruction is None:
-        app._append(
-            DisplayKind.METADATA,
-            f"current {runtime.current.reasoning_effort} | {' | '.join(choices)}",
-        )
+        app.input.replace("/effort ")
         return True
     if instruction not in choices:
         app._append(DisplayKind.ERROR, "reasoning effort must be " + ", ".join(choices))
@@ -88,6 +79,9 @@ def show_task_modes(app: Any) -> bool:
 
 
 def _idle(app: Any) -> bool:
+    reason = selection_blocked_reason(app)
+    if reason:
+        raise RuntimeError(reason)
     return app._run_task is None or app._run_task.done()
 
 

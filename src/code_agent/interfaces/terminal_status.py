@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from .i18n import Language
-from .terminal_renderer import Theme
+from .terminal_theme import Theme, design_for
 from .terminal_style import (
     BRAND_CYAN,
     ERROR_RED,
@@ -14,38 +14,12 @@ from .terminal_style import (
 def status_presentation(
     status: str, summary: str, action: str | None, language: Language, theme: Theme, spinner_index: int
 ) -> tuple[str, str, str | None]:
-    symbols = theme in {Theme.SYMBOL, Theme.MODERN}
+    design = design_for(theme)
+    symbols = theme in {Theme.SYMBOL, Theme.MODERN} or design is not None
     modern = theme is Theme.MODERN
-    if status in {
-        "pausing",
-        "building_context",
-        "waiting_model",
-        "reasoning",
-        "streaming_response",
-        "preparing_action",
-    }:
-        labels = {
-            "pausing": ("正在暂停", "pausing"),
-            "building_context": ("正在准备工作区", "preparing workspace"),
-            "waiting_model": ("正在等待模型", "waiting for model"),
-            "reasoning": ("正在分析", "analyzing"),
-            "streaming_response": ("正在生成回复", "streaming response"),
-            "preparing_action": ("正在准备工具", "preparing tool"),
-        }
-        zh, en = labels[status]
-        if status == "preparing_action" and action:
-            zh, en = f"正在准备 · {action}", f"Preparing · {action}"
-        spinner = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏" if modern else ("◐◓◑◒" if symbols else "|/-\\")
-        return (
-            zh if language is Language.ZH_CN else en,
-            spinner[spinner_index % len(spinner)],
-            TOOL_GRAY,
-        )
-    if status == "running":
-        detail = action or "generating response"
-        prefix = "Working · "
-        spinner = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏" if modern else ("◐◓◑◒" if symbols else "|/-\\")
-        return prefix + detail, spinner[spinner_index % len(spinner)], WARNING_YELLOW
+    active = _activity_status(status, action, language, design, modern, symbols, spinner_index)
+    if active is not None:
+        return active
     if status == "completed":
         label = summary or ("已完成" if language is Language.ZH_CN else "completed")
         return label, "✓" if symbols else "+", SUCCESS_GREEN
@@ -58,7 +32,7 @@ def status_presentation(
         "verifying": ("验证中", "verifying", "✦" if modern else "◆", BRAND_CYAN),
         "paused": ("已暂停", "paused", "!", WARNING_YELLOW),
         "interrupted": ("已中断", "interrupted", "!", WARNING_YELLOW),
-        "waiting_decision": ("等待决定", "waiting decision", "?", WARNING_YELLOW),
+        "waiting_decision": ("等待决定", "waiting for decision", "?", WARNING_YELLOW),
         "approval": ("等待审批", "approval required", "?", WARNING_YELLOW),
         "accepted_partial": ("部分交付", "partial delivery", "!", WARNING_YELLOW),
         "failed": ("任务失败", "task failed", "×", ERROR_RED),
@@ -67,9 +41,47 @@ def status_presentation(
         zh, en, symbol, color = labels[status]
         ascii_symbol = {"◆": "*", "✦": "*", "×": "x", "·": "."}.get(symbol, symbol)
         return (zh if language is Language.ZH_CN else en), symbol if symbols else ascii_symbol, color
+    if design:
+        return ("就绪" if language is Language.ZH_CN else "ready"), "○", design.accent
     ready_icon = "●" if modern else ("·" if symbols else ".")
     ready_color = SUCCESS_GREEN if modern else None
     return "ready", ready_icon, ready_color
+
+
+def _activity_status(status, action, language, design, modern, symbols, spinner_index):
+    if status in {
+        "pausing",
+        "preparing_workspace",
+        "building_context",
+        "waiting_model",
+        "reasoning",
+        "streaming_response",
+        "preparing_action",
+    }:
+        labels = {
+            "pausing": ("正在暂停", "pausing"),
+            "preparing_workspace": ("正在准备工作区", "preparing workspace"),
+            "building_context": ("正在准备上下文", "building context"),
+            "waiting_model": ("正在等待模型", "waiting for model"),
+            "reasoning": ("正在分析", "analyzing"),
+            "streaming_response": ("正在生成回复", "streaming response"),
+            "preparing_action": ("正在准备工具", "preparing tool"),
+        }
+        zh, en = labels[status]
+        if status == "preparing_action" and action:
+            zh, en = f"正在准备 · {action}", f"Preparing · {action}"
+        spinner = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏" if modern else ("◐◓◑◒" if symbols else "|/-\\")
+        return (
+            zh if language is Language.ZH_CN else en,
+            (design.frames if design else spinner)[spinner_index % len(design.frames if design else spinner)],
+            TOOL_GRAY,
+        )
+    if status == "running":
+        detail = action or "generating response"
+        prefix = "Working · "
+        spinner = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏" if modern else ("◐◓◑◒" if symbols else "|/-\\")
+        return prefix + detail, (design.frames if design else spinner)[spinner_index % len(design.frames if design else spinner)], WARNING_YELLOW
+    return None
 
 
 def status_context(
@@ -81,6 +93,7 @@ def status_context(
     tokens: int = 0,
     context_window: int | None = None,
     branch: str | None = None,
+    show_percentage: bool = True,
 ) -> str:
     parts = [model] if model else []
     if branch:
@@ -89,7 +102,7 @@ def status_context(
         window = context_window or 128_000
         pct = max(1, int(tokens * 100 / window))
         formatted_tokens = f"{tokens / 1000:.1f}k" if tokens >= 1000 else str(tokens)
-        parts.append(f"{formatted_tokens} tokens ({pct}%)")
+        parts.append(f"{formatted_tokens} tokens ({pct}%)" if show_percentage else f"task {formatted_tokens} tokens")
     if token_rate is not None:
         parts.append(f"{token_rate:.1f} token/s")
     if started_at is not None:

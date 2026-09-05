@@ -5,11 +5,15 @@
 - 负责：创建共享依赖、调度 typed tools、把策略审批结果传递给文件和运行时 Feature。
 - 负责：声明 Windows/PowerShell 执行契约，按工作区能力注册 Git 工具，并把方言不匹配、非零退出码和已知 Git 故障转换为可修复的结构化 tool result。
 - 负责：在基础 Provider 提示中声明克制的 Markdown 可读性约定，要求结果前置、短层级和有意义的重点标粗，不以装饰性格式虚构重要性。
+- 负责：把 TUI Semantic Insights 控制器绑定到当前 thread 对应 workspace 的共享 `RepoIndexService`，后台刷新同一快照后只读生成用户报告。
 - 负责：发布 Chaos Agent 的 `chaos-agent` 命令与本地数据目录，并在迁移期保持旧 `agent` 命令和本地状态可用。
 - 不负责：重写 policy、workspace 或 runtime 的底层安全规则。
 - 不负责：自动翻译任意 Shell 脚本、自动初始化 Git 仓库或把失败命令报告为成功。
+- 不负责：为 Repo Map、bug 定位或 dead-code 分析另建扫描缓存，也不因展示分析结果执行文件修改或验证命令。
 
 ## Units
+- `TaskScopedVerificationService.suggest_verification(...)`：仅对修改任务或实际变更刷新共享语义图；纯问答收尾直接委托验证服务的非修改路径 | 只读/调度 | 不改动修改任务的证据门，不把未执行的验证标记为通过。
+- `ModeAwareWindowsTerminalApp`：从 Interfaces 读取 `CHAOS_THEME`（默认 Aurora），委托紧凑启动摘要、三主题渲染与动效；完整能力仍通过 `:status` 访问 | 终端输出 | 不修改持久配置或接管 Windows Terminal 设置。
 - `tool_definitions(include_git, powershell): tuple[ToolDefinition, ...]`: 声明严格且递归校验的契约 loader、工具 schema、generation-aware `read_code_slices`、不可变 edit-plan 契约、冻结 PowerShell 方言和 versioned `run_process_v1`，并按仓库能力省略 Git 工具 | 无副作用 | batch slice 为 1–16 个 target，提示合并当前已知目标但允许新信息后的后续批次；structured process 不接受 shell/env/stdin；文件 auto 不猜 legacy code page
 - `windows_system_prompt(...)`：组合冻结的 PowerShell/Git 能力与用户正文的 Markdown 可读性约定 | 无副作用 | 强调仅服务于决策、风险、结果和下一步，不要求逐句装饰
 - `RootActionDispatcher`: 在执行前验证 typed schema、评估策略并请求交互审批，再调用文件、编辑、Git 或命令 Unit；`read_code_slices` 先校验当前 RepoIndex generation/snapshot signatures，再委托 Workspace 前后复核 | 产生如实标记成功/失败且保留有界诊断的 tool result | batch 任一 stale 返回 `stale_repo_context` 且不含部分源码；只有已通过策略的外部路径可抵达 workspace Unit
@@ -44,5 +48,7 @@
 - `RewindRuntime`：基于基础仓库和同一快照存储生成双观测只读预览 | 只读会话、快照和工作区 | 不提供 apply、restore、approval、provider 或 Git reset。
 - `ModeAwareWindowsTerminalApp.update_capability(...)`、`GitDiffAdapter`：展示并刷新模式/权限分离信息，并把 staged/unstaged/untracked 快照交给只读 Diff 交互，把 `/rewind` 仅委托给 Interfaces handler | 终端/Git 读取 | mode 切换不修改权限；diff 和回溯预览不修改 Git index。
 - `SystemDoctor.run()`、`TaskCostControl.report(...)`：分别执行有界 host/TCP 诊断和持久预算费用投影 | 只读系统、网络探测与 Sessions 读取 | 不发送 API key 或 HTTP 请求；未配置 profile 价格时只报告真实 token，不估算费用
+- `SemanticGraphControl.analyze(...)`：按活动 thread 解析 source/worktree root，并在线程外请求该 root 共享 `RepoIndexService` reconcile 后生成 Semantic Insights 报告，query/FTS 与图取自同代快照 | 只读 Repo Index 与 workspace 绑定 | 不实例化第二索引；未绑定 thread 回退 source root；报告明示 root、generation 与索引上限，支持分页但不改变分析范围
+- `configure_product_controls(...)`、`configure_product_ui(...)`：组合 runtime、cost、doctor、semantic graph 与 TUI/foreground 控件 | 创建进程内依赖 | 从 app.py 抽离产品组合，不复制任何 Feature 行为
 - `PeerToolAdapter`、`PEER_TOOL_DEFINITIONS`: 独立暴露 `list_agents`、`send_message`、`rename_agent` typed tools | 仅委托已注册的 PeerMessagingService | 本 Unit 不接 Root dispatcher/UI，错误输出不回显正文，peer 输入仍不具有用户授权
 - `PeerRuntime`、`PeerDeliveryBuffer`、`PeerContextBuilder`: 仅随 Windows TUI 注册本机实例，续租并投递 queued 消息、提示 held 消息，把 PEER 正文以有界不可信 JSON 注入主上下文 | SQLite/模型回合/TUI 元数据 | task-owned thread 不后台恢复；taskless peer 回合只开放 list/send；失败指数退避，runtime 切换与 peer wake 共用 activity lock

@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import json
-import re
 from typing import Sequence
 
 from code_agent.core.models import ContextBundle, Message, ToolDefinition
 from code_agent.core.task_state import TaskState
+from code_agent.core.task_intent import is_small_talk
 from code_agent.thread_intelligence.compaction import SemanticCompactionResult
 
 from .attachment_budget import message_tokens
@@ -13,15 +13,6 @@ from .budget import PromptAllocation
 from .errors import ContextBudgetError
 from .models import CompactionResult, ContextConfig
 from .tokens import estimate_tokens
-
-
-_GREETING = frozenset(
-    {
-        "hi", "hello", "hey", "你好", "您好", "在吗", "谢谢",
-        "早上好", "下午好", "晚上好",
-    }
-)
-_GREETING_PUNCTUATION = re.compile(r"[\s!！?？,.，。]+")
 
 
 def _context_bundle(
@@ -98,8 +89,7 @@ def _latest_user_text(messages: Sequence[Message]) -> str:
 
 
 def _requires_repo_map(query: str) -> bool:
-    normalized = _GREETING_PUNCTUATION.sub("", query).casefold()
-    return normalized not in _GREETING
+    return not is_small_talk(query)
 
 
 def _touched_files(task_state: TaskState) -> tuple[str, ...]:

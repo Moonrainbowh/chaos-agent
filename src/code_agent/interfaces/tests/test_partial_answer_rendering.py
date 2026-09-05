@@ -37,7 +37,7 @@ class PartialAnswerRenderingTests(unittest.IsolatedAsyncioTestCase):
             color=ColorMode.ALWAYS,
         )
 
-        self.assertIn(f"\x1b[{WARNING_YELLOW}m!\x1b[0m \x1b[{WARNING_YELLOW}m未完成回答\x1b[0m", rendered)
+        self.assertIn(f"\x1b[{WARNING_YELLOW}m!\x1b[0m \x1b[{WARNING_YELLOW}mIncomplete response\x1b[0m", rendered)
         self.assertIn(f"  \x1b[{BODY_WHITE}munfinished?[2J\x1b[0m", rendered)
         self.assertNotIn("\x1b[2J", rendered)
 
@@ -54,7 +54,7 @@ class PartialAnswerRenderingTests(unittest.IsolatedAsyncioTestCase):
         except KeyError as error:
             self.fail(f"partial answer did not render: {error}")
 
-        self.assertEqual(_plain("".join(output)).count("! 未完成回答"), 1)
+        self.assertEqual(_plain("".join(output)).count("! Incomplete response"), 1)
         self.assertNotIn("unfinished", "\n".join(app.state.transcript))
 
 
