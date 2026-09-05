@@ -114,12 +114,12 @@ $env:CHAOS_MODEL = "gpt-4.1-mini"
 ```
 
 Profile limits belong in the TOML provider table. The default command panel
-contains these 18 English commands (the `/` prefix remains compatible with the
+contains these 19 English commands (the `/` prefix remains compatible with the
 primary `:` prefix):
 
 ```text
 /clear  /compact  /cost  /status  /doctor  /exit
-/diff   /review   /test  /rewind  /attach
+/diff   /map      /review   /test  /rewind  /attach
 /model  /mode     /effort  /permission
 /mcp    /plugin   /tasks
 ```
@@ -130,6 +130,45 @@ runtime. `/mode ask|code|plan` controls the next task contract: `ask` and
 governed by `/permission auto|plan|ask|unrestricted`. `/compact` persists a
 traceable semantic checkpoint when enough closed history exists; `/doctor`
 runs bounded PowerShell, Git, workspace, path-policy, and provider TCP checks.
+`/map` is the user-facing Unified Semantic Graph surface. Its secondary menu
+provides `overview`, `context`, `impact`, `tests`, `risk`, `review`, `refactor`,
+`locate`, and `dead-code`; every report shows the semantic generation and keeps
+heuristic bug/dead-code results explicitly marked as candidates.
+
+```text
+:map overview src/code_agent
+:map context "verification evidence"
+:map impact src/code_agent/core/engine.py
+:map tests src/code_agent/core/engine.py
+:map risk src/code_agent/interfaces
+:map review src/code_agent/core/engine.py
+:map refactor src/code_agent/core/engine.py
+:map locate "stale verification generation"
+:map dead-code src/code_agent
+:map overview src/code_agent/core/engine.py
+:map overview src/code_agent --limit=50 --offset=50
+```
+
+Reports use the active task's workspace and refresh its **existing** shared
+index (including externally edited, added, or deleted files). `context` and
+`locate` combine that generation's lexical source matches and semantic edges;
+no second scan cache or model call is created. Use an exact file path in
+`overview` to inspect symbols with line numbers and dependencies/consumers.
+Quote paths containing spaces. Aliases: `tree` = `overview`, `bug` = `locate`,
+`dead` = `dead-code`. Optional `--limit=1..50` (default 12) and
+`--offset=0..100000` page each section, with the total explicitly displayed;
+use `--` before query text beginning with option-like flags.
+
+Analysis runs on the full requested scope before display pagination. Change
+commands accept up to 256 resolved files; broader scopes must be narrowed,
+never silently truncated. Refactor plans separate cycle-dependent groups
+instead of claiming a safe linear order. Dependency/call analysis currently
+covers Python; other indexed languages have declaration/inventory support.
+The index's file/parse limits and unresolved dynamic behavior still apply.
+Bug and dead-code outputs are investigation candidates, not proven root causes
+or deletion authorization. `map tests` recommends priorities without executing
+tests; `map review` prepares scope, while `/review` starts the existing agent
+review workflow. None of these advisory reports count as verification evidence.
 
 Model and effort selections rebuild the main provider/runner while idle. The
 hidden compatibility command `/mode agent single|team` still controls whether
@@ -221,7 +260,7 @@ only for task-level completion. The live tail keeps a single bordered composer;
 pressing `Shift+:` opens a bordered command panel with search plus aligned
 command/description columns. `Up`/`Down` move, `Tab` completes, `Enter` executes
 or opens a child menu, and `Esc` closes the Picker. The old `/` prefix remains
-compatible. The root Picker contains the 18 commands listed above; `:help`
+compatible. The root Picker contains the 19 commands listed above; `:help`
 remains directly available as an advanced command, and `:help all` shows the
 complete compatibility registry. Compound commands open a
 second-level action menu instead of flattening every action into the root.
