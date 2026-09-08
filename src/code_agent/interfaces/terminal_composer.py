@@ -16,52 +16,105 @@ def render_designed_frame(
     palette: tuple[str, ...], status_icon: str, status_color: str | None,
     context: str, previous: LiveTailGeometry | None, theme: Theme,
     motion_progress: float, exiting: bool, active: bool,
+    *,
+    expanded: bool = True,
+    image_count: int = 0,
 ) -> LiveTailFrame:
     """Keep the cursor visible and every physical row within the terminal budget."""
-    frame_width = min(110, width - 1)
+    safe_supplied = safe_text(input_text)
+    if not expanded and not palette and not draft and not safe_supplied.strip():
+        return render_collapsed_capsule(
+            safe_supplied, status, width, height, color, status_icon,
+            status_color, context, previous, theme, active=active,
+        )
+
+    frame_width = max(1, width - 2)
     text_width = max(1, frame_width - 6)
-    supplied = safe_text(input_text)
+    supplied = safe_supplied
     index = len(supplied) if cursor_index is None else min(max(0, cursor_index), len(supplied))
     rows, cursor_row, cursor_col = _layout_input(supplied, text_width, index)
     if not supplied:
         placeholder = "Describe your next step..." if active else "What would you like to build?"
         rows = [clip_display(placeholder, text_width)]
-    activity_height = 2 if active and height >= 7 else 0
-    rows, cursor_row = _visible_input_rows(rows, cursor_row, min(6, height - 3 - activity_height))
-    remaining = max(0, height - len(rows) - 3 - activity_height)
+    # Target 6 lines for comfortable multi-line editing, clamped by terminal height
+    target_rows = max(1, min(6, height - 3))
+    rows, cursor_row = _visible_input_rows(rows, cursor_row, target_rows)
+    input_box_rows = len(rows) if (palette or draft) else target_rows
+    remaining = max(0, height - input_box_rows - 3)
     items = palette[:min(14, remaining)]
     remaining -= len(items)
     draft_rows = _render_draft(draft, frame_width, max(0, remaining - 1), color, modern=True)
     lines = _palette_rows(items, frame_width, color) + draft_rows
-    if activity_height:
-        lines += [_status_row(status_icon, status, "", frame_width, color, status_color),
-                  activity_rail(frame_width, motion_progress, color)]
     offset = len(lines)
-    lines += composer_rows(rows, frame_width, theme, color, not supplied, active, motion_progress, exiting)
+    lines += composer_rows(
+        rows, frame_width, theme, color, not supplied, active, motion_progress, exiting,
+        char_count=len(supplied), image_count=image_count, target_rows=input_box_rows,
+    )
     lines.append(_status_row(status_icon, status, context, frame_width, color, status_color))
     geometry = LiveTailGeometry(len(lines), offset + cursor_row + 1)
     rendered = _rewrite_tail(lines, geometry.cursor_row, cursor_col + 4, previous, height)
     return LiveTailFrame(recolor(rendered, theme), geometry)
 
 
+def render_collapsed_capsule(
+    input_text: str, status: str, width: int, height: int,
+    color: ColorMode, status_icon: str, status_color: str | None,
+    context: str, previous: LiveTailGeometry | None, theme: Theme,
+    *,
+    active: bool = False,
+) -> LiveTailFrame:
+    frame_width = max(1, width - 2)
+    design = design_for(theme)
+    supplied = input_text.strip()
+    if supplied:
+        left = f"› [Draft: {clip_display(supplied.replace(chr(10), ' '), 28)}] · [Space] Edit"
+    else:
+        left = "› [Space] Compose (6-row) · [:] Commands" if not active else "› [Space] Steer/Queue · [Esc] Pause"
+    left_width = display_width(left)
+    right_raw = f"{status_icon} {status} · {context}".strip(" · ")
+    max_right = max(1, frame_width - left_width - 6)
+    right = clip_display(right_raw, max_right)
+    gap = " " * max(1, frame_width - 4 - left_width - display_width(right))
+    left_part = colorize(left, design.accent if supplied else design.muted, color)
+    right_part = colorize(right, status_color or design.muted, color)
+    capsule = colorize("╭─ ", design.border, color) + left_part + gap + right_part + colorize(" ─╮", design.border, color)
+    lines = [capsule]
+    geometry = LiveTailGeometry(len(lines), 0)
+    rendered = _rewrite_tail(lines, 0, 4, previous, height)
+    return LiveTailFrame(recolor(rendered, theme), geometry)
+
+
 def composer_rows(
     rows: list[str], width: int, theme: Theme, color: ColorMode,
     placeholder: bool, active: bool, progress: float, exiting: bool,
+    *,
+    char_count: int = 0,
+    image_count: int = 0,
+    target_rows: int = 1,
 ) -> list[str]:
     design = design_for(theme)
-    label = f" {'FOLLOW-UP' if active else 'CHAOS AGENT'} "
-    hint = " Enter queue · Tab steer · Esc pause " if active else " Enter send · Ctrl+J newline · : commands "
+    label = f" {'FOLLOW-UP' if active else 'CHAOS AGENT (6-ROW)'} "
+    hint = " Esc collapse · Enter queue · Tab steer " if active else " Esc collapse · Enter send · Shift+Enter newline "
     top = _rule(width, label, design.corners[:2], design.border, ACTIVE_GOLD if active else design.accent, color, progress, exiting)
-    bottom = _rule(width, hint, design.corners[2:], design.border, design.muted, color, 1.0, False)
+    left_meta = ""
+    if char_count > 0:
+        left_meta = f" {char_count} chars "
+        if image_count > 0:
+            left_meta += f"· 📎 {image_count} "
+    bottom = _bottom_rule(width, left_meta, hint, design.corners[2:], design.border, design.muted, color)
     side = " " if theme is Theme.MONO else "│"
     body = []
-    for number, row in enumerate(rows):
-        prompt = design.marker if number == 0 else "·"
+    rendered_rows = list(rows)
+    while len(rendered_rows) < target_rows:
+        rendered_rows.append("")
+    for number, row in enumerate(rendered_rows):
+        prompt = ("✦" if active else design.marker) if number == 0 else "·"
+        prompt_accent = ACTIVE_GOLD if (active and number == 0) else design.accent
         value = row + " " * max(0, width - 6 - display_width(row))
         body.append(
             colorize(side + " ", design.border, color)
-            + colorize(prompt + " ", design.accent, color)
-            + colorize(value, design.muted if placeholder else design.body, color)
+            + colorize(prompt + " ", prompt_accent, color)
+            + colorize(value, design.muted if (placeholder and number == 0) else design.body, color)
             + colorize(" " + side, design.border, color)
         )
     if color_enabled(color):
@@ -70,11 +123,28 @@ def composer_rows(
     return [top, *body, bottom]
 
 
-def _rule(width, label, corners, base, accent, color, progress, exiting):
+def _bottom_rule(width: int, left_meta: str, right_hint: str, corners: str, base: str, text_color: str, color: ColorMode) -> str:
+    if display_width(left_meta) + display_width(right_hint) + 6 > width:
+        left_meta = ""
+    if display_width(right_hint) + 6 > width:
+        right_hint = ""
+    dash_len = max(0, width - display_width(left_meta) - display_width(right_hint) - 2)
+    interior = left_meta + "─" * dash_len + right_hint
+    return (
+        colorize(corners[0], base, color)
+        + colorize(interior, base, color)
+        + colorize(corners[1], base, color)
+    )
+
+
+def _rule(width, label, corners, base, accent, color, progress, exiting, *, align_right: bool = False):
     # Hide optional hints before clipping a tiny terminal. Geometry stays fixed.
     if display_width(label) + 6 > width:
         label = ""
-    interior = "─" + label + "─" * max(0, width - display_width(label) - 3)
+    if align_right and label:
+        interior = "─" * max(0, width - display_width(label) - 3) + label + "─"
+    else:
+        interior = "─" + label + "─" * max(0, width - display_width(label) - 3)
     fraction = 1 - progress if exiting else progress
     visible = min(len(interior), max(0, round(len(interior) * fraction)))
     return (

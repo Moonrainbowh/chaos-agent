@@ -18,7 +18,7 @@ from .input_buffer import InputBuffer
 from .input_events import ExitGuard
 from .terminal_display import DisplayKind, text_entry
 from .terminal_renderer import ColorMode, Theme, render_entries
-from .terminal_io import BRACKETED_PASTE_DISABLE, BRACKETED_PASTE_ENABLE, read_key, render_terminal as render_terminal, stdout_write
+from .terminal_io import BRACKETED_PASTE_DISABLE, BRACKETED_PASTE_ENABLE, capture_ctrl_c_as_input, read_key, render_terminal as render_terminal, stdout_write
 from .terminal_tail import LiveTailGeometry, clear_live_tail
 from .terminal_state import ApprovalBroker, ApprovalRequest, TerminalState
 from .profile_control import ProfileControl
@@ -29,7 +29,10 @@ from code_agent.mcp.registry import McpRegistry
 from .task_controller import ForegroundTaskController
 from .tui_commands import ParseOutcome
 from .i18n import catalog_for, select_runtime_language
-from .tui_input import apply_clipboard_images, apply_paste, handle_interrupt, insert_input
+from .tui_input import (
+    apply_clipboard_images, apply_paste, clear_input, delete_input,
+    handle_interrupt, insert_input, sync_attachment_input,
+)
 from .tui_interactions import TuiInteractions
 from .diff_view import GitDiffSource
 from .tui_command_dispatch import handle_tui_command
@@ -79,6 +82,7 @@ class WindowsTerminalApp(TerminalPresentation):
         self._pending_approval: ApprovalRequest | None = None; self._approval_done = asyncio.Event()
         self._flushed_entries = 0
         self._tail_geometry: LiveTailGeometry | None = None
+        self.composer_expanded: bool = True
         self._run_started_at: float | None = None; self._drawn_draft_revision = -1; self._drawn_size: tuple[int, int] | None = None; self._next_spinner_at = time.monotonic() + 0.1
         self.theme, self.color = Theme.SLATE, ColorMode.AUTO
         self.motion = TailMotion()
@@ -94,16 +98,19 @@ class WindowsTerminalApp(TerminalPresentation):
         if callable(start_peers):
             await start_peers()
         self.update_terminal_title()
-        self._write(BRACKETED_PASTE_ENABLE); self.running = True; self._approval_task = asyncio.create_task(listen_approvals(self))
-        if self.interaction_broker is not None:
-            self._interaction_task = asyncio.create_task(listen_interactions(self))
-        self.redraw()
-        self._visual_task = asyncio.create_task(watch_visuals(self))
+        restore_ctrl_c = capture_ctrl_c_as_input()
         try:
-            while self.running: await self.handle_key(await asyncio.to_thread(read_key))
+            self._write(BRACKETED_PASTE_ENABLE); self.running = True; self._approval_task = asyncio.create_task(listen_approvals(self))
+            if self.interaction_broker is not None:
+                self._interaction_task = asyncio.create_task(listen_interactions(self))
+            self.redraw()
+            self._visual_task = asyncio.create_task(watch_visuals(self))
+            while self.running:
+                key = await asyncio.to_thread(read_key, timeout=.1)
+                if key is not None: await self.handle_key(key)
         finally:
             self.reset_terminal_title()
-            self._write(BRACKETED_PASTE_DISABLE); await close_tasks(self)
+            self._write(BRACKETED_PASTE_DISABLE); await close_tasks(self); restore_ctrl_c()
     async def submit(
         self,
         text: str,
@@ -122,29 +129,59 @@ class WindowsTerminalApp(TerminalPresentation):
     async def close_checkpoint_flow(self) -> None:
         await close_rewind_flow(self)
     async def handle_key(self, key: str) -> None:
+        sync_attachment_input(self)
         if key == "\x03":
             await handle_interrupt(self)
         elif await self.interactions.handle_key(self, key):
             pass
-        elif key == "\x1b" and await pause_active_task(self, "user requested pause"):
-            pass
+        elif key == "\x1b":
+            if self.composer_expanded:
+                self.composer_expanded = False
+                self._clear_input_tail()
+            else:
+                await pause_active_task(self, "user requested pause")
         elif key.startswith("\x1b[200~") and key.endswith("\x1b[201~"):
+            self.composer_expanded = True
             await apply_paste(self, key[6:-6])
-        elif key == "\x16": await apply_clipboard_images(self)
-        elif key == "\x15": self.input.clear()
+        elif key in {"\x16", "alt+v"}:
+            self.composer_expanded = True
+            await apply_clipboard_images(self)
+        elif key == "\x15": clear_input(self)
         elif key == "\t" and self._run_task and not self._run_task.done(): toggle_submit_mode(self)
-        elif key == "\r": await self.submit(self.input.submit())
-        elif key == "\n": insert_input(self, "\n")
+        elif key == " " and not self.composer_expanded:
+            self.composer_expanded = True
+            if self._tail_geometry is not None:
+                height = shutil.get_terminal_size((100, 30)).lines
+                self._write(clear_live_tail(self._tail_geometry, terminal_height=height))
+                self._tail_geometry = None
+        elif key == "\r":
+            if not self.composer_expanded:
+                self.composer_expanded = True
+                self._clear_input_tail()
+            else:
+                await self.submit(self.input.submit())
+        elif key in {"\n", "shift+enter"}:
+            self.composer_expanded = True
+            insert_input(self, "\n")
         elif key == "left": self.input.move_left()
         elif key == "right": self.input.move_right()
         elif key == "home": self.input.move_home()
         elif key == "end": self.input.move_end()
         elif key == "up" and not self.input.move_up(): self.input.previous()
         elif key == "down" and not self.input.move_down(): self.input.next()
-        elif key in {"\x08", "\x7f"}: self.input.backspace()
-        elif key == "delete": self.input.delete()
-        elif key.isprintable(): self.exit_guard.input_received(); insert_input(self, key)
+        elif key in {"\x08", "\x7f"}:
+            if delete_input(self, backwards=True): self._clear_input_tail()
+        elif key == "delete":
+            if delete_input(self, backwards=False): self._clear_input_tail()
+        elif key.isprintable():
+            self.composer_expanded = True
+            self.exit_guard.input_received(); insert_input(self, key)
         self.redraw()
+    def _clear_input_tail(self) -> None:
+        if self._tail_geometry is None: return
+        height = shutil.get_terminal_size((100, 30)).lines
+        self._write(clear_live_tail(self._tail_geometry, terminal_height=height))
+        self._tail_geometry = None
     async def restore_thread(self, thread_id: str) -> bool:
         if self.history is None: self._append(DisplayKind.ERROR, "session history unavailable"); return False
         try:
@@ -183,10 +220,9 @@ class WindowsTerminalApp(TerminalPresentation):
         except CancellationError:
             self.state.status = "paused"
         except Exception as error:
-            import traceback
-            traceback.print_exc()
             self.state.status = "error"
-            self._append(DisplayKind.ERROR, f"{type(error).__name__}: {error}")
+            from .runtime_errors import runtime_error_summary
+            self._append(DisplayKind.ERROR, runtime_error_summary(error))
         finally:
             self.on_task_finished()
             self._request_redraw(immediate=True)
@@ -224,7 +260,8 @@ class WindowsTerminalApp(TerminalPresentation):
         except Exception as error:
             self.active_task_id = None
             self.state.status = "error"
-            self._append(DisplayKind.ERROR, f"{type(error).__name__}: {error}")
+            from .runtime_errors import runtime_error_summary
+            self._append(DisplayKind.ERROR, runtime_error_summary(error))
         finally:
             self.on_task_finished()
             if (terminal or self.state.status in {"failed", "error"}) and self.active_task_id == task_id:
@@ -251,7 +288,7 @@ class WindowsTerminalApp(TerminalPresentation):
 
     def _columns(self) -> int:
         columns = shutil.get_terminal_size((100, 30)).columns
-        return min(111, columns) if design_for(self.theme) else columns
+        return max(20, columns - 2) if design_for(self.theme) else columns
     def _request_redraw(self, *, immediate: bool = False) -> None:
         self._redraw_dirty = True
         if immediate: self.redraw()

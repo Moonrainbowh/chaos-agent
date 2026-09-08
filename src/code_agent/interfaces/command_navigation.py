@@ -16,7 +16,10 @@ def command_rows(interactions: object, app: object) -> tuple[str, ...]:
     text, picker = app.input.text, interactions.picker
     if not text.startswith(("/", ":")):
         draft = getattr(app, "attachment_draft", None)
-        return draft.rows() if draft is not None and draft.items else ()
+        if draft is None or not draft.items:
+            return ()
+        return tuple(row for row, item in zip(draft.rows(), draft.items)
+                     if not item.media_type.startswith("image/"))
     registry = getattr(app, "command_registry", REGISTRY)
     parent, query = picker_context(text, registry)
     dynamic = dynamic_picker_items(app)

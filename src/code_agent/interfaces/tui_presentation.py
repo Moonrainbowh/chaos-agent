@@ -6,8 +6,9 @@ import time
 from pathlib import Path
 from .terminal_motion import motion_allowed
 from .terminal_theme import design_for
-from .terminal_tail import render_live_tail_frame
+from .terminal_tail import clear_live_tail, get_console_dock_padding, render_live_tail_frame
 from .terminal_status import status_presentation, status_context
+from .tui_input import sync_attachment_input
 
 _SPINNER_FRAMES = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
 
@@ -66,7 +67,13 @@ class TerminalPresentation:
         self.play_sound(alert=False)
 
     def redraw(self) -> None:
+        sync_attachment_input(self)
+        input_text, input_cursor = self.input.display
         now = time.monotonic(); size = shutil.get_terminal_size((100, 30))
+        if self._drawn_size is not None and self._drawn_size != (size.columns, size.lines):
+            if self._tail_geometry is not None:
+                self._write(clear_live_tail(self._tail_geometry, terminal_height=self._drawn_size[1]))
+                self._tail_geometry = None
         active = bool(self._run_task and not self._run_task.done())
         palette = self.interactions.rows(self, max_rows=max(0, size.lines - 4))
         self.motion.observe((self.theme, self.state.status, bool(palette)), now)
@@ -76,10 +83,10 @@ class TerminalPresentation:
         if self._run_task and not self._run_task.done(): status += f" [{self.submit_mode.label}]"
         if self.interactions.steering.pending_count: status += " · " + self.interactions.steering.status_line()
         frame = render_live_tail_frame(
-            self.input.text,
+            input_text,
             status,
             size.columns,
-            cursor_index=self.input.cursor,
+            cursor_index=input_cursor,
             assistant_draft=self.state.draft_answer,
             terminal_height=size.lines,
             color=self.color,
@@ -103,6 +110,7 @@ class TerminalPresentation:
             previous=self._tail_geometry,
             theme=self.theme,
             motion_progress=progress, exiting=self.motion.exiting, active=active,
+            expanded=getattr(self, "composer_expanded", True),
         )
         self._write(frame.text)
         self._tail_geometry = frame.geometry; self._redraw_dirty = False; self._drawn_draft_revision = self.state.draft_revision; self._drawn_size = (size.columns, size.lines)

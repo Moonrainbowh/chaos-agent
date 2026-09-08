@@ -4,6 +4,7 @@ import asyncio
 import re
 import sys
 import unittest
+from unittest.mock import Mock, patch
 from pathlib import Path
 
 SRC_ROOT = Path(__file__).resolve().parents[3]
@@ -34,6 +35,16 @@ def _plain(value: str) -> str:
 
 
 class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
+    async def test_two_ctrl_c_keys_exit_without_cancelling_a_reader_thread(self) -> None:
+        app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker(), write=lambda _: None)
+        restore = Mock()
+        with patch("code_agent.interfaces.windows_tui.os.name", "nt"), patch(
+            "code_agent.interfaces.windows_tui.capture_ctrl_c_as_input", return_value=restore
+        ), patch("code_agent.interfaces.windows_tui.read_key", side_effect=("\x03", "\x03")):
+            await app.run()
+        self.assertFalse(app.running)
+        restore.assert_called_once_with()
+
     async def test_new_prompt_clears_the_old_status_before_appending_it(self) -> None:
         output: list[str] = []
         app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker(), write=output.append)
@@ -76,6 +87,15 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(app.input.text, "")
         self.assertEqual(app.state.entries[0].text, "first\nsecond")
         await app.wait_idle()
+
+    async def test_shift_enter_inserts_a_line_break_without_submitting(self) -> None:
+        app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker(), write=lambda _: None)
+
+        for key in ("first", "shift+enter", "second"):
+            await app.handle_key(key)
+
+        self.assertEqual(app.input.text, "first\nsecond")
+        self.assertEqual(app.state.entries, [])
 
     async def test_bracketed_paste_inserts_once_without_submitting(self) -> None:
         app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker(), write=lambda _: None)

@@ -66,4 +66,4 @@
 - `AgentEngine._advertised_tools(...)`: 校验 dispatcher 快照并按 `name + schema digest` 应用本次 run 冻结的能力策略投影 | 无副作用 | MCP/Plugin schema 重载变化后旧披露自动失效；读取契约不执行目标工具或扩大授权
 - `AgentEngine.run_peer(thread_id, cancellation)`: 不制造 user Message 地唤醒一个不可信 peer 回合，并在首个合法模型事件持久化后确认其上下文 | 调用抽象模型、上下文、动作与会话协议 | 工具强制投影到构造时冻结的 peer allowlist；默认空集，不能取得 TaskAuthorization
 - `SessionJournal`: 把会话协议异常转换为稳定的内核持久化错误 | 调用会话协议 | 不允许不可信历史消息进入上下文
-- `AgentEngineError` 及子类: 表达预算、模型流、上下文构建与持久化失败 | 无副作用 | 对外错误不包含上游异常文本
+- `AgentEngineError` 及子类: 表达预算、模型流、上下文构建与持久化失败 | 无副作用 | 对外错误不包含上游异常文本；模型流失败保留异常 cause 供上层提取状态，不向终端直接打印 traceback

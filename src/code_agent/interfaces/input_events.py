@@ -5,7 +5,7 @@ from time import monotonic
 from typing import Callable
 
 
-MAX_PASTE_BYTES = 5 * 1024
+MAX_PASTE_BYTES = 64 * 1024
 
 
 @dataclass(frozen=True)
@@ -22,7 +22,7 @@ def paste_event(value: str) -> InputEvent:
     value = value.encode("utf-16-le", errors="surrogatepass").decode("utf-16-le", errors="replace")
     normalized = value.replace("\r\n", "\n").replace("\r", "\n")
     if len(normalized.encode("utf-8")) > MAX_PASTE_BYTES:
-        raise ValueError("text exceeds 5 KiB (5120 UTF-8 bytes); input unchanged")
+        raise ValueError("text exceeds 64 KiB (65536 UTF-8 bytes); input unchanged")
     return InputEvent("paste", normalized)
 
 

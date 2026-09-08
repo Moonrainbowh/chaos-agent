@@ -4,7 +4,7 @@ from typing import Iterable
 from .terminal_style import ColorMode
 from .terminal_theme import design_for
 from .terminal_tail_geometry import (
-    LiveTailFrame, LiveTailGeometry, clear_live_tail, _compact_frame,
+    LiveTailFrame, LiveTailGeometry, clear_live_tail, get_console_dock_padding, _compact_frame,
     _layout_input, _visible_input_rows, _rewrite_tail, _wrap_plain,
 )
 from .terminal_tail_content import _render_draft
@@ -28,6 +28,8 @@ def render_live_tail(
     motion_progress: float = 1.0,
     exiting: bool = False,
     active: bool = False,
+    expanded: bool = True,
+    image_count: int = 0,
 ) -> str:
     """Render a fresh bordered composer and status line without touching scrollback."""
     return render_live_tail_frame(
@@ -43,6 +45,7 @@ def render_live_tail(
         status_color=status_color,
         status_context=status_context,
         theme=theme, motion_progress=motion_progress, exiting=exiting, active=active,
+        expanded=expanded, image_count=image_count,
     ).text
 
 
@@ -52,6 +55,7 @@ def render_live_tail_frame(
     width: int,
     *,
     cursor_index: int | None = None,
+    image_count: int = 0,
     assistant_draft: str = "",
     terminal_height: int = 30,
     color: ColorMode = ColorMode.AUTO,
@@ -64,6 +68,7 @@ def render_live_tail_frame(
     motion_progress: float = 1.0,
     exiting: bool = False,
     active: bool = False,
+    expanded: bool = True,
 ) -> LiveTailFrame:
     """Rewrite only the previous dynamic tail and return its new cursor geometry."""
     safe_width = max(1, width)
@@ -78,6 +83,7 @@ def render_live_tail_frame(
             input_text, status, safe_width, safe_height, cursor_index,
             assistant_draft, color, tuple(palette), status_icon, status_color,
             status_context, previous, theme, motion_progress, exiting, active,
+            expanded=expanded, image_count=image_count,
         )
     return _normal_frame(
         input_text, status, safe_width, safe_height, cursor_index,

@@ -33,7 +33,7 @@
 - `ProviderRequestOptions`、`request_options(...)`: 校验 provider-facing effort 与正数输出上限 | 无副作用 | Anthropic reasoning 不猜测映射并失败闭合
 - `SSEDecoder.feed(chunk)`: 有界增量解码 UTF-8 SSE 事件 | 保存未完成行与事件状态
 - `ArgumentBuffer`、`ToolBudget`: 按 UTF-8 字节累计工具参数并限制工具调用数 | 保存当前流的有界分片
-- `ProviderTransport.stream_sse(path, payload)`: 禁止重定向，限制响应总量并按白名单有限重试 | 网络 I/O；仅关闭内部创建的 client
+- `ProviderTransport.stream_sse(path, payload)`: 禁止重定向，限制响应总量并按白名单有限重试；HTTP 错误正文读取不超过响应配置与 8 KiB 上限，超限/HTML/认证错误仅返回状态摘要，其他诊断脱敏后压缩为单行 | 网络 I/O；仅关闭内部创建的 client；重试中的错误响应直接关闭，最终错误体读取失败仍保留 HTTP 状态
 - `OpenAIChatClient.stream(system_prompt, messages, tools)`: 适配 Chat Completions 文本、推理、工具与用量流，并发送冻结的 `reasoning_effort`/`max_completion_tokens`；内部 developer checkpoint 合并到首个 system 消息 | 网络 I/O | 不向仅兼容传统 Chat 角色的服务发送 developer 角色
 - `OpenAIResponsesClient.stream(system_prompt, messages, tools)`: 适配 Responses item/call 事件并去重工具调用，发送冻结的 `reasoning.effort`/`max_output_tokens` | 网络 I/O
 - `AnthropicClient.stream(system_prompt, messages, tools)`: 适配 Messages content block、工具输入与累计用量，发送 profile `max_tokens` | 网络 I/O | 非空 reasoning effort 在构造期明确拒绝

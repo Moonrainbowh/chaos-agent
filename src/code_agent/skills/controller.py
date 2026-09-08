@@ -38,7 +38,7 @@ class SkillController:
         approval: SkillApproval,
         *,
         user_root: Path | None = None,
-        max_chars: int = 12_000,
+        max_chars: int = 64_000,
     ) -> None:
         self._workspace = Path(workspace)
         self._user_root = user_root

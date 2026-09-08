@@ -227,9 +227,7 @@ class AgentEngineRunMixin:
         except (AgentEngineError, CancellationError):
             raise
         except Exception as exc:
-            import traceback
-            traceback.print_exc()
-            raise ModelStreamError(f"model stream failed: {exc}") from exc
+            raise ModelStreamError("model stream failed") from exc
         if not completed:
             raise ModelStreamError("model stream ended before completion")
 

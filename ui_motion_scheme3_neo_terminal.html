@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chaos Agent TUI 方案三：极客微光流 (Neo-Terminal Command Hub)</title>
+  <style>
+    :root {
+      --font-mono: 'Cascadia Code', 'JetBrains Mono', 'Fira Code', Consolas, 'SF Mono', monospace;
+      --bg-desktop: #05070a;
+      --bg-term: #0a0e14;
+      --border-subtle: #192333;
+      --border-accent: #38bdf8;
+      --text-white: #f8fafc;
+      --text-body: #94a3b8;
+      --text-muted: #64748b;
+      --text-dim: #334155;
+      --cyan: #38bdf8;
+      --gold: #e2b170;
+      --green: #4ade80;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg-desktop);
+      color: var(--text-body);
+      font-family: var(--font-mono);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding: 20px;
+      background-image: radial-gradient(ellipse 50% 30% at 50% 0%, rgba(56, 189, 248, 0.05), transparent 70%);
+    }
+
+    /* 顶部方案导航条 */
+    .nav-bar {
+      max-width: 1080px;
+      margin: 0 auto 16px auto;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #090e17;
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 10px 18px;
+    }
+    .nav-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-white);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .nav-badge {
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--cyan);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+    }
+    .nav-links { display: flex; gap: 8px; }
+    .nav-link-btn {
+      background: #111827;
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      text-decoration: none;
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      transition: all 0.2s;
+    }
+    .nav-link-btn:hover { color: var(--text-white); border-color: var(--cyan); }
+    .nav-link-btn.active {
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--cyan);
+      border-color: var(--cyan);
+      font-weight: 600;
+    }
+
+    /* 终端主体框架 */
+    .terminal-container {
+      max-width: 1080px;
+      margin: 0 auto;
+      width: 100%;
+      background: var(--bg-term);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.65);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .terminal-titlebar {
+      background: #070a10;
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+    }
+    .terminal-tabs {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .terminal-tab-active {
+      background: #101622;
+      border: 1px solid #1f2d42;
+      padding: 3px 10px;
+      border-radius: 4px;
+      color: var(--text-white);
+      font-size: 11.5px;
+    }
+
+    /* 交互控制条 */
+    .demo-controls {
+      background: #0c111c;
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 10px 18px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      font-size: 12px;
+    }
+    .ctrl-group { display: flex; align-items: center; gap: 6px; }
+    .ctrl-label { color: var(--text-muted); font-size: 11px; }
+    .action-pill {
+      background: #111827;
+      border: 1px solid var(--border-subtle);
+      color: var(--text-body);
+      padding: 4px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 11.5px;
+      transition: all 0.15s;
+    }
+    .action-pill:hover { border-color: var(--cyan); color: var(--cyan); }
+    .action-pill.active {
+      background: rgba(56, 189, 248, 0.15);
+      border-color: var(--cyan);
+      color: var(--cyan);
+      font-weight: 600;
+    }
+
+    /* 终端视窗输出 */
+    .terminal-body {
+      padding: 18px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-height: 480px;
+      max-height: 580px;
+      overflow-y: auto;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    /* 极客纯粹 Muted Slate 头部卡片 */
+    .neo-header {
+      border-left: 2px solid var(--cyan);
+      background: #080d15;
+      padding: 10px 14px;
+      border-radius: 0 6px 6px 0;
+      margin-bottom: 6px;
+      border-top: 1px solid #141c2c;
+      border-right: 1px solid #141c2c;
+      border-bottom: 1px solid #141c2c;
+    }
+    .neo-title {
+      color: var(--cyan);
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+    .neo-meta-row {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+    .neo-val { color: var(--text-white); font-weight: 500; }
+
+    /* 字符级微翻滚 / 渐变高亮 */
+    .flip-text {
+      display: inline-block;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .flip-text.flipping {
+      transform: translateY(-2px) scale(1.05);
+      color: #fff;
+      text-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
+    }
+
+    /* 终端紧凑输出流（彻底消灭空行） */
+    .term-line {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      font-size: 12.5px;
+      color: var(--text-muted);
+      animation: lineIn 0.16s ease-out forwards;
+    }
+    @keyframes lineIn {
+      from { opacity: 0; transform: translateX(-3px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    .term-prefix { color: var(--cyan); font-weight: bold; }
+    .term-tag {
+      color: var(--text-white);
+      background: #151d2c;
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-size: 11.5px;
+      border: 1px solid #243147;
+    }
+
+    /* 命令调度中心（Skill Command Palette） */
+    .command-hub {
+      background: #080d16;
+      border: 1px solid #1a263a;
+      border-radius: 6px;
+      padding: 12px;
+      margin: 8px 0;
+    }
+    .hub-title {
+      font-size: 12px;
+      color: var(--cyan);
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .hub-search-box {
+      display: flex;
+      align-items: center;
+      background: #0e1624;
+      border: 1px solid #1e2c44;
+      border-radius: 4px;
+      padding: 4px 10px;
+      margin-bottom: 10px;
+      font-size: 12px;
+    }
+    .hub-search-input {
+      background: transparent;
+      border: none;
+      color: #fff;
+      font-family: inherit;
+      font-size: 12px;
+      outline: none;
+      width: 100%;
+      margin-left: 6px;
+    }
+    .hub-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .hub-table th {
+      text-align: left;
+      color: var(--text-dim);
+      padding: 4px 8px;
+      border-bottom: 1px solid #182234;
+      font-weight: 500;
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+    .hub-table td {
+      padding: 6px 8px;
+      border-bottom: 1px solid #0f1724;
+    }
+    .hub-table tr:hover td {
+      background: #111a2a;
+    }
+    .hub-cmd-code {
+      color: var(--cyan);
+      font-weight: 500;
+      cursor: pointer;
+    }
+    .hub-cmd-code:hover {
+      text-decoration: underline;
+    }
+    .hub-run-btn {
+      background: #141c2c;
+      border: 1px solid #23324d;
+      color: #fff;
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-size: 11px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.15s;
+    }
+    .hub-run-btn:hover {
+      background: var(--cyan);
+      color: #050811;
+      font-weight: 600;
+    }
+
+    /* Neo 极客输入框（角落微扫光 + 稳定细光标） */
+    .neo-composer-wrap {
+      margin-top: auto;
+      padding-top: 8px;
+    }
+    .neo-composer {
+      border: 1px solid #1f2c40;
+      background: #080c14;
+      border-radius: 6px;
+      position: relative;
+      transition: border-color 0.2s ease;
+    }
+    .neo-composer.followup-state {
+      border-color: #855d28;
+    }
+    /* 角落微动扫光指示器：只在左上角有微弱脉冲，绝不大范围晃眼 */
+    .corner-indicator {
+      position: absolute;
+      top: 0; left: 0;
+      width: 14px; height: 14px;
+      border-top: 2px solid var(--cyan);
+      border-left: 2px solid var(--cyan);
+      border-radius: 4px 0 0 0;
+      transition: border-color 0.2s;
+    }
+    .neo-composer.followup-state .corner-indicator {
+      border-top-color: var(--gold);
+      border-left-color: var(--gold);
+      animation: cornerPulse 2s ease-in-out infinite;
+    }
+    @keyframes cornerPulse {
+      0%, 100% { opacity: 0.4; }
+      50% { opacity: 1; }
+    }
+
+    .neo-composer-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 14px;
+      font-size: 11px;
+      border-bottom: 1px solid #141d2c;
+      color: var(--text-dim);
+    }
+    .neo-composer-input {
+      padding: 10px 14px;
+      min-height: 52px;
+      display: flex;
+      align-items: center;
+      font-size: 13px;
+    }
+    .neo-prompt-char {
+      color: var(--cyan);
+      margin-right: 8px;
+      font-weight: bold;
+    }
+    .neo-composer.followup-state .neo-prompt-char {
+      color: var(--gold);
+    }
+    .neo-cursor {
+      display: inline-block;
+      width: 2px;
+      height: 15px;
+      background: var(--cyan);
+      margin-left: 2px;
+      vertical-align: middle;
+      animation: neoBlink 1s steps(2, start) infinite;
+    }
+    .neo-composer.followup-state .neo-cursor {
+      background: var(--gold);
+    }
+    @keyframes neoBlink {
+      0%, 50% { opacity: 1; }
+      51%, 100% { opacity: 0; }
+    }
+
+    /* 活动状态微轨（Activity Rail） */
+    .activity-rail-line {
+      height: 2px;
+      width: 100%;
+      background: #111826;
+      position: relative;
+      overflow: hidden;
+    }
+    .rail-glow {
+      position: absolute;
+      height: 100%;
+      width: 80px;
+      background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    .neo-composer.followup-state .rail-glow {
+      opacity: 0.8;
+      background: linear-gradient(90deg, transparent, var(--gold), transparent);
+      animation: railSweep 2.2s linear infinite;
+    }
+    @keyframes railSweep {
+      from { left: -80px; }
+      to { left: 100%; }
+    }
+
+    .neo-composer-bottom {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 4px 14px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* 说明板 */
+    .explanation-panel {
+      max-width: 1080px;
+      margin: 18px auto 0 auto;
+      width: 100%;
+      background: #090d16;
+      border: 1px solid #1a2538;
+      border-radius: 8px;
+      padding: 16px 20px;
+      font-size: 13px;
+    }
+    .exp-title {
+      color: var(--cyan);
+      font-weight: 700;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+    .exp-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 16px;
+      margin-top: 10px;
+    }
+    .exp-col {
+      background: #0f1522;
+      border: 1px solid #1a2638;
+      border-radius: 6px;
+      padding: 12px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 方案切换 -->
+  <div class="nav-bar">
+    <div class="nav-title">
+      <span>CHAOS AGENT 视觉动效重构</span>
+      <span class="nav-badge">方案 3 / 3</span>
+    </div>
+    <div class="nav-links">
+      <a href="ui_motion_scheme1_minimal_flow.html" class="nav-link-btn">方案一：极简微动流</a>
+      <a href="ui_motion_scheme2_fluid_capsule.html" class="nav-link-btn">方案二：灵动胶囊流</a>
+      <a href="ui_motion_scheme3_neo_terminal.html" class="nav-link-btn active">方案三：极客微光流</a>
+    </div>
+  </div>
+
+  <div class="terminal-container">
+    <div class="terminal-titlebar">
+      <div class="terminal-tabs">
+        <div class="terminal-tab-active">● chaos-16-agent (Neo Command Hub)</div>
+        <span style="color:#475569;">PowerShell 7.6.5</span>
+      </div>
+      <div style="font-size: 11px; color:#475569;">Micro-motion & Direct Slash Routing</div>
+    </div>
+
+    <!-- 实时交互控制条 -->
+    <div class="demo-controls">
+      <div class="ctrl-group">
+        <span class="ctrl-label">快速权限：</span>
+        <button class="action-pill" onclick="switchPermission('auto')">auto</button>
+        <button class="action-pill active" id="pill-unrest" onclick="switchPermission('unrestricted')">unrestricted</button>
+        <button class="action-pill" onclick="switchPermission('read-only')">read-only</button>
+      </div>
+      <div class="ctrl-group">
+        <span class="ctrl-label">执行模式：</span>
+        <button class="action-pill active" id="pill-chat" onclick="switchMode('chat')">chat</button>
+        <button class="action-pill" onclick="switchMode('plan')">plan</button>
+        <button class="action-pill" onclick="switchMode('build')">build</button>
+      </div>
+      <div class="ctrl-group">
+        <span class="ctrl-label">Follow-up 动态：</span>
+        <button class="action-pill" id="btn-neo-followup" onclick="toggleNeoFollowup()">触发 Follow-up 微光</button>
+        <button class="action-pill" onclick="toggleCommandHub()">搜索 / 调度 Skill</button>
+      </div>
+    </div>
+
+    <!-- 终端视窗内容 -->
+    <div class="terminal-body" id="neo-body">
+      <!-- 极客头部卡片 -->
+      <div class="neo-header">
+        <div class="neo-title">
+          <span>CHAOS AGENT / MUTED SLATE</span>
+        </div>
+        <div class="neo-meta-row">
+          <span>· chaos-16-agent · gpt-5.6-sol · <span class="neo-val flip-text" id="neo-mode-text">chat</span></span><br/>
+          <span>· permission: <span class="neo-val flip-text" id="neo-perm-text" style="color:var(--cyan);">unrestricted</span> · write yes · network yes</span><br/>
+          <span>· runtime: powershell_7 (PowerShell 7.6.5, Core) · :status for full details</span><br/>
+          <span>· : for commands · /&lt;skill&gt; for direct skill dispatch</span>
+        </div>
+      </div>
+
+      <!-- 紧凑单行流（无空白空行） -->
+      <div class="term-line">
+        <span class="term-prefix">·</span>
+        <span>permission selected: <span class="term-tag">auto</span> · Automatically allow workspace work</span>
+      </div>
+      <div class="term-line">
+        <span class="term-prefix">·</span>
+        <span>permission selected: <span class="term-tag" style="color:var(--gold);">unrestricted</span> · High trust; protected paths still require approval</span>
+      </div>
+
+      <div id="neo-dynamic-lines"></div>
+
+      <!-- 命令调度中心（Skill Command Hub） -->
+      <div class="command-hub" id="cmd-hub" style="display: none;">
+        <div class="hub-title">
+          <span>⚡ 技能直接调度中心 (Direct Slash Dispatch)</span>
+          <span style="font-size:11px; color:var(--text-dim);">支持即时过滤与一键唤醒</span>
+        </div>
+        <div class="hub-search-box">
+          <span>🔍</span>
+          <input type="text" class="hub-search-input" placeholder="输入关键词搜索 Skill (如: paper, cheat, ppt)..." oninput="filterSkills(this.value)" />
+        </div>
+        <table class="hub-table">
+          <thead>
+            <tr>
+              <th>快捷指令 (Slash)</th>
+              <th>分类</th>
+              <th>状态</th>
+              <th>功能说明</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="skill-rows">
+            <tr>
+              <td><code class="hub-cmd-code" onclick="pickSkill('academic-deep-research')">/academic-deep-research</code></td>
+              <td>科研</td>
+              <td><span style="color:#4ade80;">● Active</span></td>
+              <td>透明、严谨的全流程文献调研与学术可复现性验证</td>
+              <td><button class="hub-run-btn" onclick="pickSkill('academic-deep-research')">执行 /run</button></td>
+            </tr>
+            <tr>
+              <td><code class="hub-cmd-code" onclick="pickSkill('cheat-bump')">/cheat-bump</code></td>
+              <td>创作</td>
+              <td><span style="color:#94a3b8;">○ Ready</span></td>
+              <td>提议并执行 rubric 或 bucket 评分公式升级</td>
+              <td><button class="hub-run-btn" onclick="pickSkill('cheat-bump')">执行 /run</button></td>
+            </tr>
+            <tr>
+              <td><code class="hub-cmd-code" onclick="pickSkill('design-system')">/design-system</code></td>
+              <td>设计</td>
+              <td><span style="color:#94a3b8;">○ Ready</span></td>
+              <td>三层设计令牌 Token 规范与高质量幻灯片生成器</td>
+              <td><button class="hub-run-btn" onclick="pickSkill('design-system')">执行 /run</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 极客输入框组件 -->
+      <div class="neo-composer-wrap">
+        <div class="neo-composer" id="neo-composer">
+          <div class="corner-indicator"></div>
+          <div class="neo-composer-top">
+            <div id="neo-label" style="font-weight:600; color:var(--cyan);">CHAOS AGENT</div>
+            <div id="neo-status-note">Ready · powershell_7</div>
+          </div>
+          <div class="activity-rail-line">
+            <div class="rail-glow"></div>
+          </div>
+          <div class="neo-composer-input">
+            <span class="neo-prompt-char" id="neo-prompt">❯</span>
+            <span id="neo-input-val" style="color:#fff;">/skill </span>
+            <span class="neo-cursor"></span>
+          </div>
+          <div class="neo-composer-bottom">
+            <div style="color:var(--text-dim);">Tab 自动补全 · : 命令面板 · Esc 暂停</div>
+            <div style="font-size:10px; color:#475569;">context: 3.4k / 200k</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 说明板 -->
+  <div class="explanation-panel">
+    <div class="exp-title">🛠 方案三：极客微光流设计亮点</div>
+    <div class="exp-grid">
+      <div class="exp-col">
+        <strong style="color:#fff;">1. 字符级微翻滚 (Glyph Flip Decode)</strong>
+        <p style="color: #94a3b8; font-size:12px; margin-top:4px;">
+          点击上方权限或模式：被修改的单词执行极速 160ms 的反色字符翻滚替换，无大块位移，沉浸感极强。
+        </p>
+      </div>
+      <div class="exp-col">
+        <strong style="color:#fff;">2. Activity Rail 微轨低频律动</strong>
+        <p style="color: #94a3b8; font-size:12px; margin-top:4px;">
+          在 Follow-up 阶段，边框下方的细窄 Activity Rail 产生低频流光脉冲，角落产生微光锚点，光标保持字符级稳定闪烁，彻底消除行跨越晃动。
+        </p>
+      </div>
+      <div class="exp-col">
+        <strong style="color:#fff;">3. 真正的 Direct Slash 调用支持</strong>
+        <p style="color: #94a3b8; font-size:12px; margin-top:4px;">
+          不仅解决了技能列表友好排版，更支持直接通过 <code>/&lt;skill-name&gt; [需求描述]</code> 一步到位唤醒并传递指令。
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let isNeoFollowup = false;
+
+    function switchPermission(perm) {
+      document.querySelectorAll('.ctrl-group:first-child .action-pill').forEach(b => b.classList.remove('active'));
+      event.target.classList.add('active');
+
+      const text = document.getElementById('neo-perm-text');
+      text.classList.add('flipping');
+      setTimeout(() => {
+        text.innerText = perm;
+        text.classList.remove('flipping');
+      }, 120);
+
+      const lines = document.getElementById('neo-dynamic-lines');
+      const line = document.createElement('div');
+      line.className = 'term-line';
+      line.innerHTML = `<span class="term-prefix">·</span><span>permission selected: <span class="term-tag">${perm}</span> · High trust settings applied</span>`;
+      lines.appendChild(line);
+      scrollNeo();
+    }
+
+    function switchMode(mode) {
+      document.querySelectorAll('.ctrl-group:nth-child(2) .action-pill').forEach(b => b.classList.remove('active'));
+      event.target.classList.add('active');
+
+      const text = document.getElementById('neo-mode-text');
+      text.classList.add('flipping');
+      setTimeout(() => {
+        text.innerText = mode;
+        text.classList.remove('flipping');
+      }, 120);
+      scrollNeo();
+    }
+
+    function toggleNeoFollowup() {
+      isNeoFollowup = !isNeoFollowup;
+      const comp = document.getElementById('neo-composer');
+      const label = document.getElementById('neo-label');
+      const note = document.getElementById('neo-status-note');
+      const prompt = document.getElementById('neo-prompt');
+      const inputVal = document.getElementById('neo-input-val');
+      const btn = document.getElementById('btn-neo-followup');
+
+      if (isNeoFollowup) {
+        comp.classList.add('followup-state');
+        label.innerText = 'FOLLOW-UP (AGENT ACTIVE)';
+        label.style.color = 'var(--gold)';
+        note.innerText = 'Listening for steering commands...';
+        prompt.innerText = '✦';
+        inputVal.innerText = '增加对消融实验的论证深度';
+        btn.classList.add('active');
+      } else {
+        comp.classList.remove('followup-state');
+        label.innerText = 'CHAOS AGENT';
+        label.style.color = 'var(--cyan)';
+        note.innerText = 'Ready · powershell_7';
+        prompt.innerText = '❯';
+        inputVal.innerText = '/skill ';
+        btn.classList.remove('active');
+      }
+    }
+
+    function toggleCommandHub() {
+      const hub = document.getElementById('cmd-hub');
+      hub.style.display = hub.style.display === 'none' ? 'block' : 'none';
+      scrollNeo();
+    }
+
+    function pickSkill(id) {
+      const lines = document.getElementById('neo-dynamic-lines');
+      const l1 = document.createElement('div');
+      l1.className = 'term-line';
+      l1.innerHTML = `<span class="term-prefix">❯</span><span style="color:var(--cyan); font-weight:600;">/${id}</span>`;
+      const l2 = document.createElement('div');
+      l2.className = 'term-line';
+      l2.innerHTML = `<span class="term-prefix" style="color:var(--green);">✓</span><span>Activated skill [${id}] · Ready for task execution</span>`;
+      lines.appendChild(l1);
+      lines.appendChild(l2);
+      scrollNeo();
+    }
+
+    function filterSkills(query) {
+      const q = query.toLowerCase().trim();
+      const rows = document.querySelectorAll('#skill-rows tr');
+      rows.forEach(r => {
+        const text = r.innerText.toLowerCase();
+        r.style.display = text.includes(q) ? '' : 'none';
+      });
+    }
+
+    function scrollNeo() {
+      const b = document.getElementById('neo-body');
+      b.scrollTop = b.scrollHeight;
+    }
+  </script>
+</body>
+</html>

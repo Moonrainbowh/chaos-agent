@@ -11,7 +11,7 @@ pre{font:14px/1.6 "Cascadia Code","JetBrains Mono",Consolas,"Microsoft YaHei UI"
 </style><main><h1>冷萃冰阶 / Muted Slate</h1><p>方案 A · 唯一默认主题 · 真实终端渲染器输出 · 离线示例数据</p>
 <nav id="states"></nav><button id="motion">暂停动效</button>
 <div class="terminal"><pre id="transcript"></pre><pre id="tail"></pre></div>
-<p>Enter 发送 / 排队 · Ctrl+J 换行 · Tab 转向 · Esc 暂停。状态与用量为示例，不代表实际执行。</p>
+<p>Enter 发送 / 排队 · Shift+Enter 或 Ctrl+J 换行 · Tab 转向 · Esc 暂停。状态与用量为示例，不代表实际执行。</p>
 <p>终端动效使用字符颜色巡移；背景仅供深色终端参考，程序不修改终端设置。</p></main>
 <script>const data=__PREVIEW_DATA__.slate;let state='idle',tick=0,motion=!matchMedia('(prefers-reduced-motion: reduce)').matches;
 const labels={idle:'就绪',building_context:'准备上下文',streaming_response:'生成中',completed:'已完成',paused:'已暂停',approval:'等待审批'};

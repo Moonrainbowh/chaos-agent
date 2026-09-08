@@ -24,8 +24,8 @@ async def handle_interrupt(app: Any) -> None:
         pass
     elif app._token:
         app._token.cancel("user requested pause")
-    elif app.input.text:
-        app.input.clear()
+    elif app.input.text or getattr(getattr(app, "attachment_draft", None), "items", ()):
+        clear_input(app)
     else:
         app._append(DisplayKind.METADATA, "press Ctrl+C again within two seconds to exit")
 
@@ -68,7 +68,7 @@ async def apply_paste(app: Any, value: str) -> bool:
         return True
     try:
         event = paste_event(value)
-        app.input.insert(event.value)
+        app.input.insert_paste(event.value)
     except (TypeError, ValueError) as error:
         app._append(DisplayKind.ERROR, str(error))
         return False
@@ -101,3 +101,25 @@ def insert_input(app: Any, value: str) -> None:
         app.input.insert(value)
     except ValueError as error:
         app._append(DisplayKind.ERROR, str(error))
+
+
+def sync_attachment_input(app: Any) -> None:
+    draft = getattr(app, "attachment_draft", None)
+    app.input.sync_images(getattr(draft, "image_tokens", ()))
+
+
+def delete_input(app: Any, *, backwards: bool) -> bool:
+    before = app.input.display
+    removed = app.input.backspace() if backwards else app.input.delete()
+    draft = getattr(app, "attachment_draft", None)
+    if draft is not None:
+        for identifier in removed:
+            draft.remove(identifier)
+    return app.input.display != before
+
+
+def clear_input(app: Any) -> None:
+    app.input.clear()
+    draft = getattr(app, "attachment_draft", None)
+    if draft is not None:
+        draft.clear()

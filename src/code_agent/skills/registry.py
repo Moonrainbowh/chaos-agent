@@ -59,7 +59,7 @@ class SkillRegistry:
 
 
 class SkillActivation:
-    def __init__(self, registry: SkillRegistry, *, max_chars: int = 12_000) -> None:
+    def __init__(self, registry: SkillRegistry, *, max_chars: int = 64_000) -> None:
         self._registry, self._max_chars, self._active = registry, max_chars, []
 
     def activate(self, identifier: str, *, approved: bool = False) -> SkillManifest:
@@ -107,8 +107,28 @@ def _frontmatter(content: str) -> tuple[str | None, str | None]:
     if closing < 0:
         raise ValueError("invalid frontmatter")
     values: dict[str, str] = {}
+    current_key: str | None = None
+    multiline: list[str] = []
     for line in content[4:closing].splitlines():
+        stripped = line.strip()
+        if (line.startswith(("  ", "\t")) or (current_key and not line.partition(":")[1])) and current_key:
+            if stripped:
+                multiline.append(stripped)
+            continue
+        if current_key and multiline:
+            values[current_key] = " ".join(multiline)
+            current_key = None
+            multiline = []
         key, separator, value = line.partition(":")
         if separator and key.strip() in {"name", "description"}:
-            values[key.strip()] = value.strip().strip('"')
+            k = key.strip()
+            v = value.strip().strip('"').strip("'")
+            if v in {">", ">-", "|", "|-", ""}:
+                current_key = k
+                multiline = []
+            else:
+                values[k] = v
+                current_key = None
+    if current_key and multiline:
+        values[current_key] = " ".join(multiline)
     return values.get("name"), values.get("description")

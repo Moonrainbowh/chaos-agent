@@ -34,6 +34,8 @@ async def submit(app: object, text: str, attachments: object = None) -> bool:
         app.redraw()
         return accepted
     if parsed.error:
+        if _is_direct_skill_invocation(app, text):
+            return await _handle_direct_skill(app, text, attachments)
         return _reject(app, text, parsed.error)
     if getattr(app, "_starting_task", False):
         return _reject(app, text, "Preparing workspace. Input kept; retry when preparation finishes.")
@@ -105,6 +107,59 @@ def finish_run(app: object, runner: asyncio.Task) -> None:
     if not app._closing:
         app.on_task_finished()
         app._request_redraw(immediate=True)
+
+
+def _is_direct_skill_invocation(app: object, text: str) -> bool:
+    if not text.startswith(("/", ":")):
+        return False
+    skills = getattr(app, "skills", None)
+    if skills is None:
+        return False
+    raw = text[1:].lstrip()
+    skill_id, _, _ = raw.partition(" ")
+    skill_id = skill_id.strip()
+    if not skill_id:
+        return False
+    try:
+        skills.info(skill_id)
+        return True
+    except Exception:
+        return False
+
+
+async def _handle_direct_skill(app: object, text: str, attachments: object = None) -> bool:
+    raw = text[1:].lstrip()
+    skill_id, _, prompt = raw.partition(" ")
+    skill_id = skill_id.strip()
+    prompt = prompt.strip()
+    thread_id = getattr(app, "current_thread_id", None)
+    if thread_id is not None and hasattr(app.skills, "enable"):
+        try:
+            await app.skills.enable(thread_id, skill_id)
+        except Exception as error:
+            app._append(DisplayKind.ERROR, f"Skill activation failed: {error}")
+            return False
+    skill = app.skills.info(skill_id)
+    desc = (getattr(skill, "description", "") or "").split("\n")[0]
+    if prompt:
+        app._append(DisplayKind.METADATA, f"Skill [{skill_id}] active · {desc}")
+        try:
+            prepared = prepare_input(app.attachment_draft, prompt, attachments)
+        except (RuntimeError, ValueError) as error:
+            return _reject(app, prompt, str(error))
+        app._append(DisplayKind.USER, prepared.display)
+        if app._run_task and not app._run_task.done():
+            if app.tasks and app.active_task_id:
+                return await submit_active_input(app, prepared)
+            return _reject(app, prompt, "A response is running. Pause it before sending another task.")
+        return await start_prepared(app, prepared, prompt)
+    else:
+        app._append(
+            DisplayKind.METADATA,
+            f"Skill [{skill_id}] active · {desc}\n  Ready. Run /{skill_id} <instruction> or enter your prompt directly."
+        )
+        app.redraw()
+        return True
 
 
 def _reject(app: object, original: str, reason: str) -> bool:

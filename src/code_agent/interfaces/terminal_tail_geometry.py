@@ -70,6 +70,7 @@ def _layout_input(value: str, width: int, cursor_index: int) -> tuple[list[str],
     cursor_column = 0
     offset = 0
     for cluster in graphemes(value):
+        source_length = len(cluster)
         if offset <= cursor_index < offset + len(cluster):
             cursor_row, cursor_column = len(rows) - 1, row_widths[-1]
         if cluster == "\n":
@@ -78,13 +79,18 @@ def _layout_input(value: str, width: int, cursor_index: int) -> tuple[list[str],
             offset += len(cluster)
             continue
         cluster_width = grapheme_width(cluster)
+        if cluster == "\t":
+            # Never emit a hardware tab: its terminal column differs from the
+            # editor's measured width and can wrap outside the tracked frame.
+            cluster_width = min(4 - row_widths[-1] % 4, width)
+            cluster = " " * cluster_width
         if rows[-1] and row_widths[-1] + cluster_width > width:
             rows.append("")
             row_widths.append(0)
         visible = cluster if cluster_width <= width else "?"
         rows[-1] += visible
         row_widths[-1] += display_width(visible)
-        offset += len(cluster)
+        offset += source_length
     if cursor_index == len(value):
         cursor_row, cursor_column = len(rows) - 1, row_widths[-1]
     return rows, cursor_row, cursor_column
@@ -142,3 +148,10 @@ def _rewrite_tail(
     if cursor_column:
         parts.append(f"\x1b[{cursor_column}C")
     return "".join(parts)
+
+
+def get_console_dock_padding(tail_height: int) -> int:
+    """Return how many blank lines are needed to dock the tail at the viewport bottom.
+    In append-only CLI flow, preserve compact inline layout without blank line craters.
+    """
+    return 0

@@ -24,7 +24,7 @@
 - `create_application(workspace_root, model_name, profile_name, mode_name): Application`: 在任何 Provider 副作用前真实探测并冻结共享 PowerShell Runtime，再组合模式/profile/model、能力披露策略、权限策略、workspace、会话、插件、子 Agent、provider、TUI 与 CLI | 创建或替换 provider、本地状态和有界子运行时 | source/worktree、主/子 Agent 和 runtime 切换共用同一方言与配置的 capability strategy；Provider 提示不泄露 executable 全路径，本地 `/状态` 可审查完整探测信息；活动任务不可切换
 - `ManagedWorkspaceRuntime.close()`、`Application.aclose()`: 在子 Agent、provider 与 MCP 停止后释放所有已物化 workspace 的进程内 Repo Index | 关闭 SQLite 内存连接并清空服务缓存 | 幂等关闭，不删除工作区或持久状态
 - `profile_model_factory(...)`、共享 `AttachmentStore` / `AttachmentIngestor`: 将当前 profile 的显式输入模态和产品状态附件 resolver 注入主、子与切换后 provider | 创建有界本地附件仓库 | 测试/自定义单参数 factory 保持旧调用契约；不在集成层解析 blob 或推断模型能力
-- `cli.run(...)`: 为 ask、resume、JSON run 与 task resume 摄取显式 `--attach`，为仅附件请求补默认提示，并在创建 Application 前处理 help/version；`acp` 分支启动 stdio 适配器 | 工作线程文件摄取/命令委托 | ACP stdout 专用于 JSON-RPC，不接收附件或位置参数；Provider 配置错误显示安全的具体原因、配置路径和下一步
+- `cli.run(...)`、`main()`: 为 ask、resume、JSON run 与 task resume 摄取显式 `--attach`，为仅附件请求补默认提示，并在创建 Application 前处理 help/version；`acp` 分支启动 stdio 适配器；入口把残余 Ctrl+C 归一为退出码 130 | 工作线程文件摄取/命令委托 | ACP stdout 专用于 JSON-RPC，不接收附件或位置参数；Provider 配置错误显示安全的具体原因、配置路径和下一步；不输出 Ctrl+C traceback
 - `serve_acp(application)`: 将已组合的 controller、sessions 与 workspace root 注入 ACP Feature 并启动官方 SDK stdio transport | 占用进程 stdin/stdout 至客户端断开 | 不复制 Agent loop，不启用 TUI 交互审批
 - `build_application_tui(...)`、`build_foreground(...)`、`build_main_dispatcher(...)`: 组合界面、前台任务和模式限定 dispatcher，并把当前 profile 的显式输入模态校验接入附件草稿 | 读取集成对象并创建 TUI 控制器 | 不实现 Feature 内部行为
 - `workspace_uses_repo_map(root, git_available): bool`: 以 broad-root、Git 能力和根目录直属项目标记判定是否自动构建 repo map | 固定探测已知 marker，suffix marker 最多枚举 512 个直属条目 | Home/磁盘根即使是 Git worktree 也保持轻量；不递归扫描
