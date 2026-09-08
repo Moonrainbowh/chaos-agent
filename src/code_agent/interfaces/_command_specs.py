@@ -3,125 +3,238 @@ from __future__ import annotations
 from ._command_models import CommandAction, CommandSpec, CommandVisibility
 
 
+def _semantic_map_spec() -> CommandSpec:
+    return CommandSpec(
+        "map", ("repo-map", "semantic-map", "图谱"), "Workspace",
+        "Explore the shared semantic repository graph", "[action]",
+        requires=("semantic_graph",),
+        actions=(
+            CommandAction("overview", ("tree",), "Show repository map, subsystems, and dependency hubs", "[prefix]"),
+            CommandAction("context", (), "Rank files to show the model for a query", "<query>"),
+            CommandAction("impact", (), "Show affected code and tests for paths", "<path...>"),
+            CommandAction("tests", (), "Prioritize impacted tests for paths", "<path...>"),
+            CommandAction("risk", (), "Predict change risk before editing paths", "<path...>"),
+            CommandAction("review", (), "Calculate the bounded review scope", "<path...>"),
+            CommandAction("refactor", (), "Plan refactor impact and dependency order", "<path...>"),
+            CommandAction("locate", ("bug",), "Rank static bug investigation candidates", "<query>"),
+            CommandAction("dead-code", ("dead",), "List conservative static dead-code candidates", "[prefix]"),
+        ),
+    )
+
+
 def built_in_command_specs() -> tuple[CommandSpec, ...]:
-    advanced = CommandVisibility.ADVANCED
-    internal = CommandVisibility.INTERNAL
-    runtime = ("runtime_selection",)
-    peers = ("peers",)
+    return (CommandSpec("theme", ("主题",), "Appearance", "Muted Slate animation controls", "[motion on|motion off]", visibility=CommandVisibility.ADVANCED), *_general_specs(), *_workspace_specs(), *_runtime_specs(),
+            *_extension_specs(), *_session_specs(), *_advanced_specs())
+
+
+def _general_specs() -> tuple[CommandSpec, ...]:
     return (
-        CommandSpec("帮助", ("help",), "通用", "显示常用命令", "[command|全部]"),
-        CommandSpec("状态", ("status",), "通用", "显示当前状态"),
-        CommandSpec("新建", ("new",), "会话", "新建会话"),
         CommandSpec(
-            "会话", ("sessions",), "会话", "管理历史与在线会话", "<action>",
-            actions=(
-                CommandAction("历史", ("history", "list"), "列出历史会话", requires=("sessions",)),
-                CommandAction("在线", ("online", "agents"), "列出在线 Agent", requires=peers),
-                CommandAction("重命名", ("rename",), "重命名当前 Agent", "<name>", requires=peers),
-                CommandAction("发送", ("send",), "向目标 Agent 发送纯文本", "<target> <text...>", requires=peers),
-                CommandAction("接收", ("inbound",), "设置入站策略", "<auto|accept|hold|refuse>", requires=peers),
-                CommandAction("待处理", ("inbox", "pending"), "列出待处理消息", requires=peers),
-                CommandAction("接受", ("accept",), "接受 held 消息", "<message-id>", requires=peers),
-                CommandAction("拒绝", ("refuse", "reject"), "拒绝 held 消息", "<message-id>", requires=peers),
-            ),
-        ),
-        CommandSpec("任务", ("tasks",), "任务", "列出任务", requires=("tasks",)),
-        CommandSpec("差异", ("diff",), "工作区", "显示差异", visibility=advanced),
-        CommandSpec(
-            "附件", ("attach", "attachments"), "输入", "暂存、查看或移除附件",
-            "[path|clipboard|list|remove <id>|clear]", requires=("attachments",),
+            "clear", ("c", "清屏"), "General",
+            "Clear the visible transcript and start a fresh turn",
         ),
         CommandSpec(
-            "回退", ("rewind",), "工作区", "预览并执行 Rewind",
+            "compact", (), "General",
+            "Summarize stale context and persist a semantic checkpoint",
+        ),
+        CommandSpec(
+            "cost", ("tokens",), "General",
+            "Show durable prompt/completion usage and configured cost estimate",
+        ),
+        CommandSpec(
+            "status", ("s", "状态"), "General",
+            "Show model, task mode, permissions, workspace, and host runtime",
+        ),
+        CommandSpec(
+            "doctor", (), "General",
+            "Run PowerShell, Git, path, workspace, and endpoint diagnostics",
+        ),
+        CommandSpec("exit", ("quit", "q", "退出"), "General", "Exit Chaos-Agent"),
+    )
+
+
+def _workspace_specs() -> tuple[CommandSpec, ...]:
+    return (
+        CommandSpec("diff", ("d", "差异"), "Workspace", "View uncommitted workspace diff"),
+        _semantic_map_spec(),
+        CommandSpec(
+            "review", (), "Workspace",
+            "Ask the agent to review uncommitted changes", "[scope]",
+        ),
+        CommandSpec(
+            "test", ("verify",), "Workspace",
+            "Ask the agent to run and report project verification", "[scope]",
+        ),
+        CommandSpec(
+            "rewind", ("undo", "回退"), "Workspace", "Time travel rollback to a checkpoint",
             "[checkpoint-id]", requires=("checkpoints",),
         ),
         CommandSpec(
-            "模式", ("mode",), "能力", "选择代理、模型与思考深度", "<action>",
+            "attach", ("attachments", "附件"), "Input", "Attach, view or manage local files/images",
+            "[path|clipboard|list|remove <id>|clear]", requires=("attachments",),
             actions=(
-                CommandAction("代理", ("topology", "agent"), "选择 single 或 team", "<single|team>", requires=runtime),
-                CommandAction("模型", ("model", "profile"), "选择模型 profile", "<profile-or-sol|terra|luna>", requires=runtime),
-                CommandAction("思考", ("reasoning", "effort"), "选择思考深度", "<low|medium|high|xhigh|max>", requires=runtime),
-                CommandAction("low", (), "旧版快速模式", requires=("modes",), visibility=internal),
-                CommandAction("medium", (), "旧版均衡模式", requires=("modes",), visibility=internal),
-                CommandAction("high", (), "旧版深度模式", requires=("modes",), visibility=internal),
-                CommandAction("ultra", (), "旧版编排模式", requires=("modes",), visibility=internal),
+                CommandAction("add", (), "Attach files by path; quote paths containing spaces", "<path...>"),
+                CommandAction("clipboard", (), "Attach clipboard images"),
+                CommandAction("list", (), "Show staged attachments"),
+                CommandAction("remove", (), "Remove a staged attachment", "<id>"),
+                CommandAction("clear", (), "Clear staged attachments"),
             ),
         ),
+    )
+
+
+def _runtime_specs() -> tuple[CommandSpec, ...]:
+    runtime = ("runtime_selection",)
+    return (
         CommandSpec(
-            "权限", ("permission", "permissions"), "能力", "切换下一任务的访问权限",
+            "model", ("m",), "Configuration",
+            "Select a model; a changed selection opens a new conversation", "[profile]",
+            requires=runtime,
+        ),
+        _mode_spec(),
+        CommandSpec(
+            "effort", (), "Configuration",
+            "Select reasoning depth; a changed selection opens a new conversation", "[low|medium|high|xhigh|max]",
+            requires=runtime,
+        ),
+        _permission_spec(),
+    )
+
+
+def _mode_spec() -> CommandSpec:
+    runtime = ("runtime_selection",)
+    task_modes = ("task_modes",)
+    internal = CommandVisibility.INTERNAL
+    return CommandSpec(
+            "mode", ("模式",), "Configuration",
+            "Choose ask, code, or read-only plan behavior", "<action>",
+            actions=(
+                CommandAction("ask", (), "Pure Q&A with a read-only task contract", requires=task_modes),
+                CommandAction("code", (), "Programming mode with permission-governed tools", requires=task_modes),
+                CommandAction("plan", (), "Read-only planning with no writes or local execution", requires=task_modes),
+                CommandAction("agent", ("topology", "代理"), "Legacy topology selector", "<single|team>", requires=runtime, visibility=internal),
+                CommandAction("model", ("profile", "模型"), "Legacy model selector", "<profile>", requires=runtime, visibility=internal),
+                CommandAction("effort", ("reasoning", "思考"), "Legacy effort selector", "<effort>", requires=runtime, visibility=internal),
+                CommandAction("low", (), "Legacy low effort", requires=("modes",), visibility=internal),
+                CommandAction("medium", (), "Legacy medium effort", requires=("modes",), visibility=internal),
+                CommandAction("high", (), "Legacy high effort", requires=("modes",), visibility=internal),
+                CommandAction("ultra", (), "Legacy orchestration mode", requires=("modes",), visibility=internal),
+            ),
+    )
+
+
+def _permission_spec() -> CommandSpec:
+    advanced = CommandVisibility.ADVANCED
+    return CommandSpec(
+            "permission", ("p", "permissions", "权限"), "Configuration", "Configure tool and sandbox execution permissions",
             "<permission>", requires=("permissions",), actions=(
-                CommandAction("unrestricted", (), "高信任访问，受保护路径仍需审批"),
-                CommandAction("plan", (), "仅允许工作区只读操作"),
-                CommandAction("ask", (), "写入和命令逐次审批"),
-                CommandAction("auto", (), "工作区读写和已识别本地命令自动执行"),
-                CommandAction("elevated", (), "外部访问走审批，类型化文件仍限工作区"),
-                CommandAction("full-local", (), "本地高信任策略，类型化文件仍限工作区"),
+                CommandAction("auto", (), "Auto-execute workspace reads/writes and commands"),
+                CommandAction("plan", (), "Read-only workspace analysis mode"),
+                CommandAction("ask", (), "Prompt for approval on every write and command"),
+                CommandAction("unrestricted", (), "High trust mode with protected path approval"),
+                CommandAction("elevated", (), "Elevated tool access mode", visibility=advanced),
+                CommandAction("full-local", (), "Full local workspace trust mode", visibility=advanced),
                 CommandAction(
-                    "允许命令", ("allow-command",), "永久允许精确结构化命令",
-                    "[--network] <program> [args...]",
+                    "allow-command", ("允许命令",), "Permanently allow a command",
+                    "[--network] <program> [args...]", visibility=advanced,
                 ),
-                CommandAction("规则", ("rules",), "列出当前工作区永久命令规则"),
+                CommandAction("rules", ("规则",), "List permanent command permission rules", visibility=advanced),
                 CommandAction(
-                    "撤销", ("revoke",), "撤销永久命令规则", "<rule-id>"
+                    "revoke", ("撤销",), "Revoke a permanent command rule", "<rule-id>", visibility=advanced,
                 ),
             ),
-        ),
-        CommandSpec("退出", ("exit", "quit"), "通用", "请求退出"),
-        CommandSpec("清屏", ("clear",), "通用", "清空本次转录", visibility=advanced),
+    )
+
+
+def _extension_specs() -> tuple[CommandSpec, ...]:
+    return (
         CommandSpec(
-            "恢复", ("restore",), "会话", "恢复会话", "<thread-id>",
+            "mcp", (), "Extensions", "Inspect and manage Model Context Protocol servers", "<action>",
+            requires=("mcp",), actions=(
+                CommandAction("list", ("列表",), "List MCP servers"),
+                CommandAction("status", ("状态",), "Show MCP server status", "[server]"),
+                CommandAction("tools", ("工具",), "List MCP tools", "[server]"),
+                CommandAction("enable", ("启用",), "Enable MCP server", "<server>"),
+                CommandAction("disable", ("禁用",), "Disable MCP server", "<server>"),
+                CommandAction("restart", ("重启",), "Restart MCP server", "<server>"),
+                CommandAction("diagnose", ("诊断",), "Diagnose MCP server", "<server>"),
+            ),
+        ),
+        CommandSpec(
+            "plugin", ("plugins", "插件"), "Extensions", "Manage local and declarative plugins", "<action>",
+            requires=("plugins",), actions=(
+                CommandAction("list", ("列表",), "List installed plugins"),
+                CommandAction("status", ("状态",), "Show plugin status", "[plugin-id]"),
+                CommandAction("enable", ("启用",), "Enable plugin", "<plugin-id>"),
+                CommandAction("disable", ("禁用",), "Disable plugin", "<plugin-id>"),
+                CommandAction("reload", ("重载",), "Reload plugins"),
+            ),
+        ),
+        CommandSpec("tasks", ("t", "任务"), "Tasks", "List background and active tasks", requires=("tasks",)),
+    )
+
+
+def _session_specs() -> tuple[CommandSpec, ...]:
+    advanced = CommandVisibility.ADVANCED
+    peers = ("peers",)
+    return (
+        CommandSpec(
+            "help", ("帮助", "?"), "General", "Show available commands",
+            "[command|all]", visibility=advanced,
+        ),
+        CommandSpec(
+            "sessions", ("会话",), "Session", "Manage session threads and peer agents", "<action>",
+            actions=(
+                CommandAction("history", ("list", "历史"), "List session history", requires=("sessions",)),
+                CommandAction("online", ("agents", "在线"), "List online agents", requires=peers),
+                CommandAction("rename", ("重命名",), "Rename current agent", "<name>", requires=peers),
+                CommandAction("send", ("发送",), "Send text message to an agent", "<target> <text...>", requires=peers),
+                CommandAction("inbound", ("接收",), "Configure inbound policy", "<auto|accept|hold|refuse>", requires=peers),
+                CommandAction("inbox", ("pending", "待处理"), "List pending messages", requires=peers),
+                CommandAction("accept", ("接受",), "Accept held message", "<message-id>", requires=peers),
+                CommandAction("refuse", ("reject", "拒绝"), "Refuse held message", "<message-id>", requires=peers),
+            ), visibility=advanced,
+        ),
+        CommandSpec("new", ("新建",), "Session", "Start a new session", visibility=advanced),
+        CommandSpec(
+            "restore", ("恢复",), "Session", "Restore session from thread ID", "<thread-id>",
             requires=("history",), visibility=advanced,
         ),
+    )
+
+
+def _advanced_specs() -> tuple[CommandSpec, ...]:
+    advanced = CommandVisibility.ADVANCED
+    return (
         CommandSpec(
-            "接受", ("accept",), "任务", "接受部分交付", "[task-id]",
+            "accept", ("接受",), "Tasks", "Accept partial delivery", "[task-id]",
             requires=("tasks",), visibility=advanced,
         ),
         CommandSpec(
-            "证据", ("evidence",), "工作区", "显示验证证据", "[task-id]",
+            "evidence", ("证据",), "Workspace", "Show verification evidence", "[task-id]",
             requires=("evidence",), visibility=advanced,
         ),
         CommandSpec(
-            "检查点", ("checkpoint",), "工作区", "列出或创建 Checkpoint", "<action>",
+            "checkpoint", ("检查点",), "Workspace", "List or create checkpoints", "<action>",
             requires=("checkpoints",), actions=(
-                CommandAction("列表", ("list",), "列出 Checkpoint"),
-                CommandAction("创建", ("create",), "创建 Checkpoint", "[label]"),
+                CommandAction("list", ("列表",), "List checkpoints"),
+                CommandAction("create", ("创建",), "Create checkpoint", "[label]"),
             ), visibility=advanced,
         ),
         CommandSpec(
-            "流程", ("flow",), "任务", "显示可信执行流程",
-            "[node-id|失败|证据 <node-id>]", requires=("workflows",), visibility=advanced,
+            "flow", ("流程",), "Tasks", "Show execution flow graph",
+            "[node-id|failure|evidence <node-id>]", requires=("workflows",), visibility=advanced,
         ),
         CommandSpec(
-            "技能", ("skill", "skills"), "能力", "管理当前 thread 的 Skills", "<action>",
+            "skill", ("skills", "技能"), "Capability", "Manage skills for current thread", "<action>",
             requires=("skills",), actions=(
-                CommandAction("列表", ("list",), "列出 Skills", "[--all|--active|--errors]"),
-                CommandAction("信息", ("info",), "显示 Skill 信息", "<skill-id>"),
-                CommandAction("启用", ("enable",), "启用 Skill", "<skill-id>"),
-                CommandAction("禁用", ("disable",), "禁用 Skill", "<skill-id>"),
-                CommandAction("来源", ("source",), "显示 Skill 来源", "<skill-id>"),
-                CommandAction("重载", ("reload",), "重新发现 Skills"),
-            ), visibility=advanced,
-        ),
-        CommandSpec(
-            "mcp", (), "能力", "管理已配置 MCP servers", "<action>",
-            requires=("mcp",), actions=(
-                CommandAction("list", ("列表",), "列出 MCP servers"),
-                CommandAction("status", ("状态",), "显示 MCP 状态", "[server]"),
-                CommandAction("tools", ("工具",), "列出 MCP tools", "[server]"),
-                CommandAction("enable", ("启用",), "启用 MCP server", "<server>"),
-                CommandAction("disable", ("禁用",), "禁用 MCP server", "<server>"),
-                CommandAction("restart", ("重启",), "重启 MCP server", "<server>"),
-                CommandAction("diagnose", ("诊断",), "诊断 MCP server", "<server>"),
-            ), visibility=advanced,
-        ),
-        CommandSpec(
-            "插件", ("plugin", "plugins"), "能力", "管理声明式 Plugins", "<action>",
-            requires=("plugins",), actions=(
-                CommandAction("list", ("列表",), "列出 Plugins"),
-                CommandAction("status", ("状态",), "显示 Plugin 状态", "[plugin-id]"),
-                CommandAction("enable", ("启用",), "启用 Plugin", "<plugin-id>"),
-                CommandAction("disable", ("禁用",), "禁用 Plugin", "<plugin-id>"),
-                CommandAction("reload", ("重载",), "重新发现 Plugins"),
+                CommandAction("list", ("列表",), "List skills", "[--all|--active|--errors]"),
+                CommandAction("info", ("信息",), "Show skill details", "<skill-id>"),
+                CommandAction("enable", ("启用",), "Enable skill", "<skill-id>"),
+                CommandAction("disable", ("禁用",), "Disable skill", "<skill-id>"),
+                CommandAction("source", ("来源",), "Show skill source", "<skill-id>"),
+                CommandAction("reload", ("重载",), "Reload skills"),
+                CommandAction("run", ("运行", "use"), "Run skill directly", "<skill-id> [prompt]"),
             ), visibility=advanced,
         ),
     )

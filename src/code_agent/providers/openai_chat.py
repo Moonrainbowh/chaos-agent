@@ -72,6 +72,39 @@ def _tool_payload(tool: ToolDefinition) -> dict[str, object]:
     }
 
 
+def _sanitize_tool_pairs(messages: list[dict[str, object]]) -> list[dict[str, object]]:
+    sanitized: list[dict[str, object]] = []
+    pending_tool_calls: list[str] = []
+    for msg in messages:
+        if pending_tool_calls and msg.get("role") != "tool":
+            for call_id in pending_tool_calls:
+                sanitized.append({
+                    "role": "tool",
+                    "tool_call_id": call_id,
+                    "content": json.dumps({"status": "interrupted", "error": "tool execution was interrupted"}),
+                })
+            pending_tool_calls = []
+        if msg.get("role") == "tool":
+            call_id = msg.get("tool_call_id")
+            if call_id in pending_tool_calls:
+                pending_tool_calls.remove(call_id)
+        elif msg.get("role") == "assistant" and msg.get("tool_calls"):
+            calls = msg.get("tool_calls", [])
+            if isinstance(calls, list):
+                for c in calls:
+                    if isinstance(c, dict) and "id" in c:
+                        pending_tool_calls.append(c["id"])
+        sanitized.append(msg)
+    if pending_tool_calls:
+        for call_id in pending_tool_calls:
+            sanitized.append({
+                "role": "tool",
+                "tool_call_id": call_id,
+                "content": json.dumps({"status": "interrupted", "error": "tool execution was interrupted"}),
+            })
+    return sanitized
+
+
 def _request_messages(
     system_prompt: str,
     messages: Sequence[Message],
@@ -85,9 +118,10 @@ def _request_messages(
                 system_parts.append(message.content)
             continue
         request_messages.append(_message_payload(message, encoder))
+    sanitized = _sanitize_tool_pairs(request_messages)
     if system_parts:
-        request_messages.insert(0, {"role": "system", "content": "\n\n".join(system_parts)})
-    return request_messages
+        sanitized.insert(0, {"role": "system", "content": "\n\n".join(system_parts)})
+    return sanitized
 
 
 def _late_usage(value: Mapping[str, object]) -> ModelEvent:

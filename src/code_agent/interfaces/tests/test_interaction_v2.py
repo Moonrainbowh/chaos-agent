@@ -70,14 +70,17 @@ class PickerStateTests(unittest.TestCase):
         services = {
             "sessions", "history", "tasks", "evidence", "modes", "permissions", "workflows",
             "skills", "mcp", "checkpoints", "plugins", "attachments",
+            "runtime_selection", "task_modes", "semantic_graph",
         }
         items = command_picker_items(REGISTRY.all(), services)
 
         self.assertEqual(
             tuple(item.label for item in items),
             (
-                "/帮助", "/状态", "/新建", "/会话", "/任务",
-                "/附件", "/回退", "/模式", "/权限", "/退出",
+                "/clear", "/compact", "/cost", "/status",
+                "/doctor", "/exit", "/diff", "/map", "/review", "/test",
+                "/rewind", "/attach", "/model", "/mode", "/effort", "/permission",
+                "/mcp", "/plugin", "/tasks",
             ),
         )
 
@@ -87,40 +90,40 @@ class PickerStateTests(unittest.TestCase):
             with self.subTest(command=spec.name):
                 self.assertTrue(picker.accept().completion.startswith("/" + spec.name))  # type: ignore[union-attr]
 
-        self.assertFalse(any(item.label == "/证据" for item in items))
+        self.assertFalse(any(item.label == "/evidence" for item in items))
 
         colon_items = command_picker_items(
             REGISTRY.all(), services, command_prefix=":"
         )
         self.assertTrue(all(item.label.startswith(":") for item in colon_items))
         panel = PickerState(colon_items).panel_rows(80)
-        self.assertIn("COMMAND · Tab complete", panel[0])
-        self.assertIn(":帮助", "\n".join(panel))
+        self.assertIn("COMMANDS · Tab complete", panel[0])
+        self.assertIn(":clear", "\n".join(panel))
 
     def test_mode_is_a_root_parent_and_its_actions_inherit_unavailability(self) -> None:
         items = command_picker_items(REGISTRY.all(), set())
         modes = command_picker_items(
-            REGISTRY.all(), set(), parent=REGISTRY.resolve("模式")
+            REGISTRY.all(), set(), parent=REGISTRY.resolve("mode")
         )
 
-        self.assertEqual(tuple(item.label for item in items).count("/模式"), 1)
-        self.assertFalse(any(item.label.startswith("/模式 ") for item in items))
+        self.assertEqual(tuple(item.label for item in items).count("/mode"), 1)
+        self.assertFalse(any(item.label.startswith("/mode ") for item in items))
         self.assertEqual(
             tuple(item.label for item in modes),
-            ("/模式 代理", "/模式 模型", "/模式 思考"),
+            ("/mode ask", "/mode code", "/mode plan"),
         )
         self.assertTrue(all(not item.enabled for item in modes))
         self.assertTrue(
-            all(item.disabled_reason == "requires runtime_selection" for item in modes)
+            all(item.disabled_reason == "requires task_modes" for item in modes)
         )
 
     def test_session_actions_are_service_scoped_without_changing_the_root(self) -> None:
         root = command_picker_items(REGISTRY.all(), {"sessions"})
         actions = command_picker_items(
-            REGISTRY.all(), {"sessions"}, parent=REGISTRY.resolve("会话")
+            REGISTRY.all(), {"sessions"}, parent=REGISTRY.resolve("sessions")
         )
 
-        self.assertEqual(tuple(item.label for item in root).count("/会话"), 1)
+        self.assertEqual(tuple(item.label for item in root).count("/sessions"), 0)
         self.assertTrue(actions[0].enabled)
         self.assertTrue(all(not item.enabled for item in actions[1:]))
 

@@ -19,12 +19,15 @@ _DEFAULT_SERVICES = {
     "plugins",
     "attachments",
     "runtime_selection",
+    "task_modes",
+    "semantic_graph",
     "peers",
 }
 
 
 class TuiCommandKind(str, Enum):
-    HELP = "help"; STATUS = "status"; CLEAR = "clear"; EXIT = "exit"; NEW = "new"; SESSIONS = "sessions"; RESTORE = "restore"; TASKS = "tasks"; ACCEPT = "accept"; DIFF = "diff"; ATTACHMENT = "attachment"; EVIDENCE = "evidence"; CHECKPOINT = "checkpoint"; REWIND = "rewind"; MODE = "mode"; PERMISSION = "permission"; WORKFLOW = "workflow"; SKILL = "skill"; MCP = "mcp"; PLUGIN_CONTROL = "plugin_control"; PLUGIN = "plugin"
+    THEME = "theme"
+    HELP = "help"; STATUS = "status"; CLEAR = "clear"; COMPACT = "compact"; EXIT = "exit"; NEW = "new"; SESSIONS = "sessions"; RESTORE = "restore"; TASKS = "tasks"; ACCEPT = "accept"; DIFF = "diff"; MAP = "map"; ATTACHMENT = "attachment"; EVIDENCE = "evidence"; CHECKPOINT = "checkpoint"; REWIND = "rewind"; MODEL = "model"; MODE = "mode"; EFFORT = "effort"; PERMISSION = "permission"; WORKFLOW = "workflow"; SKILL = "skill"; MCP = "mcp"; PLUGIN_CONTROL = "plugin_control"; PLUGIN = "plugin"; COST = "cost"; DOCTOR = "doctor"; REVIEW = "review"; TEST = "test"
 
 
 @dataclass(frozen=True)
@@ -56,13 +59,13 @@ def parse_tui_command(
     raw_body = text[1:].lstrip()
     head = raw_body.split(maxsplit=1)[0] if raw_body else ""
     raw_spec = registry.resolve(head)
-    if raw_spec is not None and raw_spec.name in {"回退", "附件"}:
+    if raw_spec is not None and raw_spec.name in {"rewind", "回退", "attach", "附件"}:
         if not set(raw_spec.requires).issubset(effective):
             return ParseOutcome(error="unknown or unavailable slash command")
         instruction = raw_body[len(head):].lstrip() or None
         kind = (
             TuiCommandKind.REWIND
-            if raw_spec.name == "回退"
+            if raw_spec.name in {"rewind", "回退"}
             else TuiCommandKind.ATTACHMENT
         )
         return ParseOutcome(TuiCommand(kind, instruction=instruction))
@@ -83,10 +86,49 @@ def parse_tui_command(
         if len(arguments) == 1 and action.usage.startswith("<"):
             return ParseOutcome(error="command action argument is required")
         normalized_action = action.name
-    kinds = {"帮助": "help", "状态": "status", "清屏": "clear", "退出": "exit", "新建": "new", "会话": "sessions", "恢复": "restore", "任务": "tasks", "接受": "accept", "差异": "diff", "附件": "attachment", "证据": "evidence", "检查点": "checkpoint", "回退": "rewind", "模式": "mode", "权限": "permission", "流程": "workflow", "技能": "skill", "mcp": "mcp", "插件": "plugin_control"}
+    return _parsed_command(spec, arguments, normalized_action)
+
+
+def _parsed_command(spec: object, arguments: tuple[str, ...], normalized_action: str | None) -> ParseOutcome:
+    kinds = {
+        "theme": "theme", "help": "help", "status": "status", "clear": "clear", "compact": "compact",
+        "exit": "exit", "new": "new", "sessions": "sessions", "restore": "restore",
+        "tasks": "tasks", "accept": "accept", "diff": "diff", "map": "map", "attach": "attachment",
+        "evidence": "evidence", "checkpoint": "checkpoint", "rewind": "rewind",
+        "model": "model", "mode": "mode", "effort": "effort",
+        "permission": "permission", "workflow": "workflow", "flow": "workflow",
+        "skill": "skill", "mcp": "mcp", "plugin": "plugin_control",
+        "cost": "cost", "doctor": "doctor", "review": "review", "test": "test",
+        # Legacy/Chinese aliases
+        "帮助": "help", "状态": "status", "清屏": "clear", "退出": "exit",
+        "新建": "new", "会话": "sessions", "恢复": "restore", "任务": "tasks",
+        "接受": "accept", "差异": "diff", "附件": "attachment", "证据": "evidence",
+        "检查点": "checkpoint", "回退": "rewind", "图谱": "map", "模式": "mode", "权限": "permission",
+        "流程": "workflow", "技能": "skill", "插件": "plugin_control",
+    }
     kind = TuiCommandKind.PLUGIN if spec.source == "plugin" else TuiCommandKind(kinds[spec.name])
     value = " ".join(arguments) or None
-    return ParseOutcome(TuiCommand(kind, value if kind is TuiCommandKind.ACCEPT else None, value if kind in {TuiCommandKind.HELP, TuiCommandKind.SESSIONS, TuiCommandKind.RESTORE, TuiCommandKind.ATTACHMENT, TuiCommandKind.EVIDENCE, TuiCommandKind.CHECKPOINT, TuiCommandKind.REWIND, TuiCommandKind.MODE, TuiCommandKind.PERMISSION, TuiCommandKind.WORKFLOW, TuiCommandKind.SKILL, TuiCommandKind.MCP, TuiCommandKind.PLUGIN_CONTROL, TuiCommandKind.PLUGIN} else None, spec.name if kind is TuiCommandKind.PLUGIN else None, normalized_action))
+    instructions = {
+        TuiCommandKind.HELP, TuiCommandKind.SESSIONS, TuiCommandKind.RESTORE,
+        TuiCommandKind.ATTACHMENT, TuiCommandKind.EVIDENCE,
+        TuiCommandKind.CHECKPOINT, TuiCommandKind.REWIND,
+        TuiCommandKind.MODEL, TuiCommandKind.MODE, TuiCommandKind.EFFORT,
+        TuiCommandKind.PERMISSION, TuiCommandKind.WORKFLOW,
+        TuiCommandKind.SKILL, TuiCommandKind.MCP,
+        TuiCommandKind.PLUGIN_CONTROL, TuiCommandKind.PLUGIN,
+        TuiCommandKind.COMPACT, TuiCommandKind.COST,
+        TuiCommandKind.DOCTOR, TuiCommandKind.REVIEW, TuiCommandKind.TEST,
+        TuiCommandKind.MAP, TuiCommandKind.THEME,
+    }
+    return ParseOutcome(
+        TuiCommand(
+            kind,
+            value if kind is TuiCommandKind.ACCEPT else None,
+            value if kind in instructions else None,
+            spec.name if kind is TuiCommandKind.PLUGIN else None,
+            normalized_action,
+        )
+    )
 
 
 def _compatibility_alias(text: str) -> str:
@@ -97,7 +139,7 @@ def _compatibility_alias(text: str) -> str:
     head = parts[0].casefold()
     tail = " " + parts[1] if len(parts) == 2 else ""
     if head in {"list-agents", "peers"}:
-        return "/会话 在线" + tail
+        return "/sessions online" + tail
     if head == "rename":
-        return "/会话 重命名" + tail
+        return "/sessions rename" + tail
     return text

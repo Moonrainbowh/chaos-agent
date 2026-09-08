@@ -10,12 +10,12 @@ from code_agent.policy.models import ApprovalMode
 
 
 _DESCRIPTIONS = {
-    ApprovalMode.UNRESTRICTED: "高信任访问，受保护路径仍需审批",
-    ApprovalMode.PLAN: "仅允许工作区只读操作",
-    ApprovalMode.ASK: "写入和命令逐次审批",
-    ApprovalMode.AUTO: "工作区读写和已识别本地命令自动执行",
-    ApprovalMode.ELEVATED: "外部访问走审批，类型化文件仍限工作区",
-    ApprovalMode.FULL_LOCAL: "本地高信任策略，类型化文件仍限工作区",
+    ApprovalMode.UNRESTRICTED: "High trust; protected paths still require approval",
+    ApprovalMode.PLAN: "Read-only workspace access",
+    ApprovalMode.ASK: "Ask before every write and command",
+    ApprovalMode.AUTO: "Automatically allow workspace work and recognized commands",
+    ApprovalMode.ELEVATED: "Approve external access; typed file tools remain workspace-scoped",
+    ApprovalMode.FULL_LOCAL: "High local trust; typed file tools remain workspace-scoped",
 }
 
 

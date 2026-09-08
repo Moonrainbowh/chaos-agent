@@ -65,6 +65,8 @@ class PickerState:
         self.query = ""
         self.selected_index = 0
         self.error: str | None = None
+        self.title = "COMMANDS"
+        self.hint = ""
 
     def set_items(self, items: Iterable[PickerItem]) -> None:
         updated = _unique(items)
@@ -90,7 +92,7 @@ class PickerState:
             text = " ".join((item.label, item.identifier, item.detail, *item.keywords)).casefold()
             if not all(term in text for term in terms):
                 continue
-            label = item.label.casefold().lstrip("/")
+            label = item.label.casefold().lstrip("/:")
             label_tail = label.rsplit(" ", 1)[-1]
             keywords = tuple(value.casefold() for value in item.keywords)
             score = sum(
@@ -163,6 +165,7 @@ class PickerState:
 def command_picker_items(
     specs: Iterable[object], services: set[str] | None = None, *,
     parent: object | None = None, command_prefix: str = "/",
+    include_advanced: bool = False,
 ) -> tuple[PickerItem, ...]:
     if command_prefix not in {"/", ":"}:
         raise ValueError("command_prefix must be slash or colon")
@@ -173,13 +176,13 @@ def command_picker_items(
             action
             for action in parent.actions
             if getattr(action, "visibility", CommandVisibility.PRIMARY)
-            == CommandVisibility.PRIMARY
+            in ({CommandVisibility.PRIMARY, CommandVisibility.ADVANCED} if include_advanced else {CommandVisibility.PRIMARY})
         )
         if parent is not None
         else tuple(
             spec for spec in specs
             if getattr(spec, "visibility", CommandVisibility.PRIMARY)
-            == CommandVisibility.PRIMARY
+            in ({CommandVisibility.PRIMARY, CommandVisibility.ADVANCED} if include_advanced else {CommandVisibility.PRIMARY})
         )
     )
     for spec in values:
@@ -208,7 +211,7 @@ def _command_picker_item(
         tuple(spec.aliases),
         enabled=not missing,
         disabled_reason=("requires " + ", ".join(missing)) if missing else None,
-        completion=prefix + spec.name + (" " if needs_space else ""),
+        completion=prefix + (spec.name if parent is None or prefix.endswith(" ") else spec.name) + (" " if needs_space else ""),
     )
 
 
@@ -216,6 +219,7 @@ def skill_picker_items(
     controller: object, action: str
 ) -> tuple[PickerItem, ...]:
     values = controller.list()
+    command_name = "skill" if action in {"list", "info", "enable", "disable", "source", "reload"} else "技能"
     return tuple(
         PickerItem(
             skill.identifier,
@@ -223,7 +227,7 @@ def skill_picker_items(
             PickerSource.SKILL,
             skill.description,
             (skill.digest, *getattr(skill, "sources", ())),
-            completion=f"/技能 {action} {skill.identifier}",
+            completion=f"/{command_name} {action} {skill.identifier}",
         )
         for skill in values
     )
@@ -234,7 +238,7 @@ def mcp_picker_items(
 ) -> tuple[PickerItem, ...]:
     result = []
     for server in controller.status():
-        enabled = server.approved
+        enabled = server.approved or action not in {"enable", "启用", "restart", "重启"}
         reason = None if enabled else "server is not approved"
         result.append(
             PickerItem(
@@ -254,8 +258,8 @@ def _command_source(value: object, parent: object | None) -> PickerSource:
     if (
         getattr(value, "source", "host") == "plugin"
         or getattr(parent, "source", "host") == "plugin"
-        or getattr(value, "name", None) == "插件"
-        or getattr(parent, "name", None) == "插件"
+        or getattr(value, "name", None) in {"plugin", "插件"}
+        or getattr(parent, "name", None) in {"plugin", "插件"}
     ):
         return PickerSource.PLUGIN
     return PickerSource.COMMAND

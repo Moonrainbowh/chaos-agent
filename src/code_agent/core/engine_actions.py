@@ -14,12 +14,11 @@ from .models import ActionRequest, ActionResult, Message, ModelEvent, ModelEvent
 from .task import TaskRecord, TaskStatus
 from .task_state import TaskState
 from .task_supervisor import SupervisionKind, TaskSupervisor
+from .task_verification import InFlightValidationError
 from .limits import TaskBudget
-
-
+from .validation_feedback import validation_fingerprint as _validation_fingerprint
 class AgentEngineActionMixin:
     """Internal action dispatch helpers separated from the model turn loop."""
-
     async def _persist_assistant_message(
         self, thread_id: str, text_parts: list[str], calls: list[ToolCall]
     ) -> tuple[Message, AgentEvent]:
@@ -28,28 +27,20 @@ class AgentEngineActionMixin:
         event = self._journal.message_added(assistant)
         await self._journal.append_event(thread_id, event)
         return assistant, event
-
-    async def _dispatch(self, thread_id: str, call: ToolCall, token: CancellationToken, *, is_available: bool, task: TaskRecord | None = None, supervisor: TaskSupervisor | None = None) -> AsyncIterator[AgentEvent]:
+    async def _dispatch(self, thread_id: str, call: ToolCall, token: CancellationToken, *, is_available: bool, unavailable_reason: str = "tool is not available", task: TaskRecord | None = None, supervisor: TaskSupervisor | None = None) -> AsyncIterator[AgentEvent]:
         request = ActionRequest(id=call.id, name=call.name, arguments=call.arguments)
         requested = AgentEvent(EventKind.ACTION_REQUESTED, {"request": request.to_dict()})
         await self._journal.append_event(thread_id, requested)
         yield requested
         if not is_available:
-            result = tool_failure(call, "tool is not available")
+            result = tool_failure(call, unavailable_reason)
         else:
-            if supervisor is not None and call.name in {
-                "write_file", "replace_text", "run_command",
-                "run_process_v1", "run_verification",
-                "apply_workspace_edit_plan_v1",
-            }:
-                decision = supervisor.before_external_action()
-                if decision.kind is SupervisionKind.PAUSE:
-                    await self._pause_task(thread_id, task, supervisor, decision.reason or "task paused")
-                    paused = AgentEvent(EventKind.TASK_PAUSED, {"task_id": task.id, "status": "paused", "reason": decision.reason or "task paused"})
-                    await self._journal.append_event(thread_id, paused)
-                    yield paused
-                    return
-                await self._journal.record_task_active_seconds(task.id, supervisor.checkpoint_active_seconds())
+            paused = await self._supervise_action(
+                thread_id, call, task, supervisor
+            )
+            if paused is not None:
+                yield paused
+                return
             started = AgentEvent(EventKind.ACTION_STARTED, {"request_id": call.id, "name": call.name})
             await self._journal.append_event(thread_id, started)
             yield started
@@ -65,7 +56,7 @@ class AgentEngineActionMixin:
             await self._journal.append_event(thread_id, event)
             yield event
             return
-        paused = await self._record_action_state(
+        result, paused = await self._record_or_l0_failure(
             thread_id, call, request, result, task, supervisor
         )
         if paused is not None:
@@ -78,7 +69,56 @@ class AgentEngineActionMixin:
         added = self._journal.message_added(message)
         await self._journal.append_event(thread_id, added)
         yield added
-
+    async def _supervise_action(
+        self,
+        thread_id: str,
+        call: ToolCall,
+        task: TaskRecord | None,
+        supervisor: TaskSupervisor | None,
+    ) -> AgentEvent | None:
+        external = {
+            "write_file", "replace_text", "run_command", "run_process_v1",
+            "run_verification", "apply_workspace_edit_plan_v1",
+        }
+        if supervisor is None or call.name not in external:
+            return None
+        assert task is not None
+        decision = supervisor.before_external_action()
+        if decision.kind is SupervisionKind.PAUSE:
+            reason = decision.reason or "task paused"
+            await self._pause_task(thread_id, task, supervisor, reason)
+            paused = AgentEvent(
+                EventKind.TASK_PAUSED,
+                {"task_id": task.id, "status": "paused", "reason": reason},
+            )
+            await self._journal.append_event(thread_id, paused)
+            return paused
+        await self._journal.record_task_active_seconds(
+            task.id, supervisor.checkpoint_active_seconds()
+        )
+        return None
+    async def _record_or_l0_failure(
+        self, thread_id, call, request, result, task, supervisor
+    ) -> tuple[ActionResult, AgentEvent | None]:
+        try:
+            paused = await self._record_action_state(
+                thread_id, call, request, result, task, supervisor
+            )
+            return result, paused
+        except InFlightValidationError as failure:
+            await self._journal.save_task_state(thread_id, failure.state)
+            failed = ActionResult(
+                call.id,
+                call.name,
+                {
+                    "error": "in-flight validation failed",
+                    "error_code": "in_flight_validation_failed",
+                    "detail": failure.diagnostic,
+                    "workspace_may_have_changed": True,
+                },
+                True,
+            )
+            return failed, None
     def _action_execution_context(
         self, thread_id: str, request_id: str, task: TaskRecord | None,
     ) -> ActionExecutionContext:
@@ -90,7 +130,6 @@ class AgentEngineActionMixin:
             task_id=lineage.task_id if lineage else task.id if task else None,
             parent_request_id=lineage.parent_request_id if lineage else None,
         )
-
     async def _invoke_action(
         self,
         request: ActionRequest,
@@ -122,7 +161,6 @@ class AgentEngineActionMixin:
             return tool_failure(
                 call, "tool execution failed", type(exc).__name__
             )
-
     async def _record_action_state(
         self,
         thread_id: str,
@@ -187,10 +225,22 @@ class AgentEngineActionMixin:
         )
         if suggestion is None:
             return None
+        return await self._run_verification_call(
+            thread_id, task, token, supervisor, suggestion
+        )
+
+    async def _run_verification_call(
+        self,
+        thread_id: str,
+        task: TaskRecord,
+        token: CancellationToken,
+        supervisor: TaskSupervisor | None,
+        call: ToolCall,
+    ) -> tuple[TaskBudget, tuple[AgentEvent, ...]]:
         reserved = await self._journal.reserve_task_budget(thread_id, tool_calls=1)
         if reserved is None:
             raise EngineLimitError("tool call budget exceeded")
-        _, declared = await self._persist_assistant_message(thread_id, [], [suggestion])
+        _, declared = await self._persist_assistant_message(thread_id, [], [call])
         available_names = {
             tool.name for tool in self._actions.tools()
             if isinstance(tool, ToolDefinition)
@@ -198,9 +248,9 @@ class AgentEngineActionMixin:
         events = (declared,) + tuple(
             [event async for event in self._dispatch(
                 thread_id,
-                suggestion,
+                call,
                 token,
-                is_available=suggestion.name in available_names,
+                is_available=call.name in available_names,
                 task=task, supervisor=supervisor,
             )]
         )
@@ -244,37 +294,6 @@ class AgentEngineActionMixin:
             if event.tool_call is None:
                 raise ModelStreamError("tool call event has no call")
             calls.append(event.tool_call)
-
-
-def _validation_fingerprint(request: ActionRequest, result: object) -> str | None:
-    output = getattr(result, "output", {})
-    if not isinstance(output, Mapping) or (not getattr(result, "is_error", True) and output.get("returncode") in {0, None}):
-        return None
-    if request.name == "run_verification":
-        kind = request.arguments.get("kind")
-        if not isinstance(kind, str):
-            return None
-        subject = "|".join((kind, str(request.arguments.get("cwd", ".")), repr(request.arguments.get("targets", ()))))
-    else:
-        subject = request.arguments.get("command")
-    if not isinstance(subject, str):
-        return None
-    metadata = getattr(result, "metadata", {})
-    digest = (
-        metadata.get("failure_fingerprint")
-        if isinstance(metadata, Mapping)
-        else None
-    )
-    if (
-        isinstance(digest, str)
-        and len(digest) == 64
-        and all(character in "0123456789abcdef" for character in digest)
-    ):
-        return (
-            f"{subject[:120]}|{output.get('reason', 'failed')}|{digest}"
-        )
-    prefix = " ".join(str(output.get(key, ""))[:256] for key in ("stdout", "stderr"))
-    return f"{subject[:120]}|{output.get('returncode')}|{output.get('reason', 'failed')}|{prefix[:256]}"
 
 
 def _requires_decision(result: object) -> bool:

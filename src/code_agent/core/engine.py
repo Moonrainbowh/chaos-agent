@@ -69,6 +69,16 @@ class AgentEngine(
         self._context_mode_snapshot = freeze_mapping({} if context_mode_snapshot is None else context_mode_snapshot, "context_mode_snapshot")
         self._context_permission_snapshot = freeze_mapping({} if context_permission_snapshot is None else context_permission_snapshot, "context_permission_snapshot")
 
+    async def compact_context(
+        self,
+        thread_id: str,
+        cancellation: CancellationToken | None = None,
+    ) -> object:
+        compact = getattr(self._context, "compact_context", None)
+        if not callable(compact):
+            raise RuntimeError("semantic context compaction is unavailable")
+        return await compact(thread_id, cancellation)
+
     async def run(
         self,
         user_input: str,
@@ -107,12 +117,10 @@ class AgentEngine(
             await self._journal.append_event(state.thread_id, cancelled)
             yield cancelled
         except AgentEngineError as exc:
-            failed = AgentEvent(
-                kind=EventKind.ERROR,
-                payload={"code": exc.code, "error_type": type(exc).__name__},
-            )
-            await self._journal.append_event(state.thread_id, failed)
-            yield failed
+            async for failed in self._handle_run_failure(state, exc):
+                yield failed
+            if isinstance(exc, EngineLimitError) and state.task is not None:
+                return
             raise
 
     async def run_peer(

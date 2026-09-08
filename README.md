@@ -65,6 +65,9 @@ model = "gpt-4.1-mini"
 api_key = "replace-with-your-key"
 context_window = 128000
 max_output_tokens = 16384
+# Optional USD rates used by /cost. Configure both or neither.
+input_cost_per_million = 0.40
+output_cost_per_million = 1.60
 # Declare image only when this exact model/profile accepts image input.
 input_modalities = ["text", "image"]
 
@@ -80,7 +83,7 @@ capability_strategy = "hybrid"
 # allow_sensitive_paths = true
 ```
 
-Every configured `[providers.<name>]` profile must declare `api`, `base_url`, `model`, exactly one of `api_key`/`api_key_env`, `context_window`, and `max_output_tokens`. Use `chaos-agent --profile <name>` or `CHAOS_PROFILE` to choose one; `CHAOS_CONFIG` may select another absolute config path. `CHAOS_API`, `CHAOS_BASE_URL`, `CHAOS_MODEL`, and `CHAOS_API_KEY_ENV` override only the selected profile. Legacy `CODE_AGENT_*` names remain fallback aliases during migration.
+Every configured `[providers.<name>]` profile must declare `api`, `base_url`, `model`, exactly one of `api_key`/`api_key_env`, `context_window`, and `max_output_tokens`. Optional `input_cost_per_million` and `output_cost_per_million` rates must be configured together; `/cost` always reports durable task tokens and adds an estimated USD breakdown only when those rates exist. Use `chaos-agent --profile <name>` or `CHAOS_PROFILE` to choose one; `CHAOS_CONFIG` may select another absolute config path. `CHAOS_API`, `CHAOS_BASE_URL`, `CHAOS_MODEL`, and `CHAOS_API_KEY_ENV` override only the selected profile. Legacy `CODE_AGENT_*` names remain fallback aliases during migration.
 
 `[agent].powershell_dialect` accepts `powershell_7` or
 `windows_powershell_5_1`; omit it (or set `auto`) for the migration default.
@@ -110,20 +113,80 @@ $env:CHAOS_BASE_URL = "https://api.openai.com"
 $env:CHAOS_MODEL = "gpt-4.1-mini"
 ```
 
-Profile limits belong in the TOML provider table. In the terminal, runtime
-topology, model profile, and reasoning effort are independent controls:
+Profile limits belong in the TOML provider table. The default command panel
+contains these 19 English commands (the `/` prefix remains compatible with the
+primary `:` prefix):
 
 ```text
-/模式 代理 single|team
-/模式 模型 <profile|sol|terra|luna>
-/模式 思考 low|medium|high|xhigh|max
+/clear  /compact  /cost  /status  /doctor  /exit
+/diff   /map      /review   /test  /rewind  /attach
+/model  /mode     /effort  /permission
+/mcp    /plugin   /tasks
 ```
 
-Each selection rebuilds the main provider/runner while idle. `team` exposes
-real bounded child-Agent delegation to the main Agent; `single` removes that
-tool. The selected profile changes the actual provider model, while reasoning
+`/model` and `/effort` open searchable menus showing the current selection.
+Use Up/Down to move, Enter to apply, Tab to complete, and Esc to return one
+level. `/model <profile>` and `/effort <level>` also accept direct values.
+They rebuild the runtime for the next task; if a paused or waiting task still
+owns a frozen configuration, finish it or use `/new` before changing settings.
+Command errors preserve the input for correction, and commands with missing
+arguments show their usage. `/sessions history` opens a session picker.
+
+The UI defaults to English. During workspace preparation, the status and
+animation stay active and Esc cancels preparation. A completed task clears
+the busy/queue indicator; a task lacking verification evidence shows
+`Waiting for decision` with the missing evidence instead of staying busy.
+
+`/mode ask|code|plan` controls the next task contract: `ask` and
+`plan` disable workspace writes and local execution, while `code` remains
+governed by `/permission auto|plan|ask|unrestricted`. `/compact` persists a
+traceable semantic checkpoint when enough closed history exists; `/doctor`
+runs bounded PowerShell, Git, workspace, path-policy, and provider TCP checks.
+`/map` is the user-facing Unified Semantic Graph surface. Its secondary menu
+provides `overview`, `context`, `impact`, `tests`, `risk`, `review`, `refactor`,
+`locate`, and `dead-code`; every report shows the semantic generation and keeps
+heuristic bug/dead-code results explicitly marked as candidates.
+
+```text
+:map overview src/code_agent
+:map context "verification evidence"
+:map impact src/code_agent/core/engine.py
+:map tests src/code_agent/core/engine.py
+:map risk src/code_agent/interfaces
+:map review src/code_agent/core/engine.py
+:map refactor src/code_agent/core/engine.py
+:map locate "stale verification generation"
+:map dead-code src/code_agent
+:map overview src/code_agent/core/engine.py
+:map overview src/code_agent --limit=50 --offset=50
+```
+
+Reports use the active task's workspace and refresh its **existing** shared
+index (including externally edited, added, or deleted files). `context` and
+`locate` combine that generation's lexical source matches and semantic edges;
+no second scan cache or model call is created. Use an exact file path in
+`overview` to inspect symbols with line numbers and dependencies/consumers.
+Quote paths containing spaces. Aliases: `tree` = `overview`, `bug` = `locate`,
+`dead` = `dead-code`. Optional `--limit=1..50` (default 12) and
+`--offset=0..100000` page each section, with the total explicitly displayed;
+use `--` before query text beginning with option-like flags.
+
+Analysis runs on the full requested scope before display pagination. Change
+commands accept up to 256 resolved files; broader scopes must be narrowed,
+never silently truncated. Refactor plans separate cycle-dependent groups
+instead of claiming a safe linear order. Dependency/call analysis currently
+covers Python; other indexed languages have declaration/inventory support.
+The index's file/parse limits and unresolved dynamic behavior still apply.
+Bug and dead-code outputs are investigation candidates, not proven root causes
+or deletion authorization. `map tests` recommends priorities without executing
+tests; `map review` prepares scope, while `/review` starts the existing agent
+review workflow. None of these advisory reports count as verification evidence.
+
+Model and effort selections rebuild the main provider/runner while idle. The
+hidden compatibility command `/mode agent single|team` still controls whether
+bounded child-Agent delegation is exposed. The selected profile changes the actual provider model, while reasoning
 effort is serialized into supported provider requests. The full runtime
-selection is frozen into durable task contracts. The older `/模式
+selection is frozen into durable task contracts. The older `/mode
 low|medium|high|ultra` forms remain hidden compatibility entries. Runtime
 selection never accepts a URL, protocol, API key, or permission change.
 `anthropic_messages` currently has no confirmed structured effort mapping:
@@ -209,10 +272,9 @@ only for task-level completion. The live tail keeps a single bordered composer;
 pressing `Shift+:` opens a bordered command panel with search plus aligned
 command/description columns. `Up`/`Down` move, `Tab` completes, `Enter` executes
 or opens a child menu, and `Esc` closes the Picker. The old `/` prefix remains
-compatible. The root Picker and default `:帮助` contain ten everyday entries:
-`:帮助`, `:状态`, `:新建`, `:会话`, `:任务`, `:附件`, `:回退`, `:模式`, `:权限`,
-and `:退出`. Diff is deferred from the default TUI; `:差异` remains an advanced
-compatibility command. `:帮助 全部` shows the complete registry. Compound commands open a
+compatible. The root Picker contains the 19 commands listed above; `:help`
+remains directly available as an advanced command, and `:help all` shows the
+complete compatibility registry. Compound commands open a
 second-level action menu instead of flattening every action into the root.
 The status row keeps dynamic
 work on the left and model/elapsed context on the right when space allows.
@@ -232,6 +294,52 @@ outside-workspace targets, protected paths/credentials, and irreversible
 system-level operations keep their approval or denial boundary. Approval cards
 default to reject and show action, target, risk, policy reason, and an
 allow-once choice.
+
+### Terminal appearance
+
+The TUI uses **Muted Slate (方案 A / 冷萃冰阶)** as its single appearance:
+ice-blue accents, slate text, and pale gold activity feedback. A live status
+region sits above the follow-up composer while a task runs. The moving light
+rail indicates activity, not completion percentage. Responses, tools, Markdown,
+commands and input use the same palette; existing scrollback remains selectable.
+The application uses your terminal background and font without changing settings.
+
+#### Recommended Font & Display (推荐终端字体)
+
+为获得与 URI Agent 一致的高级感与清晰度，推荐使用支持字形连字与 CJK 宽字符的现代编程字体组合：
+- **等宽英文字体**：`Cascadia Code` / `Cascadia Mono` 或 `JetBrains Mono`（行高舒适、符号边缘锐利）
+- **中文字体回退**：`Microsoft YaHei UI` 或 `PingFang SC`（避免传统宋体锯齿）
+- **Windows Terminal 配置推荐**（`settings.json`）：
+  ```json
+  "font": {
+      "face": "Cascadia Code",
+      "size": 12.0,
+      "weight": "normal"
+  }
+  ```
+
+```text
+:theme motion off
+:theme motion on
+```
+
+Theme switching has been removed; the retired `CHAOS_THEME` variable is ignored.
+`CHAOS_REDUCED_MOTION=1` or `NO_COLOR` disables decorative transitions.
+Input has a dark teal background. Markdown sections are separated by thin rules.
+The composer accepts up to 5120 UTF-8 bytes (about 1700 Chinese characters).
+Oversized insertions are rejected in full and retain the existing draft.
+Pasted newlines remain editable text; press Enter separately to send.
+Enter sends, Ctrl+J inserts a newline; while running, Enter queues, Tab chooses
+steering, and Esc pauses. Status and token totals come from runtime facts.
+
+Preview the production renderer offline (illustrative data, no provider calls):
+
+```powershell
+python -m code_agent.interfaces.theme_preview --animate
+python -m code_agent.interfaces.theme_preview --html docs/ui-preview/index.html
+```
+
+[Interactive state preview](docs/ui-preview/index.html).
 
 ### Same-machine session messaging
 

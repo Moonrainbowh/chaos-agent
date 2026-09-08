@@ -149,6 +149,14 @@ class DiffInteractionStateTests(unittest.TestCase):
         self.modal.handle_key("y")
         self.assertFalse(self.modal.active)
 
+    def test_shift_enter_adds_a_comment_line_without_saving(self) -> None:
+        for key in ("c", "first", "shift+enter", "second"):
+            self.modal.handle_key(key)
+
+        self.assertEqual(self.modal.mode, DiffMode.COMMENT)
+        self.assertEqual(self.modal.editor.text, "first\nsecond")
+        self.assertEqual(self.modal.view.comments, ())  # type: ignore[union-attr]
+
     def test_comment_that_would_exceed_feedback_limit_is_rolled_back(self) -> None:
         large_paste = "\x1b[200~" + "x" * 400 + "\x1b[201~"
         for key in ("c", large_paste, "\r"):
@@ -173,7 +181,7 @@ class DiffInteractionStateTests(unittest.TestCase):
 
         self.assertIs(action, DiffAction.NONE)
         self.assertEqual(self.modal.mode, DiffMode.COMMENT)
-        self.assertIn("256 KiB", self.modal.error or "")
+        self.assertIn("65536 UTF-8 bytes", self.modal.error or "")
 
 
 class DiffTuiIntegrationTests(unittest.IsolatedAsyncioTestCase):

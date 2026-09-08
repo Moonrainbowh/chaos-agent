@@ -137,7 +137,10 @@ async def run(arguments: Sequence[str]) -> int:
 
 def main() -> int:
     configure_windows_utf8_stdio()
-    return asyncio.run(run(sys.argv[1:]))
+    try:
+        return asyncio.run(run(sys.argv[1:]))
+    except KeyboardInterrupt:
+        return 130
 
 
 def _meta_command_output(arguments: Sequence[str]) -> str | None:

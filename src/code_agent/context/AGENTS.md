@@ -17,7 +17,13 @@
 - 负责有界渲染目标、未满足 required criteria、当前 generation 与最新有效 evidence 摘要；已失效证据和模型工作笔记不得作为通过事实呈现。
 - 不负责：解释原始 verifier 全量输出、生成 evidence 或决定完成状态。
 
+### 预算框架（显式启用的 v1 已实现）
+
+- API 能力、最终输入工作窗与累计任务预算分开；本 Feature 保持规则/Repo Map 与旧摘要构造。显式换窗由 `context_windows` 外层组合负责，在技能等前缀完整构造后统一计数。
+- 2026-09-05 的配置、验证与实验边界见根目录 `docs/context-boundary-experiment.md` 和 `docs/context-boundary-results.md`；具体候选值可配置，实验结果不自动推广为默认策略。
+
 ## Units
+- `_requires_repo_map(query)`：复用 Core 的有界问候识别，跳过纯问候的仓库索引 | 无副作用 | 包含工作请求仍按正常上下文路径处理。
 - `render_evidence_summary(...)`: 渲染当前 generation 的 required criteria 和有效 evidence 摘要 | 无副作用 | 优先保留失败/未满足条件，绝不输出完整 verifier 原始内容
 - `PromptBudget.allocate(system_and_rules_tokens, tool_tokens, task_state_tokens): PromptAllocation`: 在固定安全余量下为规则、工具、任务状态、repo map 和消息分配 token | 无副作用 | 默认 2,000 token 工具上限覆盖内置目录；repo map 先于消息收缩，保留最小消息预算
 - `ContextConfig`、`ProjectRule`、`Symbol`、`RepoEntry`、`CompactionResult`: 冻结上下文构建配置和中间结果 | 无副作用 | 路径和预算在构造时校验；旧 map/message 预算参数归一化为 `PromptBudget`
@@ -25,11 +31,11 @@
 - `RuleLoader.load(cwd): tuple[ProjectRule, ...]`: 按根规则、根目录直属扩展规则和目录链加载受边界保护的说明 | 读取已授权工作区文件 | 以根目录 mtime 复用直属扩展名称，不递归扫描工作区；严格受单文件和总字节预算约束
 - `RuleLoader.render(rules): str`: 把规则序列编码为稳定、带路径边界的系统提示片段 | 无副作用
 - `RepoFileScanner.scan(path): RepoFileFacts`、`extract_python_semantics(...)`: 读取单个受保护文件并提取签名、有界检索正文、scope-aware Python 定义/import/use/config facts | 只读取指定文件 | 参数、局部变量、comprehension 和 shadowing 不得误标外部 exact 引用；二进制或解析失败降级为 path-only facts
-- `resolve_semantic_graph(records)`: 从同一批 File Facts 解析 `import/reference/call/inherits/config` 直接关系并整体发布 | 无副作用 | relative/alias/src/re-export 可解析；star import、动态派发和歧义名称不得标 exact；配置关系绑定 namespace/key/provenance；不保存 `test_impact`
+- `resolve_semantic_graph(records)`、`UnifiedSemanticGraph`: 从同一批 File Facts 解析 `import/reference/call/inherits/config` 关系，构建统一代码认知底座（Unified Semantic Graph），服务于 Context Selection、Test Impact Analysis、Change Risk 评估、Review Scope 圈定与 Refactor Planning 拓扑编排 | 无副作用 | relative/alias/src/re-export 可解析；star import、动态派发和歧义名称不得标 exact；配置关系绑定 namespace/key/provenance
 - `plan_repo_query(query): RepoQueryPlan`: 将不可信查询拆为有界字面 term、中文 trigram、短中文词和少量中英代码词汇别名 | 无副作用 | 通道和输入长度均有硬上限，不把原始输入拼入 FTS MATCH 语法
 - `SQLiteRepoSearch.sync(previous, current)`、`rank(query)`、`close()`: 以事务方式增量维护进程内 unicode61/trigram FTS5 文件索引并返回有界候选名次 | 维护内存 SQLite 连接 | 短 ASCII/CJK n-gram 使用索引字段；Feature contract 只索引正向职责；FTS5、trigram 或查询失败时降级为结构化检索
 - `rank_repo_entries(entries, query, touched_files, lexical)`: 用 RRF 融合词法、精确路径/符号、最强 Feature contract 范围、依赖图和 touched files 名次 | 无副作用 | 不混合不可比的原始 BM25 分值；测试/文档有稳定先验降权，路径稳定打破同分
-- `RepoIndexService.snapshot_for_turn(): RepoIndexSnapshot`、`query_for_turn(query)`、`invalidate(paths)`、`close()`: 首轮有界建索引，之后仅刷新 dirty path；在同一更新边界内发布 generation 并查询对应 FTS 候选；空路径请求下一轮有界 inventory reconciliation | 非阻塞合并失效请求，发布单调 generation 的进程内不可变快照 | 初始化、reconciliation 和精确新增均严格保持 `max_files`，无变更时返回同一快照且不扫描文件系统；关闭释放内存索引，重启后重建
+- `RepoIndexService.snapshot_for_turn(): RepoIndexSnapshot`、`query_for_turn(query)`、`invalidate(paths)`、`close()`: 首轮有界建索引，之后仅刷新 dirty path；在同一更新边界内发布 generation、`UnifiedSemanticGraph` 与 FTS 候选，Context/Verification 必须消费同一不可变快照；空路径请求下一轮有界 inventory reconciliation | 非阻塞合并失效请求，发布单调 generation 的进程内不可变快照 | 初始化、reconciliation 和精确新增均严格保持 `max_files`，无变更时返回同一快照且不扫描文件系统；关闭释放内存索引，重启后重建
 - `select_tiered_context(...)`、`render_tier_selection(...)`、`RepoMapViewCache`: 从不可变 generation 派生 L0/L1/L2、反向测试影响候选和稳定 deferred 清单 | 维护最多 64 项的 generation/backend/index-aware LRU，L0 正文不长期缓存 | 相同 snapshot/query/touched/budget 逐字节一致；module-level `path:line` 只给 bounded slice；Repo Context 始终标记 `UNTRUSTED_REPOSITORY_DATA`
 - `RepoMapBuilder.build/render/render_with_metrics`: 兼容入口，组合共享 Repo Index 与分层 Request-derived Context | 首次或收到失效通知时刷新索引，并在发送 L0 前后校验 FileSignature | stale 时精确失效并最多重建一次；再次变化则 fail-closed，不发送跨代 L0/L1/L2；输出不超过 token 预算
 - `estimate_attachment_tokens(ref)`、`message_tokens(message)`: 只按安全元数据保守估算文本/图片附件预算 | 无副作用 | 不读取 blob

@@ -11,6 +11,17 @@ if str(SRC_ROOT) not in sys.path: sys.path.insert(0, str(SRC_ROOT))
 from code_agent.interfaces.controller import AgentController
 from code_agent.interfaces.terminal_display import DisplayKind, clip_display, display_width, text_entry
 from code_agent.interfaces.terminal_renderer import ColorMode, Theme, render_entries, render_entry, render_live_tail
+from code_agent.interfaces.terminal_style import (
+    BODY_WHITE,
+    BORDER_GRAY,
+    BRAND_CYAN,
+    BRIGHT_CYAN,
+    DIM_GRAY,
+    ERROR_RED,
+    SUCCESS_GREEN,
+    TOOL_GRAY,
+    WARNING_YELLOW,
+)
 from code_agent.interfaces.terminal_tail import render_live_tail_frame
 from code_agent.interfaces.terminal_state import ApprovalBroker
 from code_agent.interfaces.tests._support import FakeEngine
@@ -27,7 +38,7 @@ def _plain(value: str) -> str:
 class TerminalFirstRendererTests(unittest.TestCase):
     def test_entry_uses_local_ansi_only_and_strips_model_controls(self) -> None:
         rendered = render_entry(text_entry(DisplayKind.ERROR, "bad\x1b[2J\x00"), 80, color=ColorMode.ALWAYS)
-        self.assertIn("\x1b[31m", rendered)
+        self.assertIn(f"\x1b[{ERROR_RED}m", rendered)
         self.assertNotIn("\x1b[2J", rendered)
         self.assertIn("bad?[2J?", rendered)
 
@@ -41,24 +52,24 @@ class TerminalFirstRendererTests(unittest.TestCase):
         agent = render_entry(text_entry(DisplayKind.AGENT, "answer"), 80, color=ColorMode.ALWAYS)
         tool = render_entry(text_entry(DisplayKind.TOOL, "read_file"), 80, color=ColorMode.ALWAYS)
 
-        self.assertIn("38;5;80", user)
-        self.assertIn("38;5;80", agent)
-        self.assertIn("38;5;250", tool)
+        self.assertIn(BRAND_CYAN, user)
+        self.assertIn(BRAND_CYAN, agent)
+        self.assertIn(TOOL_GRAY, tool)
 
     def test_agent_body_is_white_while_its_marker_keeps_semantic_color(self) -> None:
         rendered = render_entry(text_entry(DisplayKind.AGENT, "answer"), 80, color=ColorMode.ALWAYS)
 
-        self.assertIn("\x1b[38;5;80m◆\x1b[0m", rendered)
-        self.assertIn("\x1b[38;5;252manswer\x1b[0m", rendered)
+        self.assertIn(f"\x1b[{BRAND_CYAN}m◆\x1b[0m", rendered)
+        self.assertIn(f"\x1b[{BODY_WHITE}manswer\x1b[0m", rendered)
 
     def test_tool_records_are_dim_while_task_success_is_green(self) -> None:
         rendered = render_entry(text_entry(DisplayKind.TOOL, "read_file completed"), 80, color=ColorMode.ALWAYS)
         completed = render_entry(text_entry(DisplayKind.SUCCESS, "任务已完成"), 80, color=ColorMode.ALWAYS)
 
-        self.assertIn("\x1b[38;5;250m↳\x1b[0m", rendered)
-        self.assertIn("\x1b[38;5;250mread_file completed\x1b[0m", rendered)
-        self.assertIn("\x1b[38;5;114m✓\x1b[0m", completed)
-        self.assertIn("\x1b[38;5;114m任务已完成\x1b[0m", completed)
+        self.assertIn(f"\x1b[{TOOL_GRAY}m↳\x1b[0m", rendered)
+        self.assertIn(f"\x1b[{TOOL_GRAY}mread_file completed\x1b[0m", rendered)
+        self.assertIn(f"\x1b[{SUCCESS_GREEN}m✓\x1b[0m", completed)
+        self.assertIn(f"\x1b[{SUCCESS_GREEN}m任务已完成\x1b[0m", completed)
 
     def test_cjk_clipping_uses_display_columns(self) -> None:
         self.assertEqual(display_width("ab中文"), 6)
@@ -78,8 +89,8 @@ class TerminalFirstRendererTests(unittest.TestCase):
     def test_empty_composer_has_a_bordered_placeholder_with_cursor_after_prompt(self) -> None:
         tail = render_live_tail("", "idle", 80, color=ColorMode.ALWAYS)
         plain = _plain(tail)
-        self.assertIn("│ › 输入任务、编辑请求，或输入 / 查看命令", plain)
-        self.assertIn("\x1b[38;5;247m", tail)
+        self.assertIn("│ › Type a task, edit request, or / for commands...", plain)
+        self.assertIn(f"\x1b[{DIM_GRAY}m", tail)
         self.assertNotIn("\x1b[2;", tail)
         self.assertIn("╭─────────────────────────────────────────────────────────────────────────────╮", plain)
         self.assertIn("╰─────────────────────────────────────────────────────────────────────────────╯", plain)
@@ -154,5 +165,28 @@ class TerminalFirstRendererTests(unittest.TestCase):
     def test_markdown_table_header_and_border_use_distinct_local_colors(self) -> None:
         rendered = render_entry(text_entry(DisplayKind.AGENT, "| A | B |\n| --- | --- |\n| 1 | 2 |"), 40, color=ColorMode.ALWAYS)
 
-        self.assertIn("\x1b[1;96m", rendered)
-        self.assertIn("\x1b[38;5;247m", rendered)
+        self.assertIn(f"\x1b[{BRIGHT_CYAN}m", rendered)
+        self.assertIn(f"\x1b[{DIM_GRAY}m", rendered)
+
+    def test_markdown_strong_and_short_label_add_controlled_emphasis(self) -> None:
+        rendered = render_entry(
+            text_entry(DisplayKind.AGENT, "结论：**可以执行**，路径是 `src/app.py`。"),
+            80,
+            color=ColorMode.ALWAYS,
+        )
+
+        self.assertIn(f"\x1b[{BRIGHT_CYAN}m结论：可以执行\x1b[0m", rendered)
+        self.assertIn(f"\x1b[{BRAND_CYAN}msrc/app.py\x1b[0m", rendered)
+        self.assertNotIn("**", _plain(rendered))
+        self.assertNotIn("`", _plain(rendered))
+
+    def test_no_color_keeps_emphasis_readable_without_markdown_markers(self) -> None:
+        rendered = render_entry(
+            text_entry(DisplayKind.AGENT, "结论：**可以执行**，使用 `src/app.py`。"),
+            80,
+            color=ColorMode.NEVER,
+        )
+
+        self.assertIn("结论：可以执行，使用 src/app.py。", rendered)
+        self.assertNotIn("**", rendered)
+        self.assertNotIn("`", rendered)

@@ -1,4 +1,6 @@
 from __future__ import annotations
+from .terminal_history_summary import _summary_lines
+from .terminal_context_budget import ContextBudgetDisplay
 
 from typing import Mapping, Optional
 
@@ -11,6 +13,7 @@ from code_agent.interfaces.action_summary import action_activity, action_summary
 from code_agent.interfaces.approval import ApprovalBroker, ApprovalRequest
 from code_agent.interfaces.token_rate import TokenRateTracker
 from code_agent.interfaces.streaming_state import DraftBuffer
+from .terminal_state_text import compact_response as _compact_response, transcript_lines as _transcript_lines, action_summary as _action_summary
 
 
 class TerminalState:
@@ -35,6 +38,11 @@ class TerminalState:
         self.task_budget_line: Optional[str] = None
         self.pending_decision: Optional[str] = None
         self.token_rate = TokenRateTracker()
+        self.total_tokens: int = 0
+        self.input_tokens: int = 0
+        self.output_tokens: int = 0
+        self.last_rate: float | None = None
+        self.context_budget = ContextBudgetDisplay()
 
     @property
     def draft_answer(self) -> str:
@@ -48,6 +56,7 @@ class TerminalState:
 
     def restore(self, history: RestoredThread) -> None:
         """Project persisted thread records into a terminal-safe view model."""
+        self.context_budget = ContextBudgetDisplay()
         self.thread_id = history.thread_id
         self.transcript = _transcript_lines(history.messages)
         self.entries = [text_entry(DisplayKind.USER if line.startswith("user:") else DisplayKind.AGENT, line.split(": ", 1)[-1]) for line in self.transcript]
@@ -68,6 +77,7 @@ class TerminalState:
     def begin_run(self) -> None:
         """Reset transient progress so a new prompt cannot inherit the prior result."""
         self.status = "running"
+        self.pending_decision = None
         self._draft.clear()
         self._actions = []
         self._failed_actions = []
@@ -103,8 +113,7 @@ class TerminalState:
             reason = event.payload.get("reason")
             self.task_budget_line = reason if isinstance(reason, str) else "budget warning"
         elif event.kind is EventKind.TASK_DECISION_REQUIRED:
-            reason = event.payload.get("reason")
-            self.pending_decision = reason if isinstance(reason, str) else "decision required"
+            self._apply_decision(event)
         elif event.kind is EventKind.MODEL_EVENT:
             self._apply_model_event(event)
         elif event.kind is EventKind.MESSAGE_ADDED:
@@ -127,6 +136,12 @@ class TerminalState:
         if event.kind is EventKind.COMPLETED:
             self._finish_display()
 
+    def _apply_decision(self, event: AgentEvent) -> None:
+        reason = event.payload.get("reason")
+        self.pending_decision = reason if isinstance(reason, str) else "decision required"
+        self.status = "waiting_decision"
+        self.entries.append(text_entry(DisplayKind.WARNING, self.pending_decision + " · Continue with instructions, inspect /evidence, or use /accept for partial delivery."))
+
     def _apply_action_request(self, event: AgentEvent) -> None:
         self._capture_diff(event)
         self._draft.clear()
@@ -138,6 +153,13 @@ class TerminalState:
             self._action_requests[request["id"]] = request
 
     def _update_status(self, event: AgentEvent) -> None:
+        self.context_budget.apply(event)
+        if event.kind in {EventKind.TASK_CREATED, EventKind.TASK_STATUS_CHANGED, EventKind.TASK_PAUSED}:
+            self.task_id = event.payload.get("task_id", self.task_id)
+            self.task_status = event.payload.get("status", self.task_status)
+            if self.task_status:
+                self.status = self.task_status
+            return
         if event.kind is EventKind.CANCELLED:
             self.status = "paused" if event.payload.get("reason") == "user requested pause" else "cancelled"
             return
@@ -154,6 +176,7 @@ class TerminalState:
             self.status = status
 
     def _apply_model_event(self, event: AgentEvent) -> None:
+        self.context_budget.apply(event)
         raw = event.payload.get("event")
         if not isinstance(raw, Mapping):
             return
@@ -175,6 +198,9 @@ class TerminalState:
                 )
         elif model_event.kind is ModelEventKind.USAGE and model_event.usage is not None:
             self.token_rate.calibrate(model_event.usage.output_tokens)
+            self.input_tokens = model_event.usage.input_tokens
+            self.output_tokens = model_event.usage.output_tokens
+            self.total_tokens = model_event.usage.total_tokens
 
     def _apply_completed_message(self, event: AgentEvent) -> None:
         raw = event.payload.get("message")
@@ -246,28 +272,6 @@ def _action_result(event: AgentEvent) -> ActionResult | None:
         return None
 
 
-def _action_summary(actions: list[str], failed: list[str]) -> str:
-    return f"已完成 {len(actions)} 项操作" + (f" · {len(failed)} 项失败" if failed else "")
-
-
-def _compact_response(value: str) -> str:
-    lines, result = value.splitlines(), []
-    for raw in lines:
-        line = raw.rstrip()
-        if line.strip() or (result and result[-1]): result.append(line)
-    return "\n".join(result).strip()
-
-
-def _transcript_lines(messages: tuple[Message, ...]) -> list[str]:
-    lines: list[str] = []
-    for message in messages:
-        if message.role == "user":
-            lines.append("user: " + message.content)
-        elif message.role == "assistant" and message.content:
-            lines.append("assistant: " + message.content)
-    return lines
-
-
 def _action_timeline(events: tuple[AgentEvent, ...]) -> list[str]:
     lines = [
         _timeline_line(event)
@@ -275,26 +279,3 @@ def _action_timeline(events: tuple[AgentEvent, ...]) -> list[str]:
         if event.kind in {EventKind.ACTION_REQUESTED, EventKind.ACTION_COMPLETED}
     ]
     return lines[-8:]
-
-
-def _summary_lines(history: RestoredThread, status: str) -> list[str]:
-    active_goal = next(
-        (goal.objective for goal in history.goals if goal.status is GoalStatus.ACTIVE),
-        None,
-    )
-    fallback_goal = next(
-        (message.content for message in history.messages if message.role == "user"),
-        None,
-    )
-    summary: list[str] = []
-    objective = active_goal if active_goal is not None else fallback_goal
-    if objective is not None:
-        summary.append("goal: " + _visible_text(objective))
-    summary.append("status: " + status)
-    if history.checkpoints:
-        summary.append("checkpoint: " + history.checkpoints[-1].label)
-    return summary
-
-
-def _visible_text(value: str) -> str:
-    return " ".join(value.split())[:120]

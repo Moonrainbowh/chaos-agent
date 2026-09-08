@@ -12,6 +12,7 @@ from code_agent.orchestration.models import (
     RuntimeReasoningEffort,
 )
 from code_agent.providers.config import ModelProfile
+from code_agent.context_windows.tool_names import HISTORY_TOOLS, NOTE_READ_TOOLS, NOTE_WRITE_TOOLS
 
 
 READ_TOOLS = (
@@ -24,9 +25,13 @@ READ_TOOLS = (
     "git_diff",
     "search_threads",
     "read_thread",
+    "context_history",
+    *HISTORY_TOOLS, *NOTE_READ_TOOLS, "get_context_remaining",
     "plan_workspace_edits_v1",
 )
 TYPED_WRITE_TOOLS = READ_TOOLS + (
+    "context_note", "new_context",
+    *NOTE_WRITE_TOOLS,
     "write_file", "replace_text", "apply_workspace_edit_plan_v1",
     "run_verification", "run_process_v1",
 )

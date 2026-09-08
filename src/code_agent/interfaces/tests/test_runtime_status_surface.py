@@ -61,7 +61,7 @@ class RuntimeStatusSurfaceTests(unittest.IsolatedAsyncioTestCase):
             parse_tui_command("/模式 思考 high", {"runtime_selection"}),
         )
 
-        self.assertIn("runtime selected", app.messages[-1])
+        self.assertIn("reasoning effort selected", app.messages[-1])
         self.assertIn("powershell_7", app.messages[-1])
         self.assertIn("paths=legacy-safe", app.messages[-1])
 

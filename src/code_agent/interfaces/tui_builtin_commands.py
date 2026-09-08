@@ -5,21 +5,24 @@ from typing import Any
 from .checkpoint_commands import handle_checkpoint_command
 from .checkpoint_tui import begin_rewind
 from .terminal_display import DisplayKind
-from .terminal_state import TerminalState
+from .tui_new_conversation import reset_conversation
 from .tui_commands import TuiCommand, TuiCommandKind
 from .tui_mcp_commands import handle_mcp_command
 from .tui_plugin_commands import handle_plugin_command
 from .tui_session_commands import handle_session_command
 from .tui_skill_commands import handle_skill_command
+from .tui_general_commands import handle_general_command
 
 
 async def handle_builtin_command(app: Any, command: TuiCommand) -> bool | None:
-    if command.kind is TuiCommandKind.CLEAR:
-        app.state = TerminalState(); app._flushed_entries = 0
-    elif command.kind is TuiCommandKind.EXIT:
-        app.running = False
-    elif command.kind is TuiCommandKind.NEW:
-        app.state = TerminalState(); app.current_thread_id = None; app.active_task_id = None; app._flushed_entries = 0
+    handled = await handle_general_command(app, command)
+    if handled is not None:
+        return handled
+    if command.kind in {TuiCommandKind.NEW, TuiCommandKind.RESTORE} and app._run_task and not app._run_task.done():
+        app._append(DisplayKind.ERROR, "Pause the running task before opening a different session.")
+        return False
+    if command.kind is TuiCommandKind.NEW:
+        reset_conversation(app)
     elif command.kind is TuiCommandKind.SESSIONS:
         return await handle_session_command(
             app, command.action, command.instruction

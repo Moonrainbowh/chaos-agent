@@ -18,7 +18,7 @@ from .models import (
     Usage,
 )
 from .attachments import AttachmentRef, freeze_attachments
-from .task import TaskRecord
+from .task import TaskRecord, TaskStatus
 from .task_supervisor import TaskSupervisor
 
 
@@ -36,6 +36,7 @@ class _RunState:
     stop_requested: bool = False
     allowed_tool_names: frozenset[str] | None = None
     disclosed_tool_digests: dict[str, str] = field(default_factory=dict)
+    action_history: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -96,6 +97,17 @@ async def _invoke_context_builder(
 class AgentEngineRunMixin:
     """Prepare one run and stream model events into its mutable state."""
 
+    async def _handle_run_failure(self, state, error):
+        if isinstance(error, EngineLimitError) and state.task is not None:
+            reason = str(error)
+            await self._journal.transition_task(state.task.id, TaskStatus.PAUSED, reason)
+            event = AgentEvent(EventKind.TASK_PAUSED, {"task_id": state.task.id,
+                "status": "paused", "reason": reason})
+        else:
+            event = AgentEvent(EventKind.ERROR, {"code": error.code, "error_type": type(error).__name__})
+        await self._journal.append_event(state.thread_id, event)
+        yield event
+
     async def _start_run(
         self,
         thread_id: Optional[str],
@@ -150,6 +162,9 @@ class AgentEngineRunMixin:
         source_input = ""
         try:
             task_state = await self._journal.load_task_state(state.thread_id)
+            mode_snapshot = dict(self._context_mode_snapshot)
+            if state.task is not None:
+                mode_snapshot["interaction_mode"] = state.task.contract.interaction_mode
             request = ContextRequest(
                 thread_id=state.thread_id,
                 revision=state.budget.model_turns,
@@ -158,7 +173,7 @@ class AgentEngineRunMixin:
                 tools=turn.tools,
                 task_state=task_state,
                 cancellation=state.token,
-                mode_snapshot=self._context_mode_snapshot,
+                mode_snapshot=mode_snapshot,
                 permission_snapshot=self._context_permission_snapshot,
                 budget_lease=budget_lease(state.budget),
             )
@@ -166,7 +181,7 @@ class AgentEngineRunMixin:
             if not isinstance(bundle, ContextBundle):
                 raise TypeError("context builder returned an invalid bundle")
             return bundle
-        except CancellationError:
+        except (CancellationError, EngineLimitError):
             raise
         except Exception:
             raise ContextBuildError("context build failed") from None
@@ -211,8 +226,8 @@ class AgentEngineRunMixin:
                         yield warning
         except (AgentEngineError, CancellationError):
             raise
-        except Exception:
-            raise ModelStreamError("model stream failed") from None
+        except Exception as exc:
+            raise ModelStreamError("model stream failed") from exc
         if not completed:
             raise ModelStreamError("model stream ended before completion")
 

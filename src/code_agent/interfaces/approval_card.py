@@ -10,18 +10,18 @@ def approval_card_rows(
     request: ApprovalRequest, selected: int
 ) -> tuple[str, ...]:
     rows = [
-        "需要审批",
-        f"动作: {_line(request.name)}",
-        f"风险: {_line(request.risk or 'unknown')}",
-        f"目标: {_approval_target(request)}",
+        "Approval required",
+        f"Action: {_line(request.name)}",
+        f"Risk: {_line(request.risk or 'unknown')}",
+        f"Target: {_approval_target(request)}",
     ]
     if request.reason:
-        rows.append(f"原因: {_line(request.reason)}")
+        rows.append(f"Reason: {_line(request.reason)}")
     rows.extend(
         (
-            ("› " if selected == 0 else "  ") + "拒绝",
-            ("› " if selected == 1 else "  ") + "仅允许这一次",
-            "Enter 选择 · Esc 拒绝",
+            ("› " if selected == 0 else "  ") + "Deny",
+            ("› " if selected == 1 else "  ") + "Allow once",
+            "Enter select · Esc deny",
         )
     )
     return tuple(rows)

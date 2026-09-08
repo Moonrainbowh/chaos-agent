@@ -28,20 +28,21 @@ from code_agent_win.application_model import Application
 from code_agent_win.context_runtime import build_context_runtime
 from code_agent_win.action_dispatcher import RootActionDispatcher
 from code_agent_win.host_composition import compose_host
-from code_agent_win.multimodal_ui import build_attachment_draft
 from code_agent_win.peer_composition import compose_peers
 from code_agent_win.agent_modes import build_mode_registry, freeze_mode
 from code_agent_win.runtime_support import model_client, profile_model_factory, replace_model
 from code_agent_win.runtime_extensions import SkillApprovalAdapter, ThreadRuntimeBinding
 from code_agent_win.rewind_runtime import RewindRuntime
 from code_agent_win.rewind_sessions import build_rewind_write_side
-from code_agent_win.runtime_controls import compose_runtime_controls
 from code_agent_win.tool_support import discover_git_workspace
-from code_agent_win.ui_composition import compose_ui
 from code_agent_win.workspace_runtime import ManagedWorkspaceRuntime
 from code_agent_win.workspace_mutation_pool import WorkspaceMutationPool
 from code_agent_win.workspace_session_router import WorkspaceSessionRouter
 from code_agent_win.workspace_context import workspace_uses_repo_map
+from code_agent_win.application_product import (
+    configure_product_controls,
+    configure_product_ui,
+)
 from code_agent_win.app_paths import product_state_root as _product_state_root, session_path as _session_path, workspace_storage_path as _workspace_storage_path
 
 
@@ -227,58 +228,10 @@ class _ApplicationComposer:
         )
 
     def _configure_controls(self) -> None:
-        self.application_ref: list[Application] = []
-        self.controls = compose_runtime_controls(
-            root=self.root, snapshot=self.snapshot,
-            mode_snapshots=self.mode_snapshots, profiles=self.profiles,
-            modes=self.modes, initial=self.initial,
-            client_factory=self.model_factory,
-            context_for=self.context_for, dispatcher=self.dispatcher,
-            sessions=self.sessions, thread_binding=self.thread_binding,
-            plugin_host=self.plugin_host, plugin_bridge=self.plugin_bridge,
-            plugin_bindings=self.plugin_bindings,
-            approval_mode=self.runtime_config.approval_mode,
-            capability_strategy=self.runtime_config.capability_strategy,
-            application_ref=self.application_ref, tui_ref=self.tui_ref,
-            context_wrapper=self.peers.wrap_context,
-            activity_lock=self.activity_lock,
-        )
-        self.snapshot = self.controls.runtime_selection.snapshot
+        configure_product_controls(self)
 
     def _configure_ui(self) -> None:
-        self.foreground, self.tui, self.workflows = compose_ui(
-            controller=self.controls.controller,
-            approvals=self.approvals,
-            sessions=self.sessions,
-            root=self.root,
-            profile_supplier=self.controls.profile_facts,
-            profile_resolver=self.controls.profile_resolver,
-            runtime_resolver=self.controls.runtime_resolver,
-            runtime_selection=self.controls.runtime_selection,
-            peers=self.peers,
-            subagents=self.controls.subagents,
-            snapshot=self.snapshot,
-            approval_mode=self.runtime_config.approval_mode,
-            mode_control=self.controls.mode_control,
-            permission_control=self.controls.permission_control,
-            plugin_host=self.plugin_host,
-            dispatcher=self.dispatcher,
-            interaction_broker=self.interaction_broker,
-            skills=self.skills,
-            mcp=self.mcp,
-            git=self.git,
-            checkpoints=self.workspace_runtime.checkpoint_control(),
-            rewind=self.rewind,
-            workspace_runtime=self.workspace_runtime,
-            plugin_errors=self.plugin_errors,
-            plugin_discover=self.plugin_discover,
-            on_plugin_change=self.plugin_bindings.refresh,
-            tui_ref=self.tui_ref,
-            attachment_draft=build_attachment_draft(
-                self.attachment_ingestor,
-                lambda: self.controls.manager.current.profile,
-            ),
-        )
+        configure_product_ui(self)
 
     def _finish(self) -> Application:
         application = Application(

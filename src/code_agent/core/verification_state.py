@@ -40,7 +40,9 @@ def decide_verification_transition(intent: TaskIntent, assessment: CompletionAss
     if outcome is VerifierOutcome.UNAVAILABLE:
         return VerificationTransition(TaskStatus.WAITING_DECISION, VerificationAction.WAIT)
     if outcome is VerifierOutcome.FAIL:
+        if intent is not TaskIntent.MODIFY:
+            return VerificationTransition(TaskStatus.COMPLETED, VerificationAction.COMPLETE)
         return VerificationTransition(TaskStatus.RUNNING, VerificationAction.REPAIR, True)
     if intent is TaskIntent.MODIFY:
         return VerificationTransition(TaskStatus.VERIFYING, VerificationAction.VERIFY)
-    return VerificationTransition(TaskStatus.WAITING_DECISION, VerificationAction.WAIT)
+    return VerificationTransition(TaskStatus.COMPLETED, VerificationAction.COMPLETE)

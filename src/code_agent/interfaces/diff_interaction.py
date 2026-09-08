@@ -166,7 +166,7 @@ class DiffInteraction:
             self.editor.clear()
         elif key == "\r":
             self._commit_editor()
-        elif key == "\n":
+        elif key in {"\n", "shift+enter"}:
             if self.mode is DiffMode.COMMENT:
                 self._insert_editor("\n")
         elif key.startswith("\x1b[200~") and key.endswith("\x1b[201~"):

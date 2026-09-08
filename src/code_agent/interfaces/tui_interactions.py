@@ -1,16 +1,11 @@
 from __future__ import annotations
 
-from .command_availability import available_services
 from .approval_card import approval_card_rows
-from .command_registry import REGISTRY
 from .diff_interaction import DiffInteraction
 from .diff_view import DiffController, GitDiffSource
 from .tui_diff_commands import handle_diff_key, show_diff
-from .picker import (
-    PickerState,
-    command_picker_items,
-)
-from .extension_picker import dynamic_picker_items, picker_context
+from .picker import PickerState
+from .command_navigation import command_rows, handle_command_key
 from .terminal_display import DisplayKind
 from .steering_view import SteeringQueueView
 from .tui_active_input import observe_active_input
@@ -61,26 +56,7 @@ class TuiInteractions:
             return rewind
         if self.diff_interaction.active:
             return self.diff_interaction.rows(app._columns(), max_rows=max_rows)
-        services = available_services(app)
-        dynamic = dynamic_picker_items(app)
-        if dynamic is not None:
-            items, query = dynamic
-            self.picker.set_items(items)
-            self.picker.update_query(query)
-            return self.picker.panel_rows(app._columns())
-        registry = getattr(app, "command_registry", REGISTRY)
-        parent, query = picker_context(app.input.text, registry)
-        prefix = app.input.text[:1] if app.input.text[:1] in {":", "/"} else ":"
-        self.picker.set_items(
-            command_picker_items(
-                registry.all(), services, parent=parent, command_prefix=prefix
-            )
-        )
-        self.picker.update_query(query)
-        if app.input.text.startswith(("/", ":")):
-            return self.picker.panel_rows(app._columns())
-        draft = getattr(app, "attachment_draft", None)
-        return draft.rows() if draft is not None and draft.items else ()
+        return command_rows(self, app)
 
     def observe_event(self, app: object, event: object) -> None:
         observe_active_input(self, app, event)
@@ -153,48 +129,7 @@ class TuiInteractions:
         return True
 
     async def _handle_picker_key(self, app: object, key: str) -> bool:
-        if not app.input.text.startswith(("/", ":")):
-            return False
-        self.rows(app)
-        if key == "up":
-            self.picker.move(-1)
-            return True
-        if key == "down":
-            self.picker.move(1)
-            return True
-        if key == "\x1b":
-            app.input.clear()
-            return True
-        if key == "\t":
-            selection = self.picker.accept()
-            if selection is not None:
-                app.input.replace(selection.completion)
-            return True
-        if key == "\r":
-            if _is_complete_command(
-                app.input.text,
-                available_services(app),
-                getattr(app, "command_registry", REGISTRY),
-            ):
-                await app.submit(app.input.submit())
-                return True
-            selection = self.picker.accept()
-            if selection is None:
-                parent = _compound_parent(
-                    app.input.text,
-                    getattr(app, "command_registry", REGISTRY),
-                )
-                if parent is not None:
-                    app.input.replace(f"{app.input.text[0]}{parent.name} ")
-                    return True
-                await app.submit(app.input.submit())
-                return True
-            app.input.replace(selection.completion)
-            if selection.completion.endswith(" "):
-                return True
-            await app.submit(app.input.submit())
-            return True
-        return False
+        return await handle_command_key(self, app, key)
 
     async def show_diff(self, app: object) -> None:
         await show_diff(self, app)
@@ -224,35 +159,3 @@ class TuiInteractions:
         app._pending_interaction = None
         app._interaction_done.set()
         self.interaction_choice = 0
-
-
-def _is_complete_command(
-    text: str, services: set[str], registry: object = REGISTRY
-) -> bool:
-    spec, arguments, error = registry.parse(text, services)
-    if error or spec is None:
-        return False
-    if arguments:
-        if spec.actions:
-            action = registry.resolve_action(spec, arguments[0])
-            if (
-                action is not None
-                and len(arguments) == 1
-                and action.usage
-            ):
-                if action.usage.startswith("<"):
-                    return False
-                return not text[-1].isspace()
-        return True
-    if text[-1].isspace() and not spec.actions:
-        return True
-    return spec.usage.startswith("[")
-
-
-def _compound_parent(text: str, registry: object = REGISTRY) -> object | None:
-    if not text.startswith(("/", ":")) or any(
-        character.isspace() for character in text[1:]
-    ):
-        return None
-    spec = registry.resolve(text[1:])
-    return spec if spec is not None and spec.actions else None

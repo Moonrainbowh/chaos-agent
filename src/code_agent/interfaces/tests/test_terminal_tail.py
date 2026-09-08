@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import re
 import unittest
 
 from code_agent.interfaces.terminal_renderer import ColorMode, render_live_tail
+from code_agent.interfaces.terminal_style import BRAND_CYAN, BRIGHT_CYAN, DIM_GRAY
 from code_agent.interfaces.terminal_tail import _wrap_plain, render_live_tail_frame
 from code_agent.interfaces.i18n import Language
 from code_agent.interfaces.terminal_renderer import Theme
@@ -18,7 +20,7 @@ class TerminalTailPaletteTests(unittest.TestCase):
             color=ColorMode.NEVER,
         )
 
-        self.assertLess(frame.text.index("◆ 正在回答"), frame.text.index("╭"))
+        self.assertLess(frame.text.index("◆ Responding"), frame.text.index("╭"))
         self.assertIn("first", frame.text)
         self.assertIn("second", frame.text)
         self.assertGreater(frame.geometry.height, 4)
@@ -39,6 +41,36 @@ class TerminalTailPaletteTests(unittest.TestCase):
     def test_streaming_answer_wraps_double_width_text_in_narrow_terminal(self) -> None:
         self.assertEqual(_wrap_plain("中", 1), ["?"])
 
+    def test_streaming_answer_renders_markdown_structure_and_inline_styles(self) -> None:
+        frame = render_live_tail_frame(
+            "", "running", 60,
+            assistant_draft="## 结论\n- **重点**与 `src/app.py`\n> 仍在生成",
+            terminal_height=14,
+            color=ColorMode.ALWAYS,
+        )
+
+        self.assertIn(f"\x1b[{BRIGHT_CYAN}m结论\x1b[0m", frame.text)
+        self.assertIn(f"\x1b[{BRIGHT_CYAN}m重点\x1b[0m", frame.text)
+        self.assertIn(f"\x1b[{BRAND_CYAN}msrc/app.py\x1b[0m", frame.text)
+        self.assertIn(f"\x1b[{BRAND_CYAN}m│ \x1b[0m", frame.text)
+        self.assertIn(f"\x1b[{DIM_GRAY}m仍在生成\x1b[0m", frame.text)
+        plain = re.sub(r"\x1b\[[0-9;?]*[ -/]*[@-~]", "", frame.text)
+        self.assertNotIn("##", plain)
+        self.assertNotIn("**", plain)
+        self.assertNotIn("`", plain)
+
+    def test_streaming_answer_styles_an_unclosed_emphasis_marker(self) -> None:
+        frame = render_live_tail_frame(
+            "", "running", 40,
+            assistant_draft="结论：**仍在生成",
+            terminal_height=10,
+            color=ColorMode.ALWAYS,
+        )
+
+        self.assertIn(f"\x1b[{BRIGHT_CYAN}m结论：仍在生成\x1b[0m", frame.text)
+        plain = re.sub(r"\x1b\[[0-9;?]*[ -/]*[@-~]", "", frame.text)
+        self.assertNotIn("**", plain)
+
     def test_picker_highlight_follows_the_selected_marker(self) -> None:
         rendered = render_live_tail(
             "",
@@ -48,12 +80,12 @@ class TerminalTailPaletteTests(unittest.TestCase):
             palette=("  first", "› second", "  third"),
         )
 
-        self.assertIn("\x1b[38;5;80m  › second\x1b[0m", rendered)
-        self.assertNotIn("\x1b[38;5;80m    first\x1b[0m", rendered)
+        self.assertIn(f"\x1b[{BRAND_CYAN}m  › second\x1b[0m", rendered)
+        self.assertNotIn(f"\x1b[{BRAND_CYAN}m    first\x1b[0m", rendered)
 
     def test_non_idle_task_states_never_fall_back_to_ready(self) -> None:
         expected = {
-            "building_context": "正在准备工作区",
+            "building_context": "正在准备上下文",
             "waiting_model": "正在等待模型",
             "verifying": "验证中",
             "paused": "已暂停",

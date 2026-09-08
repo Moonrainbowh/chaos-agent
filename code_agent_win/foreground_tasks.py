@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import inspect
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from code_agent.core.attachments import AttachmentRef
@@ -9,11 +9,8 @@ from code_agent.core.cancellation import CancellationToken
 from code_agent.core.events import EventKind
 from code_agent.core.limits import EngineLimits
 from code_agent.core.models import ActionResult
-from code_agent.core.task import TaskAuthorization, TaskContract, TaskStatus
-from code_agent.interfaces.task_controller import (
-    ForegroundTaskController,
-    freeze_task_contract,
-)
+from code_agent.core.task import TaskContract, TaskStatus
+from code_agent.interfaces.task_controller import ForegroundTaskController, authorization_for_task_mode, freeze_task_contract
 from code_agent.verification.evidence import EvidenceOutcome
 from code_agent.workflows.models import WorkflowNodeStatus
 from code_agent.workflows.observations import (
@@ -150,8 +147,10 @@ class IntegratedForegroundTaskController(ForegroundTaskController):
 
     def _contract(self, prompt: str, root: Path) -> TaskContract:
         profile = self._profile_supplier() if self._profile_supplier else None
+        interaction_mode = self._task_mode_supplier() if self._task_mode_supplier else "code"
         return freeze_task_contract(
-            prompt, TaskAuthorization.local_workspace(str(root)), profile
+            prompt, authorization_for_task_mode(str(root), interaction_mode), profile,
+            interaction_mode=interaction_mode,
         )
 
     async def reconcile_stale_tasks(self) -> tuple[str, ...]:
@@ -255,7 +254,7 @@ class IntegratedForegroundTaskController(ForegroundTaskController):
 
     async def _observe_action(self, task_id: str, event: object) -> None:
         raw = event.payload.get("result")
-        if not isinstance(raw, dict):
+        if not isinstance(raw, Mapping):
             return
         result = ActionResult.from_dict(raw)
         if result.name == "run_verification":

@@ -17,6 +17,7 @@ from code_agent.interfaces.approval import ApprovalBroker  # noqa: E402
 from code_agent.interfaces.controller import AgentController  # noqa: E402
 from code_agent.interfaces.terminal_display import DisplayKind, text_entry  # noqa: E402
 from code_agent.interfaces.terminal_renderer import ColorMode, render_entry  # noqa: E402
+from code_agent.interfaces.terminal_style import BODY_WHITE, WARNING_YELLOW  # noqa: E402
 from code_agent.interfaces.tests._support import FakeEngine  # noqa: E402
 from code_agent.interfaces.windows_tui import WindowsTerminalApp  # noqa: E402
 
@@ -36,8 +37,8 @@ class PartialAnswerRenderingTests(unittest.IsolatedAsyncioTestCase):
             color=ColorMode.ALWAYS,
         )
 
-        self.assertIn("\x1b[33m!\x1b[0m \x1b[33m未完成回答\x1b[0m", rendered)
-        self.assertIn("  \x1b[38;5;252munfinished?[2J\x1b[0m", rendered)
+        self.assertIn(f"\x1b[{WARNING_YELLOW}m!\x1b[0m \x1b[{WARNING_YELLOW}mIncomplete response\x1b[0m", rendered)
+        self.assertIn(f"  \x1b[{BODY_WHITE}munfinished?[2J\x1b[0m", rendered)
         self.assertNotIn("\x1b[2J", rendered)
 
     async def test_cancelled_stream_flushes_a_static_partial_answer(self) -> None:
@@ -53,7 +54,7 @@ class PartialAnswerRenderingTests(unittest.IsolatedAsyncioTestCase):
         except KeyError as error:
             self.fail(f"partial answer did not render: {error}")
 
-        self.assertEqual(_plain("".join(output)).count("! 未完成回答"), 1)
+        self.assertEqual(_plain("".join(output)).count("! Incomplete response"), 1)
         self.assertNotIn("unfinished", "\n".join(app.state.transcript))
 
 

@@ -43,6 +43,16 @@ class AgentController:
             raise TypeError("engine must provide run")
         self._engine = engine
 
+    async def compact_context(
+        self,
+        thread_id: str,
+        cancellation: CancellationToken | None = None,
+    ) -> object:
+        compact = getattr(self._engine, "compact_context", None)
+        if not callable(compact):
+            raise RuntimeError("semantic context compaction is unavailable")
+        return await compact(thread_id, cancellation)
+
     async def ask(
         self,
         user_input: str,

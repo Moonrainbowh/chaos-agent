@@ -7,7 +7,8 @@ from typing import Optional
 import httpx
 
 from .config import ProviderConfig
-from .errors import ProviderError, ProviderHTTPError, ProviderResponseLimitError
+from .errors import ProviderError, ProviderResponseLimitError
+from .http_errors import http_error
 from .sse import SSEDecoder, SSEEvent
 
 
@@ -92,9 +93,11 @@ class ProviderTransport:
                         if retryable and attempt < self._config.max_retries:
                             retry_delay = self._backoff(attempt)
                         else:
-                            raise ProviderHTTPError(
-                                status=response.status_code,
+                            raise await http_error(
+                                response,
                                 retryable=retryable,
+                                byte_limit=self._config.max_response_bytes,
+                                api_key=api_key,
                             )
                     else:
                         decoder = SSEDecoder(self._config.max_event_bytes)

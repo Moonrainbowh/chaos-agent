@@ -5,6 +5,7 @@ import re
 import sys
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 SRC_ROOT = Path(__file__).resolve().parents[3]
 if str(SRC_ROOT) not in sys.path: sys.path.insert(0, str(SRC_ROOT))
@@ -21,6 +22,13 @@ from code_agent.interfaces.terminal_tail import render_live_tail_frame
 from code_agent.interfaces.terminal_status import status_context, status_presentation
 from code_agent.interfaces.terminal_io import BRACKETED_PASTE_DISABLE, BRACKETED_PASTE_ENABLE
 from code_agent.interfaces.terminal_state import ApprovalBroker, ApprovalRequest
+from code_agent.interfaces.task_mode_control import TaskModeControl
+from code_agent.semantic_insights.models import (
+    InsightItem,
+    InsightKind,
+    InsightSection,
+    SemanticInsightReport,
+)
 from code_agent.interfaces.tests._support import FakeEngine
 from code_agent.interfaces.windows_tui import WindowsTerminalApp, render_terminal
 
@@ -33,6 +41,30 @@ def _plain(value: str) -> str:
 
 
 class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
+    async def test_compact_delegates_and_reports_persisted_checkpoint(self) -> None:
+        class Engine(FakeEngine):
+            async def compact_context(self, thread_id: str, cancellation: object):
+                self.compacted = thread_id
+                return SimpleNamespace(
+                    before_messages=20,
+                    after_messages=5,
+                    before_tokens=10_000,
+                    after_tokens=2_000,
+                    checkpoint_id="semantic-test",
+                    fallback_used=False,
+                )
+
+        engine = Engine(())
+        app = WindowsTerminalApp(
+            AgentController(engine), ApprovalBroker(), write=lambda _: None
+        )
+        app.current_thread_id = "thread-42"
+
+        self.assertTrue(await app.submit("/compact"))
+
+        self.assertEqual(engine.compacted, "thread-42")
+        self.assertIn("checkpoint semantic-test persisted", app.state.entries[-1].text)
+
     async def test_blank_submit_without_attachments_is_a_quiet_noop(self) -> None:
         output: list[str] = []
         app = WindowsTerminalApp(
@@ -47,7 +79,7 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_palette_executes_leaf_and_keeps_mode_as_a_root_parent(self) -> None:
         app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker(), write=lambda _: None)
-        app.input.replace("/状态")
+        app.input.replace("/status")
 
         await app.handle_key("\r")
 
@@ -55,39 +87,71 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(app.state.entries[-1].kind, DisplayKind.METADATA)
 
         app.modes = type("Modes", (), {"current": type("Mode", (), {"model": "test-model"})()})()
-        app.input.replace("/模式")
+        app.input.replace("/mode")
         rows = app.interactions.rows(app)
-        self.assertTrue(any("/模式" in row for row in rows))
-        self.assertFalse(any("/模式 low" in row for row in rows))
+        self.assertTrue(any("/mode" in row for row in rows))
+        self.assertFalse(any("/mode low" in row for row in rows))
 
     async def test_default_help_matches_the_compact_root_surface(self) -> None:
         app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker(), write=lambda _: None)
 
-        self.assertTrue(await app.submit("/帮助"))
+        self.assertTrue(await app.submit("/help"))
 
         help_text = app.state.entries[-1].text
-        self.assertIn("通用\n", help_text)
+        self.assertIn("General\n", help_text)
         for name in (
-            "帮助", "状态", "新建", "会话", "任务", "附件",
-            "回退", "模式", "权限", "退出",
+            "status", "clear", "compact", "cost", "doctor",
+            "exit", "diff", "map", "review", "test", "rewind", "attach",
+            "model", "mode", "effort", "permission", "mcp", "plugin", "tasks",
         ):
             self.assertIn(f":{name}", help_text)
-        self.assertNotIn(":差异", help_text)
-        self.assertNotIn(":清屏", help_text)
-        self.assertNotIn(":证据", help_text)
-        self.assertNotIn(":插件", help_text)
+        self.assertNotIn(":sessions", help_text)
+        self.assertNotIn(":new", help_text)
+        self.assertNotIn(":restore", help_text)
+        self.assertNotIn(":evidence", help_text)
+
+    async def test_map_command_renders_generation_and_passes_quoted_path(self) -> None:
+        class SemanticControl:
+            async def analyze(self, kind, arguments, *, thread_id=None):
+                self.seen = (kind, arguments, thread_id)
+                return SemanticInsightReport(
+                    InsightKind.RISK,
+                    9,
+                    "Pre-change Risk",
+                    "",
+                    (InsightSection("Risk", (InsightItem("HIGH", "fan-in"),)),),
+                )
+
+        control = SemanticControl()
+        app = WindowsTerminalApp(
+            AgentController(FakeEngine(())),
+            ApprovalBroker(),
+            write=lambda _: None,
+        )
+        app.semantic_graph = control
+        app.current_thread_id = "thread-9"
+
+        self.assertTrue(
+            await app.submit('/map risk "src/pkg/file with space.py"')
+        )
+
+        self.assertEqual(
+            control.seen,
+            ("risk", ("src/pkg/file with space.py",), "thread-9"),
+        )
+        self.assertIn("semantic generation 9", app.state.entries[-1].text)
 
     async def test_help_all_includes_advanced_commands(self) -> None:
         app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker(), write=lambda _: None)
 
-        self.assertTrue(await app.submit("/帮助 全部"))
+        self.assertTrue(await app.submit("/help all"))
 
         help_text = app.state.entries[-1].text
-        self.assertIn(":清屏", help_text)
-        self.assertIn(":证据", help_text)
-        self.assertIn(":插件", help_text)
+        self.assertIn(":sessions", help_text)
+        self.assertIn(":evidence", help_text)
+        self.assertIn(":restore", help_text)
 
-    async def test_mode_prefix_enters_runtime_selection_secondary_menu(self) -> None:
+    async def test_mode_prefix_enters_task_behavior_secondary_menu(self) -> None:
         class RuntimeSelection:
             current = type(
                 "Selection",
@@ -109,33 +173,33 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
                 return self.current
 
         runtime = RuntimeSelection()
-        app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker(), write=lambda _: None)
+        task_modes = TaskModeControl()
+        app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker(), task_modes=task_modes, write=lambda _: None)
         app.runtime_selection = runtime
-        app.input.replace("/模式")
+        app.input.replace("/mode")
 
         await app.handle_key("\r")
 
         self.assertFalse(hasattr(runtime, "seen"))
-        self.assertEqual(app.input.text, "/模式 ")
+        self.assertEqual(app.input.text, "/mode ")
 
         await app.handle_key("\r")
 
-        self.assertEqual(app.input.text, "/模式 代理 ")
-        app.input.insert("team")
-        await app.handle_key("\r")
-
-        self.assertEqual(runtime.seen, {"topology": "team", "idle": True})
+        self.assertFalse(hasattr(runtime, "seen"))
+        self.assertEqual(task_modes.current.name, "ask")
         self.assertEqual(app.input.text, "")
 
     async def test_clear_keeps_the_current_thread_identity(self) -> None:
-        app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker(), write=lambda _: None)
+        output: list[str] = []
+        app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker(), write=output.append)
         app.current_thread_id = "thread-42"
         app.state.entries.append(text_entry(DisplayKind.USER, "old transcript"))
 
-        self.assertTrue(await app.submit("/清屏"))
+        self.assertTrue(await app.submit("/clear"))
 
         self.assertEqual(app.current_thread_id, "thread-42")
         self.assertEqual(app.state.entries, [])
+        self.assertTrue(any("\x1b[2J\x1b[H" in item for item in output))
 
     async def test_enter_submits_complete_restore_command_without_picker_replacement(self) -> None:
         app = WindowsTerminalApp(
@@ -148,7 +212,7 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
             return True
 
         app.restore_thread = restore
-        app.input.replace("/恢复 T-042")
+        app.input.replace("/restore T-042")
 
         await app.handle_key("\r")
 
@@ -168,7 +232,7 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
         app = WindowsTerminalApp(
             AgentController(FakeEngine(())), ApprovalBroker(), modes=modes, write=lambda _: None,
         )
-        app.input.replace("/模式 high")
+        app.input.replace("/mode high")
 
         await app.handle_key("\r")
 
@@ -196,7 +260,7 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
             permissions=permissions,
             write=lambda _: None,
         )
-        app.input.replace("/权限 unrestricted")
+        app.input.replace("/permission unrestricted")
 
         await app.handle_key("\r")
 

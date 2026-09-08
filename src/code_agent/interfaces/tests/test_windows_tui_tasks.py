@@ -164,7 +164,7 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
         await app.submit("inspect"); await app.wait_idle()
         rendered = "".join(output)
         plain = _plain(rendered)
-        self.assertEqual(plain.count("◆ full answer"), 1)
+        self.assertEqual(plain.count("✦ Chaos Agent\n  full answer"), 1)
         self.assertNotIn("◆ full \n", plain)
 
     async def test_raw_reasoning_is_not_written(self) -> None:

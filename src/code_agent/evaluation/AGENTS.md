@@ -13,6 +13,8 @@
 - 不负责：把 scripted replay 分数宣称为真实模型修复成功率，或把 hidden golden 应用于正式执行工作区。
 
 ## Units
+- `long_context_cases`: 固定 10 个不同代码契约与长历史恢复现场 | 生成隔离 fixture | 前史为确定性现场，后续 AgentEngine/API 实跑；不可宣称从零端到端长任务成绩
+- `long_context_metrics`: 分别核算主请求/交接/缓存、稳定内容重复读取、边界后注入错误恢复与独立验收 | 读取受信日志/最终文件 | 无边界或 API 失败保留为无效/失败，不补成功分数
 - `WorkspaceOracle`、`VerifierOracle`、`LifecycleOracle`: 冻结完整变更集、可信验证与生命周期约束 | 无副作用 | 源码等价性由 verifier 判定，只有状态协议文件使用 exact
 - `Scenario`、`ScenarioPrompt`、`ScenarioResult`: 分离隐藏预期、执行器输入与不受信返回值 | 无副作用 | golden 仅供 fixture 自检且不进入 prompt
 - `bugfix_fixture(...)`、`multifile_fixture(...)`、`recovery_fixture(...)`、`safety_fixture(...)`: 确定性生成真实坏源码、公开测试和隐藏 verifier | 无副作用 | hidden 文件只存在于 oracle

@@ -20,6 +20,11 @@
 - `search_threads` 与 `read_thread` 的调用方身份由 Host 注入，模型和插件不得提交或覆盖 caller thread ID。
 - Plugin mode 或 custom Agent 只能移除线程工具，不能扩大授权范围；语义失败时保留现有确定性压缩结果。
 
+### 预算框架（显式启用的 v1 已实现）
+
+- 保留旧的语义摘要链路用于未启用新策略的配置。新策略通过 context_windows 读取原始历史和来源锚点，交接信息为待核实历史，不替代用户原文或升级为系统指令。
+- 2026-09-05 的配置、验证与实验边界见根目录 `docs/context-boundary-experiment.md` 和 `docs/context-boundary-results.md`；具体候选值可配置，实验结果不自动推广为默认策略。
+
 ## Units
 - `ThreadAuthorization.authorized_threads(caller_thread_id)`、`ensure_can_read(...)`：只从持久化两级 thread tree 计算读取范围 | 读取关系存储 | 根可读直接子、子只可读父，兄弟和无关 thread 拒绝
 - `anchor_message(thread_id, sequence, message): AnchoredMessage`：为原始消息及其附件引用元数据生成稳定来源锚点和内容 digest | 无副作用 | 原消息或附件引用变化会使 digest 失效。
@@ -27,6 +32,7 @@
 - `SemanticCheckpoint.create(sources, response): SemanticCheckpoint`：固化摘要来源范围、模型、用量、版本和范围 digest | 无副作用 | checkpoint 始终是不可信派生上下文。
 - `SemanticCompactor.compact(...): SemanticCompactionResult`：在上下文压力达到阈值时压缩闭合旧区间并保留最近原文 | 调用注入的摘要服务 | 取消向上传播，失败、超时、孤立工具消息或预算超限时使用确定性回退。
 - `ThreadAwareContextBuilder.build(...)`: 从 Sessions 稳定消息记录协调语义压缩并以结构化请求委托现有 ContextBuilder | 摘要调用与 SQLite I/O | 发布失败使用原始消息；委托时保留 revision、控制快照与预算租约
+- `ThreadAwareContextBuilder.compact_context(...)`: 显式触发语义压缩并返回前后消息/token 与 checkpoint 身份 | 摘要调用与 SQLite I/O | 后续 build 仅在来源锚点和范围 digest 仍有效时复用最新 checkpoint，原始消息永不删除
 - `BoundedThreadIndex.add(entry): None`：在显式授权的 thread tree 内维护容量受限的来源索引 | 超限时淘汰最旧条目 | stable ID 冲突会被拒绝。
 - `BoundedThreadIndex.search(query, ...): tuple[SearchHit, ...]`：对授权消息、事件、checkpoint 与 evidence 文本执行有界检索 | 无副作用 | 不接受任意 thread ID 越权查询。
 - `ThreadReader.read_thread(anchor, ...): ThreadRead`：读取稳定来源及其后续替代、回滚和实际工具结果 | 无副作用 | 推翻仅标记为冲突候选，不改写原始事实。

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from enum import Enum
 
 from code_agent.core.events import EventKind
@@ -15,7 +16,7 @@ class SubmitMode(str, Enum):
 
     @property
     def label(self) -> str:
-        return "排队" if self is SubmitMode.QUEUE else "转向"
+        return "queue" if self is SubmitMode.QUEUE else "steer"
 
 
 def toggle_submit_mode(app: object) -> SubmitMode:
@@ -23,7 +24,7 @@ def toggle_submit_mode(app: object) -> SubmitMode:
     app.submit_mode = (
         SubmitMode.STEER if current is SubmitMode.QUEUE else SubmitMode.QUEUE
     )
-    app._append(DisplayKind.METADATA, f"运行中提交模式 · [{app.submit_mode.label}]")
+    app._append(DisplayKind.METADATA, f"Submit mode · [{app.submit_mode.label}]")
     return app.submit_mode
 
 
@@ -42,7 +43,7 @@ async def submit_active_input(app: object, prepared: PreparedInput) -> bool:
     except Exception as error:
         app._append(
             DisplayKind.ERROR,
-            f"{app.submit_mode.label}提交失败 ({type(error).__name__})",
+            f"{app.submit_mode.label} submission failed ({type(error).__name__})",
         )
         app.redraw()
         return False
@@ -52,6 +53,15 @@ async def submit_active_input(app: object, prepared: PreparedInput) -> bool:
 
 
 async def pause_active_task(app: object, reason: str) -> bool:
+    if getattr(app, "_starting_task", False) and app._run_task:
+        app.state.status = "pausing"
+        app._token.cancel(reason)
+        app._request_redraw(immediate=True)
+        app._run_task.cancel()
+        await asyncio.gather(app._run_task, return_exceptions=True)
+        app.state.status = "paused"
+        app._request_redraw(immediate=True)
+        return True
     if not (
         app.tasks
         and app.active_task_id

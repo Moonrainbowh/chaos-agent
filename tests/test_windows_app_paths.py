@@ -20,6 +20,9 @@ from code_agent_win.workspace_runtime import ManagedWorkspaceRuntime
 
 @unittest.skipUnless(os.name == "nt", "Windows path limits are Windows-only")
 class WindowsApplicationPathTests(unittest.TestCase):
+    def setUp(self) -> None:
+        windows_path_support.cache_clear()
+
     def tearDown(self) -> None:
         windows_path_support.cache_clear()
 
@@ -178,6 +181,7 @@ class WindowsApplicationPathTests(unittest.TestCase):
 
     @staticmethod
     def _legacy_paths():
+        windows_path_support.cache_clear()
         return patch(
             "code_agent.workspace.windows_paths._read_long_paths_enabled",
             return_value=False,

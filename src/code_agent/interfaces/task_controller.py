@@ -19,13 +19,14 @@ from .controller import AgentController
 class ForegroundTaskController:
     """Own foreground cancellation and task lifecycle, leaving execution to AgentEngine."""
 
-    def __init__(self, controller: AgentController, sessions: object, workspace_root: Path | str, *, profile_supplier: Callable[[], tuple[str, ...]] | None = None, profile_resolver: Callable[[str], Awaitable[None]] | None = None, runtime_resolver: Callable[[TaskContract], Awaitable[None]] | None = None) -> None:
+    def __init__(self, controller: AgentController, sessions: object, workspace_root: Path | str, *, profile_supplier: Callable[[], tuple[str, ...]] | None = None, profile_resolver: Callable[[str], Awaitable[None]] | None = None, runtime_resolver: Callable[[TaskContract], Awaitable[None]] | None = None, task_mode_supplier: Callable[[], str] | None = None) -> None:
         self._controller = controller
         self._sessions = sessions
         self._root = str(Path(workspace_root).resolve())
         self._tokens: dict[str, CancellationToken] = {}
         self._profile_supplier, self._profile_resolver = profile_supplier, profile_resolver
         self._runtime_resolver = runtime_resolver
+        self._task_mode_supplier = task_mode_supplier
 
     async def start(self, prompt: str) -> TaskRecord:
         active = await self._sessions.list_tasks()
@@ -37,10 +38,12 @@ class ForegroundTaskController:
             raise RuntimeError("a foreground task is already active")
         thread_id = await self._sessions.create_thread()
         profile = self._profile_supplier() if self._profile_supplier else None
+        interaction_mode = self._task_mode_supplier() if self._task_mode_supplier else "code"
         task = await self._sessions.create_task(
             thread_id,
             freeze_task_contract(
-                prompt, TaskAuthorization.local_workspace(self._root), profile
+                prompt, authorization_for_task_mode(self._root, interaction_mode), profile,
+                interaction_mode=interaction_mode,
             ),
         )
         await self._sessions.create_checkpoint(thread_id, "task-created", {"task_id": task.id, "status": task.status.value})
@@ -48,6 +51,14 @@ class ForegroundTaskController:
 
     async def list(self, *, include_terminal: bool = False) -> tuple[TaskRecord, ...]:
         return await self._sessions.list_tasks(include_terminal=include_terminal)
+
+    async def restore_runtime_settings(self, task_id: str) -> None:
+        """Select a saved task's frozen runtime before displaying its conversation."""
+        task = await self._sessions.load_task(task_id)
+        if task.contract.runtime_selection_digest and self._runtime_resolver:
+            await self._runtime_resolver(task.contract)
+        elif task.contract.profile_id and self._profile_resolver:
+            await self._profile_resolver(task.contract.profile_id)
 
     async def events(
         self,
@@ -219,10 +230,18 @@ def freeze_task_contract(
     prompt: str,
     authorization: TaskAuthorization,
     profile: tuple[str, ...] | None,
+    *,
+    interaction_mode: str = "code",
 ) -> TaskContract:
     """Freeze provider facts and, when available, the full runtime selection."""
+    from code_agent.core.task_intent import infer_task_intent
+
+    intent = infer_task_intent(prompt, interaction_mode)
+
     if profile is None:
-        return TaskContract(prompt, authorization)
+        return TaskContract(
+            prompt, authorization, intent=intent, interaction_mode=interaction_mode
+        )
     if len(profile) not in {4, 8} or not all(
         isinstance(value, str) and value.strip() for value in profile
     ):
@@ -231,6 +250,7 @@ def freeze_task_contract(
     return TaskContract(
         prompt,
         authorization,
+        intent=intent,
         profile_id=profile[0],
         model=profile[1],
         protocol=profile[2],
@@ -239,4 +259,17 @@ def freeze_task_contract(
         reasoning_effort=runtime[1],
         runtime_mode=runtime[2],
         runtime_selection_digest=runtime[3],
+        interaction_mode=interaction_mode,
     )
+
+
+def authorization_for_task_mode(
+    workspace_root: str, interaction_mode: str
+) -> TaskAuthorization:
+    if interaction_mode in {"ask", "plan"}:
+        return TaskAuthorization(
+            workspace_root,
+            allow_workspace_write=False,
+            allow_local_execute=False,
+        )
+    return TaskAuthorization.local_workspace(workspace_root)

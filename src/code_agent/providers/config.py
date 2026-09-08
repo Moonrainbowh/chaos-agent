@@ -103,6 +103,19 @@ def _require_positive_int(value: object, label: str) -> None:
         raise ProviderConfigError(f"{label} must be a positive integer")
 
 
+def optional_token_rate(value: object, label: str) -> float | None:
+    if value is None:
+        return None
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not math.isfinite(value)
+        or value < 0
+    ):
+        raise ProviderConfigError(f"{label} must be a finite non-negative number")
+    return float(value)
+
+
 @dataclass(frozen=True)
 class ProviderConfig:
     base_url: str
@@ -200,8 +213,18 @@ class ModelProfile:
     input_modalities: frozenset[InputModality] = field(
         default_factory=lambda: frozenset({InputModality.TEXT})
     )
+    input_cost_per_million: float | None = None
+    output_cost_per_million: float | None = None
+    context_policy: object | None = None
+    api_input_tokens: int | None = None
 
     def __post_init__(self) -> None:
+        from code_agent.context_windows.policy import ApiContextLimits, WindowPolicy
+        if self.context_policy is not None:
+            if not isinstance(self.context_policy, WindowPolicy):
+                raise ProviderConfigError("context_policy must be a WindowPolicy")
+            ApiContextLimits(self.context_window, self.max_output_tokens,
+                             self.api_input_tokens).input_cap(self.context_policy)
         if not isinstance(self.name, str) or not self.name.strip():
             raise ProviderConfigError("profile name must be a non-empty string")
         if not isinstance(self.provider, ProviderConfig):
@@ -222,6 +245,13 @@ class ModelProfile:
             "input_modalities",
             freeze_input_modalities(self.input_modalities),
         )
+        rates = (self.input_cost_per_million, self.output_cost_per_million)
+        if (rates[0] is None) != (rates[1] is None):
+            raise ProviderConfigError("configure both input and output token rates")
+        for label, value in zip(
+            ("input_cost_per_million", "output_cost_per_million"), rates
+        ):
+            optional_token_rate(value, label)
 
 
 class ModelProfileResolver:

@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from contextvars import ContextVar, Token
 from dataclasses import replace
+from pathlib import Path
 
 from code_agent.core.cancellation import CancellationToken
 from code_agent.core.context_request import ContextRequest
@@ -29,6 +30,20 @@ _SUMMARY_INSTRUCTION = (
     "IDs. Do not add facts.\n\n"
 )
 _SUMMARY_PROTOCOL_RESERVE = 32
+_INTERACTION_PROMPTS = {
+    "ask": (
+        "Interaction mode: ask. Answer or explain using read-only context. "
+        "Do not modify files or run local commands."
+    ),
+    "code": (
+        "Interaction mode: code. Implement and verify the request when asked; "
+        "all tools remain subject to the task authorization and permission policy."
+    ),
+    "plan": (
+        "Interaction mode: plan. Inspect read-only context and produce a concrete plan. "
+        "Do not modify files or run local commands."
+    ),
+}
 
 
 class ThreadRuntimeBinding:
@@ -126,11 +141,34 @@ class BoundSkillContextBuilder:
         activation = self._skills.activation(thread_id)
         bundle = await self._semantic.build(request)
         content = activation.render()
+        interaction = request.mode_snapshot.get("interaction_mode")
+        mode_prompt = _INTERACTION_PROMPTS.get(str(interaction), "")
+        additions = "\n\n".join(item for item in (content, mode_prompt) if item)
         return replace(
             bundle,
             system_prompt=bundle.system_prompt
-            + ("\n\n" + content if content else ""),
+            + ("\n\n" + additions if additions else ""),
         )
+
+    async def compact_context(
+        self,
+        thread_id: str,
+        cancellation: CancellationToken | None = None,
+    ) -> object:
+        compact = getattr(self._semantic, "compact_context", None)
+        if not callable(compact):
+            raise RuntimeError("semantic context compaction is unavailable")
+        return await compact(thread_id, cancellation)
+
+    def semantic_snapshot_for_root(self, root: Path) -> object:
+        config = getattr(self._inner, "config", None)
+        workspace_root = getattr(config, "workspace_root", None)
+        if workspace_root is None or Path(root).resolve() != workspace_root:
+            raise ValueError("semantic snapshot root does not match context root")
+        provider = getattr(self._inner, "semantic_snapshot_for_turn", None)
+        if not callable(provider):
+            raise RuntimeError("semantic snapshot is unavailable")
+        return provider()
 
 
 class ModelSemanticSummarizer:

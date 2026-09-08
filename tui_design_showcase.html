@@ -1,0 +1,1455 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chaos-Agent TUI - 方案 A 冷萃冰阶 (极简克制版·动效深度优化)</title>
+  <style>
+    /* ============================================================== */
+    /* 3 组克制方案 CSS 变量定义 (以方案 A 为默认基准)                  */
+    /* ============================================================== */
+
+    /* 方案 A: 冷萃冰阶 (Muted Slate / 铅灰冷调 - 极简北欧工业风 - 默认) */
+    body[data-scheme="slate"] {
+      --bg-page: #07090e;
+      --bg-term: #0a0d14;
+      --bg-card: #0f141f;
+      --bg-surface: #141b29;
+      --bg-subtle: #172030;
+
+      --border-outer: #1c2638;
+      --border-card: #223046;
+      --border-focus: #38bdf8;
+
+      --text-head: #f1f5f9;
+      --text-main: #cbd5e1;
+      --text-muted: #73849c;
+      --text-dim: #435066;
+
+      --accent-primary: #7dd3fc;        /* 柔和冰雾蓝 */
+      --accent-primary-dim: rgba(125, 211, 252, 0.14);
+      --accent-active: #e2b170;         /* 低饱和淡金沙 (运行中) */
+      --accent-active-dim: rgba(226, 177, 112, 0.16);
+      --accent-active-glow: rgba(226, 177, 112, 0.35);
+      --accent-success: #6ee7b7;        /* 鼠尾草灰绿 */
+      --accent-success-dim: rgba(110, 231, 183, 0.14);
+      --accent-fail: #f87171;           /* 沉灰玫瑰红 */
+      --accent-tag: #1c283d;
+      --accent-tag-text: #93c5fd;
+
+      --diff-add-bg: rgba(110, 231, 183, 0.08);
+      --diff-add-text: #6ee7b7;
+      --diff-del-bg: rgba(248, 113, 113, 0.08);
+      --diff-del-text: #f87171;
+
+      --kbd-bg: #162030;
+      --kbd-border: #273750;
+      --kbd-text: #94a3b8;
+    }
+
+    /* 方案 B: 暗房石墨 (Graphite Charcoal / 暖炭石墨) */
+    body[data-scheme="charcoal"] {
+      --bg-page: #0a0a0b;
+      --bg-term: #0f0f12;
+      --bg-card: #151518;
+      --bg-surface: #1c1c20;
+      --bg-subtle: #232328;
+
+      --border-outer: #232328;
+      --border-card: #2c2c34;
+      --border-focus: #d4a373;
+
+      --text-head: #f4f0ea;
+      --text-main: #d1cdc7;
+      --text-muted: #87847e;
+      --text-dim: #52504b;
+
+      --accent-primary: #d4a373;
+      --accent-primary-dim: rgba(212, 163, 115, 0.14);
+      --accent-active: #d4a373;
+      --accent-active-dim: rgba(212, 163, 115, 0.16);
+      --accent-active-glow: rgba(212, 163, 115, 0.35);
+      --accent-success: #829f70;
+      --accent-success-dim: rgba(130, 159, 112, 0.14);
+      --accent-fail: #cf7971;
+      --accent-tag: #25221d;
+      --accent-tag-text: #d4a373;
+
+      --diff-add-bg: rgba(130, 159, 112, 0.09);
+      --diff-add-text: #8fb47c;
+      --diff-del-bg: rgba(207, 121, 113, 0.09);
+      --diff-del-text: #d68981;
+
+      --kbd-bg: #1e1e22;
+      --kbd-border: #2f2f36;
+      --kbd-text: #a39f97;
+    }
+
+    /* 方案 C: 钛灰苔原 (Titanium Sage / 雾灰苔原) */
+    body[data-scheme="sage"] {
+      --bg-page: #080b0a;
+      --bg-term: #0d1210;
+      --bg-card: #121815;
+      --bg-surface: #18221e;
+      --bg-subtle: #202c27;
+
+      --border-outer: #1c2722;
+      --border-card: #273730;
+      --border-focus: #7ea894;
+
+      --text-head: #eef3f1;
+      --text-main: #c7d2ce;
+      --text-muted: #72827b;
+      --text-dim: #44514b;
+
+      --accent-primary: #7ea894;
+      --accent-primary-dim: rgba(126, 168, 148, 0.14);
+      --accent-active: #94b2a4;
+      --accent-active-dim: rgba(148, 178, 164, 0.16);
+      --accent-active-glow: rgba(148, 178, 164, 0.35);
+      --accent-success: #689f84;
+      --accent-success-dim: rgba(104, 159, 132, 0.14);
+      --accent-fail: #c47676;
+      --accent-tag: #1a2621;
+      --accent-tag-text: #86bda4;
+
+      --diff-add-bg: rgba(104, 159, 132, 0.09);
+      --diff-add-text: #73b092;
+      --diff-del-bg: rgba(196, 118, 118, 0.09);
+      --diff-del-text: #ca7f7f;
+
+      --kbd-bg: #19231f;
+      --kbd-border: #2a3932;
+      --kbd-text: #96a7a0;
+    }
+
+    /* 全局基础设置 */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --font-mono: "Cascadia Code", "JetBrains Mono", "Fira Code", Consolas, "SF Mono", monospace;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      --anim-speed: 1; /* 动效速度倍率：1=正常, 2=慢动作, 0=暂停 */
+    }
+
+    body {
+      background-color: var(--bg-page);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      padding: 32px 24px 90px;
+      min-height: 100vh;
+      line-height: 1.5;
+      transition: background-color 0.25s ease, color 0.25s ease;
+    }
+
+    /* 顶部标题区 */
+    .header-area {
+      max-width: 1100px;
+      margin: 0 auto 24px;
+      text-align: center;
+    }
+
+    .badge-top {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 14px;
+      border-radius: 999px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-card);
+      font-size: 12px;
+      color: var(--accent-primary);
+      margin-bottom: 12px;
+      font-weight: 500;
+      letter-spacing: 0.2px;
+    }
+
+    .header-area h1 {
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--text-head);
+      letter-spacing: -0.5px;
+      margin-bottom: 8px;
+    }
+
+    .header-area p {
+      color: var(--text-muted);
+      font-size: 13.5px;
+      max-width: 720px;
+      margin: 0 auto;
+    }
+
+    /* 顶部控制面板 */
+    .control-deck {
+      max-width: 1100px;
+      margin: 0 auto 22px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-outer);
+      border-radius: 12px;
+      padding: 14px 20px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+    }
+
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .group-label {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-right: 4px;
+    }
+
+    .btn-tab {
+      background: var(--bg-term);
+      border: 1px solid var(--border-card);
+      color: var(--text-muted);
+      padding: 6px 14px;
+      border-radius: 7px;
+      font-size: 12.5px;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .btn-tab:hover {
+      color: var(--text-head);
+      border-color: var(--border-focus);
+    }
+
+    .btn-tab.active {
+      background: var(--bg-surface);
+      color: var(--text-head);
+      border-color: var(--accent-primary);
+      font-weight: 600;
+      box-shadow: 0 0 12px var(--accent-primary-dim);
+    }
+
+    .tab-color-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .btn-state {
+      background: var(--bg-term);
+      border: 1px solid var(--border-card);
+      color: var(--text-muted);
+      padding: 6px 12px;
+      border-radius: 7px;
+      font-size: 12px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .btn-state.active {
+      background: var(--accent-success-dim);
+      color: var(--accent-success);
+      border-color: var(--accent-success);
+      font-weight: 600;
+    }
+
+    .btn-state.active-running {
+      background: var(--accent-active-dim);
+      color: var(--accent-active);
+      border-color: var(--accent-active);
+      font-weight: 600;
+    }
+
+    /* 动效调节器小药丸 */
+    .speed-pill-group {
+      display: flex;
+      align-items: center;
+      background: var(--bg-term);
+      border: 1px solid var(--border-card);
+      border-radius: 6px;
+      padding: 2px;
+    }
+
+    .speed-btn {
+      padding: 3px 8px;
+      border-radius: 4px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 11px;
+      font-family: var(--font-mono);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .speed-btn.active {
+      background: var(--bg-surface);
+      color: var(--text-head);
+      font-weight: 600;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    }
+
+    /* 方案横幅 */
+    .scheme-banner {
+      max-width: 1100px;
+      margin: 0 auto 20px;
+      background: var(--bg-card);
+      border-left: 3px solid var(--accent-primary);
+      border-right: 1px solid var(--border-outer);
+      border-top: 1px solid var(--border-outer);
+      border-bottom: 1px solid var(--border-outer);
+      border-radius: 8px;
+      padding: 12px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      transition: all 0.25s ease;
+    }
+
+    .scheme-banner-title {
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--text-head);
+    }
+
+    .scheme-banner-desc {
+      font-size: 12.5px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .palette-chips {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .palette-chip {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 8px;
+      border-radius: 5px;
+      background: var(--bg-term);
+      border: 1px solid var(--border-card);
+      font-size: 11px;
+      font-family: var(--font-mono);
+      color: var(--text-main);
+    }
+
+    .chip-swatch {
+      width: 9px;
+      height: 9px;
+      border-radius: 2px;
+    }
+
+    /* 终端仿真窗口 */
+    .main-view-container {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .terminal-window {
+      background: var(--bg-term);
+      border: 1px solid var(--border-outer);
+      border-radius: 12px;
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.02);
+      overflow: hidden;
+      transition: border-color 0.25s ease, background 0.25s ease;
+    }
+
+    .window-titlebar {
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border-outer);
+      padding: 10px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .traffic-lights { display: flex; gap: 7px; }
+    .light-dot { width: 10px; height: 10px; border-radius: 50%; opacity: 0.85; }
+    .light-dot.close { background: #e05252; }
+    .light-dot.min { background: #d99b26; }
+    .light-dot.max { background: #2ea043; }
+
+    .window-title {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-muted);
+      letter-spacing: 0.2px;
+    }
+
+    .window-right-tags {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    .active-scheme-tag {
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-card);
+      color: var(--accent-primary);
+      font-weight: 500;
+    }
+
+    /* 终端内容区 */
+    .terminal-body {
+      padding: 24px 28px;
+      font-family: var(--font-mono);
+      font-size: 13.5px;
+      line-height: 1.65;
+      min-height: 520px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .scrollback {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      margin-bottom: 24px;
+    }
+
+    .msg-user {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+
+    .prompt-glyph {
+      color: var(--accent-primary);
+      font-weight: 700;
+      user-select: none;
+    }
+
+    .msg-user-content {
+      color: var(--text-head);
+      font-weight: 500;
+    }
+
+    .msg-agent {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .agent-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+    }
+
+    .agent-glyph {
+      color: var(--accent-primary);
+      font-size: 13px;
+    }
+
+    .agent-name {
+      color: var(--text-head);
+      font-weight: 600;
+    }
+
+    .agent-meta {
+      color: var(--text-dim);
+      font-size: 11.5px;
+    }
+
+    .tool-tree {
+      padding-left: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      color: var(--text-main);
+      font-size: 12.5px;
+    }
+
+    .tool-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .tree-wire {
+      color: var(--text-dim);
+      font-weight: 400;
+    }
+
+    .tool-tag {
+      background: var(--accent-tag);
+      border: 1px solid var(--border-card);
+      padding: 1px 7px;
+      border-radius: 4px;
+      color: var(--accent-tag-text);
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    .status-pass { color: var(--accent-success); font-weight: 500; }
+    .status-fail { color: var(--accent-fail); font-weight: 500; }
+
+    .code-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-card);
+      border-radius: 7px;
+      padding: 10px 14px;
+      margin: 4px 0 6px;
+      font-size: 12.5px;
+      line-height: 1.55;
+    }
+
+    .diff-del {
+      color: var(--diff-del-text);
+      background: var(--diff-del-bg);
+      display: block;
+      padding: 1px 4px;
+      border-radius: 3px;
+    }
+
+    .diff-add {
+      color: var(--diff-add-text);
+      background: var(--diff-add-bg);
+      display: block;
+      padding: 1px 4px;
+      border-radius: 3px;
+      margin-top: 2px;
+    }
+
+    /* ============================================================== */
+    /* 核心深度动效优化区 (High-end Micro-Interactions)                  */
+    /* ============================================================== */
+
+    /* 容器进入平滑过渡 */
+    .composer-wrapper {
+      margin-top: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      animation: mountFade 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    @keyframes mountFade {
+      from {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* 运行中卡片：高质感轻量卡片 */
+    .running-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-card);
+      border-left: 3px solid var(--accent-active);
+      border-radius: 8px;
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* 柔和环境微光底纹 (低饱和漫反射，完全消除生硬白框) */
+    .running-card::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 120px;
+      background: linear-gradient(90deg, var(--accent-active-dim) 0%, transparent 100%);
+      pointer-events: none;
+      opacity: 0.6;
+    }
+
+    .run-header-line {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12.5px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .run-title-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* ============================================================== */
+    /* 优化点 1: 状态指示器 —— 极简高精度雷达扩散波纹 (Radar Ripple)      */
+    /* ============================================================== */
+    .run-indicator-wrapper {
+      position: relative;
+      width: 10px;
+      height: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .run-indicator-core {
+      width: 6.5px;
+      height: 6.5px;
+      background: var(--accent-active);
+      border-radius: 50%;
+      box-shadow: 0 0 6px var(--accent-active);
+      position: relative;
+      z-index: 2;
+    }
+
+    .run-indicator-ring {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      border: 1.5px solid var(--accent-active);
+      pointer-events: none;
+      animation: radar-ripple calc(2.2s * var(--anim-speed)) cubic-bezier(0.1, 0.8, 0.3, 1) infinite;
+    }
+
+    @keyframes radar-ripple {
+      0% {
+        transform: scale(0.6);
+        opacity: 0.95;
+      }
+      70% {
+        transform: scale(2.4);
+        opacity: 0.08;
+      }
+      100% {
+        transform: scale(2.7);
+        opacity: 0;
+      }
+    }
+
+    .run-title {
+      font-weight: 600;
+      color: var(--text-head);
+      letter-spacing: 0.2px;
+    }
+
+    .run-action {
+      color: var(--text-muted);
+      font-size: 12px;
+    }
+
+    .run-meta-stats {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 11.5px;
+      color: var(--text-muted);
+      position: relative;
+      z-index: 1;
+    }
+
+    /* 实时速率闪烁指标 */
+    .run-speed-box {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 1px 7px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-card);
+      border-radius: 4px;
+      color: var(--text-head);
+      font-weight: 600;
+      font-family: var(--font-mono);
+    }
+
+    .live-timer {
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+    }
+
+    /* ============================================================== */
+    /* 优化点 2: 步骤执行动效 —— 实时旋转盲文字符与打字光标              */
+    /* ============================================================== */
+    .run-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 3.5px;
+      font-size: 12px;
+      padding-left: 17px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .step-line {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .step-done {
+      color: var(--accent-success);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .step-active {
+      color: var(--text-head);
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .step-spinner {
+      color: var(--accent-active);
+      display: inline-block;
+      width: 12px;
+      font-family: var(--font-mono);
+      font-weight: bold;
+    }
+
+    .step-pending {
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* 打字机平滑闪烁光标 */
+    .cursor-caret {
+      display: inline-block;
+      width: 7px;
+      height: 12px;
+      background: var(--accent-active);
+      margin-left: 3px;
+      vertical-align: middle;
+      border-radius: 1px;
+      animation: cursor-blink calc(1s * var(--anim-speed)) steps(2) infinite;
+    }
+
+    @keyframes cursor-blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.15; }
+    }
+
+    /* ============================================================== */
+    /* 优化点 3: 进度流光 —— 流体微光巡航光束 (Fluid Shimmer Beam)      */
+    /* ============================================================== */
+    .run-progress-track {
+      position: relative;
+      height: 3px;
+      background: var(--bg-surface);
+      border-radius: 999px;
+      overflow: hidden;
+      margin-top: 4px;
+    }
+
+    .run-progress-beam {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 38%;
+      border-radius: 999px;
+      background: linear-gradient(
+        90deg,
+        rgba(226, 177, 112, 0) 0%,
+        rgba(226, 177, 112, 0.4) 30%,
+        var(--accent-active) 70%,
+        #ffffff 90%,
+        var(--accent-active) 100%
+      );
+      box-shadow: 0 0 10px var(--accent-active-glow);
+      animation: beam-cruise calc(2s * var(--anim-speed)) cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    }
+
+    @keyframes beam-cruise {
+      0% {
+        left: -38%;
+      }
+      100% {
+        left: 100%;
+      }
+    }
+
+    /* 双层输入框 (Dual-tier Input Card) */
+    .input-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-card);
+      border-radius: 9px;
+      overflow: hidden;
+      transition: border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .input-card:focus-within {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 18px var(--accent-primary-dim);
+    }
+
+    .input-top-tier {
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .input-glyph {
+      color: var(--accent-primary);
+      font-weight: 700;
+      font-size: 15px;
+      user-select: none;
+    }
+
+    .input-field {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text-head);
+      font-family: var(--font-mono);
+      font-size: 13.5px;
+    }
+
+    .input-field::placeholder {
+      color: var(--text-dim);
+    }
+
+    /* 下层元数据状态条 */
+    .input-bottom-tier {
+      background: var(--bg-surface);
+      padding: 7px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-top: 1px solid var(--border-outer);
+      font-size: 11.5px;
+      color: var(--text-muted);
+    }
+
+    .bottom-tags {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .tag-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-muted);
+    }
+
+    /* 就绪待命状态：柔和生物微呼吸 (Soft Bio-pulse) */
+    .tag-item.ready {
+      color: var(--accent-success);
+      font-weight: 500;
+    }
+
+    .status-dot-ready {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent-success);
+      box-shadow: 0 0 6px var(--accent-success);
+      animation: ready-breath calc(3.2s * var(--anim-speed)) infinite ease-in-out;
+    }
+
+    @keyframes ready-breath {
+      0%, 100% { opacity: 0.9; transform: scale(1); }
+      50% { opacity: 0.45; transform: scale(0.9); }
+    }
+
+    .tag-item.running {
+      color: var(--accent-active);
+      font-weight: 500;
+    }
+
+    /* Token 刻度条微光扫动 */
+    .token-meter-box {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .token-meter-bars {
+      letter-spacing: -1px;
+      color: var(--accent-primary);
+      position: relative;
+    }
+
+    .bottom-shortcuts {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 11px;
+    }
+
+    .kbd {
+      background: var(--kbd-bg);
+      border: 1px solid var(--kbd-border);
+      padding: 1px 5px;
+      border-radius: 3px;
+      color: var(--kbd-text);
+      font-size: 10px;
+      font-family: var(--font-mono);
+    }
+
+    /* 交互式步骤推进实验栏 */
+    .step-simulator-bar {
+      margin-top: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--bg-surface);
+      border: 1px dashed var(--border-card);
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 11.5px;
+      color: var(--text-muted);
+    }
+
+    .btn-sim-action {
+      background: var(--bg-card);
+      border: 1px solid var(--border-card);
+      color: var(--text-head);
+      padding: 3px 9px;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+      font-family: var(--font-mono);
+      transition: all 0.15s;
+    }
+
+    .btn-sim-action:hover {
+      border-color: var(--accent-primary);
+      color: var(--accent-primary);
+    }
+
+    /* 动效深度解析卡片 */
+    .anim-breakdown-section {
+      max-width: 1100px;
+      margin: 36px auto 0;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    @media (max-width: 900px) {
+      .anim-breakdown-section {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .anim-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-card);
+      border-radius: 10px;
+      padding: 16px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .anim-card-head {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: var(--text-head);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .anim-card-badge {
+      font-size: 10px;
+      font-family: var(--font-mono);
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: var(--bg-surface);
+      color: var(--accent-primary);
+    }
+
+    .anim-card-desc {
+      font-size: 12.5px;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body data-scheme="slate">
+
+  <!-- 页面标题 -->
+  <div class="header-area">
+    <div class="badge-top">
+      <span>✦ Chaos-Agent TUI Motion Lab</span>
+      <span>•</span>
+      <span>方案 A 深度动效升级版</span>
+    </div>
+    <h1>终端工作台动效优化：微光巡航与实时推演</h1>
+    <p>升级进度条巡航光束、雷达波纹指示灯、平滑盲文步进转轮与毫秒级时钟推演，保留克制冷峻美学的同时，赋予界面生命力与丝滑流动感。</p>
+  </div>
+
+  <!-- 顶部控制面板 -->
+  <div class="control-deck">
+    <div class="control-group">
+      <span class="group-label">方案基调:</span>
+      <button class="btn-tab active" id="tab-slate" onclick="setScheme('slate')">
+        <span class="tab-color-dot" style="background: #7dd3fc;"></span>
+        方案 A：冷萃冰阶 (已选定)
+      </button>
+      <button class="btn-tab" id="tab-charcoal" onclick="setScheme('charcoal')">
+        <span class="tab-color-dot" style="background: #d4a373;"></span>
+        方案 B：暗房石墨
+      </button>
+      <button class="btn-tab" id="tab-sage" onclick="setScheme('sage')">
+        <span class="tab-color-dot" style="background: #7ea894;"></span>
+        方案 C：钛灰苔原
+      </button>
+    </div>
+
+    <div class="control-group">
+      <span class="group-label">交互状态:</span>
+      <button class="btn-state" id="state-idle" onclick="setState('idle')">● 就绪待命 (Idle)</button>
+      <button class="btn-state active-running" id="state-running" onclick="setState('running')">◐ 运行中 (Running)</button>
+    </div>
+
+    <div class="control-group">
+      <span class="group-label">动效速度:</span>
+      <div class="speed-pill-group">
+        <button class="speed-btn active" id="spd-1x" onclick="setSpeed(1)">1.0x 正常</button>
+        <button class="speed-btn" id="spd-slow" onclick="setSpeed(2.2)">0.45x 慢放</button>
+        <button class="speed-btn" id="spd-pause" onclick="setSpeed(0)">暂停对比</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 方案说明横幅 -->
+  <div class="scheme-banner" id="scheme-banner-info"></div>
+
+  <!-- 终端主窗口 -->
+  <div class="main-view-container">
+    <div class="terminal-window">
+      <!-- 窗口标题栏 -->
+      <div class="window-titlebar">
+        <div class="traffic-lights">
+          <div class="light-dot close"></div>
+          <div class="light-dot min"></div>
+          <div class="light-dot max"></div>
+        </div>
+        <div class="window-title">chaos-agent — session #turn-482 — 110×30 [Scheme A: Muted Slate]</div>
+        <div class="window-right-tags">
+          <span class="active-scheme-tag">Motion Engine v2</span>
+          <span>utf-8 • 60fps-smooth</span>
+        </div>
+      </div>
+
+      <!-- 终端主体内容 -->
+      <div class="terminal-body">
+        <!-- 滚动历史 -->
+        <div class="scrollback">
+          <div class="msg-user">
+            <span class="prompt-glyph">›</span>
+            <span class="msg-user-content">请帮我重构 terminal_renderer.py，并在失败时自动排查用例原因</span>
+          </div>
+
+          <div class="msg-agent">
+            <div class="agent-header">
+              <span class="agent-glyph">✦</span>
+              <span class="agent-name">Chaos Agent</span>
+              <span class="agent-meta">已执行 2 项工具 · 耗时 1.1s</span>
+            </div>
+
+            <!-- 工具调用树 -->
+            <div class="tool-tree">
+              <div class="tool-row">
+                <span class="tree-wire">├─</span>
+                <span class="tool-tag">RUN</span>
+                <span>pytest tests/test_runtime.py</span>
+                <span class="status-fail">↳ FAILED (3 tests)</span>
+              </div>
+              <div class="tool-row">
+                <span class="tree-wire">├─</span>
+                <span class="tool-tag">INSPECT</span>
+                <span>src/code_agent/interfaces/windows_tui.py</span>
+                <span class="status-pass">↳ 38 lines analyzed</span>
+              </div>
+              <div class="tool-row">
+                <span class="tree-wire">╰─</span>
+                <span class="status-pass">✓</span>
+                <span>定位到 LiveTailGeometry 渲染高度预算未扣除 palette 高度</span>
+              </div>
+            </div>
+
+            <!-- 代码卡片 -->
+            <div class="code-card">
+              <span class="diff-del">-   input_budget = min(len(rows), height - 3)</span>
+              <span class="diff-add">+   input_budget = max(1, min(len(rows), height - len(palette_items) - 3))</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 动态双层工作台挂载点 -->
+        <div id="dynamic-composer"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 优化技术细节解析 -->
+  <div class="anim-breakdown-section">
+    <div class="anim-card">
+      <div class="anim-card-head">
+        <span>01. 流体巡航微光束</span>
+        <span class="anim-card-badge">Fluid Shimmer</span>
+      </div>
+      <p class="anim-card-desc">
+        彻底替换原版僵硬的宽度拉伸动效。改用 <strong>38% 宽度非对称双渐变光束</strong>，配合 <code>cubic-bezier(0.4, 0, 0.2, 1)</code> 缓动曲线与边缘漫反射，在细轨上流畅滑过，优雅呈现后台忙碌感。
+      </p>
+    </div>
+
+    <div class="anim-card">
+      <div class="anim-card-head">
+        <span>02. 雷达扩散心跳指示灯</span>
+        <span class="anim-card-badge">Radar Beacon</span>
+      </div>
+      <p class="anim-card-desc">
+        实心指示点保持 6.5px 极稳固呈现，外层环形光晕通过半透明柔光以自然衰减函数向外扩散消散，呈现富有呼吸感的工业级系统心跳。
+      </p>
+    </div>
+
+    <div class="anim-card">
+      <div class="anim-card-head">
+        <span>03. 点阵盲文转轮与实时速率</span>
+        <span class="anim-card-badge">Braille Stream</span>
+      </div>
+      <p class="anim-card-desc">
+        当前执行步骤嵌入高频平滑旋转的盲文轮盘（<code>⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏</code>）与终端打字光标；推理速率与耗时时钟毫秒级递增跳动，带来真实代码生成的临场沉浸感。
+      </p>
+    </div>
+  </div>
+
+  <script>
+    let currentScheme = "slate";
+    let currentState = "running";
+    let animSpeed = 1;
+    let simulatedStep = 2; // 当前模拟执行步骤：1, 2, 3
+
+    // 盲文旋转符号集
+    const brailleFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+    let brailleIndex = 0;
+
+    // 实时推演时钟与流式速率模拟
+    let elapsedSeconds = 3;
+    let baseTokRate = 54.2;
+    let tickerInterval = null;
+
+    const schemeInfo = {
+      slate: {
+        title: "方案 A：冷萃冰阶 (Muted Slate / 铅灰冷调)",
+        desc: "已选基准方案。冷岩暗灰背景搭配柔和冰雾蓝与淡金沙流光，呈现 Zed / Ghostty 般极简北欧工业质感。",
+        chips: [
+          { name: "冷岩黑 #0a0d14", color: "#0a0d14" },
+          { name: "冷灰面 #141b29", color: "#141b29" },
+          { name: "冰雾蓝 #7dd3fc", color: "#7dd3fc" },
+          { name: "薄荷灰 #6ee7b7", color: "#6ee7b7" },
+          { name: "淡金沙 #e2b170", color: "#e2b170" }
+        ]
+      },
+      charcoal: {
+        title: "方案 B：暗房石墨 (Graphite Charcoal / 暖炭石墨)",
+        desc: "暗室自然暖炭黑为基底，搭配羊皮纸陶金光泽，久视护眼不疲劳。",
+        chips: [
+          { name: "玄黑 #0f0f12", color: "#0f0f12" },
+          { name: "石墨面 #1c1c20", color: "#1c1c20" },
+          { name: "羊皮金 #d4a373", color: "#d4a373" },
+          { name: "橄榄灰 #829f70", color: "#829f70" }
+        ]
+      },
+      sage: {
+        title: "方案 C：钛灰苔原 (Titanium Sage / 雾灰苔原)",
+        desc: "极度灰度降噪，仅在状态节点呈现鼠尾草微光，追求绝对心流专注。",
+        chips: [
+          { name: "暗钛沉灰 #0d1210", color: "#0d1210" },
+          { name: "深雾钛面 #18221e", color: "#18221e" },
+          { name: "鼠尾草灰 #7ea894", color: "#7ea894" }
+        ]
+      }
+    };
+
+    function setSpeed(speed) {
+      animSpeed = speed;
+      document.getElementById("spd-1x").classList.toggle("active", speed === 1);
+      document.getElementById("spd-slow").classList.toggle("active", speed === 2.2);
+      document.getElementById("spd-pause").classList.toggle("active", speed === 0);
+
+      document.documentElement.style.setProperty("--anim-speed", speed === 0 ? "9999999s" : speed);
+      if (speed === 0) {
+        document.documentElement.style.setProperty("animation-play-state", "paused");
+      } else {
+        document.documentElement.style.setProperty("animation-play-state", "running");
+      }
+    }
+
+    function setScheme(scheme) {
+      currentScheme = scheme;
+      document.body.setAttribute("data-scheme", scheme);
+
+      document.getElementById("tab-slate").classList.toggle("active", scheme === "slate");
+      document.getElementById("tab-charcoal").classList.toggle("active", scheme === "charcoal");
+      document.getElementById("tab-sage").classList.toggle("active", scheme === "sage");
+
+      renderSchemeBanner();
+      renderComposer();
+    }
+
+    function setState(state) {
+      currentState = state;
+      document.getElementById("state-idle").classList.toggle("active", state === "idle");
+      document.getElementById("state-running").classList.toggle("active-running", state === "running");
+      renderComposer();
+    }
+
+    function setSimStep(step) {
+      simulatedStep = step;
+      renderComposer();
+    }
+
+    function renderSchemeBanner() {
+      const info = schemeInfo[currentScheme];
+      const banner = document.getElementById("scheme-banner-info");
+
+      let chipsHtml = info.chips.map(c => `
+        <div class="palette-chip">
+          <span class="chip-swatch" style="background: ${c.color};"></span>
+          <span>${c.name}</span>
+        </div>
+      `).join("");
+
+      banner.innerHTML = `
+        <div>
+          <div class="scheme-banner-title">${info.title}</div>
+          <div class="scheme-banner-desc">${info.desc}</div>
+        </div>
+        <div class="palette-chips">${chipsHtml}</div>
+      `;
+    }
+
+    function formatTime(sec) {
+      const m = Math.floor(sec / 60).toString().padStart(2, "0");
+      const s = (sec % 60).toString().padStart(2, "0");
+      return `${m}:${s}`;
+    }
+
+    function renderComposer() {
+      const container = document.getElementById("dynamic-composer");
+
+      if (currentState === "running") {
+        const step1Html = simulatedStep >= 1 ? `
+          <div class="step-done">
+            <span>✓</span>
+            <span>1. 分析测试失败原因 (240ms)</span>
+          </div>
+        ` : `
+          <div class="step-pending">
+            <span>○</span>
+            <span>1. 分析测试失败原因</span>
+          </div>
+        `;
+
+        const step2Html = simulatedStep === 2 ? `
+          <div class="step-active">
+            <span class="step-spinner" id="braille-spinner-el">${brailleFrames[brailleIndex]}</span>
+            <span>2. 正在写入 patch 代码并重新验证...</span>
+            <span class="cursor-caret"></span>
+          </div>
+        ` : (simulatedStep > 2 ? `
+          <div class="step-done">
+            <span>✓</span>
+            <span>2. 写入 patch 并验证测试全量通过 (1.1s)</span>
+          </div>
+        ` : `
+          <div class="step-pending">
+            <span>○</span>
+            <span>2. 写入 patch 代码并重新验证</span>
+          </div>
+        `);
+
+        const step3Html = simulatedStep === 3 ? `
+          <div class="step-active">
+            <span class="step-spinner" id="braille-spinner-el">${brailleFrames[brailleIndex]}</span>
+            <span>3. 提交本地 Git 事务保护与回滚点登记...</span>
+            <span class="cursor-caret"></span>
+          </div>
+        ` : (simulatedStep > 3 ? `
+          <div class="step-done">
+            <span>✓</span>
+            <span>3. 本地事务保护已提交 (commit 81a9c0f)</span>
+          </div>
+        ` : `
+          <div class="step-pending">
+            <span>○</span>
+            <span>3. 提交本地 Git 事务保护与回滚点</span>
+          </div>
+        `);
+
+        container.innerHTML = `
+          <div class="composer-wrapper">
+            <!-- 运行中状态卡片 (微光巡航 + 雷达呼吸灯) -->
+            <div class="running-card">
+              <div class="run-header-line">
+                <div class="run-title-group">
+                  <div class="run-indicator-wrapper">
+                    <div class="run-indicator-core"></div>
+                    <div class="run-indicator-ring"></div>
+                  </div>
+                  <span class="run-title">正在生成修复补丁</span>
+                  <span class="run-action">· 写入 windows_tui.py</span>
+                </div>
+                <div class="run-meta-stats">
+                  <span>Claude 3.7 Sonnet</span>
+                  <span class="run-speed-box" id="live-speed-display">54.2 tok/s</span>
+                  <span class="live-timer" id="live-timer-display">${formatTime(elapsedSeconds)}</span>
+                </div>
+              </div>
+
+              <!-- 执行步骤流 -->
+              <div class="run-steps">
+                ${step1Html}
+                ${step2Html}
+                ${step3Html}
+              </div>
+
+              <!-- 优化后的流体微光巡航进度轨 -->
+              <div class="run-progress-track">
+                <div class="run-progress-beam"></div>
+              </div>
+            </div>
+
+            <!-- 下层双层输入框 (排队中) -->
+            <div class="input-card">
+              <div class="input-top-tier">
+                <span class="input-glyph">›</span>
+                <input class="input-field" placeholder="输入后续排队指令，或按 Esc 暂停..." value="完成修复后自动提交 git commit -m 'fix: layout budget'" />
+              </div>
+              <div class="input-bottom-tier">
+                <div class="bottom-tags">
+                  <span class="tag-item running">
+                    <span class="run-indicator-core" style="width:5px; height:5px;"></span>
+                    自动执行中
+                  </span>
+                  <span class="tag-item">⬡ Sonnet-3.7</span>
+                  <span class="tag-item token-meter-box">
+                    <span class="token-meter-bars">▰▰▰▱▱</span>
+                    <span>18.4k/128k</span>
+                  </span>
+                  <span class="tag-item">队列: 0</span>
+                </div>
+                <div class="bottom-shortcuts">
+                  <span><span class="kbd">Esc</span> 暂停</span>
+                  <span><span class="kbd">Enter</span> 发送</span>
+                  <span><span class="kbd">Shift+Enter</span> 换行</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 动效微交互演示工具条 -->
+            <div class="step-simulator-bar">
+              <span>交互推演实验: 当前正在执行第 ${simulatedStep} 步</span>
+              <div style="display:flex; gap:6px;">
+                <button class="btn-sim-action" onclick="setSimStep(1)">步骤 1 (分析)</button>
+                <button class="btn-sim-action" onclick="setSimStep(2)">步骤 2 (写入代码)</button>
+                <button class="btn-sim-action" onclick="setSimStep(3)">步骤 3 (提交事务)</button>
+              </div>
+            </div>
+          </div>
+        `;
+      } else {
+        container.innerHTML = `
+          <div class="composer-wrapper">
+            <!-- 就绪待命状态输入框 (柔和微呼吸) -->
+            <div class="input-card">
+              <div class="input-top-tier">
+                <span class="input-glyph">›</span>
+                <input class="input-field" placeholder="输入任务、编辑请求，或输入 / 查看命令..." autofocus />
+              </div>
+              <div class="input-bottom-tier">
+                <div class="bottom-tags">
+                  <span class="tag-item ready">
+                    <span class="status-dot-ready"></span>
+                    就绪待命
+                  </span>
+                  <span class="tag-item">⬡ Sonnet-3.7</span>
+                  <span class="tag-item token-meter-box">
+                    <span class="token-meter-bars">▰▰▱▱▱</span>
+                    <span>14.2k/128k</span>
+                  </span>
+                  <span class="tag-item">📎 0 附件</span>
+                </div>
+                <div class="bottom-shortcuts">
+                  <span><span class="kbd">/</span> 命令</span>
+                  <span><span class="kbd">Enter</span> 发送</span>
+                  <span><span class="kbd">Shift+Enter</span> 换行</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    // 启动高频平滑旋转定时器 (80ms 刷新 Braille 符号与微抖动速率)
+    setInterval(() => {
+      if (currentState === "running" && animSpeed > 0) {
+        brailleIndex = (brailleIndex + 1) % brailleFrames.length;
+        const spinner = document.getElementById("braille-spinner-el");
+        if (spinner) {
+          spinner.textContent = brailleFrames[brailleIndex];
+        }
+      }
+    }, 85);
+
+    // 启动真实时钟与推理速率微抖动
+    setInterval(() => {
+      if (currentState === "running" && animSpeed > 0) {
+        elapsedSeconds++;
+        const timerEl = document.getElementById("live-timer-display");
+        if (timerEl) {
+          timerEl.textContent = formatTime(elapsedSeconds);
+        }
+
+        // 真实抖动算法 (53.2 ~ 55.8 tok/s)
+        const jitter = (Math.random() * 2.6 - 1.3).toFixed(1);
+        const currentRate = (baseTokRate + parseFloat(jitter)).toFixed(1);
+        const speedEl = document.getElementById("live-speed-display");
+        if (speedEl) {
+          speedEl.textContent = `${currentRate} tok/s`;
+        }
+      }
+    }, 1000);
+
+    // 初始化渲染
+    renderSchemeBanner();
+    renderComposer();
+  </script>
+</body>
+</html>

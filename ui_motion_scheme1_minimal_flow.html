@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chaos Agent TUI 方案一：极简微动流 (Compact Minimalist Flow)</title>
+  <style>
+    :root {
+      --font-mono: 'Cascadia Code', 'JetBrains Mono', 'Fira Code', Consolas, 'SF Mono', monospace;
+      --bg-desktop: #07090e;
+      --bg-term: #0b0f17;
+      --border-subtle: #1a2233;
+      --border-active: #38bdf8;
+      --text-white: #f8fafc;
+      --text-body: #cbd5e1;
+      --text-muted: #64748b;
+      --text-dim: #475569;
+      --cyan: #38bdf8;
+      --cyan-dim: rgba(56, 189, 248, 0.12);
+      --gold: #e2b170;
+      --gold-dim: rgba(226, 177, 112, 0.14);
+      --green: #4ade80;
+      --green-dim: rgba(74, 222, 128, 0.14);
+      --amber: #fbbf24;
+      --red: #f87171;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg-desktop);
+      color: var(--text-body);
+      font-family: var(--font-mono);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding: 20px;
+      background-image: radial-gradient(circle at 50% 0%, rgba(56, 189, 248, 0.05) 0%, transparent 60%);
+    }
+
+    /* 顶部方案切换导航 */
+    .nav-bar {
+      max-width: 1080px;
+      margin: 0 auto 16px auto;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #0d131f;
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 10px 18px;
+    }
+    .nav-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-white);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .nav-badge {
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--cyan);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+    }
+    .nav-links {
+      display: flex;
+      gap: 8px;
+    }
+    .nav-link-btn {
+      background: #141c2c;
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      text-decoration: none;
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      transition: all 0.2s;
+    }
+    .nav-link-btn:hover { color: var(--text-white); border-color: var(--cyan); }
+    .nav-link-btn.active {
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--cyan);
+      border-color: var(--cyan);
+      font-weight: 600;
+    }
+
+    /* 控制台外框模拟 Windows Terminal */
+    .terminal-container {
+      max-width: 1080px;
+      margin: 0 auto;
+      width: 100%;
+      background: var(--bg-term);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .terminal-titlebar {
+      background: #090c12;
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .terminal-tabs {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .terminal-tab-item {
+      background: #0f1726;
+      padding: 4px 12px;
+      border-radius: 4px;
+      color: var(--text-white);
+      font-size: 11.5px;
+      border: 1px solid #1e293b;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* 交互测试控制台操作栏 */
+    .demo-controls {
+      background: #0d121c;
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 10px 18px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      font-size: 12px;
+    }
+    .ctrl-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .ctrl-label {
+      color: var(--text-muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .action-pill {
+      background: #141c2c;
+      border: 1px solid var(--border-subtle);
+      color: var(--text-body);
+      padding: 4px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 11.5px;
+      transition: all 0.15s ease;
+    }
+    .action-pill:hover {
+      border-color: var(--cyan);
+      color: var(--cyan);
+    }
+    .action-pill.active {
+      background: rgba(56, 189, 248, 0.15);
+      border-color: var(--cyan);
+      color: var(--cyan);
+      font-weight: 600;
+    }
+
+    /* 终端主体流式区域：无多余空行，紧凑连续 */
+    .terminal-body {
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-height: 480px;
+      max-height: 600px;
+      overflow-y: auto;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    /* 启动 Banner */
+    .startup-card {
+      border: 1px solid #1e293b;
+      background: #090e18;
+      border-radius: 6px;
+      padding: 12px 14px;
+      margin-bottom: 8px;
+    }
+    .startup-header {
+      color: var(--cyan);
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .startup-line {
+      color: var(--text-muted);
+      font-size: 12px;
+      line-height: 1.6;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .startup-bullet { color: #38bdf8; font-weight: bold; }
+    .startup-val { color: var(--text-white); }
+    .highlight-target {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 3px;
+      transition: all 0.25s ease;
+    }
+
+    /* 消息条目：单行微动 */
+    .log-item {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      font-size: 12.5px;
+      padding: 2px 0;
+      opacity: 1;
+      animation: itemFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    @keyframes itemFadeIn {
+      from { opacity: 0; transform: translateY(3px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .log-dot {
+      color: var(--text-muted);
+      font-size: 11px;
+    }
+    .log-content {
+      color: var(--text-muted);
+    }
+    .log-pill {
+      background: rgba(56, 189, 248, 0.1);
+      color: var(--cyan);
+      padding: 1px 6px;
+      border-radius: 3px;
+      border: 1px solid rgba(56, 189, 248, 0.2);
+      font-weight: 500;
+    }
+    .log-pill.gold {
+      background: rgba(226, 177, 112, 0.1);
+      color: var(--gold);
+      border-color: rgba(226, 177, 112, 0.25);
+    }
+    .log-pill.green {
+      background: rgba(74, 222, 128, 0.1);
+      color: var(--green);
+      border-color: rgba(74, 222, 128, 0.25);
+    }
+
+    /* 状态脉冲动画（微动核心） */
+    @keyframes subtlePulse {
+      0% { background: rgba(56, 189, 248, 0.45); color: #fff; box-shadow: 0 0 10px rgba(56, 189, 248, 0.4); }
+      100% { background: rgba(56, 189, 248, 0.1); color: var(--cyan); box-shadow: none; }
+    }
+    .pulse-trigger {
+      animation: subtlePulse 0.35s ease-out;
+    }
+
+    /* 友好排版的 Skill 列表展示 */
+    .skill-catalog-view {
+      background: #080c14;
+      border: 1px solid #1c2638;
+      border-radius: 6px;
+      padding: 10px 14px;
+      margin: 6px 0;
+    }
+    .skill-catalog-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #182233;
+      font-size: 12px;
+    }
+    .skill-catalog-title {
+      color: var(--cyan);
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .skill-group {
+      margin-bottom: 10px;
+    }
+    .skill-group-title {
+      font-size: 11px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-bottom: 5px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .skill-row {
+      display: grid;
+      grid-template-columns: 220px 80px 1fr 120px;
+      align-items: center;
+      gap: 12px;
+      padding: 4px 6px;
+      border-radius: 4px;
+      font-size: 12px;
+      transition: background 0.12s;
+    }
+    .skill-row:hover {
+      background: #0f1726;
+    }
+    .skill-id {
+      color: var(--text-white);
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .skill-badge {
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 3px;
+      text-align: center;
+    }
+    .badge-active { background: rgba(74, 222, 128, 0.15); color: #4ade80; border: 1px solid rgba(74, 222, 128, 0.3); }
+    .badge-ready { background: rgba(100, 116, 139, 0.15); color: #94a3b8; border: 1px solid rgba(100, 116, 139, 0.3); }
+    .skill-desc {
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .skill-btn {
+      background: #151d2d;
+      border: 1px solid #233045;
+      color: var(--cyan);
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.15s;
+      font-family: inherit;
+    }
+    .skill-btn:hover {
+      background: rgba(56, 189, 248, 0.2);
+      border-color: var(--cyan);
+    }
+
+    /* Follow-up 输入框：极简连续无空行贴合 */
+    .composer-wrap {
+      margin-top: auto;
+      padding-top: 10px;
+    }
+    .composer-box {
+      border: 1px solid #243147;
+      background: #080c14;
+      border-radius: 6px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      position: relative;
+    }
+    .composer-box.followup-active {
+      border-color: #785a2b;
+      box-shadow: 0 0 12px rgba(226, 177, 112, 0.08);
+    }
+    .composer-header-line {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 12px;
+      border-bottom: 1px solid #162030;
+      font-size: 11.5px;
+      color: var(--text-dim);
+    }
+    .composer-tag {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 600;
+      color: var(--cyan);
+      transition: color 0.2s ease;
+    }
+    .composer-tag.gold {
+      color: var(--gold);
+    }
+    .composer-tag .pulse-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--cyan);
+      display: inline-block;
+    }
+    .composer-tag.gold .pulse-dot {
+      background: var(--gold);
+      animation: subtleDotBreath 1.8s ease-in-out infinite;
+    }
+    @keyframes subtleDotBreath {
+      0%, 100% { opacity: 0.4; transform: scale(0.9); }
+      50% { opacity: 1; transform: scale(1.15); }
+    }
+    .composer-input-area {
+      padding: 10px 14px;
+      min-height: 54px;
+      display: flex;
+      align-items: center;
+      font-size: 13px;
+    }
+    .composer-prompt-sym {
+      color: var(--cyan);
+      margin-right: 10px;
+      font-size: 13px;
+      user-select: none;
+    }
+    .composer-prompt-sym.gold { color: var(--gold); }
+    .composer-text-span {
+      color: var(--text-white);
+    }
+    .composer-cursor {
+      display: inline-block;
+      width: 2px;
+      height: 15px;
+      background: var(--cyan);
+      margin-left: 2px;
+      vertical-align: middle;
+      animation: subtleBlink 1.05s ease-in-out infinite;
+    }
+    .composer-box.followup-active .composer-cursor {
+      background: var(--gold);
+    }
+    @keyframes subtleBlink {
+      0%, 45% { opacity: 1; }
+      50%, 95% { opacity: 0; }
+      100% { opacity: 1; }
+    }
+
+    .composer-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 4px 12px;
+      font-size: 11px;
+      color: var(--text-dim);
+      border-top: 1px solid #141d2a;
+    }
+    .composer-footer-hints {
+      display: flex;
+      gap: 12px;
+    }
+    .kbd-tag {
+      background: #111824;
+      border: 1px solid #1e2a3c;
+      padding: 1px 5px;
+      border-radius: 3px;
+      color: var(--text-muted);
+    }
+
+    /* 说明板 */
+    .explanation-panel {
+      max-width: 1080px;
+      margin: 18px auto 0 auto;
+      width: 100%;
+      background: #0a0e16;
+      border: 1px solid #182233;
+      border-radius: 8px;
+      padding: 16px 20px;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .exp-title {
+      color: var(--cyan);
+      font-weight: 700;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+    .exp-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 16px;
+      margin-top: 10px;
+    }
+    .exp-col {
+      background: #0f1522;
+      border: 1px solid #1c2637;
+      border-radius: 6px;
+      padding: 12px;
+    }
+    .exp-col-title {
+      color: var(--text-white);
+      font-weight: 600;
+      margin-bottom: 6px;
+      font-size: 12.5px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 顶部方案切换条 -->
+  <div class="nav-bar">
+    <div class="nav-title">
+      <span>CHAOS AGENT 视觉动效重构</span>
+      <span class="nav-badge">方案 1 / 3</span>
+    </div>
+    <div class="nav-links">
+      <a href="ui_motion_scheme1_minimal_flow.html" class="nav-link-btn active">方案一：极简微动流</a>
+      <a href="ui_motion_scheme2_fluid_capsule.html" class="nav-link-btn">方案二：灵动胶囊流</a>
+      <a href="ui_motion_scheme3_neo_terminal.html" class="nav-link-btn">方案三：极客微光流</a>
+    </div>
+  </div>
+
+  <!-- 终端窗口容器 -->
+  <div class="terminal-container">
+    <!-- 终端标题栏 -->
+    <div class="terminal-titlebar">
+      <div class="terminal-tabs">
+        <div class="terminal-tab-item">
+          <span>⚡ chaos-16-agent</span>
+        </div>
+        <span style="color:#334155;">PowerShell 7.6.5</span>
+      </div>
+      <div style="font-size: 11px; color:#475569;">1080 × 600 · Minimal Flow</div>
+    </div>
+
+    <!-- 实时交互测试操作栏 -->
+    <div class="demo-controls">
+      <div class="ctrl-group">
+        <span class="ctrl-label">切换权限：</span>
+        <button class="action-pill" onclick="changePermission('auto', 'Automatically allow workspace work')">auto</button>
+        <button class="action-pill active" id="btn-unrestricted" onclick="changePermission('unrestricted', 'High trust; protected paths still require approval')">unrestricted</button>
+        <button class="action-pill" onclick="changePermission('read-only', 'Read-only inspection; edits require prompt')">read-only</button>
+      </div>
+      <div class="ctrl-group">
+        <span class="ctrl-label">模式切换：</span>
+        <button class="action-pill active" id="btn-mode-chat" onclick="changeMode('chat')">chat</button>
+        <button class="action-pill" onclick="changeMode('plan')">plan</button>
+        <button class="action-pill" onclick="changeMode('build')">build</button>
+      </div>
+      <div class="ctrl-group">
+        <span class="ctrl-label">任务状态：</span>
+        <button class="action-pill" id="btn-toggle-followup" onclick="toggleFollowup()">触发 Follow-up 动态</button>
+        <button class="action-pill" onclick="toggleSkillCatalog()">展开/收起 Skill 视图</button>
+      </div>
+    </div>
+
+    <!-- 终端内容流 -->
+    <div class="terminal-body" id="term-body">
+      <!-- 顶部 Banner -->
+      <div class="startup-card">
+        <div class="startup-header">CHAOS AGENT / MUTED SLATE</div>
+        <div class="startup-line">
+          <span class="startup-bullet">·</span> chaos-16-agent · gpt-5.6-sol · <span class="startup-val" id="disp-mode">chat</span>
+        </div>
+        <div class="startup-line">
+          <span class="startup-bullet">·</span> permission: <span class="highlight-target log-pill pulse-trigger" id="disp-perm">unrestricted</span> · write yes · network yes
+        </div>
+        <div class="startup-line">
+          <span class="startup-bullet">·</span> runtime: powershell_7 (PowerShell 7.6.5, Core) · :status for full workspace/path details
+        </div>
+        <div class="startup-line">
+          <span class="startup-bullet">·</span> : for commands · :theme motion off to reduce animations
+        </div>
+      </div>
+
+      <!-- 历史输出流：无空洞堆叠，紧密连续 -->
+      <div class="log-item">
+        <span class="log-dot">·</span>
+        <span class="log-content">permission selected: <span class="log-pill">auto</span> · Automatically allow workspace work and recognized commands</span>
+      </div>
+      <div class="log-item">
+        <span class="log-dot">·</span>
+        <span class="log-content">permission selected: <span class="log-pill gold">unrestricted</span> · High trust; protected paths still require approval</span>
+      </div>
+
+      <!-- 交互动态追加区域 -->
+      <div id="dynamic-log-stream"></div>
+
+      <!-- 友好排版的 Skill Catalog（默认折叠，可点按测试展开） -->
+      <div class="skill-catalog-view" id="skill-catalog" style="display: none;">
+        <div class="skill-catalog-head">
+          <div class="skill-catalog-title">
+            <span>🧩 已安装技能库 (36 Skills Available)</span>
+          </div>
+          <div style="color: var(--text-dim); font-size:11px;">使用 <code>/&lt;skill-name&gt; [args]</code> 或 <code>/skill run &lt;id&gt;</code> 直接调用</div>
+        </div>
+
+        <div class="skill-group">
+          <div class="skill-group-title">🔬 学术与文献 (Academic & Research)</div>
+          <div class="skill-row">
+            <div class="skill-id"><span>academic-deep-research</span></div>
+            <div><span class="skill-badge badge-active">● Active</span></div>
+            <div class="skill-desc">透彻学术文献检索与方法论交叉论证，严谨引用追踪</div>
+            <button class="skill-btn" onclick="simulateCallSkill('academic-deep-research')">调用 /run</button>
+          </div>
+          <div class="skill-row">
+            <div class="skill-id"><span>academic-paper-reviewer</span></div>
+            <div><span class="skill-badge badge-ready">○ Ready</span></div>
+            <div class="skill-desc">模拟 5 方独立同行评审与批判性质询 (Reviewer 2)</div>
+            <button class="skill-btn" onclick="simulateCallSkill('academic-paper-reviewer')">调用 /run</button>
+          </div>
+        </div>
+
+        <div class="skill-group">
+          <div class="skill-group-title">🎯 内容创作与复盘 (Content Calibration)</div>
+          <div class="skill-row">
+            <div class="skill-id"><span>cheat-on-content</span></div>
+            <div><span class="skill-badge badge-active">● Active</span></div>
+            <div class="skill-desc">内容打分-盲预测-T+3d复盘闭环校准系统</div>
+            <button class="skill-btn" onclick="simulateCallSkill('cheat-on-content')">调用 /run</button>
+          </div>
+          <div class="skill-row">
+            <div class="skill-id"><span>cheat-seed</span></div>
+            <div><span class="skill-badge badge-ready">○ Ready</span></div>
+            <div class="skill-desc">单点深挖选题角度，提炼高质量脚本雏形 Draft</div>
+            <button class="skill-btn" onclick="simulateCallSkill('cheat-seed')">调用 /run</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 底部 Follow-up 输入框 -->
+      <div class="composer-wrap">
+        <div class="composer-box" id="composer-main">
+          <div class="composer-header-line">
+            <div class="composer-tag" id="composer-label">
+              <span class="pulse-dot"></span>
+              <span id="composer-title">CHAOS AGENT</span>
+            </div>
+            <div id="composer-subhint">Esc collapse · Enter send · Shift+Enter newline</div>
+          </div>
+
+          <div class="composer-input-area">
+            <span class="composer-prompt-sym" id="composer-prompt">❯</span>
+            <span class="composer-text-span" id="composer-input-text">/skill </span>
+            <span class="composer-cursor"></span>
+          </div>
+
+          <div class="composer-footer">
+            <div style="color: var(--cyan);">● Ready · powershell_7</div>
+            <div class="composer-footer-hints">
+              <span><span class="kbd-tag">Tab</span> 智能补全</span>
+              <span><span class="kbd-tag">:</span> 命令菜单</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 设计思路与修复细节说明 -->
+  <div class="explanation-panel">
+    <div class="exp-title">💡 方案一：极简微动流的核心设计策略</div>
+    <div class="exp-grid">
+      <div class="exp-col">
+        <div class="exp-col-title">1. 彻底根除「巨大空白空行」Bug</div>
+        <p style="color: var(--text-muted); font-size:12px;">
+          原版在 <code>_flush_pending_entries</code> 后重置 <code>_tail_geometry = None</code>，导致下一次重绘时 <code>get_console_dock_padding</code> 错误地向控制台输出 <code>remaining - needed</code>（15~20 个 <code>\n</code>）。
+          方案一改为<strong>自然紧凑流式布局</strong>，任何元数据打印后不额外补垫大量空白行，使操作流连续、紧凑、符合阅读习惯。
+        </p>
+      </div>
+      <div class="exp-col">
+        <div class="exp-col-title">2. Follow-up 极简细呼吸光标</div>
+        <p style="color: var(--text-muted); font-size:12px;">
+          废弃了原先跨越 100 个字符的硬性边框横扫动画。切换为 Follow-up 时：
+          边框转为柔和浅金（Pale Gold），提示符切换为温和呼吸点 <code>●</code>，光标保持纯净的 1.5px 极简微弱呼吸，完全消除终端字符跳跃与撕裂感。
+        </p>
+      </div>
+      <div class="exp-col">
+        <div class="exp-col-title">3. 行内微脉冲（Inline Pulse）切换动效</div>
+        <p style="color: var(--text-muted); font-size:12px;">
+          点击上方权限按钮体验：权限变更时，在原位执行 180ms 的浅底高亮收缩动画，并在下方平滑淡入单行确认消息，跨越小、视觉焦点明确、不晃眼。
+        </p>
+      </div>
+      <div class="exp-col">
+        <div class="exp-col-title">4. Skill 清晰卡片与一键调用</div>
+        <p style="color: var(--text-muted); font-size:12px;">
+          废除 <code>|</code> 粗暴拼接，按分类结构化输出，标明 <code>● Active</code> 状态与一句话作用，并支持 <code>/&lt;skill_name&gt;</code> 直接运行。
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let isFollowup = false;
+
+    function changePermission(perm, desc) {
+      // 更新按钮状态
+      document.querySelectorAll('.ctrl-group:first-child .action-pill').forEach(b => b.classList.remove('active'));
+      event.target.classList.add('active');
+
+      // 顶部 Banner 字段行内微动
+      const disp = document.getElementById('disp-perm');
+      disp.innerText = perm;
+      disp.classList.remove('pulse-trigger');
+      void disp.offsetWidth; // 触发 reflow
+      disp.classList.add('pulse-trigger');
+
+      // 终端追加单行消息（无空行）
+      const stream = document.getElementById('dynamic-log-stream');
+      const item = document.createElement('div');
+      item.className = 'log-item';
+      const pillClass = perm === 'unrestricted' ? 'gold' : (perm === 'auto' ? 'green' : '');
+      item.innerHTML = `
+        <span class="log-dot">·</span>
+        <span class="log-content">permission selected: <span class="log-pill ${pillClass}">${perm}</span> · ${desc}</span>
+      `;
+      stream.appendChild(item);
+      scrollTerminal();
+    }
+
+    function changeMode(mode) {
+      document.querySelectorAll('.ctrl-group:nth-child(2) .action-pill').forEach(b => b.classList.remove('active'));
+      event.target.classList.add('active');
+      const disp = document.getElementById('disp-mode');
+      disp.innerText = mode;
+      disp.classList.remove('pulse-trigger');
+      void disp.offsetWidth;
+      disp.classList.add('pulse-trigger');
+
+      const stream = document.getElementById('dynamic-log-stream');
+      const item = document.createElement('div');
+      item.className = 'log-item';
+      item.innerHTML = `<span class="log-dot">·</span><span class="log-content">execution mode changed to: <span class="log-pill">${mode}</span></span>`;
+      stream.appendChild(item);
+      scrollTerminal();
+    }
+
+    function toggleFollowup() {
+      isFollowup = !isFollowup;
+      const composer = document.getElementById('composer-main');
+      const tag = document.getElementById('composer-label');
+      const title = document.getElementById('composer-title');
+      const prompt = document.getElementById('composer-prompt');
+      const subhint = document.getElementById('composer-subhint');
+      const inputText = document.getElementById('composer-input-text');
+      const btn = document.getElementById('btn-toggle-followup');
+
+      if (isFollowup) {
+        composer.classList.add('followup-active');
+        tag.classList.add('gold');
+        prompt.classList.add('gold');
+        prompt.innerText = '✦';
+        title.innerText = 'FOLLOW-UP (INSPECTION)';
+        subhint.innerText = 'Esc pause · Enter queue next command · Tab steer';
+        inputText.innerText = '继续深入分析刚才提到的文献差异';
+        btn.classList.add('active');
+      } else {
+        composer.classList.remove('followup-active');
+        tag.classList.remove('gold');
+        prompt.classList.remove('gold');
+        prompt.innerText = '❯';
+        title.innerText = 'CHAOS AGENT';
+        subhint.innerText = 'Esc collapse · Enter send · Shift+Enter newline';
+        inputText.innerText = '/skill ';
+        btn.classList.remove('active');
+      }
+    }
+
+    function toggleSkillCatalog() {
+      const cat = document.getElementById('skill-catalog');
+      cat.style.display = cat.style.display === 'none' ? 'block' : 'none';
+      scrollTerminal();
+    }
+
+    function simulateCallSkill(skillId) {
+      const stream = document.getElementById('dynamic-log-stream');
+      const item = document.createElement('div');
+      item.className = 'log-item';
+      item.innerHTML = `
+        <span class="log-dot">›</span>
+        <span class="log-content" style="color: var(--cyan); font-weight: 500;">/${skillId} --run</span>
+      `;
+      const ack = document.createElement('div');
+      ack.className = 'log-item';
+      ack.innerHTML = `
+        <span class="log-dot">✓</span>
+        <span class="log-content">Skill activated: <span class="log-pill">${skillId}</span> · Context bounded (64KB budget intact)</span>
+      `;
+      stream.appendChild(item);
+      stream.appendChild(ack);
+      scrollTerminal();
+    }
+
+    function scrollTerminal() {
+      const body = document.getElementById('term-body');
+      body.scrollTop = body.scrollHeight;
+    }
+  </script>
+</body>
+</html>

@@ -48,6 +48,59 @@ def _context_builder(
 
 
 class ThreadAwareContextBuilderTests(unittest.IsolatedAsyncioTestCase):
+    async def test_non_overlapping_checkpoint_chain_keeps_all_summaries(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = SQLiteSessionRepository(root / "sessions.sqlite3")
+            thread_id = await repository.create_thread()
+            for index in range(10):
+                await repository.append_message(thread_id, Message("user", f"turn {index}"))
+            config = ContextConfig(root, root, "system")
+            builder = _context_builder(
+                repository, config, RecordingContext(), context_limit=10_000
+            )
+            await builder.compact_context(thread_id)
+            for index in range(10, 14):
+                await repository.append_message(thread_id, Message("user", f"turn {index}"))
+            await builder.compact_context(thread_id)
+
+            bundle = await builder.build(
+                thread_id, (), "", (), TaskState.empty(), CancellationToken()
+            )
+
+            self.assertEqual(
+                sum("Untrusted semantic checkpoint" in item.content for item in bundle.messages),
+                2,
+            )
+            self.assertEqual(tuple(item.content for item in bundle.messages[-2:]), ("turn 12", "turn 13"))
+
+    async def test_manual_compaction_is_persisted_and_reused(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = SQLiteSessionRepository(root / "sessions.sqlite3")
+            thread_id = await repository.create_thread()
+            for index in range(6):
+                await repository.append_message(
+                    thread_id,
+                    Message("user" if index % 2 == 0 else "assistant", f"turn {index}"),
+                )
+            config = ContextConfig(root, root, "system")
+            inner = RecordingContext()
+            builder = _context_builder(
+                repository, config, inner, context_limit=10_000
+            )
+
+            report = await builder.compact_context(thread_id)
+            bundle = await builder.build(
+                thread_id, (), "", (), TaskState.empty(), CancellationToken()
+            )
+
+            self.assertIsNotNone(report.checkpoint_id)
+            self.assertEqual(report.before_messages, 6)
+            self.assertEqual(report.after_messages, 3)
+            self.assertIn("Untrusted semantic checkpoint", bundle.messages[0].content)
+            self.assertEqual(tuple(item.content for item in bundle.messages[-2:]), ("turn 4", "turn 5"))
+
     async def test_repository_messages_drive_semantic_context_and_persistence(
         self,
     ) -> None:

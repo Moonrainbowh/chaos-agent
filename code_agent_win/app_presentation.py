@@ -91,6 +91,7 @@ def build_application_tui(
         capability=capability_view(host, host.mode),
         plugin_errors=host.plugin_errors,
         rewind=rewind,
+        project_name=host.root.name,
     )
 
 

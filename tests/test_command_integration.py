@@ -284,6 +284,8 @@ class CapabilityTests(unittest.TestCase):
 
         self.assertIn("PowerShell runtime information is unavailable", plain)
         self.assertIn("run_process_v1", plain)
+        self.assertIn("readable Markdown", plain)
+        self.assertIn("**bold emphasis**", plain)
         self.assertIn("not a Git repository", plain)
         self.assertIn("Git repository", repository)
 

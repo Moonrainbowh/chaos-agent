@@ -36,7 +36,7 @@ class StreamingStateBoundaryTests(unittest.TestCase):
                 partial = state.entries[-1]
                 self.assertIs(partial.kind, DisplayKind.PARTIAL_AGENT)
                 self.assertLessEqual(len(partial.text), 5_000)
-                self.assertTrue(partial.text.endswith("… [本地截断]"))
+                self.assertTrue(partial.text.endswith("… [truncated locally]"))
                 self.assertEqual(state.transcript, [])
 
     def test_successful_final_answer_is_not_truncated(self) -> None:
@@ -47,7 +47,7 @@ class StreamingStateBoundaryTests(unittest.TestCase):
         state.apply(AgentEvent(EventKind.MESSAGE_ADDED, {"message": message.to_dict()}))
 
         self.assertEqual(state.entries[-1].text, answer)
-        self.assertNotIn("[本地截断]", state.entries[-1].text)
+        self.assertNotIn("[truncated locally]", state.entries[-1].text)
 
     def test_model_started_opens_a_new_safe_draft_revision(self) -> None:
         state = TerminalState()
@@ -257,7 +257,7 @@ class StreamingLifecycleTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(app.state.has_draft)
         self.assertIsNone(app._tail_geometry)
         plain = _ANSI.sub("", "".join(output))
-        self.assertEqual(plain.count("未完成回答"), 1)
+        self.assertEqual(plain.count("Incomplete response"), 1)
 
     def test_animation_decision_is_false_for_an_unchanged_frame(self) -> None:
         unchanged = needs_animation_frame(

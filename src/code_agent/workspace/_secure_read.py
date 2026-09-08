@@ -72,8 +72,18 @@ def _verify_open_handle(
 
 
 def _same_metadata(current: PathIdentity, expected: PathIdentity) -> bool:
+    if os.name == "nt":
+        # On Windows, os.stat sets synthetic 0o111 execute bits for .exe/.bat/.cmd files,
+        # but os.fstat(fileno) cannot determine the extension and returns 0o666.
+        # Compare file type and read/write permission bits.
+        mode_match = (
+            stat.S_IFMT(current.mode) == stat.S_IFMT(expected.mode)
+            and (current.mode & 0o600) == (expected.mode & 0o600)
+        )
+    else:
+        mode_match = current.mode == expected.mode
     return (
-        current.mode == expected.mode
+        mode_match
         and current.size == expected.size
         and current.modified_ns == expected.modified_ns
     )

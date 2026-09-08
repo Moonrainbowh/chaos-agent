@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import FrozenSet, Optional
 
 from code_agent.core.models import ActionRequest
+from code_agent.context_windows.tool_names import HISTORY_TOOLS, NOTE_READ_TOOLS, NOTE_WRITE_TOOLS, PERSISTENT_TOOLS
 
 from ._command_risk import CommandRisk, command_risk, process_risk
 from ._path_classification import (
@@ -20,12 +21,14 @@ _READ_TOOLS = frozenset(
     {
         "load_tool_contract", "read_file", "read_code_slices", "list_files", "search_text", "git_status", "git_diff",
         "plan_workspace_edits_v1",
+        "context_history", *HISTORY_TOOLS, *NOTE_READ_TOOLS, "get_context_remaining",
     }
 )
 _WRITE_TOOLS = frozenset(
     {
         "write_file", "replace_text", "create_checkpoint", "restore_checkpoint",
         "apply_workspace_edit_plan_v1",
+        "context_note", "new_context", *NOTE_WRITE_TOOLS,
     }
 )
 EDIT_PLAN_RISK_FLAGS = frozenset(
@@ -195,6 +198,9 @@ def classify_action(
         request.name.casefold(), request, workspace_root, mcp_risks
     )
     if not classified.known_tool or classified.risk is RiskLevel.CRITICAL:
+        return classified
+    if request.name in PERSISTENT_TOOLS:
+        # These paths are virtual task-local keys, never OS paths; service validates them.
         return classified
     outside = targets_outside_workspace(request.arguments, workspace_root)
     protected = targets_protected(request.arguments)

@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chaos Agent TUI 方案视觉对照：Claude Code 极简流 vs Linear Studio 工作台</title>
+  <style>
+    :root {
+      --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', Consolas, 'SF Mono', Monaco, 'PingFang SC', 'Microsoft YaHei', monospace;
+      --bg-desktop: #06080d;
+      --bg-header: rgba(13, 17, 24, 0.85);
+      --border-subtle: #1c2433;
+      --border-active: #38bdf8;
+      --text-white: #f8fafc;
+      --text-body: #cbd5e1;
+      --text-muted: #64748b;
+      --text-dim: #475569;
+      --cyan: #38bdf8;
+      --cyan-dim: rgba(56, 189, 248, 0.15);
+      --purple: #c084fc;
+      --purple-dim: rgba(192, 132, 252, 0.15);
+      --green: #4ade80;
+      --green-dim: rgba(74, 222, 128, 0.15);
+      --amber: #fbbf24;
+      --amber-dim: rgba(251, 191, 36, 0.15);
+      --red: #f87171;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-desktop);
+      color: var(--text-body);
+      font-family: var(--font-mono);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+      background-image:
+        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(56, 189, 248, 0.08), transparent 70%),
+        radial-gradient(ellipse 60% 40% at 85% 60%, rgba(192, 132, 252, 0.04), transparent 60%);
+    }
+
+    /* 顶部控制栏 */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(16px);
+      background: var(--bg-header);
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 12px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    .brand-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-logo {
+      width: 28px;
+      height: 28px;
+      background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #040812;
+      font-weight: 800;
+      font-size: 15px;
+      box-shadow: 0 0 16px rgba(56, 189, 248, 0.35);
+    }
+
+    .brand-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-white);
+      letter-spacing: -0.2px;
+    }
+
+    .brand-subtitle {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      font-weight: 400;
+    }
+
+    .controls-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(10, 14, 22, 0.8);
+      padding: 4px;
+      border-radius: 8px;
+      border: 1px solid var(--border-subtle);
+    }
+
+    .view-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 6px 14px;
+      font-size: 12px;
+      font-family: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      border-radius: 6px;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .view-btn:hover {
+      color: var(--text-white);
+    }
+
+    .view-btn.active {
+      background: #1e293b;
+      color: var(--cyan);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+    }
+
+    .action-badge {
+      font-size: 11.5px;
+      background: var(--cyan-dim);
+      color: var(--cyan);
+      padding: 4px 10px;
+      border-radius: 6px;
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      font-weight: 600;
+    }
+
+    /* 主内容区 */
+    main {
+      flex: 1;
+      padding: 24px 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      max-width: 1760px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    /* 对比说明栏 */
+    .intro-banner {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border-subtle);
+      border-left: 3px solid var(--cyan);
+      padding: 14px 20px;
+      border-radius: 8px;
+      font-size: 12.5px;
+      color: var(--text-body);
+      line-height: 1.6;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .intro-banner strong {
+      color: var(--text-white);
+    }
+
+    .grid-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .grid-container.single-1 {
+      grid-template-columns: 1fr;
+      max-width: 1080px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .grid-container.single-2 {
+      grid-template-columns: 1fr;
+      max-width: 1080px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .terminal-card {
+      background: #090d16;
+      border: 1px solid #1a2333;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 16px 36px -12px rgba(0, 0, 0, 0.7);
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* 终端窗口标题条 */
+    .term-titlebar {
+      background: #0d131f;
+      border-bottom: 1px solid #1a2333;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .window-dots {
+      display: flex;
+      gap: 7px;
+    }
+
+    .dot {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .dot-close { background: #ef4444; }
+    .dot-min { background: #eab308; }
+    .dot-max { background: #22c55e; }
+
+    .scheme-badge {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 9px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .badge-s1 {
+      background: rgba(56, 189, 248, 0.12);
+      color: var(--cyan);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+    }
+    .badge-s2 {
+      background: rgba(192, 132, 252, 0.12);
+      color: var(--purple);
+      border: 1px solid rgba(192, 132, 252, 0.3);
+    }
+
+    .term-body {
+      padding: 20px 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      font-size: 13px;
+      line-height: 1.65;
+    }
+
+    /* ========================================================= */
+    /* 方案 1：Claude Code 现代极简流 (Minimalist Hairlines & Air) */
+    /* ========================================================= */
+    .s1-user-line {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      color: var(--text-white);
+      font-weight: 600;
+      font-size: 13.5px;
+    }
+    .s1-user-arrow {
+      color: var(--cyan);
+      font-size: 15px;
+      font-weight: 800;
+    }
+
+    .s1-agent-block {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding-left: 2px;
+    }
+
+    .s1-agent-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--cyan);
+      font-weight: 700;
+    }
+    .s1-agent-header .spark {
+      font-size: 14px;
+    }
+    .s1-agent-header .subtext {
+      color: var(--text-muted);
+      font-weight: 400;
+    }
+
+    /* 树状工具执行链 */
+    .s1-tree-trace {
+      font-size: 12px;
+      color: var(--text-muted);
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      padding: 6px 0 6px 4px;
+    }
+    .s1-tree-line {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .s1-tree-sym {
+      color: var(--border-active);
+      font-weight: 600;
+    }
+    .s1-tree-action {
+      color: #94a3b8;
+    }
+    .s1-tree-success {
+      color: var(--green);
+      font-weight: 600;
+    }
+
+    /* Markdown 排版细节 */
+    .s1-markdown {
+      color: var(--text-body);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .s1-heading {
+      color: var(--cyan);
+      font-weight: 700;
+      font-size: 13.5px;
+      margin-top: 4px;
+    }
+
+    .s1-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .s1-list-item {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+    .s1-list-num {
+      color: var(--cyan);
+      font-weight: 600;
+      min-width: 16px;
+    }
+    .s1-list-bullet {
+      color: var(--text-dim);
+      min-width: 12px;
+      margin-left: 12px;
+    }
+
+    .s1-quote {
+      border-left: 2px solid var(--cyan);
+      padding-left: 12px;
+      color: #94a3b8;
+      font-style: normal;
+      margin: 6px 0;
+    }
+
+    /* 方案 1 输入区域 */
+    .s1-prompt-box {
+      margin-top: 10px;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      background: #0b101c;
+      overflow: hidden;
+    }
+    .s1-prompt-header {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 12px;
+      border-bottom: 1px solid #151d2c;
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+    .s1-prompt-input {
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--text-white);
+    }
+    .s1-cursor {
+      display: inline-block;
+      width: 7px;
+      height: 15px;
+      background: var(--cyan);
+      animation: blink 1s infinite;
+      vertical-align: middle;
+    }
+    .s1-status-line {
+      padding: 8px 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11.5px;
+      color: var(--text-muted);
+      border-top: 1px solid #151d2c;
+      background: #080c14;
+    }
+    .s1-status-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .s1-status-dot {
+      width: 7px;
+      height: 7px;
+      background: var(--green);
+      border-radius: 50%;
+      box-shadow: 0 0 8px rgba(74, 222, 128, 0.5);
+    }
+
+    /* ========================================================= */
+    /* 方案 2：Linear Studio 精密工作台 (Boxed Cards & Pills)    */
+    /* ========================================================= */
+    .s2-card {
+      background: #0d121e;
+      border: 1px solid #202b3d;
+      border-radius: 8px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .s2-card-header {
+      background: #111726;
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #1b2434;
+    }
+
+    .s2-user-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--purple);
+    }
+    .s2-card-time {
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    .s2-card-body {
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    /* 药丸徽标集 */
+    .s2-pill-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding: 4px 0;
+    }
+    .s2-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 5px;
+      border: 1px solid transparent;
+    }
+    .pill-bash {
+      background: rgba(56, 189, 248, 0.1);
+      color: var(--cyan);
+      border-color: rgba(56, 189, 248, 0.25);
+    }
+    .pill-verify {
+      background: rgba(74, 222, 128, 0.1);
+      color: var(--green);
+      border-color: rgba(74, 222, 128, 0.25);
+    }
+    .pill-mode {
+      background: rgba(192, 132, 252, 0.1);
+      color: var(--purple);
+      border-color: rgba(192, 132, 252, 0.25);
+    }
+
+    /* 方案 2 引用面板与列表 */
+    .s2-quote-panel {
+      background: #111726;
+      border-left: 3px solid var(--purple);
+      padding: 10px 14px;
+      border-radius: 0 6px 6px 0;
+      color: #94a3b8;
+      font-size: 12.5px;
+    }
+
+    /* 方案 2 底部双层仪表台 */
+    .s2-active-console {
+      margin-top: 10px;
+      border: 1px solid #2a3850;
+      border-radius: 9px;
+      background: #0d1320;
+      overflow: hidden;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+    }
+    .s2-console-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 7px 14px;
+      background: #101726;
+      border-bottom: 1px solid #1f2a3c;
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+    .s2-console-input {
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--text-white);
+      font-size: 13.5px;
+    }
+    .s2-console-meta {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 7px 14px;
+      background: #090e18;
+      border-top: 1px solid #1a2434;
+      font-size: 11.5px;
+      color: #94a3b8;
+      flex-wrap: wrap;
+    }
+    .s2-meta-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .s2-progress-track {
+      display: inline-flex;
+      color: var(--cyan);
+      font-weight: 700;
+      letter-spacing: 1px;
+    }
+
+    /* 对比表格 */
+    .comparison-section {
+      margin-top: 20px;
+      background: #090d16;
+      border: 1px solid #1c2638;
+      border-radius: 12px;
+      padding: 20px 24px;
+    }
+    .comparison-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-white);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .compare-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12.5px;
+      text-align: left;
+    }
+    .compare-table th {
+      padding: 10px 14px;
+      color: var(--text-muted);
+      font-weight: 600;
+      border-bottom: 1px solid #1e293b;
+    }
+    .compare-table td {
+      padding: 12px 14px;
+      border-bottom: 1px solid #141c28;
+      color: var(--text-body);
+    }
+    .compare-table tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    @keyframes blink {
+      0%, 49% { opacity: 1; }
+      50%, 100% { opacity: 0; }
+    }
+
+    @media (max-width: 1100px) {
+      .grid-container {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body data-view="split">
+
+  <!-- 顶部导航 -->
+  <header>
+    <div class="brand-group">
+      <div class="brand-logo">C</div>
+      <div>
+        <div class="brand-title">Chaos Agent · TUI 视觉设计决策方案</div>
+        <div class="brand-subtitle">基准内容：真实 Windows Word 原生修订插件验收会话</div>
+      </div>
+    </div>
+
+    <div class="controls-group">
+      <button class="view-btn active" onclick="setView('split', this)">
+        <span>⧉</span> 左右分屏对比
+      </button>
+      <button class="view-btn" onclick="setView('s1', this)">
+        <span>✦</span> 仅看方案 1: Claude Code 极简流
+      </button>
+      <button class="view-btn" onclick="setView('s2', this)">
+        <span>⬡</span> 仅看方案 2: Linear Studio 工作台
+      </button>
+    </div>
+
+    <div class="action-badge">
+      100% 还原真实终端布局
+    </div>
+  </header>
+
+  <main>
+    <!-- 提示栏 -->
+    <div class="intro-banner">
+      <div>
+        <strong>两套方案核心哲学：</strong>
+        <strong>方案 1</strong> 坚守无边框轻盈透气，将终端宽度全部交还给代码与思考流；
+        <strong>方案 2</strong> 追求精密工程感与容器化隔离，把模型、状态与工具像仪表板一样嵌入卡片。
+      </div>
+      <div style="font-size: 11.5px; color: var(--text-muted);">
+        * 当前展示内容完全取自您刚才在 PowerShell 终端中的实际运行数据
+      </div>
+    </div>
+
+    <!-- 终端对照网格 -->
+    <div class="grid-container" id="grid">
+
+      <!-- ============================================== -->
+      <!-- 方案 1: Claude Code 现代极简流 (Modern Minimalist) -->
+      <!-- ============================================== -->
+      <div class="terminal-card" id="card-s1">
+        <div class="term-titlebar">
+          <div class="window-dots">
+            <span class="dot dot-close"></span>
+            <span class="dot dot-min"></span>
+            <span class="dot dot-max"></span>
+          </div>
+          <div style="font-size: 12px; color: var(--text-muted); font-weight: 500;">
+            Windows Terminal (pwsh) · Modern Minimalist
+          </div>
+          <span class="scheme-badge badge-s1">方案 1: 现代极简</span>
+        </div>
+
+        <div class="term-body">
+          <!-- 用户提问 1 -->
+          <div class="s1-user-line">
+            <span class="s1-user-arrow">❯</span>
+            <span>这个项目干啥的</span>
+          </div>
+
+          <!-- Agent 回答与执行链 -->
+          <div class="s1-agent-block">
+            <div class="s1-agent-header">
+              <span class="spark">✦</span>
+              <span>Chaos Agent</span>
+              <span class="subtext">已完成工作区快照与环境扫描</span>
+            </div>
+
+            <!-- 优雅折叠的树状工具链 -->
+            <div class="s1-tree-trace">
+              <div class="s1-tree-line">
+                <span class="s1-tree-sym">├─</span>
+                <span class="s1-tree-action">read README.md · 提取项目设计规格</span>
+              </div>
+              <div class="s1-tree-line">
+                <span class="s1-tree-sym">├─</span>
+                <span class="s1-tree-action">verify 一键启动-LackWord.cmd (exit: 0 · 488ms)</span>
+              </div>
+              <div class="s1-tree-line">
+                <span class="s1-tree-sym">╰─</span>
+                <span class="s1-tree-success">✓ 7 项核心安全规约核验完成</span>
+              </div>
+            </div>
+
+            <!-- 核心排版正文 -->
+            <div class="s1-markdown">
+              <div class="s1-list">
+                <div class="s1-list-item">
+                  <span class="s1-list-num">1.</span>
+                  <span>不是简单把修改标红，而是真正生成 <strong>Word 原生修订</strong>。</span>
+                </div>
+                <div class="s1-list-item">
+                  <span class="s1-list-num">2.</span>
+                  <span>AI 修改的作者固定为 <strong>lack</strong>，原有人工修订作者会保留。</span>
+                </div>
+                <div class="s1-list-item">
+                  <span class="s1-list-num">3.</span>
+                  <span>发布修改前严格验证：</span>
+                </div>
+                <div class="s1-list-item">
+                  <span class="s1-list-bullet">-</span>
+                  <span style="color: #94a3b8;">修订确实存在，且修订作者正确；</span>
+                </div>
+                <div class="s1-list-item">
+                  <span class="s1-list-bullet">-</span>
+                  <span style="color: #94a3b8;">接受修订后符合预期，拒绝修订后能完整恢复原文。</span>
+                </div>
+                <div class="s1-list-item">
+                  <span class="s1-list-num">4.</span>
+                  <span>API Key 存储在 Windows Credential Manager，不接触明文网页。</span>
+                </div>
+              </div>
+
+              <div class="s1-heading">当前成熟度</div>
+              <p style="color: #cbd5e1; font-size: 12.5px;">
+                仓库说明显示它处于开发侧载和验收阶段，主要链路已打通，并完成了真实 Word 16.0 测试；长论文、数字签名和 Zotero/EndNote 复杂宏文档仍待进一步实机验收。
+              </p>
+
+              <div class="s1-quote">
+                > 这是一个把 AI 改稿结果安全转换为 Word 原生“可接受、可拒绝、可回滚”修订的 Windows 插件。
+              </div>
+            </div>
+          </div>
+
+          <!-- 用户提问 2 -->
+          <div class="s1-user-line" style="margin-top: 6px;">
+            <span class="s1-user-arrow">❯</span>
+            <span>你觉得这个有什么可以优化的地方吗</span>
+          </div>
+
+          <!-- 正在运行时的轻量提示 -->
+          <div style="font-size: 12px; color: var(--cyan); display: flex; align-items: center; gap: 8px;">
+            <span style="animation: blink 1.2s infinite;">↳</span>
+            <span style="color: #94a3b8;">按需展开动态工具契约:</span>
+            <span style="color: var(--cyan); font-weight: 600;">load_tool_contract [workspace_edit]</span>
+          </div>
+
+          <!-- 极简流输入框 -->
+          <div class="s1-prompt-box">
+            <div class="s1-prompt-header">
+              <span>输入任务、提问或编辑指令 (按 / 唤起快捷命令)</span>
+              <span>[Ctrl+C 终止]</span>
+            </div>
+            <div class="s1-prompt-input">
+              <span style="color: var(--cyan); font-weight: 700;">❯</span>
+              <span style="color: var(--text-white);">请针对 Word 插件的进程锁冲突给出架构优化建议</span>
+              <span class="s1-cursor"></span>
+            </div>
+            <div class="s1-status-line">
+              <div class="s1-status-left">
+                <span class="s1-status-dot"></span>
+                <span style="color: #e2e8f0; font-weight: 600;">就绪</span>
+                <span style="color: var(--text-dim);">│</span>
+                <span style="color: var(--cyan);">gpt-5.6-sol</span>
+                <span style="color: var(--text-dim);">│</span>
+                <span style="color: #94a3b8;">main*</span>
+              </div>
+              <div style="color: #94a3b8;">
+                <span>14.2k tokens (7%)</span>
+                <span style="color: var(--text-dim); margin: 0 4px;">│</span>
+                <span style="color: var(--amber);">48.5 tok/s</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================== -->
+      <!-- 方案 2: Linear Studio 精密工作台 (Studio Pro)    -->
+      <!-- ============================================== -->
+      <div class="terminal-card" id="card-s2">
+        <div class="term-titlebar">
+          <div class="window-dots">
+            <span class="dot dot-close"></span>
+            <span class="dot dot-min"></span>
+            <span class="dot dot-max"></span>
+          </div>
+          <div style="font-size: 12px; color: var(--text-muted); font-weight: 500;">
+            Windows Terminal (pwsh) · Linear Studio Pro
+          </div>
+          <span class="scheme-badge badge-s2">方案 2: 精密工作台</span>
+        </div>
+
+        <div class="term-body">
+          <!-- 用户提问卡片 1 -->
+          <div class="s2-card">
+            <div class="s2-card-header">
+              <div class="s2-user-badge">
+                <span>👤</span>
+                <span>You</span>
+              </div>
+              <span class="s2-card-time">15:42:01 · 手动提交</span>
+            </div>
+            <div class="s2-card-body" style="padding: 10px 14px; font-weight: 600; color: var(--text-white);">
+              这个项目干啥的
+            </div>
+          </div>
+
+          <!-- Agent 响应卡片 -->
+          <div class="s2-card" style="border-color: #27354d;">
+            <div class="s2-card-header" style="background: #131b2c;">
+              <div style="display: flex; align-items: center; gap: 8px; color: var(--purple); font-weight: 700; font-size: 12.5px;">
+                <span>✦</span>
+                <span>Chaos Agent</span>
+                <span class="s2-pill pill-mode">Auto-Mode</span>
+              </div>
+              <span class="s2-card-time">耗时 488ms</span>
+            </div>
+
+            <div class="s2-card-body">
+              <!-- 药丸标签执行概览 -->
+              <div class="s2-pill-row">
+                <span class="s2-pill pill-bash">⚙ EXEC: git status (3 files)</span>
+                <span class="s2-pill pill-verify">⛊ VERIFY: 一键启动.cmd [PASS]</span>
+                <span class="s2-pill pill-bash">✎ REVISION: author=lack</span>
+              </div>
+
+              <div style="color: var(--text-body); font-size: 12.5px; display: flex; flex-direction: column; gap: 8px;">
+                <div>1. <strong>不是简单把修改标红</strong>，而是真正生成 Word 原生修订。</div>
+                <div>2. AI 修改作者固定为 <code style="background: #1a2333; padding: 2px 6px; border-radius: 4px; color: var(--cyan);">lack</code>，完整保留原有人工修订痕迹。</div>
+                <div>3. 修改发布前自动校验：修订存在、作者无误、可回滚到原文档。</div>
+                <div>4. API 凭据托管于 Windows Credential Manager，杜绝明文泄露。</div>
+              </div>
+
+              <!-- 结构化面板 -->
+              <div class="s2-quote-panel">
+                <div style="font-weight: 700; color: var(--text-white); margin-bottom: 3px;">核心定位总结：</div>
+                这是一个把 AI 改稿结果安全地转换成 Word 原生“可接受、可拒绝、可回滚”修订的 Windows Word 插件。
+              </div>
+            </div>
+          </div>
+
+          <!-- 用户提问卡片 2 -->
+          <div class="s2-card">
+            <div class="s2-card-header">
+              <div class="s2-user-badge">
+                <span>👤</span>
+                <span>You</span>
+              </div>
+              <span class="s2-card-time">15:42:15</span>
+            </div>
+            <div class="s2-card-body" style="padding: 10px 14px; font-weight: 600; color: var(--text-white);">
+              你觉得这个有什么可以优化的地方吗
+            </div>
+          </div>
+
+          <!-- 方案 2 双层控制仪表台 -->
+          <div class="s2-active-console">
+            <div class="s2-console-header">
+              <span>ACTIVE PROMPT CONSOLE</span>
+              <span class="s2-pill pill-mode">⚙ Plan & Code 模式</span>
+            </div>
+            <div class="s2-console-input">
+              <span style="color: var(--purple); font-size: 16px;">✧</span>
+              <span style="color: var(--text-white);">请针对 Word 插件的进程锁冲突给出架构优化建议</span>
+              <span class="s1-cursor" style="background: var(--purple);"></span>
+            </div>
+            <div class="s2-console-meta">
+              <div class="s2-meta-item">
+                <span style="color: var(--purple);">⬡</span>
+                <span>gpt-5.6-sol</span>
+              </div>
+              <div class="s2-meta-item">
+                <span style="color: var(--green);">⛊</span>
+                <span>ReadWrite (安全沙箱)</span>
+              </div>
+              <div class="s2-meta-item">
+                <span>Token:</span>
+                <span class="s2-progress-track">▰▰▰▱▱ 18k/128k</span>
+              </div>
+              <div class="s2-meta-item" style="margin-left: auto; color: var(--amber);">
+                <span>⚡ 48.5 tok/s</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 综合对比与决策建议 -->
+    <div class="comparison-section">
+      <div class="comparison-title">
+        <span>⚖️</span>
+        <span>方案深度横向评测与选型指南</span>
+      </div>
+
+      <table class="compare-table">
+        <thead>
+          <tr>
+            <th style="width: 18%;">评估维度</th>
+            <th style="width: 41%;">方案 1: Claude Code 现代极简流</th>
+            <th style="width: 41%;">方案 2: Linear Studio 精密工作台</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>屏幕空间利用率</strong></td>
+            <td><strong style="color: var(--green);">极高 (98%)</strong>。没有左右内嵌边框，窄屏小窗口绝不挤压文字。</td>
+            <td><strong>中等 (88%)</strong>。卡片边框占用了左右各 16-20px 宽度，窗口较小时有轻微内缩。</td>
+          </tr>
+          <tr>
+            <td><strong>长文本阅读体验</strong></td>
+            <td><strong style="color: var(--green);">极致舒缓</strong>。像阅读排版精良的工程文档，无卡片框切割视线。</td>
+            <td><strong>块状聚焦</strong>。每一轮问答像一条 Slack / Linear 讨论卡片，分段很清楚。</td>
+          </tr>
+          <tr>
+            <td><strong>工具执行呈现</strong></td>
+            <td><strong>树状引线 (Tree)</strong>。紧凑、低调、静默完成，不喧宾夺主。</td>
+            <td><strong style="color: var(--purple);">彩色药丸胶囊 (Pills)</strong>。视觉抓眼，极具工业感与掌控感。</td>
+          </tr>
+          <tr>
+            <td><strong>底部状态栏</strong></td>
+            <td><strong>单行呼吸底栏</strong>。极简点状状态灯，仅展示最核心指标。</td>
+            <td><strong style="color: var(--purple);">双层仪表盘</strong>。模型、沙箱权限、Token条全量展示，掌控感拉满。</td>
+          </tr>
+          <tr>
+            <td><strong>终端兼容性</strong></td>
+            <td><strong>完美</strong>。纯单线与常规 ANSI 字符，老版本 cmd / pwsh 都不花屏。</td>
+            <td><strong>需 Windows Terminal</strong>。由于使用圆角及双层线框，在老式 cmd 下效果稍弱。</td>
+          </tr>
+          <tr>
+            <td><strong>适用人群画像</strong></td>
+            <td><strong>重度程序员、长文阅读者、沉浸思考型用户</strong> (Cursor / Claude Code 粉丝)。</td>
+            <td><strong>喜欢精密感、注重实时状态反馈与仪表盘的极客用户</strong> (Linear / Raycast 粉丝)。</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <script>
+    function setView(mode, btn) {
+      const grid = document.getElementById('grid');
+      const card1 = document.getElementById('card-s1');
+      const card2 = document.getElementById('card-s2');
+      const buttons = document.querySelectorAll('.view-btn');
+
+      buttons.forEach(b => b.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+
+      if (mode === 'split') {
+        grid.className = 'grid-container';
+        card1.style.display = 'flex';
+        card2.style.display = 'flex';
+      } else if (mode === 's1') {
+        grid.className = 'grid-container single-1';
+        card1.style.display = 'flex';
+        card2.style.display = 'none';
+      } else if (mode === 's2') {
+        grid.className = 'grid-container single-2';
+        card1.style.display = 'none';
+        card2.style.display = 'flex';
+      }
+    }
+  </script>
+</body>
+</html>

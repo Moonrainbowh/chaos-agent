@@ -4,6 +4,7 @@ import asyncio
 import re
 import sys
 import unittest
+from unittest.mock import Mock, patch
 from pathlib import Path
 
 SRC_ROOT = Path(__file__).resolve().parents[3]
@@ -34,6 +35,16 @@ def _plain(value: str) -> str:
 
 
 class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
+    async def test_two_ctrl_c_keys_exit_without_cancelling_a_reader_thread(self) -> None:
+        app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker(), write=lambda _: None)
+        restore = Mock()
+        with patch("code_agent.interfaces.windows_tui.os.name", "nt"), patch(
+            "code_agent.interfaces.windows_tui.capture_ctrl_c_as_input", return_value=restore
+        ), patch("code_agent.interfaces.windows_tui.read_key", side_effect=("\x03", "\x03")):
+            await app.run()
+        self.assertFalse(app.running)
+        restore.assert_called_once_with()
+
     async def test_new_prompt_clears_the_old_status_before_appending_it(self) -> None:
         output: list[str] = []
         app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker(), write=output.append)
@@ -52,7 +63,7 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
         app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker(), write=lambda _: None)
         app.state.begin_run(); first = status_presentation(app.state.status, app.state.execution_summary, app.state.active_action, app.catalog.language, app.theme, app._spinner_index)
         app._spinner_index = 1; second = status_presentation(app.state.status, app.state.execution_summary, app.state.active_action, app.catalog.language, app.theme, app._spinner_index)
-        app.state.status = "completed"; app.state.execution_summary = "已完成 1 项操作"
+        app.state.status = "completed"; app.state.execution_summary = "1 action finished"
 
         self.assertNotEqual(first[1], second[1])
         completed = status_presentation(app.state.status, app.state.execution_summary, app.state.active_action, app.catalog.language, app.theme, app._spinner_index)
@@ -76,6 +87,15 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(app.input.text, "")
         self.assertEqual(app.state.entries[0].text, "first\nsecond")
         await app.wait_idle()
+
+    async def test_shift_enter_inserts_a_line_break_without_submitting(self) -> None:
+        app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker(), write=lambda _: None)
+
+        for key in ("first", "shift+enter", "second"):
+            await app.handle_key(key)
+
+        self.assertEqual(app.input.text, "first\nsecond")
+        self.assertEqual(app.state.entries, [])
 
     async def test_bracketed_paste_inserts_once_without_submitting(self) -> None:
         app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker(), write=lambda _: None)
@@ -104,12 +124,12 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
         app._pending_approval = await broker.next_request()
 
         card = "\n".join(app.interactions.rows(app))
-        self.assertIn("动作: run_command", card)
-        self.assertIn("风险: high", card)
-        self.assertIn("目标: Get-Date", card)
-        self.assertIn("原因: approval required", card)
-        self.assertIn("仅允许这一次", card)
-        self.assertIn("› 拒绝", card)
+        self.assertIn("Action: run_command", card)
+        self.assertIn("Risk: high", card)
+        self.assertIn("Target: Get-Date", card)
+        self.assertIn("Reason: approval required", card)
+        self.assertIn("Allow once", card)
+        self.assertIn("› Deny", card)
 
         self.assertFalse(await app.submit("second request"))
         await app.handle_key("\x1b")

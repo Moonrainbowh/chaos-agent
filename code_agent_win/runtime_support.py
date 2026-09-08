@@ -102,6 +102,8 @@ def replace_model(profile: ModelProfile, model: str) -> ModelProfile:
         profile.max_tool_calls,
         profile.max_tool_calls_per_round,
         profile.input_modalities,
+        profile.input_cost_per_million,
+        profile.output_cost_per_million,
     )
 
 

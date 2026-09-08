@@ -1,0 +1,2133 @@
+running bdist_wheel
+running build
+running build_py
+copying src\code_agent\repo_paths.py -> build\lib\code_agent
+copying src\code_agent\_owned_temporary.py -> build\lib\code_agent
+copying src\code_agent\_windows_handle_cleanup.py -> build\lib\code_agent
+copying src\code_agent\_windows_owned_temporary.py -> build\lib\code_agent
+copying src\code_agent\acp\adapter.py -> build\lib\code_agent\acp
+copying src\code_agent\acp\content.py -> build\lib\code_agent\acp
+copying src\code_agent\acp\event_bridge.py -> build\lib\code_agent\acp
+copying src\code_agent\acp\session_permissions.py -> build\lib\code_agent\acp
+copying src\code_agent\acp\__init__.py -> build\lib\code_agent\acp
+copying src\code_agent\attachments\errors.py -> build\lib\code_agent\attachments
+copying src\code_agent\attachments\store.py -> build\lib\code_agent\attachments
+copying src\code_agent\attachments\__init__.py -> build\lib\code_agent\attachments
+copying src\code_agent\capabilities\catalog.py -> build\lib\code_agent\capabilities
+copying src\code_agent\capabilities\__init__.py -> build\lib\code_agent\capabilities
+copying src\code_agent\config\capability_strategy.py -> build\lib\code_agent\config
+copying src\code_agent\config\loader.py -> build\lib\code_agent\config
+copying src\code_agent\config\_environment.py -> build\lib\code_agent\config
+copying src\code_agent\context\budget.py -> build\lib\code_agent\context
+copying src\code_agent\context\builder.py -> build\lib\code_agent\context
+copying src\code_agent\context\cache.py -> build\lib\code_agent\context
+copying src\code_agent\context\models.py -> build\lib\code_agent\context
+copying src\code_agent\context\repo_index.py -> build\lib\code_agent\context
+copying src\code_agent\context\repo_map.py -> build\lib\code_agent\context
+copying src\code_agent\context\repo_paths.py -> build\lib\code_agent\context
+copying src\code_agent\context\repo_python_semantics.py -> build\lib\code_agent\context
+copying src\code_agent\context\repo_scan.py -> build\lib\code_agent\context
+copying src\code_agent\context\repo_semantic_graph.py -> build\lib\code_agent\context
+copying src\code_agent\context\repo_snapshot.py -> build\lib\code_agent\context
+copying src\code_agent\context\repo_tiered_context.py -> build\lib\code_agent\context
+copying src\code_agent\context\_builder_support.py -> build\lib\code_agent\context
+copying src\code_agent\core\engine.py -> build\lib\code_agent\core
+copying src\code_agent\core\engine_actions.py -> build\lib\code_agent\core
+copying src\code_agent\core\engine_completion.py -> build\lib\code_agent\core
+copying src\code_agent\core\engine_turn_feedback.py -> build\lib\code_agent\core
+copying src\code_agent\core\events.py -> build\lib\code_agent\core
+copying src\code_agent\core\protocols.py -> build\lib\code_agent\core
+copying src\code_agent\core\task.py -> build\lib\code_agent\core
+copying src\code_agent\core\task_intent.py -> build\lib\code_agent\core
+copying src\code_agent\core\task_state.py -> build\lib\code_agent\core
+copying src\code_agent\core\task_verification.py -> build\lib\code_agent\core
+copying src\code_agent\core\validation_feedback.py -> build\lib\code_agent\core
+copying src\code_agent\core\verification_state.py -> build\lib\code_agent\core
+copying src\code_agent\core\_engine_run.py -> build\lib\code_agent\core
+copying src\code_agent\core\_engine_turn.py -> build\lib\code_agent\core
+copying src\code_agent\core\_session_io.py -> build\lib\code_agent\core
+copying src\code_agent\core\_tool_disclosure.py -> build\lib\code_agent\core
+copying src\code_agent\interfaces\action_summary.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\approval.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\approval_card.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\capability_view.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\checkpoint_commands.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\command_availability.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\command_navigation.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\command_registry.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\controller.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\cost_control.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\diagnostic_view.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\diff_interaction.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\diff_interaction_render.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\edit_plan_approval_tui.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\extension_picker.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\i18n.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\permission_control.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\picker.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\picker_panel.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\plugin_picker.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\runtime_picker.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\semantic_insight_view.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\status_report.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\steering_view.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\task_controller.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\task_mode_control.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\terminal_composer.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\terminal_io.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\terminal_legacy_status.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\terminal_markdown.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\terminal_motion.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\terminal_renderer.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\terminal_state.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\terminal_status.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\terminal_style.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\terminal_tail.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\terminal_tail_content.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\terminal_tail_geometry.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\terminal_tail_legacy.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\terminal_theme.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\terminal_transcript_markdown.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\terminal_welcome.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\theme_preview.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\theme_preview_page.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\tui_active_input.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\tui_builtin_commands.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\tui_commands.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\tui_command_dispatch.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\tui_display_commands.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\tui_general_commands.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\tui_input.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\tui_interactions.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\tui_lifecycle.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\tui_peer_turn.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\tui_permission_commands.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\tui_presentation.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\tui_protocols.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\tui_run.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\tui_runtime_commands.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\tui_semantic_insight_commands.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\tui_session_commands.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\tui_submission.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\tui_theme_commands.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\windows_tui.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\_command_models.py -> build\lib\code_agent\interfaces
+copying src\code_agent\interfaces\_command_specs.py -> build\lib\code_agent\interfaces
+copying src\code_agent\orchestration\codec.py -> build\lib\code_agent\orchestration
+copying src\code_agent\orchestration\models.py -> build\lib\code_agent\orchestration
+copying src\code_agent\orchestration\modes.py -> build\lib\code_agent\orchestration
+copying src\code_agent\orchestration\runtime_models.py -> build\lib\code_agent\orchestration
+copying src\code_agent\peers\errors.py -> build\lib\code_agent\peers
+copying src\code_agent\peers\models.py -> build\lib\code_agent\peers
+copying src\code_agent\peers\service.py -> build\lib\code_agent\peers
+copying src\code_agent\peers\_service_contract.py -> build\lib\code_agent\peers
+copying src\code_agent\policy\classifier.py -> build\lib\code_agent\policy
+copying src\code_agent\policy\command_rules.py -> build\lib\code_agent\policy
+copying src\code_agent\policy\engine.py -> build\lib\code_agent\policy
+copying src\code_agent\policy\models.py -> build\lib\code_agent\policy
+copying src\code_agent\policy\_command_risk.py -> build\lib\code_agent\policy
+copying src\code_agent\policy\_path_classification.py -> build\lib\code_agent\policy
+copying src\code_agent\providers\anthropic.py -> build\lib\code_agent\providers
+copying src\code_agent\providers\config.py -> build\lib\code_agent\providers
+copying src\code_agent\providers\openai_chat.py -> build\lib\code_agent\providers
+copying src\code_agent\providers\openai_responses.py -> build\lib\code_agent\providers
+copying src\code_agent\providers\runtime_manager.py -> build\lib\code_agent\providers
+copying src\code_agent\providers\transport.py -> build\lib\code_agent\providers
+copying src\code_agent\providers\_request_payload.py -> build\lib\code_agent\providers
+copying src\code_agent\runtime\docker.py -> build\lib\code_agent\runtime
+copying src\code_agent\runtime\local.py -> build\lib\code_agent\runtime
+copying src\code_agent\runtime\models.py -> build\lib\code_agent\runtime
+copying src\code_agent\runtime\output_codec.py -> build\lib\code_agent\runtime
+copying src\code_agent\runtime\_powershell_runtime.py -> build\lib\code_agent\runtime
+copying src\code_agent\runtime\_powershell_script.py -> build\lib\code_agent\runtime
+copying src\code_agent\runtime\_windows_command.py -> build\lib\code_agent\runtime
+copying src\code_agent\runtime\_windows_job.py -> build\lib\code_agent\runtime
+copying src\code_agent\runtime\_windows_process.py -> build\lib\code_agent\runtime
+copying src\code_agent\runtime\_windows_spawn.py -> build\lib\code_agent\runtime
+creating build\lib\code_agent\semantic_insights
+copying src\code_agent\semantic_insights\inputs.py -> build\lib\code_agent\semantic_insights
+copying src\code_agent\semantic_insights\models.py -> build\lib\code_agent\semantic_insights
+copying src\code_agent\semantic_insights\projections.py -> build\lib\code_agent\semantic_insights
+copying src\code_agent\semantic_insights\ranking.py -> build\lib\code_agent\semantic_insights
+copying src\code_agent\semantic_insights\service.py -> build\lib\code_agent\semantic_insights
+copying src\code_agent\semantic_insights\__init__.py -> build\lib\code_agent\semantic_insights
+copying src\code_agent\sessions\edit_batch_models.py -> build\lib\code_agent\sessions
+copying src\code_agent\sessions\legacy_migration.py -> build\lib\code_agent\sessions
+copying src\code_agent\sessions\repository.py -> build\lib\code_agent\sessions
+copying src\code_agent\sessions\rewind_repository.py -> build\lib\code_agent\sessions
+copying src\code_agent\sessions\_database.py -> build\lib\code_agent\sessions
+copying src\code_agent\sessions\_database_cancellation.py -> build\lib\code_agent\sessions
+copying src\code_agent\sessions\_edit_batches.py -> build\lib\code_agent\sessions
+copying src\code_agent\sessions\_edit_batch_repository_support.py -> build\lib\code_agent\sessions
+copying src\code_agent\sessions\_edit_batch_rows.py -> build\lib\code_agent\sessions
+copying src\code_agent\sessions\_edit_batch_schema.py -> build\lib\code_agent\sessions
+copying src\code_agent\sessions\_edit_batch_validation.py -> build\lib\code_agent\sessions
+copying src\code_agent\sessions\_edit_batch_writes.py -> build\lib\code_agent\sessions
+copying src\code_agent\sessions\_logical_database.py -> build\lib\code_agent\sessions
+copying src\code_agent\sessions\_peer_inbox.py -> build\lib\code_agent\sessions
+copying src\code_agent\sessions\_peer_messages.py -> build\lib\code_agent\sessions
+copying src\code_agent\sessions\_peer_message_ops.py -> build\lib\code_agent\sessions
+copying src\code_agent\sessions\_peer_rows.py -> build\lib\code_agent\sessions
+copying src\code_agent\sessions\_peer_sessions.py -> build\lib\code_agent\sessions
+copying src\code_agent\sessions\_rewind_checkpoints.py -> build\lib\code_agent\sessions
+copying src\code_agent\sessions\_rewind_mutations.py -> build\lib\code_agent\sessions
+copying src\code_agent\sessions\_schema_structure.py -> build\lib\code_agent\sessions
+copying src\code_agent\sessions\_schema_validation.py -> build\lib\code_agent\sessions
+copying src\code_agent\sessions\_task_runtime_records.py -> build\lib\code_agent\sessions
+copying src\code_agent\thread_intelligence\compaction.py -> build\lib\code_agent\thread_intelligence
+copying src\code_agent\thread_intelligence\context_builder.py -> build\lib\code_agent\thread_intelligence
+copying src\code_agent\verification\evidence.py -> build\lib\code_agent\verification
+copying src\code_agent\verification\planner.py -> build\lib\code_agent\verification
+copying src\code_agent\verification\planner_adapter.py -> build\lib\code_agent\verification
+copying src\code_agent\verification\python_adapter.py -> build\lib\code_agent\verification
+copying src\code_agent\verification\registry.py -> build\lib\code_agent\verification
+copying src\code_agent\verification\risk.py -> build\lib\code_agent\verification
+copying src\code_agent\verification\syntax_check.py -> build\lib\code_agent\verification
+copying src\code_agent\verification\task_evidence.py -> build\lib\code_agent\verification
+copying src\code_agent\verification\task_plans.py -> build\lib\code_agent\verification
+copying src\code_agent\verification\task_service.py -> build\lib\code_agent\verification
+copying src\code_agent\verification\__init__.py -> build\lib\code_agent\verification
+copying src\code_agent\workflows\service.py -> build\lib\code_agent\workflows
+copying src\code_agent\workspace\edits.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\errors.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\files.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\git.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\ignore.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\paths.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\rewind_state.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\snapshot_store.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\windows_paths.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\worktrees.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_atomic_artifact_write.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_batch_apply.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_batch_compare.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_batch_editor.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_batch_models.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_batch_mutation.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_batch_observe.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_batch_plan.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_batch_recovery.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_batch_recovery_prepare.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_batch_recovery_validation.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_batch_rollback.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_edit_plan.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_file_walk.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_git_environment.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_git_errors.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_git_path_sets.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_git_worktrees.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_guarded_read.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_known_files.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_rewind_snapshot_manifest.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_rewind_snapshot_store.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_secure_io.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_secure_mutation.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_secure_posix.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_secure_read.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_secure_replace.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_secure_temp.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_snapshot_artifacts.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_snapshot_blob_io.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_snapshot_restore.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_text_codec.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_text_diff.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_windows_artifact_write.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_windows_atomic_replace.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_windows_case_sensitivity.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_windows_exact_delete.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_windows_exact_handles.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_windows_exact_move.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_windows_file_locks.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_windows_guarded_read.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_windows_replace_native.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_windows_replace_recovery.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_worktree_leases.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_worktree_lifecycle_ops.py -> build\lib\code_agent\workspace
+copying src\code_agent\workspace\_worktree_limits.py -> build\lib\code_agent\workspace
+copying src\code_agent\acp\tests\test_adapter.py -> build\lib\code_agent\acp\tests
+copying src\code_agent\acp\tests\__init__.py -> build\lib\code_agent\acp\tests
+copying src\code_agent\attachments\tests\test_publication_finalization.py -> build\lib\code_agent\attachments\tests
+copying src\code_agent\attachments\tests\test_publication_identity.py -> build\lib\code_agent\attachments\tests
+copying src\code_agent\attachments\tests\test_store_concurrency.py -> build\lib\code_agent\attachments\tests
+copying src\code_agent\capabilities\tests\test_catalog.py -> build\lib\code_agent\capabilities\tests
+copying src\code_agent\config\tests\test_capability_strategy.py -> build\lib\code_agent\config\tests
+copying src\code_agent\config\tests\test_loader.py -> build\lib\code_agent\config\tests
+copying src\code_agent\config\tests\test_powershell_dialect.py -> build\lib\code_agent\config\tests
+copying src\code_agent\config\tests\test_windows_config_paths.py -> build\lib\code_agent\config\tests
+copying src\code_agent\context\tests\test_budget.py -> build\lib\code_agent\context\tests
+copying src\code_agent\context\tests\test_builder.py -> build\lib\code_agent\context\tests
+copying src\code_agent\context\tests\test_repo_paths.py -> build\lib\code_agent\context\tests
+copying src\code_agent\context\tests\test_repo_python_semantics.py -> build\lib\code_agent\context\tests
+copying src\code_agent\context\tests\test_repo_semantic_graph.py -> build\lib\code_agent\context\tests
+copying src\code_agent\context\tests\test_repo_tiered_context.py -> build\lib\code_agent\context\tests
+copying src\code_agent\context\tests\test_tiered_repo_map_runtime.py -> build\lib\code_agent\context\tests
+copying src\code_agent\core\tests\test_command_facts.py -> build\lib\code_agent\core\tests
+copying src\code_agent\core\tests\test_completion_idle.py -> build\lib\code_agent\core\tests
+copying src\code_agent\core\tests\test_engine_action_lineage.py -> build\lib\code_agent\core\tests
+copying src\code_agent\core\tests\test_engine_run_context.py -> build\lib\code_agent\core\tests
+copying src\code_agent\core\tests\test_engine_run_state.py -> build\lib\code_agent\core\tests
+copying src\code_agent\core\tests\test_engine_tools.py -> build\lib\code_agent\core\tests
+copying src\code_agent\core\tests\test_engine_tool_disclosures.py -> build\lib\code_agent\core\tests
+copying src\code_agent\core\tests\test_task.py -> build\lib\code_agent\core\tests
+copying src\code_agent\core\tests\test_task_state.py -> build\lib\code_agent\core\tests
+copying src\code_agent\core\tests\_engine_support.py -> build\lib\code_agent\core\tests
+copying src\code_agent\interfaces\tests\test_attachment_tui.py -> build\lib\code_agent\interfaces\tests
+copying src\code_agent\interfaces\tests\test_command_navigation.py -> build\lib\code_agent\interfaces\tests
+copying src\code_agent\interfaces\tests\test_cost_control.py -> build\lib\code_agent\interfaces\tests
+copying src\code_agent\interfaces\tests\test_edit_plan_approval.py -> build\lib\code_agent\interfaces\tests
+copying src\code_agent\interfaces\tests\test_extension_controls.py -> build\lib\code_agent\interfaces\tests
+copying src\code_agent\interfaces\tests\test_extension_picker_hierarchy.py -> build\lib\code_agent\interfaces\tests
+copying src\code_agent\interfaces\tests\test_interaction_v2.py -> build\lib\code_agent\interfaces\tests
+copying src\code_agent\interfaces\tests\test_partial_answer_rendering.py -> build\lib\code_agent\interfaces\tests
+copying src\code_agent\interfaces\tests\test_permission_control.py -> build\lib\code_agent\interfaces\tests
+copying src\code_agent\interfaces\tests\test_runtime_capability_view.py -> build\lib\code_agent\interfaces\tests
+copying src\code_agent\interfaces\tests\test_runtime_peer_commands.py -> build\lib\code_agent\interfaces\tests
+copying src\code_agent\interfaces\tests\test_runtime_status_surface.py -> build\lib\code_agent\interfaces\tests
+copying src\code_agent\interfaces\tests\test_semantic_insight_commands.py -> build\lib\code_agent\interfaces\tests
+copying src\code_agent\interfaces\tests\test_startup_responsiveness.py -> build\lib\code_agent\interfaces\tests
+copying src\code_agent\interfaces\tests\test_steering_view.py -> build\lib\code_agent\interfaces\tests
+copying src\code_agent\interfaces\tests\test_task_controller.py -> build\lib\code_agent\interfaces\tests
+copying src\code_agent\interfaces\tests\test_terminal_renderer.py -> build\lib\code_agent\interfaces\tests
+copying src\code_agent\interfaces\tests\test_terminal_tail.py -> build\lib\code_agent\interfaces\tests
+copying src\code_agent\interfaces\tests\test_terminal_themes.py -> build\lib\code_agent\interfaces\tests
+copying src\code_agent\interfaces\tests\test_terminal_title_and_sound.py -> build\lib\code_agent\interfaces\tests
+copying src\code_agent\interfaces\tests\test_tui_commands.py -> build\lib\code_agent\interfaces\tests
+copying src\code_agent\interfaces\tests\test_tui_permission_commands.py -> build\lib\code_agent\interfaces\tests
+copying src\code_agent\interfaces\tests\test_windows_tui_commands.py -> build\lib\code_agent\interfaces\tests
+copying src\code_agent\interfaces\tests\test_windows_tui_input.py -> build\lib\code_agent\interfaces\tests
+copying src\code_agent\interfaces\tests\test_windows_tui_interaction.py -> build\lib\code_agent\interfaces\tests
+copying src\code_agent\interfaces\tests\test_windows_tui_rendering.py -> build\lib\code_agent\interfaces\tests
+copying src\code_agent\interfaces\tests\test_windows_tui_tasks.py -> build\lib\code_agent\interfaces\tests
+copying src\code_agent\orchestration\tests\test_modes.py -> build\lib\code_agent\orchestration\tests
+copying src\code_agent\peers\tests\test_models.py -> build\lib\code_agent\peers\tests
+copying src\code_agent\peers\tests\test_service.py -> build\lib\code_agent\peers\tests
+copying src\code_agent\policy\tests\test_classifier.py -> build\lib\code_agent\policy\tests
+copying src\code_agent\policy\tests\test_command_rules.py -> build\lib\code_agent\policy\tests
+copying src\code_agent\policy\tests\test_command_security.py -> build\lib\code_agent\policy\tests
+copying src\code_agent\policy\tests\test_edit_plan_policy.py -> build\lib\code_agent\policy\tests
+copying src\code_agent\policy\tests\test_engine.py -> build\lib\code_agent\policy\tests
+copying src\code_agent\policy\tests\test_path_security.py -> build\lib\code_agent\policy\tests
+copying src\code_agent\policy\tests\test_structured_process.py -> build\lib\code_agent\policy\tests
+copying src\code_agent\providers\tests\test_anthropic.py -> build\lib\code_agent\providers\tests
+copying src\code_agent\providers\tests\test_openai_chat.py -> build\lib\code_agent\providers\tests
+copying src\code_agent\providers\tests\test_openai_responses.py -> build\lib\code_agent\providers\tests
+copying src\code_agent\providers\tests\test_runtime_manager.py -> build\lib\code_agent\providers\tests
+copying src\code_agent\runtime\tests\test_docker.py -> build\lib\code_agent\runtime\tests
+copying src\code_agent\runtime\tests\test_local.py -> build\lib\code_agent\runtime\tests
+copying src\code_agent\runtime\tests\test_local_process.py -> build\lib\code_agent\runtime\tests
+copying src\code_agent\runtime\tests\test_models.py -> build\lib\code_agent\runtime\tests
+copying src\code_agent\runtime\tests\test_output_codec.py -> build\lib\code_agent\runtime\tests
+copying src\code_agent\runtime\tests\test_powershell.py -> build\lib\code_agent\runtime\tests
+copying src\code_agent\runtime\tests\test_powershell_encoding.py -> build\lib\code_agent\runtime\tests
+copying src\code_agent\runtime\tests\test_powershell_error_semantics.py -> build\lib\code_agent\runtime\tests
+copying src\code_agent\runtime\tests\test_powershell_exit_status.py -> build\lib\code_agent\runtime\tests
+copying src\code_agent\runtime\tests\test_powershell_runtime.py -> build\lib\code_agent\runtime\tests
+copying src\code_agent\runtime\tests\test_powershell_wrapper_scope.py -> build\lib\code_agent\runtime\tests
+copying src\code_agent\runtime\tests\test_shell_models.py -> build\lib\code_agent\runtime\tests
+copying src\code_agent\runtime\tests\test_windows_job.py -> build\lib\code_agent\runtime\tests
+copying src\code_agent\runtime\tests\test_windows_job_cancellation.py -> build\lib\code_agent\runtime\tests
+copying src\code_agent\runtime\tests\test_windows_job_lifecycle.py -> build\lib\code_agent\runtime\tests
+copying src\code_agent\runtime\tests\test_windows_spawn.py -> build\lib\code_agent\runtime\tests
+copying src\code_agent\runtime\tests\_local_test_support.py -> build\lib\code_agent\runtime\tests
+copying src\code_agent\runtime\tests\_windows_job_support.py -> build\lib\code_agent\runtime\tests
+creating build\lib\code_agent\semantic_insights\tests
+copying src\code_agent\semantic_insights\tests\test_boundaries.py -> build\lib\code_agent\semantic_insights\tests
+copying src\code_agent\semantic_insights\tests\test_service.py -> build\lib\code_agent\semantic_insights\tests
+copying src\code_agent\semantic_insights\tests\__init__.py -> build\lib\code_agent\semantic_insights\tests
+copying src\code_agent\sessions\tests\test_concurrency.py -> build\lib\code_agent\sessions\tests
+copying src\code_agent\sessions\tests\test_database_cancellation.py -> build\lib\code_agent\sessions\tests
+copying src\code_agent\sessions\tests\test_database_cancellation_regressions.py -> build\lib\code_agent\sessions\tests
+copying src\code_agent\sessions\tests\test_edit_batches.py -> build\lib\code_agent\sessions\tests
+copying src\code_agent\sessions\tests\test_edit_batch_api_validation.py -> build\lib\code_agent\sessions\tests
+copying src\code_agent\sessions\tests\test_edit_batch_checkpoint_gate.py -> build\lib\code_agent\sessions\tests
+copying src\code_agent\sessions\tests\test_edit_batch_legacy_terminal.py -> build\lib\code_agent\sessions\tests
+copying src\code_agent\sessions\tests\test_edit_batch_migrations.py -> build\lib\code_agent\sessions\tests
+copying src\code_agent\sessions\tests\test_edit_batch_models.py -> build\lib\code_agent\sessions\tests
+copying src\code_agent\sessions\tests\test_legacy_migration_concurrency.py -> build\lib\code_agent\sessions\tests
+copying src\code_agent\sessions\tests\test_legacy_migration_finalization.py -> build\lib\code_agent\sessions\tests
+copying src\code_agent\sessions\tests\test_legacy_publication_identity.py -> build\lib\code_agent\sessions\tests
+copying src\code_agent\sessions\tests\test_migrations.py -> build\lib\code_agent\sessions\tests
+copying src\code_agent\sessions\tests\test_repository.py -> build\lib\code_agent\sessions\tests
+copying src\code_agent\sessions\tests\test_schema_structure.py -> build\lib\code_agent\sessions\tests
+copying src\code_agent\sessions\tests\test_task_followups.py -> build\lib\code_agent\sessions\tests
+copying src\code_agent\sessions\tests\_migration_test_support.py -> build\lib\code_agent\sessions\tests
+copying src\code_agent\thread_intelligence\tests\test_context_builder.py -> build\lib\code_agent\thread_intelligence\tests
+copying src\code_agent\verification\tests\test_command_invalidation.py -> build\lib\code_agent\verification\tests
+copying src\code_agent\verification\tests\test_logical_change.py -> build\lib\code_agent\verification\tests
+copying src\code_agent\verification\tests\test_planner.py -> build\lib\code_agent\verification\tests
+copying src\code_agent\verification\tests\test_registry.py -> build\lib\code_agent\verification\tests
+copying src\code_agent\verification\tests\test_semantic_graph_planner.py -> build\lib\code_agent\verification\tests
+copying src\code_agent\workspace\tests\test_batch_code_slices.py -> build\lib\code_agent\workspace\tests
+copying src\code_agent\workspace\tests\test_batch_edits.py -> build\lib\code_agent\workspace\tests
+copying src\code_agent\workspace\tests\test_batch_hardening.py -> build\lib\code_agent\workspace\tests
+copying src\code_agent\workspace\tests\test_batch_observation_failures.py -> build\lib\code_agent\workspace\tests
+copying src\code_agent\workspace\tests\test_batch_recovery.py -> build\lib\code_agent\workspace\tests
+copying src\code_agent\workspace\tests\test_edits.py -> build\lib\code_agent\workspace\tests
+copying src\code_agent\workspace\tests\test_files_listing.py -> build\lib\code_agent\workspace\tests
+copying src\code_agent\workspace\tests\test_files_text.py -> build\lib\code_agent\workspace\tests
+copying src\code_agent\workspace\tests\test_git.py -> build\lib\code_agent\workspace\tests
+copying src\code_agent\workspace\tests\test_git_lock_behavior.py -> build\lib\code_agent\workspace\tests
+copying src\code_agent\workspace\tests\test_git_snapshot_safety.py -> build\lib\code_agent\workspace\tests
+copying src\code_agent\workspace\tests\test_ignore_encoding.py -> build\lib\code_agent\workspace\tests
+copying src\code_agent\workspace\tests\test_inventory.py -> build\lib\code_agent\workspace\tests
+copying src\code_agent\workspace\tests\test_restore_security.py -> build\lib\code_agent\workspace\tests
+copying src\code_agent\workspace\tests\test_restore_topology.py -> build\lib\code_agent\workspace\tests
+copying src\code_agent\workspace\tests\test_secure_io.py -> build\lib\code_agent\workspace\tests
+copying src\code_agent\workspace\tests\test_snapshot_store_integrity.py -> build\lib\code_agent\workspace\tests
+copying src\code_agent\workspace\tests\test_temp_cleanup.py -> build\lib\code_agent\workspace\tests
+copying src\code_agent\workspace\tests\test_text_format.py -> build\lib\code_agent\workspace\tests
+copying src\code_agent\workspace\tests\test_windows_batch_move.py -> build\lib\code_agent\workspace\tests
+copying src\code_agent\workspace\tests\test_windows_edit_cas.py -> build\lib\code_agent\workspace\tests
+copying src\code_agent\workspace\tests\test_windows_file_locks.py -> build\lib\code_agent\workspace\tests
+copying src\code_agent\workspace\tests\test_windows_path_limits.py -> build\lib\code_agent\workspace\tests
+copying src\code_agent\workspace\tests\test_windows_read_locks.py -> build\lib\code_agent\workspace\tests
+copying src\code_agent\workspace\tests\test_windows_replace_failures.py -> build\lib\code_agent\workspace\tests
+copying src\code_agent\workspace\tests\test_windows_replace_identity.py -> build\lib\code_agent\workspace\tests
+copying src\code_agent\workspace\tests\test_windows_worktree_paths.py -> build\lib\code_agent\workspace\tests
+copying src\code_agent\workspace\tests\test_worktree_leases.py -> build\lib\code_agent\workspace\tests
+copying src\code_agent\workspace\tests\test_worktree_security.py -> build\lib\code_agent\workspace\tests
+copying src\code_agent\workspace\tests\_edit_test_support.py -> build\lib\code_agent\workspace\tests
+copying src\code_agent\workspace\tests\_files_test_support.py -> build\lib\code_agent\workspace\tests
+copying code_agent_win\acp_adapter.py -> build\lib\code_agent_win
+copying code_agent_win\acp_cli.py -> build\lib\code_agent_win
+copying code_agent_win\action_dispatcher.py -> build\lib\code_agent_win
+copying code_agent_win\action_support.py -> build\lib\code_agent_win
+copying code_agent_win\agent_modes.py -> build\lib\code_agent_win
+copying code_agent_win\app.py -> build\lib\code_agent_win
+copying code_agent_win\application_context.py -> build\lib\code_agent_win
+copying code_agent_win\application_model.py -> build\lib\code_agent_win
+copying code_agent_win\application_product.py -> build\lib\code_agent_win
+copying code_agent_win\app_factory.py -> build\lib\code_agent_win
+copying code_agent_win\app_models.py -> build\lib\code_agent_win
+copying code_agent_win\app_paths.py -> build\lib\code_agent_win
+copying code_agent_win\app_presentation.py -> build\lib\code_agent_win
+copying code_agent_win\app_ui.py -> build\lib\code_agent_win
+copying code_agent_win\cli.py -> build\lib\code_agent_win
+copying code_agent_win\edit_plan_dispatch.py -> build\lib\code_agent_win
+copying code_agent_win\edit_plan_preview.py -> build\lib\code_agent_win
+copying code_agent_win\edit_plan_results.py -> build\lib\code_agent_win
+copying code_agent_win\edit_plan_store.py -> build\lib\code_agent_win
+copying code_agent_win\edit_plan_tools.py -> build\lib\code_agent_win
+copying code_agent_win\factory_context.py -> build\lib\code_agent_win
+copying code_agent_win\factory_host.py -> build\lib\code_agent_win
+copying code_agent_win\foreground_tasks.py -> build\lib\code_agent_win
+copying code_agent_win\foreground_task_observers.py -> build\lib\code_agent_win
+copying code_agent_win\foreground_task_support.py -> build\lib\code_agent_win
+copying code_agent_win\foreground_workspace_setup.py -> build\lib\code_agent_win
+copying code_agent_win\host_composition.py -> build\lib\code_agent_win
+copying code_agent_win\peer_composition.py -> build\lib\code_agent_win
+copying code_agent_win\peer_context.py -> build\lib\code_agent_win
+copying code_agent_win\peer_runtime.py -> build\lib\code_agent_win
+copying code_agent_win\peer_runtime_support.py -> build\lib\code_agent_win
+copying code_agent_win\peer_tools.py -> build\lib\code_agent_win
+copying code_agent_win\permission_dispatch.py -> build\lib\code_agent_win
+copying code_agent_win\process_actions.py -> build\lib\code_agent_win
+copying code_agent_win\restricted_dispatcher.py -> build\lib\code_agent_win
+copying code_agent_win\rewind_capture.py -> build\lib\code_agent_win
+copying code_agent_win\rewind_capture_support.py -> build\lib\code_agent_win
+copying code_agent_win\rewind_edit_async.py -> build\lib\code_agent_win
+copying code_agent_win\rewind_edit_batch.py -> build\lib\code_agent_win
+copying code_agent_win\rewind_edit_batch_models.py -> build\lib\code_agent_win
+copying code_agent_win\rewind_sessions.py -> build\lib\code_agent_win
+copying code_agent_win\runtime_client_cleanup.py -> build\lib\code_agent_win
+copying code_agent_win\runtime_controls.py -> build\lib\code_agent_win
+copying code_agent_win\runtime_dispatcher_factory.py -> build\lib\code_agent_win
+copying code_agent_win\runtime_extensions.py -> build\lib\code_agent_win
+copying code_agent_win\runtime_provider_controls.py -> build\lib\code_agent_win
+copying code_agent_win\runtime_selection_control.py -> build\lib\code_agent_win
+copying code_agent_win\runtime_support.py -> build\lib\code_agent_win
+copying code_agent_win\semantic_insights.py -> build\lib\code_agent_win
+copying code_agent_win\stdio.py -> build\lib\code_agent_win
+copying code_agent_win\subagents.py -> build\lib\code_agent_win
+copying code_agent_win\system_diagnostics.py -> build\lib\code_agent_win
+copying code_agent_win\task_dispatcher.py -> build\lib\code_agent_win
+copying code_agent_win\task_verification.py -> build\lib\code_agent_win
+copying code_agent_win\tools.py -> build\lib\code_agent_win
+copying code_agent_win\tool_schema.py -> build\lib\code_agent_win
+copying code_agent_win\tool_support.py -> build\lib\code_agent_win
+copying code_agent_win\ui_composition.py -> build\lib\code_agent_win
+copying code_agent_win\ui_runtime_composition.py -> build\lib\code_agent_win
+copying code_agent_win\verification_action.py -> build\lib\code_agent_win
+copying code_agent_win\windows_storage_paths.py -> build\lib\code_agent_win
+copying code_agent_win\workspace_actions.py -> build\lib\code_agent_win
+copying code_agent_win\workspace_edit_planning.py -> build\lib\code_agent_win
+copying code_agent_win\workspace_mutation_pool.py -> build\lib\code_agent_win
+copying code_agent_win\workspace_preparation.py -> build\lib\code_agent_win
+copying code_agent_win\workspace_runtime.py -> build\lib\code_agent_win
+copying code_agent_win\workspace_service_factory.py -> build\lib\code_agent_win
+copying code_agent_win\workspace_session_router.py -> build\lib\code_agent_win
+copying code_agent_win\workspace_startup_recovery.py -> build\lib\code_agent_win
+running egg_info
+writing src\chaos_agent.egg-info\PKG-INFO
+writing dependency_links to src\chaos_agent.egg-info\dependency_links.txt
+writing entry points to src\chaos_agent.egg-info\entry_points.txt
+writing requirements to src\chaos_agent.egg-info\requires.txt
+writing top-level names to src\chaos_agent.egg-info\top_level.txt
+reading manifest file 'src\chaos_agent.egg-info\SOURCES.txt'
+adding license file 'LICENSE'
+writing manifest file 'src\chaos_agent.egg-info\SOURCES.txt'
+installing to build\bdist.win-amd64\wheel
+running install
+running install_lib
+creating build\bdist.win-amd64\wheel
+creating build\bdist.win-amd64\wheel\code_agent
+creating build\bdist.win-amd64\wheel\code_agent\acp
+copying build\lib\code_agent\acp\adapter.py -> build\bdist.win-amd64\wheel\.\code_agent\acp
+copying build\lib\code_agent\acp\content.py -> build\bdist.win-amd64\wheel\.\code_agent\acp
+copying build\lib\code_agent\acp\event_bridge.py -> build\bdist.win-amd64\wheel\.\code_agent\acp
+copying build\lib\code_agent\acp\session_permissions.py -> build\bdist.win-amd64\wheel\.\code_agent\acp
+creating build\bdist.win-amd64\wheel\code_agent\acp\tests
+copying build\lib\code_agent\acp\tests\test_adapter.py -> build\bdist.win-amd64\wheel\.\code_agent\acp\tests
+copying build\lib\code_agent\acp\tests\__init__.py -> build\bdist.win-amd64\wheel\.\code_agent\acp\tests
+copying build\lib\code_agent\acp\__init__.py -> build\bdist.win-amd64\wheel\.\code_agent\acp
+creating build\bdist.win-amd64\wheel\code_agent\attachments
+copying build\lib\code_agent\attachments\clipboard.py -> build\bdist.win-amd64\wheel\.\code_agent\attachments
+copying build\lib\code_agent\attachments\errors.py -> build\bdist.win-amd64\wheel\.\code_agent\attachments
+copying build\lib\code_agent\attachments\ingest.py -> build\bdist.win-amd64\wheel\.\code_agent\attachments
+copying build\lib\code_agent\attachments\limits.py -> build\bdist.win-amd64\wheel\.\code_agent\attachments
+copying build\lib\code_agent\attachments\security.py -> build\bdist.win-amd64\wheel\.\code_agent\attachments
+copying build\lib\code_agent\attachments\store.py -> build\bdist.win-amd64\wheel\.\code_agent\attachments
+creating build\bdist.win-amd64\wheel\code_agent\attachments\tests
+copying build\lib\code_agent\attachments\tests\test_attachments.py -> build\bdist.win-amd64\wheel\.\code_agent\attachments\tests
+copying build\lib\code_agent\attachments\tests\test_publication_finalization.py -> build\bdist.win-amd64\wheel\.\code_agent\attachments\tests
+copying build\lib\code_agent\attachments\tests\test_publication_identity.py -> build\bdist.win-amd64\wheel\.\code_agent\attachments\tests
+copying build\lib\code_agent\attachments\tests\test_store_concurrency.py -> build\bdist.win-amd64\wheel\.\code_agent\attachments\tests
+copying build\lib\code_agent\attachments\tests\__init__.py -> build\bdist.win-amd64\wheel\.\code_agent\attachments\tests
+copying build\lib\code_agent\attachments\__init__.py -> build\bdist.win-amd64\wheel\.\code_agent\attachments
+creating build\bdist.win-amd64\wheel\code_agent\capabilities
+copying build\lib\code_agent\capabilities\catalog.py -> build\bdist.win-amd64\wheel\.\code_agent\capabilities
+creating build\bdist.win-amd64\wheel\code_agent\capabilities\tests
+copying build\lib\code_agent\capabilities\tests\test_catalog.py -> build\bdist.win-amd64\wheel\.\code_agent\capabilities\tests
+copying build\lib\code_agent\capabilities\__init__.py -> build\bdist.win-amd64\wheel\.\code_agent\capabilities
+creating build\bdist.win-amd64\wheel\code_agent\checkpoints
+copying build\lib\code_agent\checkpoints\locks.py -> build\bdist.win-amd64\wheel\.\code_agent\checkpoints
+copying build\lib\code_agent\checkpoints\models.py -> build\bdist.win-amd64\wheel\.\code_agent\checkpoints
+copying build\lib\code_agent\checkpoints\ports.py -> build\bdist.win-amd64\wheel\.\code_agent\checkpoints
+copying build\lib\code_agent\checkpoints\rewind.py -> build\bdist.win-amd64\wheel\.\code_agent\checkpoints
+copying build\lib\code_agent\checkpoints\service.py -> build\bdist.win-amd64\wheel\.\code_agent\checkpoints
+creating build\bdist.win-amd64\wheel\code_agent\checkpoints\tests
+copying build\lib\code_agent\checkpoints\tests\test_rewind.py -> build\bdist.win-amd64\wheel\.\code_agent\checkpoints\tests
+copying build\lib\code_agent\checkpoints\tests\test_service.py -> build\bdist.win-amd64\wheel\.\code_agent\checkpoints\tests
+copying build\lib\code_agent\checkpoints\tests\_support.py -> build\bdist.win-amd64\wheel\.\code_agent\checkpoints\tests
+copying build\lib\code_agent\checkpoints\tests\__init__.py -> build\bdist.win-amd64\wheel\.\code_agent\checkpoints\tests
+copying build\lib\code_agent\checkpoints\_rewind_recovery.py -> build\bdist.win-amd64\wheel\.\code_agent\checkpoints
+creating build\bdist.win-amd64\wheel\code_agent\config
+copying build\lib\code_agent\config\capability_strategy.py -> build\bdist.win-amd64\wheel\.\code_agent\config
+copying build\lib\code_agent\config\loader.py -> build\bdist.win-amd64\wheel\.\code_agent\config
+creating build\bdist.win-amd64\wheel\code_agent\config\tests
+copying build\lib\code_agent\config\tests\test_capability_strategy.py -> build\bdist.win-amd64\wheel\.\code_agent\config\tests
+copying build\lib\code_agent\config\tests\test_input_modalities.py -> build\bdist.win-amd64\wheel\.\code_agent\config\tests
+copying build\lib\code_agent\config\tests\test_loader.py -> build\bdist.win-amd64\wheel\.\code_agent\config\tests
+copying build\lib\code_agent\config\tests\test_powershell_dialect.py -> build\bdist.win-amd64\wheel\.\code_agent\config\tests
+copying build\lib\code_agent\config\tests\test_windows_config_paths.py -> build\bdist.win-amd64\wheel\.\code_agent\config\tests
+copying build\lib\code_agent\config\_environment.py -> build\bdist.win-amd64\wheel\.\code_agent\config
+creating build\bdist.win-amd64\wheel\code_agent\context
+copying build\lib\code_agent\context\attachment_budget.py -> build\bdist.win-amd64\wheel\.\code_agent\context
+copying build\lib\code_agent\context\budget.py -> build\bdist.win-amd64\wheel\.\code_agent\context
+copying build\lib\code_agent\context\builder.py -> build\bdist.win-amd64\wheel\.\code_agent\context
+copying build\lib\code_agent\context\cache.py -> build\bdist.win-amd64\wheel\.\code_agent\context
+copying build\lib\code_agent\context\compaction.py -> build\bdist.win-amd64\wheel\.\code_agent\context
+copying build\lib\code_agent\context\errors.py -> build\bdist.win-amd64\wheel\.\code_agent\context
+copying build\lib\code_agent\context\evidence.py -> build\bdist.win-amd64\wheel\.\code_agent\context
+copying build\lib\code_agent\context\models.py -> build\bdist.win-amd64\wheel\.\code_agent\context
+copying build\lib\code_agent\context\repo_index.py -> build\bdist.win-amd64\wheel\.\code_agent\context
+copying build\lib\code_agent\context\repo_map.py -> build\bdist.win-amd64\wheel\.\code_agent\context
+copying build\lib\code_agent\context\repo_paths.py -> build\bdist.win-amd64\wheel\.\code_agent\context
+copying build\lib\code_agent\context\repo_python_semantics.py -> build\bdist.win-amd64\wheel\.\code_agent\context
+copying build\lib\code_agent\context\repo_query.py -> build\bdist.win-amd64\wheel\.\code_agent\context
+copying build\lib\code_agent\context\repo_ranking.py -> build\bdist.win-amd64\wheel\.\code_agent\context
+copying build\lib\code_agent\context\repo_scan.py -> build\bdist.win-amd64\wheel\.\code_agent\context
+copying build\lib\code_agent\context\repo_search.py -> build\bdist.win-amd64\wheel\.\code_agent\context
+copying build\lib\code_agent\context\repo_search_documents.py -> build\bdist.win-amd64\wheel\.\code_agent\context
+copying build\lib\code_agent\context\repo_search_sql.py -> build\bdist.win-amd64\wheel\.\code_agent\context
+copying build\lib\code_agent\context\repo_semantic_graph.py -> build\bdist.win-amd64\wheel\.\code_agent\context
+copying build\lib\code_agent\context\repo_snapshot.py -> build\bdist.win-amd64\wheel\.\code_agent\context
+copying build\lib\code_agent\context\repo_tiered_context.py -> build\bdist.win-amd64\wheel\.\code_agent\context
+copying build\lib\code_agent\context\rules.py -> build\bdist.win-amd64\wheel\.\code_agent\context
+copying build\lib\code_agent\context\semantic.py -> build\bdist.win-amd64\wheel\.\code_agent\context
+copying build\lib\code_agent\context\task_state.py -> build\bdist.win-amd64\wheel\.\code_agent\context
+creating build\bdist.win-amd64\wheel\code_agent\context\tests
+copying build\lib\code_agent\context\tests\test_attachment_budget.py -> build\bdist.win-amd64\wheel\.\code_agent\context\tests
+copying build\lib\code_agent\context\tests\test_budget.py -> build\bdist.win-amd64\wheel\.\code_agent\context\tests
+copying build\lib\code_agent\context\tests\test_builder.py -> build\bdist.win-amd64\wheel\.\code_agent\context\tests
+copying build\lib\code_agent\context\tests\test_compaction.py -> build\bdist.win-amd64\wheel\.\code_agent\context\tests
+copying build\lib\code_agent\context\tests\test_evidence.py -> build\bdist.win-amd64\wheel\.\code_agent\context\tests
+copying build\lib\code_agent\context\tests\test_models_tokens.py -> build\bdist.win-amd64\wheel\.\code_agent\context\tests
+copying build\lib\code_agent\context\tests\test_repo_index.py -> build\bdist.win-amd64\wheel\.\code_agent\context\tests
+copying build\lib\code_agent\context\tests\test_repo_map.py -> build\bdist.win-amd64\wheel\.\code_agent\context\tests
+copying build\lib\code_agent\context\tests\test_repo_paths.py -> build\bdist.win-amd64\wheel\.\code_agent\context\tests
+copying build\lib\code_agent\context\tests\test_repo_python_semantics.py -> build\bdist.win-amd64\wheel\.\code_agent\context\tests
+copying build\lib\code_agent\context\tests\test_repo_query.py -> build\bdist.win-amd64\wheel\.\code_agent\context\tests
+copying build\lib\code_agent\context\tests\test_repo_ranking.py -> build\bdist.win-amd64\wheel\.\code_agent\context\tests
+copying build\lib\code_agent\context\tests\test_repo_scan.py -> build\bdist.win-amd64\wheel\.\code_agent\context\tests
+copying build\lib\code_agent\context\tests\test_repo_search.py -> build\bdist.win-amd64\wheel\.\code_agent\context\tests
+copying build\lib\code_agent\context\tests\test_repo_search_documents.py -> build\bdist.win-amd64\wheel\.\code_agent\context\tests
+copying build\lib\code_agent\context\tests\test_repo_semantic_graph.py -> build\bdist.win-amd64\wheel\.\code_agent\context\tests
+copying build\lib\code_agent\context\tests\test_repo_tiered_context.py -> build\bdist.win-amd64\wheel\.\code_agent\context\tests
+copying build\lib\code_agent\context\tests\test_repo_view.py -> build\bdist.win-amd64\wheel\.\code_agent\context\tests
+copying build\lib\code_agent\context\tests\test_rules.py -> build\bdist.win-amd64\wheel\.\code_agent\context\tests
+copying build\lib\code_agent\context\tests\test_semantic_builder.py -> build\bdist.win-amd64\wheel\.\code_agent\context\tests
+copying build\lib\code_agent\context\tests\test_semantic_cancellation.py -> build\bdist.win-amd64\wheel\.\code_agent\context\tests
+copying build\lib\code_agent\context\tests\test_task_state.py -> build\bdist.win-amd64\wheel\.\code_agent\context\tests
+copying build\lib\code_agent\context\tests\test_tiered_repo_map_runtime.py -> build\bdist.win-amd64\wheel\.\code_agent\context\tests
+copying build\lib\code_agent\context\tokens.py -> build\bdist.win-amd64\wheel\.\code_agent\context
+copying build\lib\code_agent\context\_builder_support.py -> build\bdist.win-amd64\wheel\.\code_agent\context
+copying build\lib\code_agent\context\_compaction_render.py -> build\bdist.win-amd64\wheel\.\code_agent\context
+creating build\bdist.win-amd64\wheel\code_agent\core
+copying build\lib\code_agent\core\action_execution.py -> build\bdist.win-amd64\wheel\.\code_agent\core
+copying build\lib\code_agent\core\attachments.py -> build\bdist.win-amd64\wheel\.\code_agent\core
+copying build\lib\code_agent\core\cancellation.py -> build\bdist.win-amd64\wheel\.\code_agent\core
+copying build\lib\code_agent\core\completion_contract.py -> build\bdist.win-amd64\wheel\.\code_agent\core
+copying build\lib\code_agent\core\context_request.py -> build\bdist.win-amd64\wheel\.\code_agent\core
+copying build\lib\code_agent\core\engine.py -> build\bdist.win-amd64\wheel\.\code_agent\core
+copying build\lib\code_agent\core\engine_actions.py -> build\bdist.win-amd64\wheel\.\code_agent\core
+copying build\lib\code_agent\core\engine_completion.py -> build\bdist.win-amd64\wheel\.\code_agent\core
+copying build\lib\code_agent\core\engine_turn_feedback.py -> build\bdist.win-amd64\wheel\.\code_agent\core
+copying build\lib\code_agent\core\errors.py -> build\bdist.win-amd64\wheel\.\code_agent\core
+copying build\lib\code_agent\core\events.py -> build\bdist.win-amd64\wheel\.\code_agent\core
+copying build\lib\code_agent\core\limits.py -> build\bdist.win-amd64\wheel\.\code_agent\core
+copying build\lib\code_agent\core\models.py -> build\bdist.win-amd64\wheel\.\code_agent\core
+copying build\lib\code_agent\core\protocols.py -> build\bdist.win-amd64\wheel\.\code_agent\core
+copying build\lib\code_agent\core\task.py -> build\bdist.win-amd64\wheel\.\code_agent\core
+copying build\lib\code_agent\core\task_intent.py -> build\bdist.win-amd64\wheel\.\code_agent\core
+copying build\lib\code_agent\core\task_state.py -> build\bdist.win-amd64\wheel\.\code_agent\core
+copying build\lib\code_agent\core\task_supervisor.py -> build\bdist.win-amd64\wheel\.\code_agent\core
+copying build\lib\code_agent\core\task_verification.py -> build\bdist.win-amd64\wheel\.\code_agent\core
+creating build\bdist.win-amd64\wheel\code_agent\core\tests
+copying build\lib\code_agent\core\tests\test_action_execution.py -> build\bdist.win-amd64\wheel\.\code_agent\core\tests
+copying build\lib\code_agent\core\tests\test_cancellation.py -> build\bdist.win-amd64\wheel\.\code_agent\core\tests
+copying build\lib\code_agent\core\tests\test_command_facts.py -> build\bdist.win-amd64\wheel\.\code_agent\core\tests
+copying build\lib\code_agent\core\tests\test_completion_contract.py -> build\bdist.win-amd64\wheel\.\code_agent\core\tests
+copying build\lib\code_agent\core\tests\test_completion_idle.py -> build\bdist.win-amd64\wheel\.\code_agent\core\tests
+copying build\lib\code_agent\core\tests\test_context_builder_invocation.py -> build\bdist.win-amd64\wheel\.\code_agent\core\tests
+copying build\lib\code_agent\core\tests\test_engine_action_lineage.py -> build\bdist.win-amd64\wheel\.\code_agent\core\tests
+copying build\lib\code_agent\core\tests\test_engine_limits.py -> build\bdist.win-amd64\wheel\.\code_agent\core\tests
+copying build\lib\code_agent\core\tests\test_engine_run.py -> build\bdist.win-amd64\wheel\.\code_agent\core\tests
+copying build\lib\code_agent\core\tests\test_engine_run_context.py -> build\bdist.win-amd64\wheel\.\code_agent\core\tests
+copying build\lib\code_agent\core\tests\test_engine_run_state.py -> build\bdist.win-amd64\wheel\.\code_agent\core\tests
+copying build\lib\code_agent\core\tests\test_engine_tools.py -> build\bdist.win-amd64\wheel\.\code_agent\core\tests
+copying build\lib\code_agent\core\tests\test_engine_tool_disclosures.py -> build\bdist.win-amd64\wheel\.\code_agent\core\tests
+copying build\lib\code_agent\core\tests\test_events.py -> build\bdist.win-amd64\wheel\.\code_agent\core\tests
+copying build\lib\code_agent\core\tests\test_models.py -> build\bdist.win-amd64\wheel\.\code_agent\core\tests
+copying build\lib\code_agent\core\tests\test_multimodal.py -> build\bdist.win-amd64\wheel\.\code_agent\core\tests
+copying build\lib\code_agent\core\tests\test_protocols.py -> build\bdist.win-amd64\wheel\.\code_agent\core\tests
+copying build\lib\code_agent\core\tests\test_task.py -> build\bdist.win-amd64\wheel\.\code_agent\core\tests
+copying build\lib\code_agent\core\tests\test_task_state.py -> build\bdist.win-amd64\wheel\.\code_agent\core\tests
+copying build\lib\code_agent\core\tests\test_task_supervisor.py -> build\bdist.win-amd64\wheel\.\code_agent\core\tests
+copying build\lib\code_agent\core\tests\test_verification_state.py -> build\bdist.win-amd64\wheel\.\code_agent\core\tests
+copying build\lib\code_agent\core\tests\_engine_support.py -> build\bdist.win-amd64\wheel\.\code_agent\core\tests
+copying build\lib\code_agent\core\validation_feedback.py -> build\bdist.win-amd64\wheel\.\code_agent\core
+copying build\lib\code_agent\core\verification_state.py -> build\bdist.win-amd64\wheel\.\code_agent\core
+copying build\lib\code_agent\core\_action_models.py -> build\bdist.win-amd64\wheel\.\code_agent\core
+copying build\lib\code_agent\core\_engine_run.py -> build\bdist.win-amd64\wheel\.\code_agent\core
+copying build\lib\code_agent\core\_engine_turn.py -> build\bdist.win-amd64\wheel\.\code_agent\core
+copying build\lib\code_agent\core\_json.py -> build\bdist.win-amd64\wheel\.\code_agent\core
+copying build\lib\code_agent\core\_session_io.py -> build\bdist.win-amd64\wheel\.\code_agent\core
+copying build\lib\code_agent\core\_tool_disclosure.py -> build\bdist.win-amd64\wheel\.\code_agent\core
+copying build\lib\code_agent\core\_tool_feedback.py -> build\bdist.win-amd64\wheel\.\code_agent\core
+creating build\bdist.win-amd64\wheel\code_agent\evaluation
+copying build\lib\code_agent\evaluation\benchmark.py -> build\bdist.win-amd64\wheel\.\code_agent\evaluation
+copying build\lib\code_agent\evaluation\catalog.py -> build\bdist.win-amd64\wheel\.\code_agent\evaluation
+copying build\lib\code_agent\evaluation\fingerprint.py -> build\bdist.win-amd64\wheel\.\code_agent\evaluation
+copying build\lib\code_agent\evaluation\fixtures.py -> build\bdist.win-amd64\wheel\.\code_agent\evaluation
+copying build\lib\code_agent\evaluation\fixture_languages.py -> build\bdist.win-amd64\wheel\.\code_agent\evaluation
+copying build\lib\code_agent\evaluation\gates.py -> build\bdist.win-amd64\wheel\.\code_agent\evaluation
+copying build\lib\code_agent\evaluation\grader.py -> build\bdist.win-amd64\wheel\.\code_agent\evaluation
+copying build\lib\code_agent\evaluation\models.py -> build\bdist.win-amd64\wheel\.\code_agent\evaluation
+copying build\lib\code_agent\evaluation\observation.py -> build\bdist.win-amd64\wheel\.\code_agent\evaluation
+copying build\lib\code_agent\evaluation\paths.py -> build\bdist.win-amd64\wheel\.\code_agent\evaluation
+copying build\lib\code_agent\evaluation\process_executor.py -> build\bdist.win-amd64\wheel\.\code_agent\evaluation
+copying build\lib\code_agent\evaluation\report.py -> build\bdist.win-amd64\wheel\.\code_agent\evaluation
+copying build\lib\code_agent\evaluation\runner.py -> build\bdist.win-amd64\wheel\.\code_agent\evaluation
+copying build\lib\code_agent\evaluation\runner_evidence.py -> build\bdist.win-amd64\wheel\.\code_agent\evaluation
+copying build\lib\code_agent\evaluation\runner_types.py -> build\bdist.win-amd64\wheel\.\code_agent\evaluation
+copying build\lib\code_agent\evaluation\sandbox.py -> build\bdist.win-amd64\wheel\.\code_agent\evaluation
+creating build\bdist.win-amd64\wheel\code_agent\evaluation\tests
+copying build\lib\code_agent\evaluation\tests\helpers.py -> build\bdist.win-amd64\wheel\.\code_agent\evaluation\tests
+copying build\lib\code_agent\evaluation\tests\test_adversarial_hardening.py -> build\bdist.win-amd64\wheel\.\code_agent\evaluation\tests
+copying build\lib\code_agent\evaluation\tests\test_benchmark_gates.py -> build\bdist.win-amd64\wheel\.\code_agent\evaluation\tests
+copying build\lib\code_agent\evaluation\tests\test_catalog_realism.py -> build\bdist.win-amd64\wheel\.\code_agent\evaluation\tests
+copying build\lib\code_agent\evaluation\tests\test_runner_grader.py -> build\bdist.win-amd64\wheel\.\code_agent\evaluation\tests
+copying build\lib\code_agent\evaluation\trace.py -> build\bdist.win-amd64\wheel\.\code_agent\evaluation
+copying build\lib\code_agent\evaluation\verifier.py -> build\bdist.win-amd64\wheel\.\code_agent\evaluation
+creating build\bdist.win-amd64\wheel\code_agent\interfaces
+copying build\lib\code_agent\interfaces\action_summary.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\agent_status.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\approval.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\approval_card.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\attachment_input.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\capability_view.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\checkpoint_commands.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\checkpoint_control.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\checkpoint_tui.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\checkpoint_tui_render.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\commands.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\command_availability.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\command_navigation.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\command_palette.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\command_registry.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\controller.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\cost_control.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\diagnostic_view.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\diff_feedback.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\diff_interaction.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\diff_interaction_render.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\diff_view.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\edit_plan_approval_tui.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\evidence_view.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\extension_picker.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\history.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\i18n.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\input_buffer.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\input_events.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\interaction.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\mode_control.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\permission_control.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\picker.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\picker_panel.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\plugin_picker.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\profile_control.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\rewind_models.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\rewind_view.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\runtime_picker.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\semantic_insight_view.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\status_report.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\steering_view.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\streaming_state.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\task_controller.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\task_mode_control.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\terminal_composer.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\terminal_display.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\terminal_io.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\terminal_legacy_status.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\terminal_markdown.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\terminal_motion.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\terminal_renderer.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\terminal_state.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\terminal_status.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\terminal_style.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\terminal_tail.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\terminal_tail_content.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\terminal_tail_geometry.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\terminal_tail_legacy.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\terminal_theme.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\terminal_transcript_markdown.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\terminal_welcome.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+creating build\bdist.win-amd64\wheel\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_attachment_input.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_attachment_tui.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_checkpoint_control.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_checkpoint_tui_safety.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_commands.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_command_navigation.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_controller.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_cost_control.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_diff_interaction.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_diff_interaction_edges.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_diff_view.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_diff_view_malformed.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_edit_plan_approval.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_evidence_view.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_extension_controls.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_extension_picker_hierarchy.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_history.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_i18n.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_interaction_v2.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_mode_control.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_multi_image_paste.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_partial_answer_rendering.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_permission_control.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_profile_control.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_rewind_candidates.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_rewind_candidate_view.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_rewind_models.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_rewind_preview_models.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_rewind_view.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_runtime_capability_view.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_runtime_peer_commands.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_runtime_status_surface.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_semantic_insight_commands.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_startup_responsiveness.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_steering_view.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_streaming_final_fixes.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_streaming_tui.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_task_controller.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_terminal_io_paste.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_terminal_renderer.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_terminal_state.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_terminal_tail.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_terminal_themes.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_terminal_title_and_sound.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_token_rate.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_tui_commands.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_tui_permission_commands.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_tui_rewind_boundaries.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_tui_rewind_commands.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_windows_tui.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_windows_tui_commands.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_windows_tui_input.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_windows_tui_interaction.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_windows_tui_rendering.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_windows_tui_tasks.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\test_workflow_view.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\tests\_support.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces\tests
+copying build\lib\code_agent\interfaces\theme_preview.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\theme_preview_page.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\token_rate.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\tui_active_input.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\tui_attachment_commands.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\tui_builtin_commands.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\tui_commands.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\tui_command_dispatch.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\tui_diff_commands.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\tui_display_commands.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\tui_general_commands.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\tui_input.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\tui_interactions.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\tui_lifecycle.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\tui_mcp_commands.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\tui_peer_turn.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\tui_permission_commands.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\tui_plugin_commands.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\tui_presentation.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\tui_protocols.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\tui_rewind_commands.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\tui_run.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\tui_runtime_commands.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\tui_semantic_insight_commands.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\tui_session_commands.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\tui_skill_commands.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\tui_submission.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\tui_theme_commands.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\tui_workflow_commands.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\windows_tui.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\workflow_view.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\_command_models.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\_command_specs.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\_diff_parser.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\_rewind_candidate_models.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+copying build\lib\code_agent\interfaces\_rewind_model_validation.py -> build\bdist.win-amd64\wheel\.\code_agent\interfaces
+creating build\bdist.win-amd64\wheel\code_agent\mcp
+copying build\lib\code_agent\mcp\official_sdk.py -> build\bdist.win-amd64\wheel\.\code_agent\mcp
+copying build\lib\code_agent\mcp\registry.py -> build\bdist.win-amd64\wheel\.\code_agent\mcp
+copying build\lib\code_agent\mcp\stdio_manager.py -> build\bdist.win-amd64\wheel\.\code_agent\mcp
+creating build\bdist.win-amd64\wheel\code_agent\mcp\tests
+copying build\lib\code_agent\mcp\tests\sdk_fixture_server.py -> build\bdist.win-amd64\wheel\.\code_agent\mcp\tests
+copying build\lib\code_agent\mcp\tests\test_registry.py -> build\bdist.win-amd64\wheel\.\code_agent\mcp\tests
+copying build\lib\code_agent\mcp\tests\test_snapshot.py -> build\bdist.win-amd64\wheel\.\code_agent\mcp\tests
+copying build\lib\code_agent\mcp\tests\test_stdio_manager.py -> build\bdist.win-amd64\wheel\.\code_agent\mcp\tests
+creating build\bdist.win-amd64\wheel\code_agent\orchestration
+copying build\lib\code_agent\orchestration\budget.py -> build\bdist.win-amd64\wheel\.\code_agent\orchestration
+copying build\lib\code_agent\orchestration\codec.py -> build\bdist.win-amd64\wheel\.\code_agent\orchestration
+copying build\lib\code_agent\orchestration\models.py -> build\bdist.win-amd64\wheel\.\code_agent\orchestration
+copying build\lib\code_agent\orchestration\modes.py -> build\bdist.win-amd64\wheel\.\code_agent\orchestration
+copying build\lib\code_agent\orchestration\plugin_extensions.py -> build\bdist.win-amd64\wheel\.\code_agent\orchestration
+copying build\lib\code_agent\orchestration\runtime_models.py -> build\bdist.win-amd64\wheel\.\code_agent\orchestration
+copying build\lib\code_agent\orchestration\supervisor.py -> build\bdist.win-amd64\wheel\.\code_agent\orchestration
+creating build\bdist.win-amd64\wheel\code_agent\orchestration\tests
+copying build\lib\code_agent\orchestration\tests\test_budget.py -> build\bdist.win-amd64\wheel\.\code_agent\orchestration\tests
+copying build\lib\code_agent\orchestration\tests\test_modes.py -> build\bdist.win-amd64\wheel\.\code_agent\orchestration\tests
+copying build\lib\code_agent\orchestration\tests\test_supervisor.py -> build\bdist.win-amd64\wheel\.\code_agent\orchestration\tests
+creating build\bdist.win-amd64\wheel\code_agent\peers
+copying build\lib\code_agent\peers\errors.py -> build\bdist.win-amd64\wheel\.\code_agent\peers
+copying build\lib\code_agent\peers\models.py -> build\bdist.win-amd64\wheel\.\code_agent\peers
+copying build\lib\code_agent\peers\service.py -> build\bdist.win-amd64\wheel\.\code_agent\peers
+creating build\bdist.win-amd64\wheel\code_agent\peers\tests
+copying build\lib\code_agent\peers\tests\test_models.py -> build\bdist.win-amd64\wheel\.\code_agent\peers\tests
+copying build\lib\code_agent\peers\tests\test_service.py -> build\bdist.win-amd64\wheel\.\code_agent\peers\tests
+copying build\lib\code_agent\peers\_service_contract.py -> build\bdist.win-amd64\wheel\.\code_agent\peers
+creating build\bdist.win-amd64\wheel\code_agent\plugins
+copying build\lib\code_agent\plugins\commands.py -> build\bdist.win-amd64\wheel\.\code_agent\plugins
+copying build\lib\code_agent\plugins\events.py -> build\bdist.win-amd64\wheel\.\code_agent\plugins
+copying build\lib\code_agent\plugins\manifest.py -> build\bdist.win-amd64\wheel\.\code_agent\plugins
+copying build\lib\code_agent\plugins\models.py -> build\bdist.win-amd64\wheel\.\code_agent\plugins
+copying build\lib\code_agent\plugins\registry.py -> build\bdist.win-amd64\wheel\.\code_agent\plugins
+copying build\lib\code_agent\plugins\runtime.py -> build\bdist.win-amd64\wheel\.\code_agent\plugins
+copying build\lib\code_agent\plugins\status.py -> build\bdist.win-amd64\wheel\.\code_agent\plugins
+creating build\bdist.win-amd64\wheel\code_agent\plugins\tests
+copying build\lib\code_agent\plugins\tests\test_events.py -> build\bdist.win-amd64\wheel\.\code_agent\plugins\tests
+copying build\lib\code_agent\plugins\tests\test_extensions.py -> build\bdist.win-amd64\wheel\.\code_agent\plugins\tests
+copying build\lib\code_agent\plugins\tests\test_host_control.py -> build\bdist.win-amd64\wheel\.\code_agent\plugins\tests
+copying build\lib\code_agent\plugins\tests\test_manifest.py -> build\bdist.win-amd64\wheel\.\code_agent\plugins\tests
+copying build\lib\code_agent\plugins\tests\test_registry.py -> build\bdist.win-amd64\wheel\.\code_agent\plugins\tests
+copying build\lib\code_agent\plugins\tests\test_runtime.py -> build\bdist.win-amd64\wheel\.\code_agent\plugins\tests
+creating build\bdist.win-amd64\wheel\code_agent\policy
+copying build\lib\code_agent\policy\classifier.py -> build\bdist.win-amd64\wheel\.\code_agent\policy
+copying build\lib\code_agent\policy\command_rules.py -> build\bdist.win-amd64\wheel\.\code_agent\policy
+copying build\lib\code_agent\policy\engine.py -> build\bdist.win-amd64\wheel\.\code_agent\policy
+copying build\lib\code_agent\policy\environment.py -> build\bdist.win-amd64\wheel\.\code_agent\policy
+copying build\lib\code_agent\policy\models.py -> build\bdist.win-amd64\wheel\.\code_agent\policy
+creating build\bdist.win-amd64\wheel\code_agent\policy\tests
+copying build\lib\code_agent\policy\tests\test_classifier.py -> build\bdist.win-amd64\wheel\.\code_agent\policy\tests
+copying build\lib\code_agent\policy\tests\test_command_rules.py -> build\bdist.win-amd64\wheel\.\code_agent\policy\tests
+copying build\lib\code_agent\policy\tests\test_command_security.py -> build\bdist.win-amd64\wheel\.\code_agent\policy\tests
+copying build\lib\code_agent\policy\tests\test_edit_plan_policy.py -> build\bdist.win-amd64\wheel\.\code_agent\policy\tests
+copying build\lib\code_agent\policy\tests\test_engine.py -> build\bdist.win-amd64\wheel\.\code_agent\policy\tests
+copying build\lib\code_agent\policy\tests\test_environment.py -> build\bdist.win-amd64\wheel\.\code_agent\policy\tests
+copying build\lib\code_agent\policy\tests\test_path_security.py -> build\bdist.win-amd64\wheel\.\code_agent\policy\tests
+copying build\lib\code_agent\policy\tests\test_structured_process.py -> build\bdist.win-amd64\wheel\.\code_agent\policy\tests
+copying build\lib\code_agent\policy\_command_risk.py -> build\bdist.win-amd64\wheel\.\code_agent\policy
+copying build\lib\code_agent\policy\_path_classification.py -> build\bdist.win-amd64\wheel\.\code_agent\policy
+creating build\bdist.win-amd64\wheel\code_agent\projects
+copying build\lib\code_agent\projects\discovery.py -> build\bdist.win-amd64\wheel\.\code_agent\projects
+creating build\bdist.win-amd64\wheel\code_agent\projects\tests
+copying build\lib\code_agent\projects\tests\test_discovery.py -> build\bdist.win-amd64\wheel\.\code_agent\projects\tests
+creating build\bdist.win-amd64\wheel\code_agent\providers
+copying build\lib\code_agent\providers\anthropic.py -> build\bdist.win-amd64\wheel\.\code_agent\providers
+copying build\lib\code_agent\providers\attachments.py -> build\bdist.win-amd64\wheel\.\code_agent\providers
+copying build\lib\code_agent\providers\config.py -> build\bdist.win-amd64\wheel\.\code_agent\providers
+copying build\lib\code_agent\providers\errors.py -> build\bdist.win-amd64\wheel\.\code_agent\providers
+copying build\lib\code_agent\providers\openai_chat.py -> build\bdist.win-amd64\wheel\.\code_agent\providers
+copying build\lib\code_agent\providers\openai_responses.py -> build\bdist.win-amd64\wheel\.\code_agent\providers
+copying build\lib\code_agent\providers\runtime_manager.py -> build\bdist.win-amd64\wheel\.\code_agent\providers
+copying build\lib\code_agent\providers\sse.py -> build\bdist.win-amd64\wheel\.\code_agent\providers
+creating build\bdist.win-amd64\wheel\code_agent\providers\tests
+copying build\lib\code_agent\providers\tests\test_adapter_limits.py -> build\bdist.win-amd64\wheel\.\code_agent\providers\tests
+copying build\lib\code_agent\providers\tests\test_adapter_safety.py -> build\bdist.win-amd64\wheel\.\code_agent\providers\tests
+copying build\lib\code_agent\providers\tests\test_anthropic.py -> build\bdist.win-amd64\wheel\.\code_agent\providers\tests
+copying build\lib\code_agent\providers\tests\test_config.py -> build\bdist.win-amd64\wheel\.\code_agent\providers\tests
+copying build\lib\code_agent\providers\tests\test_errors.py -> build\bdist.win-amd64\wheel\.\code_agent\providers\tests
+copying build\lib\code_agent\providers\tests\test_multimodal.py -> build\bdist.win-amd64\wheel\.\code_agent\providers\tests
+copying build\lib\code_agent\providers\tests\test_openai_chat.py -> build\bdist.win-amd64\wheel\.\code_agent\providers\tests
+copying build\lib\code_agent\providers\tests\test_openai_responses.py -> build\bdist.win-amd64\wheel\.\code_agent\providers\tests
+copying build\lib\code_agent\providers\tests\test_runtime_manager.py -> build\bdist.win-amd64\wheel\.\code_agent\providers\tests
+copying build\lib\code_agent\providers\tests\test_sse.py -> build\bdist.win-amd64\wheel\.\code_agent\providers\tests
+copying build\lib\code_agent\providers\tests\test_transport.py -> build\bdist.win-amd64\wheel\.\code_agent\providers\tests
+copying build\lib\code_agent\providers\tests\test_transport_retry.py -> build\bdist.win-amd64\wheel\.\code_agent\providers\tests
+copying build\lib\code_agent\providers\transport.py -> build\bdist.win-amd64\wheel\.\code_agent\providers
+copying build\lib\code_agent\providers\_limits.py -> build\bdist.win-amd64\wheel\.\code_agent\providers
+copying build\lib\code_agent\providers\_request_payload.py -> build\bdist.win-amd64\wheel\.\code_agent\providers
+copying build\lib\code_agent\repo_paths.py -> build\bdist.win-amd64\wheel\.\code_agent
+creating build\bdist.win-amd64\wheel\code_agent\runtime
+copying build\lib\code_agent\runtime\docker.py -> build\bdist.win-amd64\wheel\.\code_agent\runtime
+copying build\lib\code_agent\runtime\errors.py -> build\bdist.win-amd64\wheel\.\code_agent\runtime
+copying build\lib\code_agent\runtime\local.py -> build\bdist.win-amd64\wheel\.\code_agent\runtime
+copying build\lib\code_agent\runtime\models.py -> build\bdist.win-amd64\wheel\.\code_agent\runtime
+copying build\lib\code_agent\runtime\output_codec.py -> build\bdist.win-amd64\wheel\.\code_agent\runtime
+creating build\bdist.win-amd64\wheel\code_agent\runtime\tests
+copying build\lib\code_agent\runtime\tests\test_directory_lease.py -> build\bdist.win-amd64\wheel\.\code_agent\runtime\tests
+copying build\lib\code_agent\runtime\tests\test_docker.py -> build\bdist.win-amd64\wheel\.\code_agent\runtime\tests
+copying build\lib\code_agent\runtime\tests\test_local.py -> build\bdist.win-amd64\wheel\.\code_agent\runtime\tests
+copying build\lib\code_agent\runtime\tests\test_local_process.py -> build\bdist.win-amd64\wheel\.\code_agent\runtime\tests
+copying build\lib\code_agent\runtime\tests\test_models.py -> build\bdist.win-amd64\wheel\.\code_agent\runtime\tests
+copying build\lib\code_agent\runtime\tests\test_output_codec.py -> build\bdist.win-amd64\wheel\.\code_agent\runtime\tests
+copying build\lib\code_agent\runtime\tests\test_powershell.py -> build\bdist.win-amd64\wheel\.\code_agent\runtime\tests
+copying build\lib\code_agent\runtime\tests\test_powershell_encoding.py -> build\bdist.win-amd64\wheel\.\code_agent\runtime\tests
+copying build\lib\code_agent\runtime\tests\test_powershell_error_semantics.py -> build\bdist.win-amd64\wheel\.\code_agent\runtime\tests
+copying build\lib\code_agent\runtime\tests\test_powershell_exit_status.py -> build\bdist.win-amd64\wheel\.\code_agent\runtime\tests
+copying build\lib\code_agent\runtime\tests\test_powershell_runtime.py -> build\bdist.win-amd64\wheel\.\code_agent\runtime\tests
+copying build\lib\code_agent\runtime\tests\test_powershell_wrapper_scope.py -> build\bdist.win-amd64\wheel\.\code_agent\runtime\tests
+copying build\lib\code_agent\runtime\tests\test_process_snapshot.py -> build\bdist.win-amd64\wheel\.\code_agent\runtime\tests
+copying build\lib\code_agent\runtime\tests\test_process_termination.py -> build\bdist.win-amd64\wheel\.\code_agent\runtime\tests
+copying build\lib\code_agent\runtime\tests\test_shell_models.py -> build\bdist.win-amd64\wheel\.\code_agent\runtime\tests
+copying build\lib\code_agent\runtime\tests\test_windows_job.py -> build\bdist.win-amd64\wheel\.\code_agent\runtime\tests
+copying build\lib\code_agent\runtime\tests\test_windows_job_cancellation.py -> build\bdist.win-amd64\wheel\.\code_agent\runtime\tests
+copying build\lib\code_agent\runtime\tests\test_windows_job_lifecycle.py -> build\bdist.win-amd64\wheel\.\code_agent\runtime\tests
+copying build\lib\code_agent\runtime\tests\test_windows_spawn.py -> build\bdist.win-amd64\wheel\.\code_agent\runtime\tests
+copying build\lib\code_agent\runtime\tests\_local_test_support.py -> build\bdist.win-amd64\wheel\.\code_agent\runtime\tests
+copying build\lib\code_agent\runtime\tests\_process_tree_support.py -> build\bdist.win-amd64\wheel\.\code_agent\runtime\tests
+copying build\lib\code_agent\runtime\tests\_windows_job_support.py -> build\bdist.win-amd64\wheel\.\code_agent\runtime\tests
+copying build\lib\code_agent\runtime\_powershell_runtime.py -> build\bdist.win-amd64\wheel\.\code_agent\runtime
+copying build\lib\code_agent\runtime\_powershell_script.py -> build\bdist.win-amd64\wheel\.\code_agent\runtime
+copying build\lib\code_agent\runtime\_process_snapshot.py -> build\bdist.win-amd64\wheel\.\code_agent\runtime
+copying build\lib\code_agent\runtime\_windows_command.py -> build\bdist.win-amd64\wheel\.\code_agent\runtime
+copying build\lib\code_agent\runtime\_windows_directory.py -> build\bdist.win-amd64\wheel\.\code_agent\runtime
+copying build\lib\code_agent\runtime\_windows_job.py -> build\bdist.win-amd64\wheel\.\code_agent\runtime
+copying build\lib\code_agent\runtime\_windows_process.py -> build\bdist.win-amd64\wheel\.\code_agent\runtime
+copying build\lib\code_agent\runtime\_windows_spawn.py -> build\bdist.win-amd64\wheel\.\code_agent\runtime
+creating build\bdist.win-amd64\wheel\code_agent\semantic_insights
+copying build\lib\code_agent\semantic_insights\inputs.py -> build\bdist.win-amd64\wheel\.\code_agent\semantic_insights
+copying build\lib\code_agent\semantic_insights\models.py -> build\bdist.win-amd64\wheel\.\code_agent\semantic_insights
+copying build\lib\code_agent\semantic_insights\projections.py -> build\bdist.win-amd64\wheel\.\code_agent\semantic_insights
+copying build\lib\code_agent\semantic_insights\ranking.py -> build\bdist.win-amd64\wheel\.\code_agent\semantic_insights
+copying build\lib\code_agent\semantic_insights\service.py -> build\bdist.win-amd64\wheel\.\code_agent\semantic_insights
+creating build\bdist.win-amd64\wheel\code_agent\semantic_insights\tests
+copying build\lib\code_agent\semantic_insights\tests\test_boundaries.py -> build\bdist.win-amd64\wheel\.\code_agent\semantic_insights\tests
+copying build\lib\code_agent\semantic_insights\tests\test_service.py -> build\bdist.win-amd64\wheel\.\code_agent\semantic_insights\tests
+copying build\lib\code_agent\semantic_insights\tests\__init__.py -> build\bdist.win-amd64\wheel\.\code_agent\semantic_insights\tests
+copying build\lib\code_agent\semantic_insights\__init__.py -> build\bdist.win-amd64\wheel\.\code_agent\semantic_insights
+creating build\bdist.win-amd64\wheel\code_agent\sessions
+copying build\lib\code_agent\sessions\edit_batch_models.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\errors.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\legacy_migration.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\models.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\repository.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\rewind_models.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\rewind_repository.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+creating build\bdist.win-amd64\wheel\code_agent\sessions\tests
+copying build\lib\code_agent\sessions\tests\test_attachment_roundtrip.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions\tests
+copying build\lib\code_agent\sessions\tests\test_checkpoint_bounds.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions\tests
+copying build\lib\code_agent\sessions\tests\test_checkpoint_cursor_migration.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions\tests
+copying build\lib\code_agent\sessions\tests\test_checkpoint_fork.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions\tests
+copying build\lib\code_agent\sessions\tests\test_concurrency.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions\tests
+copying build\lib\code_agent\sessions\tests\test_database_cancellation.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions\tests
+copying build\lib\code_agent\sessions\tests\test_database_cancellation_regressions.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions\tests
+copying build\lib\code_agent\sessions\tests\test_edit_batches.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions\tests
+copying build\lib\code_agent\sessions\tests\test_edit_batch_api_validation.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions\tests
+copying build\lib\code_agent\sessions\tests\test_edit_batch_checkpoint_gate.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions\tests
+copying build\lib\code_agent\sessions\tests\test_edit_batch_legacy_terminal.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions\tests
+copying build\lib\code_agent\sessions\tests\test_edit_batch_migrations.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions\tests
+copying build\lib\code_agent\sessions\tests\test_edit_batch_models.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions\tests
+copying build\lib\code_agent\sessions\tests\test_legacy_migration_concurrency.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions\tests
+copying build\lib\code_agent\sessions\tests\test_legacy_migration_finalization.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions\tests
+copying build\lib\code_agent\sessions\tests\test_legacy_publication_identity.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions\tests
+copying build\lib\code_agent\sessions\tests\test_lineage_budget.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions\tests
+copying build\lib\code_agent\sessions\tests\test_migrations.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions\tests
+copying build\lib\code_agent\sessions\tests\test_models.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions\tests
+copying build\lib\code_agent\sessions\tests\test_repository.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions\tests
+copying build\lib\code_agent\sessions\tests\test_rewind_anchors.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions\tests
+copying build\lib\code_agent\sessions\tests\test_rewind_completion_invariants.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions\tests
+copying build\lib\code_agent\sessions\tests\test_rewind_integrity.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions\tests
+copying build\lib\code_agent\sessions\tests\test_rewind_migrations.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions\tests
+copying build\lib\code_agent\sessions\tests\test_rewind_models.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions\tests
+copying build\lib\code_agent\sessions\tests\test_rewind_mutations.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions\tests
+copying build\lib\code_agent\sessions\tests\test_rewind_observations.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions\tests
+copying build\lib\code_agent\sessions\tests\test_rewind_records.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions\tests
+copying build\lib\code_agent\sessions\tests\test_schema_structure.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions\tests
+copying build\lib\code_agent\sessions\tests\test_semantic_repository.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions\tests
+copying build\lib\code_agent\sessions\tests\test_session_rewind_atomic.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions\tests
+copying build\lib\code_agent\sessions\tests\test_skills.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions\tests
+copying build\lib\code_agent\sessions\tests\test_task_followups.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions\tests
+copying build\lib\code_agent\sessions\tests\test_thread_tree.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions\tests
+copying build\lib\code_agent\sessions\tests\test_v14_compatibility.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions\tests
+copying build\lib\code_agent\sessions\tests\test_workflows.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions\tests
+copying build\lib\code_agent\sessions\tests\test_workspace_checkpoint_invariants.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions\tests
+copying build\lib\code_agent\sessions\tests\test_workspace_codec_limits.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions\tests
+copying build\lib\code_agent\sessions\tests\test_workspace_models.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions\tests
+copying build\lib\code_agent\sessions\tests\test_workspace_snapshots.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions\tests
+copying build\lib\code_agent\sessions\tests\_migration_test_support.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions\tests
+copying build\lib\code_agent\sessions\workspace_models.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_checkpoint_budget.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_checkpoint_fork.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_codec.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_database.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_database_cancellation.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_edit_batches.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_edit_batch_repository_support.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_edit_batch_rows.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_edit_batch_schema.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_edit_batch_validation.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_edit_batch_writes.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_evidence_ledger.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_logical_database.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_peer_inbox.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_peer_messages.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_peer_message_ops.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_peer_rows.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_peer_sessions.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_records.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_rewinds.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_rewind_checkpoints.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_rewind_codec.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_rewind_integrity.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_rewind_model_base.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_rewind_model_records.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_rewind_mutations.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_rewind_mutation_sql.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_rewind_observations.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_rewind_rows.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_rewind_schema.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_schema_structure.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_schema_validation.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_semantic.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_session_rewind.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_skills.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_task_budget.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_task_execution.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_task_records.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_task_runtime_records.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_thread_content.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_workflows.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_workspace_codec.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_workspace_model_values.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_workspace_ownership.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+copying build\lib\code_agent\sessions\_workspace_snapshots.py -> build\bdist.win-amd64\wheel\.\code_agent\sessions
+creating build\bdist.win-amd64\wheel\code_agent\skills
+copying build\lib\code_agent\skills\controller.py -> build\bdist.win-amd64\wheel\.\code_agent\skills
+copying build\lib\code_agent\skills\registry.py -> build\bdist.win-amd64\wheel\.\code_agent\skills
+creating build\bdist.win-amd64\wheel\code_agent\skills\tests
+copying build\lib\code_agent\skills\tests\test_controller.py -> build\bdist.win-amd64\wheel\.\code_agent\skills\tests
+copying build\lib\code_agent\skills\tests\test_registry.py -> build\bdist.win-amd64\wheel\.\code_agent\skills\tests
+creating build\bdist.win-amd64\wheel\code_agent\thread_intelligence
+copying build\lib\code_agent\thread_intelligence\authorization.py -> build\bdist.win-amd64\wheel\.\code_agent\thread_intelligence
+copying build\lib\code_agent\thread_intelligence\compaction.py -> build\bdist.win-amd64\wheel\.\code_agent\thread_intelligence
+copying build\lib\code_agent\thread_intelligence\context_builder.py -> build\bdist.win-amd64\wheel\.\code_agent\thread_intelligence
+copying build\lib\code_agent\thread_intelligence\deterministic_summary.py -> build\bdist.win-amd64\wheel\.\code_agent\thread_intelligence
+copying build\lib\code_agent\thread_intelligence\index.py -> build\bdist.win-amd64\wheel\.\code_agent\thread_intelligence
+copying build\lib\code_agent\thread_intelligence\models.py -> build\bdist.win-amd64\wheel\.\code_agent\thread_intelligence
+copying build\lib\code_agent\thread_intelligence\reader.py -> build\bdist.win-amd64\wheel\.\code_agent\thread_intelligence
+creating build\bdist.win-amd64\wheel\code_agent\thread_intelligence\tests
+copying build\lib\code_agent\thread_intelligence\tests\test_attachment_metadata.py -> build\bdist.win-amd64\wheel\.\code_agent\thread_intelligence\tests
+copying build\lib\code_agent\thread_intelligence\tests\test_authorization.py -> build\bdist.win-amd64\wheel\.\code_agent\thread_intelligence\tests
+copying build\lib\code_agent\thread_intelligence\tests\test_compaction.py -> build\bdist.win-amd64\wheel\.\code_agent\thread_intelligence\tests
+copying build\lib\code_agent\thread_intelligence\tests\test_context_builder.py -> build\bdist.win-amd64\wheel\.\code_agent\thread_intelligence\tests
+copying build\lib\code_agent\thread_intelligence\tests\test_deterministic_summary.py -> build\bdist.win-amd64\wheel\.\code_agent\thread_intelligence\tests
+copying build\lib\code_agent\thread_intelligence\tests\test_index_reader.py -> build\bdist.win-amd64\wheel\.\code_agent\thread_intelligence\tests
+copying build\lib\code_agent\thread_intelligence\tests\test_models.py -> build\bdist.win-amd64\wheel\.\code_agent\thread_intelligence\tests
+copying build\lib\code_agent\thread_intelligence\tests\test_tools.py -> build\bdist.win-amd64\wheel\.\code_agent\thread_intelligence\tests
+copying build\lib\code_agent\thread_intelligence\tools.py -> build\bdist.win-amd64\wheel\.\code_agent\thread_intelligence
+creating build\bdist.win-amd64\wheel\code_agent\verification
+copying build\lib\code_agent\verification\evidence.py -> build\bdist.win-amd64\wheel\.\code_agent\verification
+copying build\lib\code_agent\verification\local_adapter.py -> build\bdist.win-amd64\wheel\.\code_agent\verification
+copying build\lib\code_agent\verification\models.py -> build\bdist.win-amd64\wheel\.\code_agent\verification
+copying build\lib\code_agent\verification\planner.py -> build\bdist.win-amd64\wheel\.\code_agent\verification
+copying build\lib\code_agent\verification\planner_adapter.py -> build\bdist.win-amd64\wheel\.\code_agent\verification
+copying build\lib\code_agent\verification\python_adapter.py -> build\bdist.win-amd64\wheel\.\code_agent\verification
+copying build\lib\code_agent\verification\registry.py -> build\bdist.win-amd64\wheel\.\code_agent\verification
+copying build\lib\code_agent\verification\risk.py -> build\bdist.win-amd64\wheel\.\code_agent\verification
+copying build\lib\code_agent\verification\syntax_check.py -> build\bdist.win-amd64\wheel\.\code_agent\verification
+copying build\lib\code_agent\verification\task_evidence.py -> build\bdist.win-amd64\wheel\.\code_agent\verification
+copying build\lib\code_agent\verification\task_plans.py -> build\bdist.win-amd64\wheel\.\code_agent\verification
+copying build\lib\code_agent\verification\task_service.py -> build\bdist.win-amd64\wheel\.\code_agent\verification
+creating build\bdist.win-amd64\wheel\code_agent\verification\tests
+copying build\lib\code_agent\verification\tests\test_command_invalidation.py -> build\bdist.win-amd64\wheel\.\code_agent\verification\tests
+copying build\lib\code_agent\verification\tests\test_evidence.py -> build\bdist.win-amd64\wheel\.\code_agent\verification\tests
+copying build\lib\code_agent\verification\tests\test_local_adapter.py -> build\bdist.win-amd64\wheel\.\code_agent\verification\tests
+copying build\lib\code_agent\verification\tests\test_logical_change.py -> build\bdist.win-amd64\wheel\.\code_agent\verification\tests
+copying build\lib\code_agent\verification\tests\test_planner.py -> build\bdist.win-amd64\wheel\.\code_agent\verification\tests
+copying build\lib\code_agent\verification\tests\test_python_adapter.py -> build\bdist.win-amd64\wheel\.\code_agent\verification\tests
+copying build\lib\code_agent\verification\tests\test_registry.py -> build\bdist.win-amd64\wheel\.\code_agent\verification\tests
+copying build\lib\code_agent\verification\tests\test_semantic_graph_planner.py -> build\bdist.win-amd64\wheel\.\code_agent\verification\tests
+copying build\lib\code_agent\verification\__init__.py -> build\bdist.win-amd64\wheel\.\code_agent\verification
+creating build\bdist.win-amd64\wheel\code_agent\workflows
+copying build\lib\code_agent\workflows\graph.py -> build\bdist.win-amd64\wheel\.\code_agent\workflows
+copying build\lib\code_agent\workflows\models.py -> build\bdist.win-amd64\wheel\.\code_agent\workflows
+copying build\lib\code_agent\workflows\observations.py -> build\bdist.win-amd64\wheel\.\code_agent\workflows
+copying build\lib\code_agent\workflows\service.py -> build\bdist.win-amd64\wheel\.\code_agent\workflows
+creating build\bdist.win-amd64\wheel\code_agent\workflows\tests
+copying build\lib\code_agent\workflows\tests\test_graph.py -> build\bdist.win-amd64\wheel\.\code_agent\workflows\tests
+copying build\lib\code_agent\workflows\tests\test_models.py -> build\bdist.win-amd64\wheel\.\code_agent\workflows\tests
+copying build\lib\code_agent\workflows\tests\test_service.py -> build\bdist.win-amd64\wheel\.\code_agent\workflows\tests
+creating build\bdist.win-amd64\wheel\code_agent\workspace
+copying build\lib\code_agent\workspace\edits.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\errors.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\files.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\git.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\ignore.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\inventory.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\paths.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\rewind_state.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\snapshot_store.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\subject.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+creating build\bdist.win-amd64\wheel\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_batch_code_slices.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_batch_edits.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_batch_hardening.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_batch_observation_failures.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_batch_recovery.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_edits.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_files.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_files_listing.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_files_text.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_git.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_git_limits.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_git_lock_behavior.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_git_snapshot_render.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_git_snapshot_safety.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_guarded_read_safety.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_ignore_encoding.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_inventory.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_inventory_security.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_known_files.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_paths_ignore.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_path_root_aliases.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_posix_secure_io.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_restore_security.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_restore_topology.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_rewind_state.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_secure_io.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_snapshot_durability.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_snapshot_error_classification.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_snapshot_store.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_snapshot_store_compatibility.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_snapshot_store_integrity.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_snapshot_store_review.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_snapshot_store_security.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_snapshot_store_temp_failures.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_subject.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_temp_cleanup.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_text_format.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_windows_batch_move.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_windows_descriptor_ownership.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_windows_edit_cas.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_windows_file_locks.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_windows_guarded_open.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_windows_leaf_sharing.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_windows_path_limits.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_windows_read_locks.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_windows_replace_failures.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_windows_replace_identity.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_windows_worktree_paths.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_workspace_root_identity.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_worktrees.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_worktree_leases.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_worktree_lifecycle.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_worktree_p1.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_worktree_review.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\test_worktree_security.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\_edit_test_support.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\tests\_files_test_support.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace\tests
+copying build\lib\code_agent\workspace\windows_paths.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\worktrees.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_atomic_artifact_write.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_batch_apply.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_batch_compare.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_batch_editor.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_batch_models.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_batch_mutation.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_batch_observe.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_batch_plan.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_batch_recovery.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_batch_recovery_prepare.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_batch_recovery_validation.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_batch_rollback.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_edit_plan.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_file_walk.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_git_diff_snapshot.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_git_environment.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_git_errors.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_git_path_sets.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_git_process.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_git_worktrees.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_guarded_read.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_known_files.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_posix_io.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_restore_topology.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_rewind_snapshot_manifest.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_rewind_snapshot_store.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_secure_io.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_secure_modes.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_secure_mutation.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_secure_posix.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_secure_read.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_secure_replace.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_secure_temp.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_snapshot_artifacts.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_snapshot_blob_io.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_snapshot_gc.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_snapshot_manifest.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_snapshot_restore.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_snapshot_store_dirs.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_text_codec.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_text_diff.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_text_search.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_windows_artifact_handles.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_windows_artifact_native.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_windows_artifact_write.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_windows_atomic_replace.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_windows_case_sensitivity.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_windows_exact_delete.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_windows_exact_handles.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_windows_exact_move.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_windows_file_locks.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_windows_guarded_open.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_windows_guarded_read.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_windows_replace_native.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_windows_replace_recovery.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_workspace_read.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_worktree_leases.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_worktree_lifecycle_ops.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_worktree_limits.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_worktree_lock.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_worktree_models.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\workspace\_worktree_paths.py -> build\bdist.win-amd64\wheel\.\code_agent\workspace
+copying build\lib\code_agent\_owned_temporary.py -> build\bdist.win-amd64\wheel\.\code_agent
+copying build\lib\code_agent\_windows_handle_cleanup.py -> build\bdist.win-amd64\wheel\.\code_agent
+copying build\lib\code_agent\_windows_owned_temporary.py -> build\bdist.win-amd64\wheel\.\code_agent
+creating build\bdist.win-amd64\wheel\code_agent_win
+copying build\lib\code_agent_win\acp_adapter.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\acp_cli.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\action_dispatcher.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\action_support.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\agent_modes.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\app.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\application_context.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\application_model.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\application_product.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\app_factory.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\app_models.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\app_paths.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\app_presentation.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\app_ui.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\child_runner.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\cli.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\context_runtime.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\edit_plan_dispatch.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\edit_plan_preview.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\edit_plan_results.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\edit_plan_store.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\edit_plan_tools.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\factory_context.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\factory_host.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\foreground_checkpoint_lifecycle.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\foreground_tasks.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\foreground_task_observers.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\foreground_task_support.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\foreground_workspace_setup.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\host_composition.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\multimodal_ui.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\peer_composition.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\peer_context.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\peer_runtime.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\peer_runtime_support.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\peer_tools.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\permission_dispatch.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\plugin_runtime.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\process_actions.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\restricted_dispatcher.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\rewind_capture.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\rewind_capture_support.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\rewind_edit_async.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\rewind_edit_batch.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\rewind_edit_batch_models.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\rewind_gate.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\rewind_runtime.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\rewind_sessions.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\runtime_client_cleanup.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\runtime_controls.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\runtime_dispatcher_factory.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\runtime_extensions.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\runtime_provider_controls.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\runtime_selection_control.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\runtime_support.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\semantic_insights.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\stdio.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\subagents.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\subagent_runner.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\system_diagnostics.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\task_dispatcher.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\task_verification.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\thread_actions.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\tools.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\tool_schema.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\tool_support.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\ui_composition.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\ui_runtime_composition.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\verification_action.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\windows_storage_paths.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\workspace_actions.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\workspace_checkpoint_runtime.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\workspace_context.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\workspace_edit_planning.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\workspace_models.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\workspace_mutation_pool.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\workspace_preparation.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\workspace_runtime.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\workspace_service_factory.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\workspace_session_router.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\workspace_startup_recovery.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\_rewind_runtime_projection.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\_rewind_runtime_validation.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+copying build\lib\code_agent_win\__init__.py -> build\bdist.win-amd64\wheel\.\code_agent_win
+running install_egg_info
+Copying src\chaos_agent.egg-info to build\bdist.win-amd64\wheel\.\chaos_agent-1.0.3-py3.11.egg-info
+running install_scripts
+creating build\bdist.win-amd64\wheel\chaos_agent-1.0.3.dist-info\WHEEL
+creating 'F:\\code-ai-chaos\\chaos-16-agent\\dist\\ui-theme-check\\.tmp-sf0ssftp\\chaos_agent-1.0.3-py3-none-any.whl' and adding 'build\\bdist.win-amd64\\wheel' to it
+adding 'chaos_agent-1.0.3.dist-info/licenses/LICENSE'
+adding 'code_agent/_owned_temporary.py'
+adding 'code_agent/_windows_handle_cleanup.py'
+adding 'code_agent/_windows_owned_temporary.py'
+adding 'code_agent/repo_paths.py'
+adding 'code_agent/acp/__init__.py'
+adding 'code_agent/acp/adapter.py'
+adding 'code_agent/acp/content.py'
+adding 'code_agent/acp/event_bridge.py'
+adding 'code_agent/acp/session_permissions.py'
+adding 'code_agent/acp/tests/__init__.py'
+adding 'code_agent/acp/tests/test_adapter.py'
+adding 'code_agent/attachments/__init__.py'
+adding 'code_agent/attachments/clipboard.py'
+adding 'code_agent/attachments/errors.py'
+adding 'code_agent/attachments/ingest.py'
+adding 'code_agent/attachments/limits.py'
+adding 'code_agent/attachments/security.py'
+adding 'code_agent/attachments/store.py'
+adding 'code_agent/attachments/tests/__init__.py'
+adding 'code_agent/attachments/tests/test_attachments.py'
+adding 'code_agent/attachments/tests/test_publication_finalization.py'
+adding 'code_agent/attachments/tests/test_publication_identity.py'
+adding 'code_agent/attachments/tests/test_store_concurrency.py'
+adding 'code_agent/capabilities/__init__.py'
+adding 'code_agent/capabilities/catalog.py'
+adding 'code_agent/capabilities/tests/test_catalog.py'
+adding 'code_agent/checkpoints/_rewind_recovery.py'
+adding 'code_agent/checkpoints/locks.py'
+adding 'code_agent/checkpoints/models.py'
+adding 'code_agent/checkpoints/ports.py'
+adding 'code_agent/checkpoints/rewind.py'
+adding 'code_agent/checkpoints/service.py'
+adding 'code_agent/checkpoints/tests/__init__.py'
+adding 'code_agent/checkpoints/tests/_support.py'
+adding 'code_agent/checkpoints/tests/test_rewind.py'
+adding 'code_agent/checkpoints/tests/test_service.py'
+adding 'code_agent/config/_environment.py'
+adding 'code_agent/config/capability_strategy.py'
+adding 'code_agent/config/loader.py'
+adding 'code_agent/config/tests/test_capability_strategy.py'
+adding 'code_agent/config/tests/test_input_modalities.py'
+adding 'code_agent/config/tests/test_loader.py'
+adding 'code_agent/config/tests/test_powershell_dialect.py'
+adding 'code_agent/config/tests/test_windows_config_paths.py'
+adding 'code_agent/context/_builder_support.py'
+adding 'code_agent/context/_compaction_render.py'
+adding 'code_agent/context/attachment_budget.py'
+adding 'code_agent/context/budget.py'
+adding 'code_agent/context/builder.py'
+adding 'code_agent/context/cache.py'
+adding 'code_agent/context/compaction.py'
+adding 'code_agent/context/errors.py'
+adding 'code_agent/context/evidence.py'
+adding 'code_agent/context/models.py'
+adding 'code_agent/context/repo_index.py'
+adding 'code_agent/context/repo_map.py'
+adding 'code_agent/context/repo_paths.py'
+adding 'code_agent/context/repo_python_semantics.py'
+adding 'code_agent/context/repo_query.py'
+adding 'code_agent/context/repo_ranking.py'
+adding 'code_agent/context/repo_scan.py'
+adding 'code_agent/context/repo_search.py'
+adding 'code_agent/context/repo_search_documents.py'
+adding 'code_agent/context/repo_search_sql.py'
+adding 'code_agent/context/repo_semantic_graph.py'
+adding 'code_agent/context/repo_snapshot.py'
+adding 'code_agent/context/repo_tiered_context.py'
+adding 'code_agent/context/rules.py'
+adding 'code_agent/context/semantic.py'
+adding 'code_agent/context/task_state.py'
+adding 'code_agent/context/tokens.py'
+adding 'code_agent/context/tests/test_attachment_budget.py'
+adding 'code_agent/context/tests/test_budget.py'
+adding 'code_agent/context/tests/test_builder.py'
+adding 'code_agent/context/tests/test_compaction.py'
+adding 'code_agent/context/tests/test_evidence.py'
+adding 'code_agent/context/tests/test_models_tokens.py'
+adding 'code_agent/context/tests/test_repo_index.py'
+adding 'code_agent/context/tests/test_repo_map.py'
+adding 'code_agent/context/tests/test_repo_paths.py'
+adding 'code_agent/context/tests/test_repo_python_semantics.py'
+adding 'code_agent/context/tests/test_repo_query.py'
+adding 'code_agent/context/tests/test_repo_ranking.py'
+adding 'code_agent/context/tests/test_repo_scan.py'
+adding 'code_agent/context/tests/test_repo_search.py'
+adding 'code_agent/context/tests/test_repo_search_documents.py'
+adding 'code_agent/context/tests/test_repo_semantic_graph.py'
+adding 'code_agent/context/tests/test_repo_tiered_context.py'
+adding 'code_agent/context/tests/test_repo_view.py'
+adding 'code_agent/context/tests/test_rules.py'
+adding 'code_agent/context/tests/test_semantic_builder.py'
+adding 'code_agent/context/tests/test_semantic_cancellation.py'
+adding 'code_agent/context/tests/test_task_state.py'
+adding 'code_agent/context/tests/test_tiered_repo_map_runtime.py'
+adding 'code_agent/core/_action_models.py'
+adding 'code_agent/core/_engine_run.py'
+adding 'code_agent/core/_engine_turn.py'
+adding 'code_agent/core/_json.py'
+adding 'code_agent/core/_session_io.py'
+adding 'code_agent/core/_tool_disclosure.py'
+adding 'code_agent/core/_tool_feedback.py'
+adding 'code_agent/core/action_execution.py'
+adding 'code_agent/core/attachments.py'
+adding 'code_agent/core/cancellation.py'
+adding 'code_agent/core/completion_contract.py'
+adding 'code_agent/core/context_request.py'
+adding 'code_agent/core/engine.py'
+adding 'code_agent/core/engine_actions.py'
+adding 'code_agent/core/engine_completion.py'
+adding 'code_agent/core/engine_turn_feedback.py'
+adding 'code_agent/core/errors.py'
+adding 'code_agent/core/events.py'
+adding 'code_agent/core/limits.py'
+adding 'code_agent/core/models.py'
+adding 'code_agent/core/protocols.py'
+adding 'code_agent/core/task.py'
+adding 'code_agent/core/task_intent.py'
+adding 'code_agent/core/task_state.py'
+adding 'code_agent/core/task_supervisor.py'
+adding 'code_agent/core/task_verification.py'
+adding 'code_agent/core/validation_feedback.py'
+adding 'code_agent/core/verification_state.py'
+adding 'code_agent/core/tests/_engine_support.py'
+adding 'code_agent/core/tests/test_action_execution.py'
+adding 'code_agent/core/tests/test_cancellation.py'
+adding 'code_agent/core/tests/test_command_facts.py'
+adding 'code_agent/core/tests/test_completion_contract.py'
+adding 'code_agent/core/tests/test_completion_idle.py'
+adding 'code_agent/core/tests/test_context_builder_invocation.py'
+adding 'code_agent/core/tests/test_engine_action_lineage.py'
+adding 'code_agent/core/tests/test_engine_limits.py'
+adding 'code_agent/core/tests/test_engine_run.py'
+adding 'code_agent/core/tests/test_engine_run_context.py'
+adding 'code_agent/core/tests/test_engine_run_state.py'
+adding 'code_agent/core/tests/test_engine_tool_disclosures.py'
+adding 'code_agent/core/tests/test_engine_tools.py'
+adding 'code_agent/core/tests/test_events.py'
+adding 'code_agent/core/tests/test_models.py'
+adding 'code_agent/core/tests/test_multimodal.py'
+adding 'code_agent/core/tests/test_protocols.py'
+adding 'code_agent/core/tests/test_task.py'
+adding 'code_agent/core/tests/test_task_state.py'
+adding 'code_agent/core/tests/test_task_supervisor.py'
+adding 'code_agent/core/tests/test_verification_state.py'
+adding 'code_agent/evaluation/benchmark.py'
+adding 'code_agent/evaluation/catalog.py'
+adding 'code_agent/evaluation/fingerprint.py'
+adding 'code_agent/evaluation/fixture_languages.py'
+adding 'code_agent/evaluation/fixtures.py'
+adding 'code_agent/evaluation/gates.py'
+adding 'code_agent/evaluation/grader.py'
+adding 'code_agent/evaluation/models.py'
+adding 'code_agent/evaluation/observation.py'
+adding 'code_agent/evaluation/paths.py'
+adding 'code_agent/evaluation/process_executor.py'
+adding 'code_agent/evaluation/report.py'
+adding 'code_agent/evaluation/runner.py'
+adding 'code_agent/evaluation/runner_evidence.py'
+adding 'code_agent/evaluation/runner_types.py'
+adding 'code_agent/evaluation/sandbox.py'
+adding 'code_agent/evaluation/trace.py'
+adding 'code_agent/evaluation/verifier.py'
+adding 'code_agent/evaluation/tests/helpers.py'
+adding 'code_agent/evaluation/tests/test_adversarial_hardening.py'
+adding 'code_agent/evaluation/tests/test_benchmark_gates.py'
+adding 'code_agent/evaluation/tests/test_catalog_realism.py'
+adding 'code_agent/evaluation/tests/test_runner_grader.py'
+adding 'code_agent/interfaces/_command_models.py'
+adding 'code_agent/interfaces/_command_specs.py'
+adding 'code_agent/interfaces/_diff_parser.py'
+adding 'code_agent/interfaces/_rewind_candidate_models.py'
+adding 'code_agent/interfaces/_rewind_model_validation.py'
+adding 'code_agent/interfaces/action_summary.py'
+adding 'code_agent/interfaces/agent_status.py'
+adding 'code_agent/interfaces/approval.py'
+adding 'code_agent/interfaces/approval_card.py'
+adding 'code_agent/interfaces/attachment_input.py'
+adding 'code_agent/interfaces/capability_view.py'
+adding 'code_agent/interfaces/checkpoint_commands.py'
+adding 'code_agent/interfaces/checkpoint_control.py'
+adding 'code_agent/interfaces/checkpoint_tui.py'
+adding 'code_agent/interfaces/checkpoint_tui_render.py'
+adding 'code_agent/interfaces/command_availability.py'
+adding 'code_agent/interfaces/command_navigation.py'
+adding 'code_agent/interfaces/command_palette.py'
+adding 'code_agent/interfaces/command_registry.py'
+adding 'code_agent/interfaces/commands.py'
+adding 'code_agent/interfaces/controller.py'
+adding 'code_agent/interfaces/cost_control.py'
+adding 'code_agent/interfaces/diagnostic_view.py'
+adding 'code_agent/interfaces/diff_feedback.py'
+adding 'code_agent/interfaces/diff_interaction.py'
+adding 'code_agent/interfaces/diff_interaction_render.py'
+adding 'code_agent/interfaces/diff_view.py'
+adding 'code_agent/interfaces/edit_plan_approval_tui.py'
+adding 'code_agent/interfaces/evidence_view.py'
+adding 'code_agent/interfaces/extension_picker.py'
+adding 'code_agent/interfaces/history.py'
+adding 'code_agent/interfaces/i18n.py'
+adding 'code_agent/interfaces/input_buffer.py'
+adding 'code_agent/interfaces/input_events.py'
+adding 'code_agent/interfaces/interaction.py'
+adding 'code_agent/interfaces/mode_control.py'
+adding 'code_agent/interfaces/permission_control.py'
+adding 'code_agent/interfaces/picker.py'
+adding 'code_agent/interfaces/picker_panel.py'
+adding 'code_agent/interfaces/plugin_picker.py'
+adding 'code_agent/interfaces/profile_control.py'
+adding 'code_agent/interfaces/rewind_models.py'
+adding 'code_agent/interfaces/rewind_view.py'
+adding 'code_agent/interfaces/runtime_picker.py'
+adding 'code_agent/interfaces/semantic_insight_view.py'
+adding 'code_agent/interfaces/status_report.py'
+adding 'code_agent/interfaces/steering_view.py'
+adding 'code_agent/interfaces/streaming_state.py'
+adding 'code_agent/interfaces/task_controller.py'
+adding 'code_agent/interfaces/task_mode_control.py'
+adding 'code_agent/interfaces/terminal_composer.py'
+adding 'code_agent/interfaces/terminal_display.py'
+adding 'code_agent/interfaces/terminal_io.py'
+adding 'code_agent/interfaces/terminal_legacy_status.py'
+adding 'code_agent/interfaces/terminal_markdown.py'
+adding 'code_agent/interfaces/terminal_motion.py'
+adding 'code_agent/interfaces/terminal_renderer.py'
+adding 'code_agent/interfaces/terminal_state.py'
+adding 'code_agent/interfaces/terminal_status.py'
+adding 'code_agent/interfaces/terminal_style.py'
+adding 'code_agent/interfaces/terminal_tail.py'
+adding 'code_agent/interfaces/terminal_tail_content.py'
+adding 'code_agent/interfaces/terminal_tail_geometry.py'
+adding 'code_agent/interfaces/terminal_tail_legacy.py'
+adding 'code_agent/interfaces/terminal_theme.py'
+adding 'code_agent/interfaces/terminal_transcript_markdown.py'
+adding 'code_agent/interfaces/terminal_welcome.py'
+adding 'code_agent/interfaces/theme_preview.py'
+adding 'code_agent/interfaces/theme_preview_page.py'
+adding 'code_agent/interfaces/token_rate.py'
+adding 'code_agent/interfaces/tui_active_input.py'
+adding 'code_agent/interfaces/tui_attachment_commands.py'
+adding 'code_agent/interfaces/tui_builtin_commands.py'
+adding 'code_agent/interfaces/tui_command_dispatch.py'
+adding 'code_agent/interfaces/tui_commands.py'
+adding 'code_agent/interfaces/tui_diff_commands.py'
+adding 'code_agent/interfaces/tui_display_commands.py'
+adding 'code_agent/interfaces/tui_general_commands.py'
+adding 'code_agent/interfaces/tui_input.py'
+adding 'code_agent/interfaces/tui_interactions.py'
+adding 'code_agent/interfaces/tui_lifecycle.py'
+adding 'code_agent/interfaces/tui_mcp_commands.py'
+adding 'code_agent/interfaces/tui_peer_turn.py'
+adding 'code_agent/interfaces/tui_permission_commands.py'
+adding 'code_agent/interfaces/tui_plugin_commands.py'
+adding 'code_agent/interfaces/tui_presentation.py'
+adding 'code_agent/interfaces/tui_protocols.py'
+adding 'code_agent/interfaces/tui_rewind_commands.py'
+adding 'code_agent/interfaces/tui_run.py'
+adding 'code_agent/interfaces/tui_runtime_commands.py'
+adding 'code_agent/interfaces/tui_semantic_insight_commands.py'
+adding 'code_agent/interfaces/tui_session_commands.py'
+adding 'code_agent/interfaces/tui_skill_commands.py'
+adding 'code_agent/interfaces/tui_submission.py'
+adding 'code_agent/interfaces/tui_theme_commands.py'
+adding 'code_agent/interfaces/tui_workflow_commands.py'
+adding 'code_agent/interfaces/windows_tui.py'
+adding 'code_agent/interfaces/workflow_view.py'
+adding 'code_agent/interfaces/tests/_support.py'
+adding 'code_agent/interfaces/tests/test_attachment_input.py'
+adding 'code_agent/interfaces/tests/test_attachment_tui.py'
+adding 'code_agent/interfaces/tests/test_checkpoint_control.py'
+adding 'code_agent/interfaces/tests/test_checkpoint_tui_safety.py'
+adding 'code_agent/interfaces/tests/test_command_navigation.py'
+adding 'code_agent/interfaces/tests/test_commands.py'
+adding 'code_agent/interfaces/tests/test_controller.py'
+adding 'code_agent/interfaces/tests/test_cost_control.py'
+adding 'code_agent/interfaces/tests/test_diff_interaction.py'
+adding 'code_agent/interfaces/tests/test_diff_interaction_edges.py'
+adding 'code_agent/interfaces/tests/test_diff_view.py'
+adding 'code_agent/interfaces/tests/test_diff_view_malformed.py'
+adding 'code_agent/interfaces/tests/test_edit_plan_approval.py'
+adding 'code_agent/interfaces/tests/test_evidence_view.py'
+adding 'code_agent/interfaces/tests/test_extension_controls.py'
+adding 'code_agent/interfaces/tests/test_extension_picker_hierarchy.py'
+adding 'code_agent/interfaces/tests/test_history.py'
+adding 'code_agent/interfaces/tests/test_i18n.py'
+adding 'code_agent/interfaces/tests/test_interaction_v2.py'
+adding 'code_agent/interfaces/tests/test_mode_control.py'
+adding 'code_agent/interfaces/tests/test_multi_image_paste.py'
+adding 'code_agent/interfaces/tests/test_partial_answer_rendering.py'
+adding 'code_agent/interfaces/tests/test_permission_control.py'
+adding 'code_agent/interfaces/tests/test_profile_control.py'
+adding 'code_agent/interfaces/tests/test_rewind_candidate_view.py'
+adding 'code_agent/interfaces/tests/test_rewind_candidates.py'
+adding 'code_agent/interfaces/tests/test_rewind_models.py'
+adding 'code_agent/interfaces/tests/test_rewind_preview_models.py'
+adding 'code_agent/interfaces/tests/test_rewind_view.py'
+adding 'code_agent/interfaces/tests/test_runtime_capability_view.py'
+adding 'code_agent/interfaces/tests/test_runtime_peer_commands.py'
+adding 'code_agent/interfaces/tests/test_runtime_status_surface.py'
+adding 'code_agent/interfaces/tests/test_semantic_insight_commands.py'
+adding 'code_agent/interfaces/tests/test_startup_responsiveness.py'
+adding 'code_agent/interfaces/tests/test_steering_view.py'
+adding 'code_agent/interfaces/tests/test_streaming_final_fixes.py'
+adding 'code_agent/interfaces/tests/test_streaming_tui.py'
+adding 'code_agent/interfaces/tests/test_task_controller.py'
+adding 'code_agent/interfaces/tests/test_terminal_io_paste.py'
+adding 'code_agent/interfaces/tests/test_terminal_renderer.py'
+adding 'code_agent/interfaces/tests/test_terminal_state.py'
+adding 'code_agent/interfaces/tests/test_terminal_tail.py'
+adding 'code_agent/interfaces/tests/test_terminal_themes.py'
+adding 'code_agent/interfaces/tests/test_terminal_title_and_sound.py'
+adding 'code_agent/interfaces/tests/test_token_rate.py'
+adding 'code_agent/interfaces/tests/test_tui_commands.py'
+adding 'code_agent/interfaces/tests/test_tui_permission_commands.py'
+adding 'code_agent/interfaces/tests/test_tui_rewind_boundaries.py'
+adding 'code_agent/interfaces/tests/test_tui_rewind_commands.py'
+adding 'code_agent/interfaces/tests/test_windows_tui.py'
+adding 'code_agent/interfaces/tests/test_windows_tui_commands.py'
+adding 'code_agent/interfaces/tests/test_windows_tui_input.py'
+adding 'code_agent/interfaces/tests/test_windows_tui_interaction.py'
+adding 'code_agent/interfaces/tests/test_windows_tui_rendering.py'
+adding 'code_agent/interfaces/tests/test_windows_tui_tasks.py'
+adding 'code_agent/interfaces/tests/test_workflow_view.py'
+adding 'code_agent/mcp/official_sdk.py'
+adding 'code_agent/mcp/registry.py'
+adding 'code_agent/mcp/stdio_manager.py'
+adding 'code_agent/mcp/tests/sdk_fixture_server.py'
+adding 'code_agent/mcp/tests/test_registry.py'
+adding 'code_agent/mcp/tests/test_snapshot.py'
+adding 'code_agent/mcp/tests/test_stdio_manager.py'
+adding 'code_agent/orchestration/budget.py'
+adding 'code_agent/orchestration/codec.py'
+adding 'code_agent/orchestration/models.py'
+adding 'code_agent/orchestration/modes.py'
+adding 'code_agent/orchestration/plugin_extensions.py'
+adding 'code_agent/orchestration/runtime_models.py'
+adding 'code_agent/orchestration/supervisor.py'
+adding 'code_agent/orchestration/tests/test_budget.py'
+adding 'code_agent/orchestration/tests/test_modes.py'
+adding 'code_agent/orchestration/tests/test_supervisor.py'
+adding 'code_agent/peers/_service_contract.py'
+adding 'code_agent/peers/errors.py'
+adding 'code_agent/peers/models.py'
+adding 'code_agent/peers/service.py'
+adding 'code_agent/peers/tests/test_models.py'
+adding 'code_agent/peers/tests/test_service.py'
+adding 'code_agent/plugins/commands.py'
+adding 'code_agent/plugins/events.py'
+adding 'code_agent/plugins/manifest.py'
+adding 'code_agent/plugins/models.py'
+adding 'code_agent/plugins/registry.py'
+adding 'code_agent/plugins/runtime.py'
+adding 'code_agent/plugins/status.py'
+adding 'code_agent/plugins/tests/test_events.py'
+adding 'code_agent/plugins/tests/test_extensions.py'
+adding 'code_agent/plugins/tests/test_host_control.py'
+adding 'code_agent/plugins/tests/test_manifest.py'
+adding 'code_agent/plugins/tests/test_registry.py'
+adding 'code_agent/plugins/tests/test_runtime.py'
+adding 'code_agent/policy/_command_risk.py'
+adding 'code_agent/policy/_path_classification.py'
+adding 'code_agent/policy/classifier.py'
+adding 'code_agent/policy/command_rules.py'
+adding 'code_agent/policy/engine.py'
+adding 'code_agent/policy/environment.py'
+adding 'code_agent/policy/models.py'
+adding 'code_agent/policy/tests/test_classifier.py'
+adding 'code_agent/policy/tests/test_command_rules.py'
+adding 'code_agent/policy/tests/test_command_security.py'
+adding 'code_agent/policy/tests/test_edit_plan_policy.py'
+adding 'code_agent/policy/tests/test_engine.py'
+adding 'code_agent/policy/tests/test_environment.py'
+adding 'code_agent/policy/tests/test_path_security.py'
+adding 'code_agent/policy/tests/test_structured_process.py'
+adding 'code_agent/projects/discovery.py'
+adding 'code_agent/projects/tests/test_discovery.py'
+adding 'code_agent/providers/_limits.py'
+adding 'code_agent/providers/_request_payload.py'
+adding 'code_agent/providers/anthropic.py'
+adding 'code_agent/providers/attachments.py'
+adding 'code_agent/providers/config.py'
+adding 'code_agent/providers/errors.py'
+adding 'code_agent/providers/openai_chat.py'
+adding 'code_agent/providers/openai_responses.py'
+adding 'code_agent/providers/runtime_manager.py'
+adding 'code_agent/providers/sse.py'
+adding 'code_agent/providers/transport.py'
+adding 'code_agent/providers/tests/test_adapter_limits.py'
+adding 'code_agent/providers/tests/test_adapter_safety.py'
+adding 'code_agent/providers/tests/test_anthropic.py'
+adding 'code_agent/providers/tests/test_config.py'
+adding 'code_agent/providers/tests/test_errors.py'
+adding 'code_agent/providers/tests/test_multimodal.py'
+adding 'code_agent/providers/tests/test_openai_chat.py'
+adding 'code_agent/providers/tests/test_openai_responses.py'
+adding 'code_agent/providers/tests/test_runtime_manager.py'
+adding 'code_agent/providers/tests/test_sse.py'
+adding 'code_agent/providers/tests/test_transport.py'
+adding 'code_agent/providers/tests/test_transport_retry.py'
+adding 'code_agent/runtime/_powershell_runtime.py'
+adding 'code_agent/runtime/_powershell_script.py'
+adding 'code_agent/runtime/_process_snapshot.py'
+adding 'code_agent/runtime/_windows_command.py'
+adding 'code_agent/runtime/_windows_directory.py'
+adding 'code_agent/runtime/_windows_job.py'
+adding 'code_agent/runtime/_windows_process.py'
+adding 'code_agent/runtime/_windows_spawn.py'
+adding 'code_agent/runtime/docker.py'
+adding 'code_agent/runtime/errors.py'
+adding 'code_agent/runtime/local.py'
+adding 'code_agent/runtime/models.py'
+adding 'code_agent/runtime/output_codec.py'
+adding 'code_agent/runtime/tests/_local_test_support.py'
+adding 'code_agent/runtime/tests/_process_tree_support.py'
+adding 'code_agent/runtime/tests/_windows_job_support.py'
+adding 'code_agent/runtime/tests/test_directory_lease.py'
+adding 'code_agent/runtime/tests/test_docker.py'
+adding 'code_agent/runtime/tests/test_local.py'
+adding 'code_agent/runtime/tests/test_local_process.py'
+adding 'code_agent/runtime/tests/test_models.py'
+adding 'code_agent/runtime/tests/test_output_codec.py'
+adding 'code_agent/runtime/tests/test_powershell.py'
+adding 'code_agent/runtime/tests/test_powershell_encoding.py'
+adding 'code_agent/runtime/tests/test_powershell_error_semantics.py'
+adding 'code_agent/runtime/tests/test_powershell_exit_status.py'
+adding 'code_agent/runtime/tests/test_powershell_runtime.py'
+adding 'code_agent/runtime/tests/test_powershell_wrapper_scope.py'
+adding 'code_agent/runtime/tests/test_process_snapshot.py'
+adding 'code_agent/runtime/tests/test_process_termination.py'
+adding 'code_agent/runtime/tests/test_shell_models.py'
+adding 'code_agent/runtime/tests/test_windows_job.py'
+adding 'code_agent/runtime/tests/test_windows_job_cancellation.py'
+adding 'code_agent/runtime/tests/test_windows_job_lifecycle.py'
+adding 'code_agent/runtime/tests/test_windows_spawn.py'
+adding 'code_agent/semantic_insights/__init__.py'
+adding 'code_agent/semantic_insights/inputs.py'
+adding 'code_agent/semantic_insights/models.py'
+adding 'code_agent/semantic_insights/projections.py'
+adding 'code_agent/semantic_insights/ranking.py'
+adding 'code_agent/semantic_insights/service.py'
+adding 'code_agent/semantic_insights/tests/__init__.py'
+adding 'code_agent/semantic_insights/tests/test_boundaries.py'
+adding 'code_agent/semantic_insights/tests/test_service.py'
+adding 'code_agent/sessions/_checkpoint_budget.py'
+adding 'code_agent/sessions/_checkpoint_fork.py'
+adding 'code_agent/sessions/_codec.py'
+adding 'code_agent/sessions/_database.py'
+adding 'code_agent/sessions/_database_cancellation.py'
+adding 'code_agent/sessions/_edit_batch_repository_support.py'
+adding 'code_agent/sessions/_edit_batch_rows.py'
+adding 'code_agent/sessions/_edit_batch_schema.py'
+adding 'code_agent/sessions/_edit_batch_validation.py'
+adding 'code_agent/sessions/_edit_batch_writes.py'
+adding 'code_agent/sessions/_edit_batches.py'
+adding 'code_agent/sessions/_evidence_ledger.py'
+adding 'code_agent/sessions/_logical_database.py'
+adding 'code_agent/sessions/_peer_inbox.py'
+adding 'code_agent/sessions/_peer_message_ops.py'
+adding 'code_agent/sessions/_peer_messages.py'
+adding 'code_agent/sessions/_peer_rows.py'
+adding 'code_agent/sessions/_peer_sessions.py'
+adding 'code_agent/sessions/_records.py'
+adding 'code_agent/sessions/_rewind_checkpoints.py'
+adding 'code_agent/sessions/_rewind_codec.py'
+adding 'code_agent/sessions/_rewind_integrity.py'
+adding 'code_agent/sessions/_rewind_model_base.py'
+adding 'code_agent/sessions/_rewind_model_records.py'
+adding 'code_agent/sessions/_rewind_mutation_sql.py'
+adding 'code_agent/sessions/_rewind_mutations.py'
+adding 'code_agent/sessions/_rewind_observations.py'
+adding 'code_agent/sessions/_rewind_rows.py'
+adding 'code_agent/sessions/_rewind_schema.py'
+adding 'code_agent/sessions/_rewinds.py'
+adding 'code_agent/sessions/_schema_structure.py'
+adding 'code_agent/sessions/_schema_validation.py'
+adding 'code_agent/sessions/_semantic.py'
+adding 'code_agent/sessions/_session_rewind.py'
+adding 'code_agent/sessions/_skills.py'
+adding 'code_agent/sessions/_task_budget.py'
+adding 'code_agent/sessions/_task_execution.py'
+adding 'code_agent/sessions/_task_records.py'
+adding 'code_agent/sessions/_task_runtime_records.py'
+adding 'code_agent/sessions/_thread_content.py'
+adding 'code_agent/sessions/_workflows.py'
+adding 'code_agent/sessions/_workspace_codec.py'
+adding 'code_agent/sessions/_workspace_model_values.py'
+adding 'code_agent/sessions/_workspace_ownership.py'
+adding 'code_agent/sessions/_workspace_snapshots.py'
+adding 'code_agent/sessions/edit_batch_models.py'
+adding 'code_agent/sessions/errors.py'
+adding 'code_agent/sessions/legacy_migration.py'
+adding 'code_agent/sessions/models.py'
+adding 'code_agent/sessions/repository.py'
+adding 'code_agent/sessions/rewind_models.py'
+adding 'code_agent/sessions/rewind_repository.py'
+adding 'code_agent/sessions/workspace_models.py'
+adding 'code_agent/sessions/tests/_migration_test_support.py'
+adding 'code_agent/sessions/tests/test_attachment_roundtrip.py'
+adding 'code_agent/sessions/tests/test_checkpoint_bounds.py'
+adding 'code_agent/sessions/tests/test_checkpoint_cursor_migration.py'
+adding 'code_agent/sessions/tests/test_checkpoint_fork.py'
+adding 'code_agent/sessions/tests/test_concurrency.py'
+adding 'code_agent/sessions/tests/test_database_cancellation.py'
+adding 'code_agent/sessions/tests/test_database_cancellation_regressions.py'
+adding 'code_agent/sessions/tests/test_edit_batch_api_validation.py'
+adding 'code_agent/sessions/tests/test_edit_batch_checkpoint_gate.py'
+adding 'code_agent/sessions/tests/test_edit_batch_legacy_terminal.py'
+adding 'code_agent/sessions/tests/test_edit_batch_migrations.py'
+adding 'code_agent/sessions/tests/test_edit_batch_models.py'
+adding 'code_agent/sessions/tests/test_edit_batches.py'
+adding 'code_agent/sessions/tests/test_legacy_migration_concurrency.py'
+adding 'code_agent/sessions/tests/test_legacy_migration_finalization.py'
+adding 'code_agent/sessions/tests/test_legacy_publication_identity.py'
+adding 'code_agent/sessions/tests/test_lineage_budget.py'
+adding 'code_agent/sessions/tests/test_migrations.py'
+adding 'code_agent/sessions/tests/test_models.py'
+adding 'code_agent/sessions/tests/test_repository.py'
+adding 'code_agent/sessions/tests/test_rewind_anchors.py'
+adding 'code_agent/sessions/tests/test_rewind_completion_invariants.py'
+adding 'code_agent/sessions/tests/test_rewind_integrity.py'
+adding 'code_agent/sessions/tests/test_rewind_migrations.py'
+adding 'code_agent/sessions/tests/test_rewind_models.py'
+adding 'code_agent/sessions/tests/test_rewind_mutations.py'
+adding 'code_agent/sessions/tests/test_rewind_observations.py'
+adding 'code_agent/sessions/tests/test_rewind_records.py'
+adding 'code_agent/sessions/tests/test_schema_structure.py'
+adding 'code_agent/sessions/tests/test_semantic_repository.py'
+adding 'code_agent/sessions/tests/test_session_rewind_atomic.py'
+adding 'code_agent/sessions/tests/test_skills.py'
+adding 'code_agent/sessions/tests/test_task_followups.py'
+adding 'code_agent/sessions/tests/test_thread_tree.py'
+adding 'code_agent/sessions/tests/test_v14_compatibility.py'
+adding 'code_agent/sessions/tests/test_workflows.py'
+adding 'code_agent/sessions/tests/test_workspace_checkpoint_invariants.py'
+adding 'code_agent/sessions/tests/test_workspace_codec_limits.py'
+adding 'code_agent/sessions/tests/test_workspace_models.py'
+adding 'code_agent/sessions/tests/test_workspace_snapshots.py'
+adding 'code_agent/skills/controller.py'
+adding 'code_agent/skills/registry.py'
+adding 'code_agent/skills/tests/test_controller.py'
+adding 'code_agent/skills/tests/test_registry.py'
+adding 'code_agent/thread_intelligence/authorization.py'
+adding 'code_agent/thread_intelligence/compaction.py'
+adding 'code_agent/thread_intelligence/context_builder.py'
+adding 'code_agent/thread_intelligence/deterministic_summary.py'
+adding 'code_agent/thread_intelligence/index.py'
+adding 'code_agent/thread_intelligence/models.py'
+adding 'code_agent/thread_intelligence/reader.py'
+adding 'code_agent/thread_intelligence/tools.py'
+adding 'code_agent/thread_intelligence/tests/test_attachment_metadata.py'
+adding 'code_agent/thread_intelligence/tests/test_authorization.py'
+adding 'code_agent/thread_intelligence/tests/test_compaction.py'
+adding 'code_agent/thread_intelligence/tests/test_context_builder.py'
+adding 'code_agent/thread_intelligence/tests/test_deterministic_summary.py'
+adding 'code_agent/thread_intelligence/tests/test_index_reader.py'
+adding 'code_agent/thread_intelligence/tests/test_models.py'
+adding 'code_agent/thread_intelligence/tests/test_tools.py'
+adding 'code_agent/verification/__init__.py'
+adding 'code_agent/verification/evidence.py'
+adding 'code_agent/verification/local_adapter.py'
+adding 'code_agent/verification/models.py'
+adding 'code_agent/verification/planner.py'
+adding 'code_agent/verification/planner_adapter.py'
+adding 'code_agent/verification/python_adapter.py'
+adding 'code_agent/verification/registry.py'
+adding 'code_agent/verification/risk.py'
+adding 'code_agent/verification/syntax_check.py'
+adding 'code_agent/verification/task_evidence.py'
+adding 'code_agent/verification/task_plans.py'
+adding 'code_agent/verification/task_service.py'
+adding 'code_agent/verification/tests/test_command_invalidation.py'
+adding 'code_agent/verification/tests/test_evidence.py'
+adding 'code_agent/verification/tests/test_local_adapter.py'
+adding 'code_agent/verification/tests/test_logical_change.py'
+adding 'code_agent/verification/tests/test_planner.py'
+adding 'code_agent/verification/tests/test_python_adapter.py'
+adding 'code_agent/verification/tests/test_registry.py'
+adding 'code_agent/verification/tests/test_semantic_graph_planner.py'
+adding 'code_agent/workflows/graph.py'
+adding 'code_agent/workflows/models.py'
+adding 'code_agent/workflows/observations.py'
+adding 'code_agent/workflows/service.py'
+adding 'code_agent/workflows/tests/test_graph.py'
+adding 'code_agent/workflows/tests/test_models.py'
+adding 'code_agent/workflows/tests/test_service.py'
+adding 'code_agent/workspace/_atomic_artifact_write.py'
+adding 'code_agent/workspace/_batch_apply.py'
+adding 'code_agent/workspace/_batch_compare.py'
+adding 'code_agent/workspace/_batch_editor.py'
+adding 'code_agent/workspace/_batch_models.py'
+adding 'code_agent/workspace/_batch_mutation.py'
+adding 'code_agent/workspace/_batch_observe.py'
+adding 'code_agent/workspace/_batch_plan.py'
+adding 'code_agent/workspace/_batch_recovery.py'
+adding 'code_agent/workspace/_batch_recovery_prepare.py'
+adding 'code_agent/workspace/_batch_recovery_validation.py'
+adding 'code_agent/workspace/_batch_rollback.py'
+adding 'code_agent/workspace/_edit_plan.py'
+adding 'code_agent/workspace/_file_walk.py'
+adding 'code_agent/workspace/_git_diff_snapshot.py'
+adding 'code_agent/workspace/_git_environment.py'
+adding 'code_agent/workspace/_git_errors.py'
+adding 'code_agent/workspace/_git_path_sets.py'
+adding 'code_agent/workspace/_git_process.py'
+adding 'code_agent/workspace/_git_worktrees.py'
+adding 'code_agent/workspace/_guarded_read.py'
+adding 'code_agent/workspace/_known_files.py'
+adding 'code_agent/workspace/_posix_io.py'
+adding 'code_agent/workspace/_restore_topology.py'
+adding 'code_agent/workspace/_rewind_snapshot_manifest.py'
+adding 'code_agent/workspace/_rewind_snapshot_store.py'
+adding 'code_agent/workspace/_secure_io.py'
+adding 'code_agent/workspace/_secure_modes.py'
+adding 'code_agent/workspace/_secure_mutation.py'
+adding 'code_agent/workspace/_secure_posix.py'
+adding 'code_agent/workspace/_secure_read.py'
+adding 'code_agent/workspace/_secure_replace.py'
+adding 'code_agent/workspace/_secure_temp.py'
+adding 'code_agent/workspace/_snapshot_artifacts.py'
+adding 'code_agent/workspace/_snapshot_blob_io.py'
+adding 'code_agent/workspace/_snapshot_gc.py'
+adding 'code_agent/workspace/_snapshot_manifest.py'
+adding 'code_agent/workspace/_snapshot_restore.py'
+adding 'code_agent/workspace/_snapshot_store_dirs.py'
+adding 'code_agent/workspace/_text_codec.py'
+adding 'code_agent/workspace/_text_diff.py'
+adding 'code_agent/workspace/_text_search.py'
+adding 'code_agent/workspace/_windows_artifact_handles.py'
+adding 'code_agent/workspace/_windows_artifact_native.py'
+adding 'code_agent/workspace/_windows_artifact_write.py'
+adding 'code_agent/workspace/_windows_atomic_replace.py'
+adding 'code_agent/workspace/_windows_case_sensitivity.py'
+adding 'code_agent/workspace/_windows_exact_delete.py'
+adding 'code_agent/workspace/_windows_exact_handles.py'
+adding 'code_agent/workspace/_windows_exact_move.py'
+adding 'code_agent/workspace/_windows_file_locks.py'
+adding 'code_agent/workspace/_windows_guarded_open.py'
+adding 'code_agent/workspace/_windows_guarded_read.py'
+adding 'code_agent/workspace/_windows_replace_native.py'
+adding 'code_agent/workspace/_windows_replace_recovery.py'
+adding 'code_agent/workspace/_workspace_read.py'
+adding 'code_agent/workspace/_worktree_leases.py'
+adding 'code_agent/workspace/_worktree_lifecycle_ops.py'
+adding 'code_agent/workspace/_worktree_limits.py'
+adding 'code_agent/workspace/_worktree_lock.py'
+adding 'code_agent/workspace/_worktree_models.py'
+adding 'code_agent/workspace/_worktree_paths.py'
+adding 'code_agent/workspace/edits.py'
+adding 'code_agent/workspace/errors.py'
+adding 'code_agent/workspace/files.py'
+adding 'code_agent/workspace/git.py'
+adding 'code_agent/workspace/ignore.py'
+adding 'code_agent/workspace/inventory.py'
+adding 'code_agent/workspace/paths.py'
+adding 'code_agent/workspace/rewind_state.py'
+adding 'code_agent/workspace/snapshot_store.py'
+adding 'code_agent/workspace/subject.py'
+adding 'code_agent/workspace/windows_paths.py'
+adding 'code_agent/workspace/worktrees.py'
+adding 'code_agent/workspace/tests/_edit_test_support.py'
+adding 'code_agent/workspace/tests/_files_test_support.py'
+adding 'code_agent/workspace/tests/test_batch_code_slices.py'
+adding 'code_agent/workspace/tests/test_batch_edits.py'
+adding 'code_agent/workspace/tests/test_batch_hardening.py'
+adding 'code_agent/workspace/tests/test_batch_observation_failures.py'
+adding 'code_agent/workspace/tests/test_batch_recovery.py'
+adding 'code_agent/workspace/tests/test_edits.py'
+adding 'code_agent/workspace/tests/test_files.py'
+adding 'code_agent/workspace/tests/test_files_listing.py'
+adding 'code_agent/workspace/tests/test_files_text.py'
+adding 'code_agent/workspace/tests/test_git.py'
+adding 'code_agent/workspace/tests/test_git_limits.py'
+adding 'code_agent/workspace/tests/test_git_lock_behavior.py'
+adding 'code_agent/workspace/tests/test_git_snapshot_render.py'
+adding 'code_agent/workspace/tests/test_git_snapshot_safety.py'
+adding 'code_agent/workspace/tests/test_guarded_read_safety.py'
+adding 'code_agent/workspace/tests/test_ignore_encoding.py'
+adding 'code_agent/workspace/tests/test_inventory.py'
+adding 'code_agent/workspace/tests/test_inventory_security.py'
+adding 'code_agent/workspace/tests/test_known_files.py'
+adding 'code_agent/workspace/tests/test_path_root_aliases.py'
+adding 'code_agent/workspace/tests/test_paths_ignore.py'
+adding 'code_agent/workspace/tests/test_posix_secure_io.py'
+adding 'code_agent/workspace/tests/test_restore_security.py'
+adding 'code_agent/workspace/tests/test_restore_topology.py'
+adding 'code_agent/workspace/tests/test_rewind_state.py'
+adding 'code_agent/workspace/tests/test_secure_io.py'
+adding 'code_agent/workspace/tests/test_snapshot_durability.py'
+adding 'code_agent/workspace/tests/test_snapshot_error_classification.py'
+adding 'code_agent/workspace/tests/test_snapshot_store.py'
+adding 'code_agent/workspace/tests/test_snapshot_store_compatibility.py'
+adding 'code_agent/workspace/tests/test_snapshot_store_integrity.py'
+adding 'code_agent/workspace/tests/test_snapshot_store_review.py'
+adding 'code_agent/workspace/tests/test_snapshot_store_security.py'
+adding 'code_agent/workspace/tests/test_snapshot_store_temp_failures.py'
+adding 'code_agent/workspace/tests/test_subject.py'
+adding 'code_agent/workspace/tests/test_temp_cleanup.py'
+adding 'code_agent/workspace/tests/test_text_format.py'
+adding 'code_agent/workspace/tests/test_windows_batch_move.py'
+adding 'code_agent/workspace/tests/test_windows_descriptor_ownership.py'
+adding 'code_agent/workspace/tests/test_windows_edit_cas.py'
+adding 'code_agent/workspace/tests/test_windows_file_locks.py'
+adding 'code_agent/workspace/tests/test_windows_guarded_open.py'
+adding 'code_agent/workspace/tests/test_windows_leaf_sharing.py'
+adding 'code_agent/workspace/tests/test_windows_path_limits.py'
+adding 'code_agent/workspace/tests/test_windows_read_locks.py'
+adding 'code_agent/workspace/tests/test_windows_replace_failures.py'
+adding 'code_agent/workspace/tests/test_windows_replace_identity.py'
+adding 'code_agent/workspace/tests/test_windows_worktree_paths.py'
+adding 'code_agent/workspace/tests/test_workspace_root_identity.py'
+adding 'code_agent/workspace/tests/test_worktree_leases.py'
+adding 'code_agent/workspace/tests/test_worktree_lifecycle.py'
+adding 'code_agent/workspace/tests/test_worktree_p1.py'
+adding 'code_agent/workspace/tests/test_worktree_review.py'
+adding 'code_agent/workspace/tests/test_worktree_security.py'
+adding 'code_agent/workspace/tests/test_worktrees.py'
+adding 'code_agent_win/__init__.py'
+adding 'code_agent_win/_rewind_runtime_projection.py'
+adding 'code_agent_win/_rewind_runtime_validation.py'
+adding 'code_agent_win/acp_adapter.py'
+adding 'code_agent_win/acp_cli.py'
+adding 'code_agent_win/action_dispatcher.py'
+adding 'code_agent_win/action_support.py'
+adding 'code_agent_win/agent_modes.py'
+adding 'code_agent_win/app.py'
+adding 'code_agent_win/app_factory.py'
+adding 'code_agent_win/app_models.py'
+adding 'code_agent_win/app_paths.py'
+adding 'code_agent_win/app_presentation.py'
+adding 'code_agent_win/app_ui.py'
+adding 'code_agent_win/application_context.py'
+adding 'code_agent_win/application_model.py'
+adding 'code_agent_win/application_product.py'
+adding 'code_agent_win/child_runner.py'
+adding 'code_agent_win/cli.py'
+adding 'code_agent_win/context_runtime.py'
+adding 'code_agent_win/edit_plan_dispatch.py'
+adding 'code_agent_win/edit_plan_preview.py'
+adding 'code_agent_win/edit_plan_results.py'
+adding 'code_agent_win/edit_plan_store.py'
+adding 'code_agent_win/edit_plan_tools.py'
+adding 'code_agent_win/factory_context.py'
+adding 'code_agent_win/factory_host.py'
+adding 'code_agent_win/foreground_checkpoint_lifecycle.py'
+adding 'code_agent_win/foreground_task_observers.py'
+adding 'code_agent_win/foreground_task_support.py'
+adding 'code_agent_win/foreground_tasks.py'
+adding 'code_agent_win/foreground_workspace_setup.py'
+adding 'code_agent_win/host_composition.py'
+adding 'code_agent_win/multimodal_ui.py'
+adding 'code_agent_win/peer_composition.py'
+adding 'code_agent_win/peer_context.py'
+adding 'code_agent_win/peer_runtime.py'
+adding 'code_agent_win/peer_runtime_support.py'
+adding 'code_agent_win/peer_tools.py'
+adding 'code_agent_win/permission_dispatch.py'
+adding 'code_agent_win/plugin_runtime.py'
+adding 'code_agent_win/process_actions.py'
+adding 'code_agent_win/restricted_dispatcher.py'
+adding 'code_agent_win/rewind_capture.py'
+adding 'code_agent_win/rewind_capture_support.py'
+adding 'code_agent_win/rewind_edit_async.py'
+adding 'code_agent_win/rewind_edit_batch.py'
+adding 'code_agent_win/rewind_edit_batch_models.py'
+adding 'code_agent_win/rewind_gate.py'
+adding 'code_agent_win/rewind_runtime.py'
+adding 'code_agent_win/rewind_sessions.py'
+adding 'code_agent_win/runtime_client_cleanup.py'
+adding 'code_agent_win/runtime_controls.py'
+adding 'code_agent_win/runtime_dispatcher_factory.py'
+adding 'code_agent_win/runtime_extensions.py'
+adding 'code_agent_win/runtime_provider_controls.py'
+adding 'code_agent_win/runtime_selection_control.py'
+adding 'code_agent_win/runtime_support.py'
+adding 'code_agent_win/semantic_insights.py'
+adding 'code_agent_win/stdio.py'
+adding 'code_agent_win/subagent_runner.py'
+adding 'code_agent_win/subagents.py'
+adding 'code_agent_win/system_diagnostics.py'
+adding 'code_agent_win/task_dispatcher.py'
+adding 'code_agent_win/task_verification.py'
+adding 'code_agent_win/thread_actions.py'
+adding 'code_agent_win/tool_schema.py'
+adding 'code_agent_win/tool_support.py'
+adding 'code_agent_win/tools.py'
+adding 'code_agent_win/ui_composition.py'
+adding 'code_agent_win/ui_runtime_composition.py'
+adding 'code_agent_win/verification_action.py'
+adding 'code_agent_win/windows_storage_paths.py'
+adding 'code_agent_win/workspace_actions.py'
+adding 'code_agent_win/workspace_checkpoint_runtime.py'
+adding 'code_agent_win/workspace_context.py'
+adding 'code_agent_win/workspace_edit_planning.py'
+adding 'code_agent_win/workspace_models.py'
+adding 'code_agent_win/workspace_mutation_pool.py'
+adding 'code_agent_win/workspace_preparation.py'
+adding 'code_agent_win/workspace_runtime.py'
+adding 'code_agent_win/workspace_service_factory.py'
+adding 'code_agent_win/workspace_session_router.py'
+adding 'code_agent_win/workspace_startup_recovery.py'
+adding 'chaos_agent-1.0.3.dist-info/METADATA'
+adding 'chaos_agent-1.0.3.dist-info/WHEEL'
+adding 'chaos_agent-1.0.3.dist-info/entry_points.txt'
+adding 'chaos_agent-1.0.3.dist-info/top_level.txt'
+adding 'chaos_agent-1.0.3.dist-info/RECORD'
+removing build\bdist.win-amd64\wheel
+chaos_agent-1.0.3-py3-none-any.whl

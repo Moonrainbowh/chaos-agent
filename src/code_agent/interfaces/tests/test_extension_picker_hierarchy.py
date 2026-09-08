@@ -83,15 +83,15 @@ class PickerHierarchyTests(unittest.IsolatedAsyncioTestCase):
         items = command_picker_items(REGISTRY.all(), services)
         labels = {item.label for item in items}
 
-        self.assertNotIn("/技能", labels)
-        self.assertNotIn("/mcp", labels)
-        self.assertNotIn("/检查点", labels)
-        self.assertNotIn("/插件", labels)
-        self.assertIn("/模式", labels)
-        self.assertIn("/权限", labels)
+        self.assertNotIn("/skill", labels)
+        self.assertNotIn("/checkpoint", labels)
+        self.assertIn("/mcp", labels)
+        self.assertIn("/plugin", labels)
+        self.assertIn("/mode", labels)
+        self.assertIn("/permission", labels)
 
         actions = command_picker_items(
-            REGISTRY.all(), services, parent=REGISTRY.resolve("插件")
+            REGISTRY.all(), services, parent=REGISTRY.resolve("plugin")
         )
         self.assertTrue(all(item.source is PickerSource.PLUGIN for item in actions))
 
@@ -100,10 +100,10 @@ class PickerHierarchyTests(unittest.IsolatedAsyncioTestCase):
         controls = TuiInteractions()
 
         for value, expected in (
-            ("/技能 ", "/技能 启用"),
+            ("/skill ", "/skill enable"),
             ("/mcp ", "/mcp enable"),
-            ("/checkpoint ", "/检查点 创建"),
-            ("/plugin ", "/插件 enable"),
+            ("/checkpoint ", "/checkpoint create"),
+            ("/plugin ", "/plugin enable"),
         ):
             app.input.replace(value)
             rows = controls.rows(app)
@@ -117,19 +117,19 @@ class PickerHierarchyTests(unittest.IsolatedAsyncioTestCase):
     async def test_keyboard_walks_parent_action_and_dynamic_skill_resource(self) -> None:
         app = PickerApp()
         controls = TuiInteractions()
-        app.input.replace("/技能")
+        app.input.replace("/skill")
 
         await controls.handle_key(app, "\r")
-        self.assertEqual(app.input.text, "/技能 ")
+        self.assertEqual(app.input.text, "/skill ")
         self.assertEqual(app.submitted, [])
 
         controls.rows(app)
         controls.picker.move(2)
         await controls.handle_key(app, "\r")
-        self.assertEqual(app.input.text, "/技能 启用 ")
+        self.assertEqual(app.input.text, "/skill enable ")
 
         await controls.handle_key(app, "\r")
-        self.assertEqual(app.submitted, ["/技能 启用 review"])
+        self.assertEqual(app.submitted, ["/skill enable review"])
 
     def test_plugin_contribution_and_mode_candidates_use_plugin_source(self) -> None:
         descriptor = SimpleNamespace(
@@ -145,19 +145,19 @@ class PickerHierarchyTests(unittest.IsolatedAsyncioTestCase):
         ).with_plugin_commands((descriptor,))
         items = command_picker_items(registry.all(), {"plugins", "modes"})
         mode_items = command_picker_items(
-            registry.all(), {"plugins", "modes"}, parent=registry.resolve("模式")
+            registry.all(), {"plugins", "modes"}, parent=registry.resolve("mode")
         )
 
         self.assertFalse(any(item.identifier == "review.audit" for item in items))
         contribution = registry.resolve("review.audit")
-        plugin_mode = next(item for item in mode_items if item.identifier == "模式:review.focus")
+        plugin_mode = next(item for item in mode_items if item.identifier == "mode:review.focus")
         self.assertEqual(contribution.visibility.value, "internal")
         self.assertEqual(plugin_mode.source, PickerSource.PLUGIN)
 
     def test_plugin_resource_picker_uses_controller_snapshot(self) -> None:
         item = plugin_picker_items(Plugins(), "enable")[0]
 
-        self.assertEqual(item.completion, "/插件 enable reviewer")
+        self.assertEqual(item.completion, "/plugin enable reviewer")
         self.assertEqual(item.source, PickerSource.PLUGIN)
 
 

@@ -128,7 +128,8 @@ class RootActionDispatcher:
             if self.peers is not None
             else ()
         )
-        return builtins + threads + peer_tools + mcp + plugins
+        managed = self.context_actions.definitions() if getattr(self, "context_actions", None) else ()
+        return builtins + threads + peer_tools + mcp + plugins + managed
 
     async def dispatch(
         self,
@@ -223,6 +224,8 @@ class RootActionDispatcher:
         gap_recorded: bool,
     ) -> ActionResult:
         arguments = request.arguments
+        if getattr(self, "context_actions", None) and request.name in self.context_actions.names:
+            return await self.context_actions.dispatch(request, cancellation)
         if request.name == CONTRACT_TOOL_NAME:
             return contract_result(request, self.tools())
         if request.name == "delegate_agent":

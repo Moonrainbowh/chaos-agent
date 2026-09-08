@@ -74,12 +74,19 @@ class RuntimeSelectionSafetyTests(unittest.IsolatedAsyncioTestCase):
         )
         with tempfile.TemporaryDirectory() as directory:
             application = _application(Path(directory), profiles, real_client=False)
-
-            self.assertTrue(await application.tui.submit("/模式"))
-            self.assertIn("sol:model-sol", application.tui.state.entries[-1].text)
-            self.assertTrue(await application.tui.submit("/模式 模型 terra"))
-            self.assertEqual(application.runtime_selection.current.profile, "terra")
-            await application.aclose()
+            application.tui._write = lambda _: None
+            try:
+                self.assertTrue(await application.tui.submit("/model"))
+                self.assertEqual(application.tui.input.text, "/model ")
+                menu = "\n".join(application.tui.interactions.rows(application.tui))
+                self.assertIn("model-sol", menu)
+                self.assertIn("Current", menu)
+                self.assertEqual(application.runtime_selection.current.profile, "sol")
+                self.assertTrue(await application.tui.submit("/model terra"))
+                self.assertEqual(application.runtime_selection.current.profile, "terra")
+                self.assertEqual(application.model.current.profile.name, "terra")
+            finally:
+                await application.aclose()
 
     async def test_anthropic_application_omits_unmapped_effort(self) -> None:
         profiles = (_profile("claude", ApiProtocol.ANTHROPIC_MESSAGES),)

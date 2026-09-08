@@ -83,10 +83,17 @@ class AttachmentDraft:
         self._ingestor = ingestor
         self._validate = validate
         self._items: tuple[AttachmentRef, ...] = ()
+        self._image_numbers: dict[str, int] = {}
+        self._next_image_number = 1
 
     @property
     def items(self) -> tuple[AttachmentRef, ...]:
         return self._items
+
+    @property
+    def image_tokens(self) -> tuple[tuple[str, str], ...]:
+        return tuple((item.sha256, f"[image{self._image_numbers[item.sha256]}]")
+                     for item in self._items if item.media_type.startswith("image/"))
 
     def validate(self, items: Sequence[AttachmentRef] | None = None) -> None:
         checked = freeze_attachments(self._items if items is None else tuple(items))
@@ -134,13 +141,17 @@ class AttachmentDraft:
         if not isinstance(selector, str) or not selector.strip():
             raise ValueError("attachment selector is required")
         query = selector.strip()
+        named = {label.strip("[]"): identifier for identifier, label in self.image_tokens}
+        query = named.get(query.strip("[]").casefold(), query)
         index = _selected_index(self._items, query)
         removed = self._items[index]
         self._items = self._items[:index] + self._items[index + 1 :]
+        self._forget_images()
         return removed
 
     def clear(self) -> None:
         self._items = ()
+        self._forget_images()
 
     def commit(self, items: Sequence[AttachmentRef]) -> None:
         """Remove only references proven durable by the completed submission."""
@@ -148,18 +159,30 @@ class AttachmentDraft:
         self._items = tuple(
             item for item in self._items if item.sha256 not in committed
         )
+        self._forget_images()
 
     def rows(self) -> tuple[str, ...]:
         if not self._items:
             return ("attachments: none",)
+        labels = dict(self.image_tokens)
         return tuple(
-            f"{index}. {item.summary()}"
+            f"{index}. " + (labels[item.sha256] + " " if item.sha256 in labels else "") + item.summary()
             for index, item in enumerate(self._items, start=1)
         )
 
     def _replace(self, items: Sequence[AttachmentRef]) -> None:
         unique = {item.sha256: item for item in items}
         self._items = freeze_attachments(tuple(unique.values()))
+        for item in self._items:
+            if item.media_type.startswith("image/") and item.sha256 not in self._image_numbers:
+                self._image_numbers[item.sha256] = self._next_image_number
+                self._next_image_number += 1
+
+    def _forget_images(self) -> None:
+        present = {item.sha256 for item in self._items}
+        self._image_numbers = {key: value for key, value in self._image_numbers.items() if key in present}
+        if not self._items:
+            self._next_image_number = 1
 
 
 def prepare_input(
