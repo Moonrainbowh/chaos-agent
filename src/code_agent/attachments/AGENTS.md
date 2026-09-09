@@ -12,3 +12,5 @@
 - `AttachmentStore.put(...)`、`read(ref)`: 原子保存并逐次复核 SHA-256 内容寻址 blob | 本地产品状态目录 I/O | 路径由 digest 唯一推导，不信任 resolver 返回内容
 - `AttachmentIngestor.ingest_path(...)`、`ingest_paths(...)`、`ingest_clipboard()`、`ingest_clipboard_items()`: 摄取显式用户附件并规范化为 PNG 或 UTF-8 | 受保护文件读取与 Pillow 解码 | 旧单图入口保持兼容，批量入口接收草稿剩余数量/字节预算并在永久发布前完成校验；多文件必须全是支持的图片并沿用原子 staging，单张位图在 PNG 编码前校验动画、尺寸和像素；外部路径必须绝对且显式
 - `AttachmentLimits`: 冻结数量、输入/输出字节与像素预算 | 无副作用 | 不得超过 Core Message 的总容量
+
+- 临时附件在所有平台先捕获失败清理身份；POSIX 持有原 inode 至清理结束，写入和硬链接不改变所有权判断。

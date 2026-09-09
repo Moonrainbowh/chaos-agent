@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import os
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import BinaryIO
 from pathlib import Path
 
 
@@ -21,15 +22,19 @@ class OwnedTemporary:
     path: Path
     identity: _FileIdentity
     parent_identity: _FileIdentity
+    _anchor: BinaryIO | None = field(default=None, repr=False, compare=False)
+
+    def __del__(self) -> None:
+        if self._anchor is not None:
+            self._anchor.close()
 
     @classmethod
     def capture(cls, path: Path) -> OwnedTemporary:
         checked = Path(path)
-        return cls(
-            checked,
-            _file_identity(checked),
-            _file_identity(checked.parent),
-        )
+        if os.name != "nt":
+            with checked.open("rb") as stream:
+                return cls.capture_descriptor(checked, stream.fileno())
+        return cls(checked, _file_identity(checked), _file_identity(checked.parent))
 
     @classmethod
     def capture_descriptor(cls, path: Path, descriptor: int) -> OwnedTemporary:
@@ -38,6 +43,7 @@ class OwnedTemporary:
             checked,
             _identity_from_stat(os.fstat(descriptor)),
             _file_identity(checked.parent),
+            _retain_descriptor(descriptor),
         )
 
     @classmethod
@@ -50,6 +56,7 @@ class OwnedTemporary:
             checked,
             _identity_from_stat(os.fstat(descriptor)),
             (0, 0, 0),
+            _retain_descriptor(descriptor),
         )
 
     def cleanup(self) -> None:
@@ -61,14 +68,18 @@ class OwnedTemporary:
             )
             return
         try:
-            current = _file_identity(self.path)
-        except FileNotFoundError:
-            return
-        if current != self.identity:
-            raise OwnedTemporaryReplacedError(
-                "owned temporary path was replaced; foreign file was preserved"
-            )
-        self.path.unlink()
+            try:
+                current = _file_identity(self.path)
+            except FileNotFoundError:
+                return
+            if current != self.identity:
+                raise OwnedTemporaryReplacedError(
+                    "owned temporary path was replaced; foreign file was preserved"
+                )
+            self.path.unlink()
+        finally:
+            if self._anchor is not None:
+                self._anchor.close()
 
     def publish_no_replace(
         self,
@@ -105,4 +116,14 @@ def _identity_from_stat(metadata: os.stat_result) -> _FileIdentity:
     if os.name == "nt":
         created = created // 100 + 116_444_736_000_000_000
         device &= 0xFFFFFFFF
+    else:
+        # POSIX ctime changes on writes and hardlinks; it is not creation time.
+        created = getattr(metadata, "st_birthtime_ns", 0)
     return device, metadata.st_ino, created
+
+
+def _retain_descriptor(descriptor: int) -> BinaryIO | None:
+    # Keep the inode alive until cleanup so unlink/recreate cannot reuse it.
+    if os.name == "nt":
+        return None
+    return os.fdopen(os.dup(descriptor), "rb")

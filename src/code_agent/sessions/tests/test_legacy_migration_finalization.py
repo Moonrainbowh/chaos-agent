@@ -15,7 +15,6 @@ SRC_ROOT = Path(__file__).resolve().parents[3]
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from code_agent import _windows_owned_temporary  # noqa: E402
 from code_agent.sessions.errors import SessionMigrationError  # noqa: E402
 from code_agent.sessions.legacy_migration import (  # noqa: E402
     migrate_legacy_session_database,
@@ -39,6 +38,8 @@ class LegacyMigrationFinalizationTests(unittest.TestCase):
 
     @unittest.skipUnless(os.name == "nt", "Windows committed publication")
     def test_close_failure_after_rename_reports_migrated_with_warning(self) -> None:
+        from code_agent import _windows_owned_temporary
+
         real_rename = _windows_owned_temporary._rename_relative
         real_close = _windows_owned_temporary._close
         renamed = False
