@@ -135,7 +135,10 @@ class ForegroundObserverFailureTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertEqual(transition.await_count, 3)
             notes = getattr(raised.exception, "__notes__", ())
-            self.assertTrue(any("transition unavailable" in note for note in notes))
+            if callable(getattr(raised.exception, "add_note", None)):
+                self.assertTrue(any("transition unavailable" in note for note in notes))
+            else:
+                self.assertEqual(notes, ())
             failed = (await sessions.list_tasks(include_terminal=True))[0]
             self.assertEqual(failed.status, TaskStatus.CREATED)
             await application.aclose()
