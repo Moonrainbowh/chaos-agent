@@ -52,3 +52,5 @@
 - `prompt_estimate` / `with_system_prompt`：保持同一本地估计口径，追加系统文本时刷新计数；不改变旧计数、Prompt 或预算策略。
 - 文档关键词复用排序器识别；模块回退在文档任务中尊重排序，其他任务保留原有源码回退。
 - 开发复现与边界见 `CONTEXT_VALIDATION.md`。
+
+- Repo Map 的 L0 候选遇到二进制或单文件读取上限时退回不含源码的 L1 结构信息并标明 source unavailable；路径权限与其他 I/O 异常不吞掉，前后身份校验仍生效。

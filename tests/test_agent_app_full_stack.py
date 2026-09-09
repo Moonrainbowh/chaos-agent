@@ -226,7 +226,7 @@ class FullStackTests(unittest.IsolatedAsyncioTestCase):
             )
             task = await first.start("run tests")
             running = asyncio.create_task(_collect_events(first.events(task.id)))
-            await first_runtime.started.wait()
+            await asyncio.wait_for(first_runtime.started.wait(), 5)
             await first.pause(task.id, "terminal closed")
             await running
 

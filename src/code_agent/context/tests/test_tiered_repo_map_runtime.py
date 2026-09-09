@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -72,6 +73,19 @@ class TieredRepoMapRuntimeTests(unittest.TestCase):
         self.assertEqual(rendered, baseline)
         self.assertIn("正文", rendered)
         self.assertLessEqual(estimate_tokens(rendered), budget)
+
+    def test_binary_and_oversized_anchors_fall_back_to_metadata(self) -> None:
+        for content in (b"SQLite format 3\x00data", b"x" * 256_001):
+            with self.subTest(size=len(content)):
+                (self.root / "sessions.sqlite3").write_bytes(content)
+                builder = RepoMapBuilder(self.files, self.config)
+                rendered = builder.render("sessions.sqlite3", (), 1000)
+                records = [json.loads(line) for line in rendered.splitlines()[1:]]
+                nodes = [item for item in records if item.get("path") == "sessions.sqlite3"]
+                self.assertTrue(nodes)
+                self.assertTrue(all(item.get("tier") != "L0" for item in nodes))
+                self.assertTrue(all(item.get("source", "") == "" for item in nodes))
+                self.assertIn("source unavailable", rendered)
 
     def test_one_stale_read_retries_but_two_stale_reads_fail_closed(self) -> None:
         self.write("target.py", "def target():\n    return 1\n")
