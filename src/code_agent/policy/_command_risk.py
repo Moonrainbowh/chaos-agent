@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 import subprocess
 from dataclasses import dataclass
-from pathlib import PureWindowsPath
+from pathlib import Path, PureWindowsPath
 
 
 _NETWORK_PATTERNS = tuple(
@@ -106,11 +106,13 @@ def process_risk(program: str, arguments: tuple[str, ...]) -> CommandRisk:
         (".cmd", ".bat")
     )
     result = command_risk(command)
+    # argv already preserves boundaries; Windows command parsing misses POSIX roots.
+    native_paths = tuple(value for value in arguments if Path(value).is_absolute())
     return CommandRisk(
         result.network,
         result.critical or shell_launcher,
         result.protected,
-        result.paths,
+        tuple(dict.fromkeys((*result.paths, *native_paths))),
     )
 
 

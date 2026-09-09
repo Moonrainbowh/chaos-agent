@@ -18,7 +18,7 @@
 - `RAW_SHELL`、`RAW_PROCESS`、`VERIFICATION`、`PROTECTED_PATH`、`EXPLICIT_APPROVAL`: 区分模型原始 shell、shell-free 结构化进程、受信验证、受保护路径和显式计划风险 | 无副作用 | 匹配的当前工作区授权可允许本地 shell/process 与 edit-plan 风险，但不跨越 network、outside-workspace、protected、critical 和 unknown 边界
 - `requires_explicit_edit_plan_approval(risk_flags)`: 严格验证 Host 注入的本地计划风险并决定是否必须询问 | 无副作用 | 只接受已知风险 flag（包括非 Git 既有文件与 Git 仓库中 ignored/untracked 既有文件）；`ActionPolicy.evaluate(..., trusted_edit_risk_flags=...)` 仅对 apply 工具生效，PLAN 仍拒绝写入
 - `classify_action(request, workspace_root): ActionClassification`: 从工具名、递归路径参数和 raw/argv 命令信号生成能力与风险提示 | 解析路径但不写入 | 路径执行 workspace containment；共享命令检查是保守启发式，不是 shell parser
-- `path_is_outside(...)`、`targets_outside_workspace(...)`、`targets_protected(...)`: 递归提取并判断结构化与命令文本中的路径边界 | 解析路径但不写入 | Windows 绝对路径、父级跳转和敏感名称均保守分类
+- `path_is_outside(...)`、`targets_outside_workspace(...)`、`targets_protected(...)`: 递归提取并判断结构化与命令文本中的路径边界 | 解析路径但不写入 | Windows 绝对路径、父级跳转和敏感名称均保守分类；结构化进程由 `process_risk` 从原始 argv 补充本机绝对路径（含 POSIX 根路径），保留空格与分号，工作区内绝对路径仍按包含关系判定
 - `PolicyConfig`、`ActionPolicy.evaluate(request): PolicyDecision`: 以不可变模式、网络开关和 workspace root 执行访问级别决策表 | 无副作用 | 默认 `auto`；protected path 在 `unrestricted` 之前进入审批，critical 与未知工具始终拒绝
 - `ProcessRuleStore.allow/list/revoke/match(...)`: 在产品状态 SQLite 中保存并匹配结构化进程的精确永久授权 | SQLite I/O、解析 executable | 绑定解析后的程序路径、完整参数、workspace identity 和联网上限；不匹配 raw PowerShell、工作区外、protected、critical 或 unknown 动作
 - `ActionPolicy.evaluate(request, task_authorization)`: 在匹配的当前工作区授权下允许普通读写、本地 shell/process、typed verification 和 edit plan | 无副作用 | raw 命令中可见的绝对/父级路径与敏感名称保守分类，不自动放行边界能力

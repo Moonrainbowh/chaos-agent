@@ -7,6 +7,7 @@ from pathlib import Path
 from code_agent.core.models import ActionRequest
 from code_agent.core.task import TaskAuthorization
 from code_agent.policy.classifier import classify_action
+from code_agent.policy._command_risk import process_risk
 from code_agent.policy.engine import ActionPolicy, PolicyConfig
 from code_agent.policy.models import (
     ApprovalMode,
@@ -23,6 +24,23 @@ def process(program: str, *args: str, cwd: str = ".") -> ActionRequest:
 
 
 class StructuredProcessPolicyTests(unittest.TestCase):
+    def test_native_absolute_arguments_keep_their_original_boundaries(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            for name in ("input.py", "input with spaces.py", "input;draft.py"):
+                target = str(root / name)
+                with self.subTest(target=target):
+                    self.assertIn(target, process_risk("python", (target,)).paths)
+
+    def test_absolute_argument_inside_workspace_remains_authorized(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            policy = ActionPolicy(PolicyConfig(ApprovalMode.AUTO, workspace_root=root))
+            action = process("python", str(root / "input with spaces.py"))
+            decision = policy.evaluate(action, TaskAuthorization.local_workspace(str(root)))
+            self.assertNotIn(Capability.OUTSIDE_WORKSPACE, decision.capabilities)
+            self.assertEqual(decision.outcome, DecisionOutcome.ALLOW)
+
     def test_plain_process_is_raw_high_risk_and_requires_approval(self) -> None:
         action = process("python.exe", "-m", "unittest")
         classified = classify_action(action)
