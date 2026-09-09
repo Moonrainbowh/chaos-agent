@@ -1,0 +1,1 @@
+Fix paths.py: an explicitly case-sensitive comparison currently lowercases Src/File.py. Preserve spelling when case sensitivity is requested; keep insensitive behavior and path validation. Do not alter tests. Use run_verification and finish after it passes.

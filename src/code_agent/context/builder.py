@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from math import ceil
-from typing import Sequence
+from typing import Callable, Sequence
 
 from code_agent.core.context_request import ContextRequest
 from code_agent.core.models import ContextBundle, Message, ToolDefinition
@@ -52,6 +52,7 @@ class WorkspaceContextBuilder:
         compactor: DeterministicCompactor,
         *,
         semantic_compactor: SemanticCompactor | None = None,
+        debug_report: Callable[[dict[str, object]], None] | None = None,
     ) -> None:
         if not isinstance(config, ContextConfig):
             raise TypeError("config must be a ContextConfig")
@@ -76,6 +77,7 @@ class WorkspaceContextBuilder:
         self.repo_map = repo_map
         self.compactor = compactor
         self.semantic_compactor = semantic_compactor
+        self.debug_report = debug_report
 
     def semantic_snapshot_for_turn(self) -> RepoIndexSnapshot:
         """Return the exact immutable repository snapshot used by Repo Map."""
@@ -222,19 +224,22 @@ class WorkspaceContextBuilder:
         compacted = self.compactor.compact(messages, plan.allocation.message_tokens)
         query = request.user_input or _latest_user_text(compacted.messages)
         request.cancellation.raise_if_cancelled()
+        report: dict[str, object] = {}
+        debug_options = {"debug_report": report} if self.debug_report is not None else {}
         if self.config.repo_map_enabled and _requires_repo_map(query):
             rendered_map, cache_hits, cache_misses = (
                 self.repo_map.render_with_metrics(
                     query,
                     _touched_files(request.task_state),
                     plan.allocation.repo_map_tokens,
+                    **debug_options,
                 )
             )
         else:
             rendered_map, cache_hits, cache_misses = "", 0, 0
         request.cancellation.raise_if_cancelled()
         system_prompt = plan.prefix + rendered_map
-        return _context_bundle(
+        bundle = _context_bundle(
             self.config,
             system_prompt,
             plan.rendered_tools,
@@ -243,4 +248,10 @@ class WorkspaceContextBuilder:
             cache_hits,
             cache_misses,
             semantic,
+            rendered_map,
         )
+        if self.debug_report is not None:
+            from .selection_debug import complete_report
+
+            self.debug_report(complete_report(report, rendered_map, bundle.measurements))
+        return bundle

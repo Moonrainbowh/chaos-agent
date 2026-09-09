@@ -53,3 +53,5 @@
 - `configure_product_controls(...)`、`configure_product_ui(...)`：组合 runtime、cost、doctor、semantic graph 与 TUI/foreground 控件 | 创建进程内依赖 | 从 app.py 抽离产品组合，不复制任何 Feature 行为
 - `PeerToolAdapter`、`PEER_TOOL_DEFINITIONS`: 独立暴露 `list_agents`、`send_message`、`rename_agent` typed tools | 仅委托已注册的 PeerMessagingService | 本 Unit 不接 Root dispatcher/UI，错误输出不回显正文，peer 输入仍不具有用户授权
 - `PeerRuntime`、`PeerDeliveryBuffer`、`PeerContextBuilder`: 仅随 Windows TUI 注册本机实例，续租并投递 queued 消息、提示 held 消息，把 PEER 正文以有界不可信 JSON 注入主上下文 | SQLite/模型回合/TUI 元数据 | task-owned thread 不后台恢复；taskless peer 回合只开放 list/send；失败指数退避，runtime 切换与 peer wake 共用 activity lock
+
+- BoundSkillContextBuilder / PeerContextBuilder 追加系统文本后仅刷新本地 `prompt_estimated_tokens`，不改变 Skills、peer、历史检索或 Harness 执行流程。

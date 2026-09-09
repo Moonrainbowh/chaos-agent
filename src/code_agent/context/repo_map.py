@@ -195,7 +195,11 @@ class RepoMapBuilder:
         query: str,
         touched_files: Sequence[str],
         token_budget: int,
+        *,
+        debug_report: dict[str, object] | None = None,
     ) -> tuple[str, int, int]:
+        if debug_report is not None:
+            debug_report.clear()
         if not isinstance(query, str):
             raise TypeError("query must be text")
         checked_touched = tuple(touched_files)
@@ -253,6 +257,10 @@ class RepoMapBuilder:
                 if attempt == 0:
                     continue
                 return "", total_hits, total_misses
+            if debug_report is not None:
+                from .selection_debug import selection_report
+
+                debug_report.update(selection_report(selection, rendered))
             return (
                 rendered,
                 total_hits,

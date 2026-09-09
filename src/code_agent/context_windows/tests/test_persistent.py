@@ -66,6 +66,10 @@ class PersistentTests(unittest.IsolatedAsyncioTestCase):
         await self.repo.append_message(self.thread, Message("tool", "old evidence 原文", tool_call_id="read"))
         before = await self.repo.load_messages(self.thread)
         first = await self.build()
+        from code_agent.context.measurements import prompt_estimate
+        self.assertEqual(first.measurements["prompt_estimated_tokens"],
+                         prompt_estimate(first.system_prompt, first.messages, ""))
+        self.assertEqual(first.measurements["prompt_budget_tokens"], first.measurements["window_input_cap"])
         for i in range(2):
             await self.tool("new_context", {}, f"reset{i}", persist=True)
             bundle = await self.build()

@@ -84,7 +84,8 @@ class SkillContextBuilder:
     async def build(self, *args: object, **kwargs: object) -> object:
         bundle = await self._inner.build(*args, **kwargs)
         content = self._activation.render()
-        return replace(bundle, system_prompt=bundle.system_prompt + ("\n\n" + content if content else ""))
+        from code_agent.context.measurements import with_system_prompt
+        return with_system_prompt(bundle, bundle.system_prompt + ("\n\n" + content if content else ""))
 
 
 def _read_skill(directory: Path, trusted: bool) -> SkillManifest:

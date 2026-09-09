@@ -60,6 +60,10 @@ class WindowTests(unittest.IsolatedAsyncioTestCase):
         builder = WindowContextBuilder(prefix, self.repo, self.policy, self.limits, self.counter, handoff)
         before = await self.repo.load_messages(self.thread)
         bundle = await builder.build(self.request())
+        from code_agent.context.measurements import prompt_estimate
+        self.assertEqual(bundle.measurements["prompt_estimated_tokens"],
+                         prompt_estimate(bundle.system_prompt, bundle.messages, ""))
+        self.assertEqual(bundle.measurements["prompt_budget_tokens"], self.limits.input_cap(self.policy))
         self.assertEqual(bundle.measurements["window_number"], 1)
         self.assertEqual(before, await self.repo.load_messages(self.thread))
         self.assertEqual(prefix.calls, 1)

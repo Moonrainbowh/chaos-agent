@@ -14,3 +14,5 @@
 - `SkillActivation`: 管理会话激活与上下文预算 | 进程内状态 | 不执行 Skill 内容
 - `SkillContextBuilder`: 在每次模型请求前插入当前已激活的受限指令 | 调用上下文构建器 | 不改变工具或策略
 - `SkillController`: 提供列表、详情、来源、thread-scoped 启用/禁用、恢复和重载 | 本地 Skill 读取与 Sessions identity I/O | 工作区 Skill 需显式批准，digest/source 漂移会移除持久激活
+
+- SkillContextBuilder 追加指令后同步本地 `prompt_estimated_tokens`，保留旧度量与 Prompt 内容。

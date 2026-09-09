@@ -1,0 +1,266 @@
+[
+  {
+    "turn": 1,
+    "tiers": [
+      {
+        "docstring": "",
+        "kind": "symbol",
+        "path": "test_regression.py",
+        "range": [
+          4,
+          16
+        ],
+        "reasons": [
+          "task seed"
+        ],
+        "resolution": "exact",
+        "source": "class Regression(unittest.TestCase):\n def test_token_rounding(self):\n  self.assertEqual(estimate_tokens('abc'),1)\n  self.assertEqual(estimate_tokens('a'*5),2)\n  self.assertEqual(estimate_tokens('\u4e2da'),2)\n  self.assertEqual(estimate_tokens(''),0)\n  self.assertLessEqual(estimate_tokens(truncate_to_tokens('abcdefghi',1)),1)\n def test_line_styles(self):\n  self.assertEqual(logical_lines('a\\r\\nb\\r\\n'),('a','b'))\n  self.assertEqual(logical_lines(''),())\n def test_path_case(self):\n  self.assertEqual(canonical_path_key('Src/File.py',case_insensitive=False),'Src/File.py')\n  self.assertEqual(canonical_path_key('Src/File.py',case_insensitive=True),'src/file.py')\n",
+        "symbol": "Regression",
+        "symbol_signature": "",
+        "tier": "L0"
+      },
+      {
+        "docstring": "Return a stable comparison key while display spelling stays separate.",
+        "kind": "symbol",
+        "path": "paths.py",
+        "range": [
+          30,
+          38
+        ],
+        "reasons": [
+          "outgoing call",
+          "outgoing import",
+          "outgoing reference"
+        ],
+        "resolution": "exact",
+        "source": "",
+        "symbol": "canonical_path_key",
+        "symbol_signature": "def canonical_path_key(\n    path: str, *, case_insensitive: bool | None = None\n) -> str:",
+        "tier": "L1"
+      },
+      {
+        "docstring": "Return the longest character-safe prefix within ``token_budget``.",
+        "kind": "symbol",
+        "path": "tokens.py",
+        "range": [
+          20,
+          41
+        ],
+        "reasons": [
+          "outgoing call",
+          "outgoing import",
+          "outgoing reference"
+        ],
+        "resolution": "exact",
+        "source": "",
+        "symbol": "truncate_to_tokens",
+        "symbol_signature": "def truncate_to_tokens(text: str, token_budget: int) -> str:",
+        "tier": "L1"
+      }
+    ],
+    "prompt_estimated_tokens": 1052,
+    "usage": {
+      "input_tokens": 887,
+      "output_tokens": 62,
+      "cached_input_tokens": 0
+    }
+  },
+  {
+    "turn": 2,
+    "tiers": [
+      {
+        "docstring": "",
+        "kind": "symbol",
+        "path": "test_regression.py",
+        "range": [
+          4,
+          16
+        ],
+        "reasons": [
+          "task seed"
+        ],
+        "resolution": "exact",
+        "source": "class Regression(unittest.TestCase):\n def test_token_rounding(self):\n  self.assertEqual(estimate_tokens('abc'),1)\n  self.assertEqual(estimate_tokens('a'*5),2)\n  self.assertEqual(estimate_tokens('\u4e2da'),2)\n  self.assertEqual(estimate_tokens(''),0)\n  self.assertLessEqual(estimate_tokens(truncate_to_tokens('abcdefghi',1)),1)\n def test_line_styles(self):\n  self.assertEqual(logical_lines('a\\r\\nb\\r\\n'),('a','b'))\n  self.assertEqual(logical_lines(''),())\n def test_path_case(self):\n  self.assertEqual(canonical_path_key('Src/File.py',case_insensitive=False),'Src/File.py')\n  self.assertEqual(canonical_path_key('Src/File.py',case_insensitive=True),'src/file.py')\n",
+        "symbol": "Regression",
+        "symbol_signature": "",
+        "tier": "L0"
+      },
+      {
+        "docstring": "Return a stable comparison key while display spelling stays separate.",
+        "kind": "symbol",
+        "path": "paths.py",
+        "range": [
+          30,
+          38
+        ],
+        "reasons": [
+          "outgoing call",
+          "outgoing import",
+          "outgoing reference"
+        ],
+        "resolution": "exact",
+        "source": "",
+        "symbol": "canonical_path_key",
+        "symbol_signature": "def canonical_path_key(\n    path: str, *, case_insensitive: bool | None = None\n) -> str:",
+        "tier": "L1"
+      },
+      {
+        "docstring": "Return the longest character-safe prefix within ``token_budget``.",
+        "kind": "symbol",
+        "path": "tokens.py",
+        "range": [
+          20,
+          41
+        ],
+        "reasons": [
+          "outgoing call",
+          "outgoing import",
+          "outgoing reference"
+        ],
+        "resolution": "exact",
+        "source": "",
+        "symbol": "truncate_to_tokens",
+        "symbol_signature": "def truncate_to_tokens(text: str, token_budget: int) -> str:",
+        "tier": "L1"
+      }
+    ],
+    "prompt_estimated_tokens": 2110,
+    "usage": {
+      "input_tokens": 2094,
+      "output_tokens": 110,
+      "cached_input_tokens": 0
+    }
+  },
+  {
+    "turn": 3,
+    "tiers": [
+      {
+        "docstring": "",
+        "kind": "symbol",
+        "path": "test_regression.py",
+        "range": [
+          4,
+          16
+        ],
+        "reasons": [
+          "task seed"
+        ],
+        "resolution": "exact",
+        "source": "class Regression(unittest.TestCase):\n def test_token_rounding(self):\n  self.assertEqual(estimate_tokens('abc'),1)\n  self.assertEqual(estimate_tokens('a'*5),2)\n  self.assertEqual(estimate_tokens('\u4e2da'),2)\n  self.assertEqual(estimate_tokens(''),0)\n  self.assertLessEqual(estimate_tokens(truncate_to_tokens('abcdefghi',1)),1)\n def test_line_styles(self):\n  self.assertEqual(logical_lines('a\\r\\nb\\r\\n'),('a','b'))\n  self.assertEqual(logical_lines(''),())\n def test_path_case(self):\n  self.assertEqual(canonical_path_key('Src/File.py',case_insensitive=False),'Src/File.py')\n  self.assertEqual(canonical_path_key('Src/File.py',case_insensitive=True),'src/file.py')\n",
+        "symbol": "Regression",
+        "symbol_signature": "",
+        "tier": "L0"
+      },
+      {
+        "docstring": "Return a stable comparison key while display spelling stays separate.",
+        "kind": "symbol",
+        "path": "paths.py",
+        "range": [
+          30,
+          38
+        ],
+        "reasons": [
+          "outgoing call",
+          "outgoing import",
+          "outgoing reference"
+        ],
+        "resolution": "exact",
+        "source": "",
+        "symbol": "canonical_path_key",
+        "symbol_signature": "def canonical_path_key(\n    path: str, *, case_insensitive: bool | None = None\n) -> str:",
+        "tier": "L1"
+      },
+      {
+        "docstring": "Return the longest character-safe prefix within ``token_budget``.",
+        "kind": "symbol",
+        "path": "tokens.py",
+        "range": [
+          20,
+          41
+        ],
+        "reasons": [
+          "outgoing call",
+          "outgoing import",
+          "outgoing reference"
+        ],
+        "resolution": "exact",
+        "source": "",
+        "symbol": "truncate_to_tokens",
+        "symbol_signature": "def truncate_to_tokens(text: str, token_budget: int) -> str:",
+        "tier": "L1"
+      }
+    ],
+    "prompt_estimated_tokens": 2310,
+    "usage": {
+      "input_tokens": 2335,
+      "output_tokens": 15,
+      "cached_input_tokens": 0
+    }
+  },
+  {
+    "turn": 4,
+    "tiers": [
+      {
+        "docstring": "",
+        "kind": "symbol",
+        "path": "test_regression.py",
+        "range": [
+          4,
+          16
+        ],
+        "reasons": [
+          "task seed"
+        ],
+        "resolution": "exact",
+        "source": "class Regression(unittest.TestCase):\n def test_token_rounding(self):\n  self.assertEqual(estimate_tokens('abc'),1)\n  self.assertEqual(estimate_tokens('a'*5),2)\n  self.assertEqual(estimate_tokens('\u4e2da'),2)\n  self.assertEqual(estimate_tokens(''),0)\n  self.assertLessEqual(estimate_tokens(truncate_to_tokens('abcdefghi',1)),1)\n def test_line_styles(self):\n  self.assertEqual(logical_lines('a\\r\\nb\\r\\n'),('a','b'))\n  self.assertEqual(logical_lines(''),())\n def test_path_case(self):\n  self.assertEqual(canonical_path_key('Src/File.py',case_insensitive=False),'Src/File.py')\n  self.assertEqual(canonical_path_key('Src/File.py',case_insensitive=True),'src/file.py')\n",
+        "symbol": "Regression",
+        "symbol_signature": "",
+        "tier": "L0"
+      },
+      {
+        "docstring": "Return a stable comparison key while display spelling stays separate.",
+        "kind": "symbol",
+        "path": "paths.py",
+        "range": [
+          30,
+          38
+        ],
+        "reasons": [
+          "outgoing call",
+          "outgoing import",
+          "outgoing reference"
+        ],
+        "resolution": "exact",
+        "source": "",
+        "symbol": "canonical_path_key",
+        "symbol_signature": "def canonical_path_key(\n    path: str, *, case_insensitive: bool | None = None\n) -> str:",
+        "tier": "L1"
+      },
+      {
+        "docstring": "Return the longest character-safe prefix within ``token_budget``.",
+        "kind": "symbol",
+        "path": "tokens.py",
+        "range": [
+          20,
+          41
+        ],
+        "reasons": [
+          "outgoing call",
+          "outgoing import",
+          "outgoing reference"
+        ],
+        "resolution": "exact",
+        "source": "",
+        "symbol": "truncate_to_tokens",
+        "symbol_signature": "def truncate_to_tokens(text: str, token_budget: int) -> str:",
+        "tier": "L1"
+      }
+    ],
+    "prompt_estimated_tokens": 2464,
+    "usage": {
+      "input_tokens": 2484,
+      "output_tokens": 67,
+      "cached_input_tokens": 2176
+    }
+  }
+]

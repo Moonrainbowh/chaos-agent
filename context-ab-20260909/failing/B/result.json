@@ -1,0 +1,281 @@
+{
+  "arm": "B",
+  "case": "failing",
+  "model": "gpt-5.6-sol",
+  "reasoning": "high",
+  "max_output_tokens": 8192,
+  "repo_budget": 2400,
+  "initial": {
+    "passed": false,
+    "returncode": 1,
+    "output": "test_line_styles (test_regression.Regression.test_line_styles) ... ok\ntest_path_case (test_regression.Regression.test_path_case) ... ok\ntest_token_rounding (test_regression.Regression.test_token_rounding) ... FAIL\n\n======================================================================\nFAIL: test_token_rounding (test_regression.Regression.test_token_rounding)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"F:\\code-ai-chaos\\chaos-16-agent\\context-ab-20260909\\failing\\B\\workspace\\test_regression.py\", line 6, in test_token_rounding\n    self.assertEqual(estimate_tokens('abc'),1)\nAssertionError: 0 != 1\n\n----------------------------------------------------------------------\nRan 3 tests in 0.000s\n\nFAILED (failures=1)\n"
+  },
+  "execution": "returned",
+  "final": {
+    "passed": true,
+    "returncode": 0,
+    "output": "test_line_styles (test_regression.Regression.test_line_styles) ... ok\ntest_path_case (test_regression.Regression.test_path_case) ... ok\ntest_token_rounding (test_regression.Regression.test_token_rounding) ... ok\n\n----------------------------------------------------------------------\nRan 3 tests in 0.000s\n\nOK\n"
+  },
+  "seconds": 31.89,
+  "turns": 4,
+  "tool_calls": 4,
+  "localization_calls": 2,
+  "requests": [
+    {
+      "turn": 1,
+      "tiers": [
+        {
+          "docstring": "",
+          "kind": "symbol",
+          "path": "test_regression.py",
+          "range": [
+            4,
+            16
+          ],
+          "reasons": [
+            "explicit symbol"
+          ],
+          "resolution": "exact",
+          "source": "class Regression(unittest.TestCase):\n def test_token_rounding(self):\n  self.assertEqual(estimate_tokens('abc'),1)\n  self.assertEqual(estimate_tokens('a'*5),2)\n  self.assertEqual(estimate_tokens('中a'),2)\n  self.assertEqual(estimate_tokens(''),0)\n  self.assertLessEqual(estimate_tokens(truncate_to_tokens('abcdefghi',1)),1)\n def test_line_styles(self):\n  self.assertEqual(logical_lines('a\\r\\nb\\r\\n'),('a','b'))\n  self.assertEqual(logical_lines(''),())\n def test_path_case(self):\n  self.assertEqual(canonical_path_key('Src/File.py',case_insensitive=False),'Src/File.py')\n  self.assertEqual(canonical_path_key('Src/File.py',case_insensitive=True),'src/file.py')\n",
+          "symbol": "Regression",
+          "symbol_signature": "",
+          "tier": "L0"
+        },
+        {
+          "docstring": "",
+          "kind": "symbol",
+          "path": "tokens.py",
+          "range": [
+            6,
+            17
+          ],
+          "reasons": [
+            "explicit symbol"
+          ],
+          "resolution": "exact",
+          "source": "def estimate_tokens(text: str) -> int:\n    \"\"\"Return a deterministic conservative estimate for mixed UTF-8 text.\"\"\"\n    if not isinstance(text, str):\n        raise TypeError(\"text must be a string\")\n    ascii_count = 0\n    multibyte_count = 0\n    for cluster in _clusters(text):\n        if len(cluster) == 1 and ord(cluster) < 128:\n            ascii_count += 1\n        else:\n            multibyte_count += len(_cluster_bytes(cluster))\n    return _ceil_div(ascii_count, 4) + _ceil_div(multibyte_count, 3)\n",
+          "symbol": "estimate_tokens",
+          "symbol_signature": "",
+          "tier": "L0"
+        },
+        {
+          "docstring": "Return a stable comparison key while display spelling stays separate.",
+          "kind": "symbol",
+          "path": "paths.py",
+          "range": [
+            30,
+            38
+          ],
+          "reasons": [
+            "outgoing call",
+            "outgoing import",
+            "outgoing reference"
+          ],
+          "resolution": "exact",
+          "source": "",
+          "symbol": "canonical_path_key",
+          "symbol_signature": "def canonical_path_key(\n    path: str, *, case_insensitive: bool | None = None\n) -> str:",
+          "tier": "L1"
+        }
+      ],
+      "prompt_estimated_tokens": 1143,
+      "usage": {
+        "input_tokens": 995,
+        "output_tokens": 63,
+        "cached_input_tokens": 0
+      }
+    },
+    {
+      "turn": 2,
+      "tiers": [
+        {
+          "docstring": "",
+          "kind": "symbol",
+          "path": "test_regression.py",
+          "range": [
+            4,
+            16
+          ],
+          "reasons": [
+            "explicit symbol"
+          ],
+          "resolution": "exact",
+          "source": "class Regression(unittest.TestCase):\n def test_token_rounding(self):\n  self.assertEqual(estimate_tokens('abc'),1)\n  self.assertEqual(estimate_tokens('a'*5),2)\n  self.assertEqual(estimate_tokens('中a'),2)\n  self.assertEqual(estimate_tokens(''),0)\n  self.assertLessEqual(estimate_tokens(truncate_to_tokens('abcdefghi',1)),1)\n def test_line_styles(self):\n  self.assertEqual(logical_lines('a\\r\\nb\\r\\n'),('a','b'))\n  self.assertEqual(logical_lines(''),())\n def test_path_case(self):\n  self.assertEqual(canonical_path_key('Src/File.py',case_insensitive=False),'Src/File.py')\n  self.assertEqual(canonical_path_key('Src/File.py',case_insensitive=True),'src/file.py')\n",
+          "symbol": "Regression",
+          "symbol_signature": "",
+          "tier": "L0"
+        },
+        {
+          "docstring": "",
+          "kind": "symbol",
+          "path": "tokens.py",
+          "range": [
+            6,
+            17
+          ],
+          "reasons": [
+            "explicit symbol"
+          ],
+          "resolution": "exact",
+          "source": "def estimate_tokens(text: str) -> int:\n    \"\"\"Return a deterministic conservative estimate for mixed UTF-8 text.\"\"\"\n    if not isinstance(text, str):\n        raise TypeError(\"text must be a string\")\n    ascii_count = 0\n    multibyte_count = 0\n    for cluster in _clusters(text):\n        if len(cluster) == 1 and ord(cluster) < 128:\n            ascii_count += 1\n        else:\n            multibyte_count += len(_cluster_bytes(cluster))\n    return _ceil_div(ascii_count, 4) + _ceil_div(multibyte_count, 3)\n",
+          "symbol": "estimate_tokens",
+          "symbol_signature": "",
+          "tier": "L0"
+        },
+        {
+          "docstring": "Return a stable comparison key while display spelling stays separate.",
+          "kind": "symbol",
+          "path": "paths.py",
+          "range": [
+            30,
+            38
+          ],
+          "reasons": [
+            "outgoing call",
+            "outgoing import",
+            "outgoing reference"
+          ],
+          "resolution": "exact",
+          "source": "",
+          "symbol": "canonical_path_key",
+          "symbol_signature": "def canonical_path_key(\n    path: str, *, case_insensitive: bool | None = None\n) -> str:",
+          "tier": "L1"
+        }
+      ],
+      "prompt_estimated_tokens": 2201,
+      "usage": {
+        "input_tokens": 2206,
+        "output_tokens": 109,
+        "cached_input_tokens": 0
+      }
+    },
+    {
+      "turn": 3,
+      "tiers": [
+        {
+          "docstring": "",
+          "kind": "symbol",
+          "path": "test_regression.py",
+          "range": [
+            4,
+            16
+          ],
+          "reasons": [
+            "explicit symbol"
+          ],
+          "resolution": "exact",
+          "source": "class Regression(unittest.TestCase):\n def test_token_rounding(self):\n  self.assertEqual(estimate_tokens('abc'),1)\n  self.assertEqual(estimate_tokens('a'*5),2)\n  self.assertEqual(estimate_tokens('中a'),2)\n  self.assertEqual(estimate_tokens(''),0)\n  self.assertLessEqual(estimate_tokens(truncate_to_tokens('abcdefghi',1)),1)\n def test_line_styles(self):\n  self.assertEqual(logical_lines('a\\r\\nb\\r\\n'),('a','b'))\n  self.assertEqual(logical_lines(''),())\n def test_path_case(self):\n  self.assertEqual(canonical_path_key('Src/File.py',case_insensitive=False),'Src/File.py')\n  self.assertEqual(canonical_path_key('Src/File.py',case_insensitive=True),'src/file.py')\n",
+          "symbol": "Regression",
+          "symbol_signature": "",
+          "tier": "L0"
+        },
+        {
+          "docstring": "",
+          "kind": "symbol",
+          "path": "tokens.py",
+          "range": [
+            6,
+            17
+          ],
+          "reasons": [
+            "explicit symbol"
+          ],
+          "resolution": "exact",
+          "source": "def estimate_tokens(text: str) -> int:\n    \"\"\"Return a deterministic conservative estimate for mixed UTF-8 text.\"\"\"\n    if not isinstance(text, str):\n        raise TypeError(\"text must be a string\")\n    ascii_count = 0\n    multibyte_count = 0\n    for cluster in _clusters(text):\n        if len(cluster) == 1 and ord(cluster) < 128:\n            ascii_count += 1\n        else:\n            multibyte_count += len(_cluster_bytes(cluster))\n    return _ceil_div(ascii_count, 4) + _ceil_div(multibyte_count, 3)\n",
+          "symbol": "estimate_tokens",
+          "symbol_signature": "",
+          "tier": "L0"
+        },
+        {
+          "docstring": "Return a stable comparison key while display spelling stays separate.",
+          "kind": "symbol",
+          "path": "paths.py",
+          "range": [
+            30,
+            38
+          ],
+          "reasons": [
+            "outgoing call",
+            "outgoing import",
+            "outgoing reference"
+          ],
+          "resolution": "exact",
+          "source": "",
+          "symbol": "canonical_path_key",
+          "symbol_signature": "def canonical_path_key(\n    path: str, *, case_insensitive: bool | None = None\n) -> str:",
+          "tier": "L1"
+        }
+      ],
+      "prompt_estimated_tokens": 2401,
+      "usage": {
+        "input_tokens": 2445,
+        "output_tokens": 15,
+        "cached_input_tokens": 0
+      }
+    },
+    {
+      "turn": 4,
+      "tiers": [
+        {
+          "docstring": "",
+          "kind": "symbol",
+          "path": "test_regression.py",
+          "range": [
+            4,
+            16
+          ],
+          "reasons": [
+            "explicit symbol"
+          ],
+          "resolution": "exact",
+          "source": "class Regression(unittest.TestCase):\n def test_token_rounding(self):\n  self.assertEqual(estimate_tokens('abc'),1)\n  self.assertEqual(estimate_tokens('a'*5),2)\n  self.assertEqual(estimate_tokens('中a'),2)\n  self.assertEqual(estimate_tokens(''),0)\n  self.assertLessEqual(estimate_tokens(truncate_to_tokens('abcdefghi',1)),1)\n def test_line_styles(self):\n  self.assertEqual(logical_lines('a\\r\\nb\\r\\n'),('a','b'))\n  self.assertEqual(logical_lines(''),())\n def test_path_case(self):\n  self.assertEqual(canonical_path_key('Src/File.py',case_insensitive=False),'Src/File.py')\n  self.assertEqual(canonical_path_key('Src/File.py',case_insensitive=True),'src/file.py')\n",
+          "symbol": "Regression",
+          "symbol_signature": "",
+          "tier": "L0"
+        },
+        {
+          "docstring": "",
+          "kind": "symbol",
+          "path": "tokens.py",
+          "range": [
+            6,
+            17
+          ],
+          "reasons": [
+            "explicit symbol"
+          ],
+          "resolution": "exact",
+          "source": "def estimate_tokens(text: str) -> int:\n    \"\"\"Return a deterministic conservative estimate for mixed UTF-8 text.\"\"\"\n    if not isinstance(text, str):\n        raise TypeError(\"text must be a string\")\n    ascii_count = 0\n    multibyte_count = 0\n    for cluster in _clusters(text):\n        if len(cluster) == 1 and ord(cluster) < 128:\n            ascii_count += 1\n        else:\n            multibyte_count += len(_cluster_bytes(cluster))\n    return _ceil_div(ascii_count, 4) + _ceil_div(multibyte_count, 3)\n",
+          "symbol": "estimate_tokens",
+          "symbol_signature": "",
+          "tier": "L0"
+        },
+        {
+          "docstring": "Return a stable comparison key while display spelling stays separate.",
+          "kind": "symbol",
+          "path": "paths.py",
+          "range": [
+            30,
+            38
+          ],
+          "reasons": [
+            "outgoing call",
+            "outgoing import",
+            "outgoing reference"
+          ],
+          "resolution": "exact",
+          "source": "",
+          "symbol": "canonical_path_key",
+          "symbol_signature": "def canonical_path_key(\n    path: str, *, case_insensitive: bool | None = None\n) -> str:",
+          "tier": "L1"
+        }
+      ],
+      "prompt_estimated_tokens": 2555,
+      "usage": {
+        "input_tokens": 2594,
+        "output_tokens": 64,
+        "cached_input_tokens": 2304
+      }
+    }
+  ]
+}

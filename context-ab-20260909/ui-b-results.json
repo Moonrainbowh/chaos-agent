@@ -1,0 +1,14 @@
+[
+  {
+    "arm": "B-context-only",
+    "test": "test_startup_responsiveness.StartupResponsivenessTests.test_escape_during_preparation_waits_for_cleanup_and_keeps_input",
+    "timeout": 25,
+    "output": "test_escape_during_preparation_waits_for_cleanup_and_keeps_input (test_startup_responsiveness.StartupResponsivenessTests.test_escape_during_preparation_waits_for_cleanup_and_keeps_input) ... "
+  },
+  {
+    "arm": "B-context-only",
+    "test": "test_windows_tui_interaction.WindowsTerminalAppTests.test_running_icon_changes_but_completion_icon_is_static",
+    "returncode": 0,
+    "output": "test_running_icon_changes_but_completion_icon_is_static (test_windows_tui_interaction.WindowsTerminalAppTests.test_running_icon_changes_but_completion_icon_is_static) ... ok\n\n----------------------------------------------------------------------\nRan 1 test in 0.039s\n\nOK\n"
+  }
+]

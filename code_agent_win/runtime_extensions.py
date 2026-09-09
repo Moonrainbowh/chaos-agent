@@ -144,11 +144,9 @@ class BoundSkillContextBuilder:
         interaction = request.mode_snapshot.get("interaction_mode")
         mode_prompt = _INTERACTION_PROMPTS.get(str(interaction), "")
         additions = "\n\n".join(item for item in (content, mode_prompt) if item)
-        return replace(
-            bundle,
-            system_prompt=bundle.system_prompt
-            + ("\n\n" + additions if additions else ""),
-        )
+        from code_agent.context.measurements import with_system_prompt
+        return with_system_prompt(
+            bundle, bundle.system_prompt + ("\n\n" + additions if additions else ""))
 
     async def compact_context(
         self,

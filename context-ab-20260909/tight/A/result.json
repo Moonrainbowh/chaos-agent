@@ -1,0 +1,213 @@
+{
+  "arm": "A",
+  "case": "tight",
+  "model": "gpt-5.6-sol",
+  "reasoning": "high",
+  "max_output_tokens": 8192,
+  "repo_budget": 200,
+  "initial": {
+    "passed": false,
+    "returncode": 1,
+    "output": "test_line_styles (test_regression.Regression.test_line_styles) ... ok\ntest_path_case (test_regression.Regression.test_path_case) ... ok\ntest_token_rounding (test_regression.Regression.test_token_rounding) ... FAIL\n\n======================================================================\nFAIL: test_token_rounding (test_regression.Regression.test_token_rounding)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"F:\\code-ai-chaos\\chaos-16-agent\\context-ab-20260909\\tight\\A\\workspace\\test_regression.py\", line 6, in test_token_rounding\n    self.assertEqual(estimate_tokens('abc'),1)\nAssertionError: 0 != 1\n\n----------------------------------------------------------------------\nRan 3 tests in 0.001s\n\nFAILED (failures=1)\n"
+  },
+  "execution": "returned",
+  "final": {
+    "passed": true,
+    "returncode": 0,
+    "output": "test_line_styles (test_regression.Regression.test_line_styles) ... ok\ntest_path_case (test_regression.Regression.test_path_case) ... ok\ntest_token_rounding (test_regression.Regression.test_token_rounding) ... ok\n\n----------------------------------------------------------------------\nRan 3 tests in 0.000s\n\nOK\n"
+  },
+  "seconds": 30.28,
+  "turns": 4,
+  "tool_calls": 3,
+  "localization_calls": 1,
+  "requests": [
+    {
+      "turn": 1,
+      "tiers": [
+        {
+          "docstring": "",
+          "kind": "symbol",
+          "path": "tokens.py",
+          "range": [
+            66,
+            67
+          ],
+          "reasons": [
+            "task seed"
+          ],
+          "resolution": "exact",
+          "source": "def _ceil_div(value: int, divisor: int) -> int:\n    return value // divisor\n",
+          "symbol": "_ceil_div",
+          "symbol_signature": "",
+          "tier": "L0"
+        },
+        {
+          "docstring": "",
+          "kind": "symbol",
+          "path": "test_regression.py",
+          "range": [
+            5,
+            10
+          ],
+          "reasons": [
+            "test impact candidate via call",
+            "test impact candidate via import",
+            "test impact candidate via reference"
+          ],
+          "resolution": "exact",
+          "source": "",
+          "symbol": "Regression.test_token_rounding",
+          "symbol_signature": "def test_token_rounding(self):",
+          "tier": "L1"
+        }
+      ],
+      "prompt_estimated_tokens": 786,
+      "usage": {
+        "input_tokens": 603,
+        "output_tokens": 29,
+        "cached_input_tokens": 0
+      }
+    },
+    {
+      "turn": 2,
+      "tiers": [
+        {
+          "docstring": "",
+          "kind": "symbol",
+          "path": "tokens.py",
+          "range": [
+            66,
+            67
+          ],
+          "reasons": [
+            "task seed"
+          ],
+          "resolution": "exact",
+          "source": "def _ceil_div(value: int, divisor: int) -> int:\n    return value // divisor\n",
+          "symbol": "_ceil_div",
+          "symbol_signature": "",
+          "tier": "L0"
+        },
+        {
+          "docstring": "",
+          "kind": "symbol",
+          "path": "test_regression.py",
+          "range": [
+            5,
+            10
+          ],
+          "reasons": [
+            "test impact candidate via call",
+            "test impact candidate via import",
+            "test impact candidate via reference"
+          ],
+          "resolution": "exact",
+          "source": "",
+          "symbol": "Regression.test_token_rounding",
+          "symbol_signature": "def test_token_rounding(self):",
+          "tier": "L1"
+        }
+      ],
+      "prompt_estimated_tokens": 1527,
+      "usage": {
+        "input_tokens": 1452,
+        "output_tokens": 137,
+        "cached_input_tokens": 0
+      }
+    },
+    {
+      "turn": 3,
+      "tiers": [
+        {
+          "docstring": "",
+          "kind": "symbol",
+          "path": "tokens.py",
+          "range": [
+            66,
+            67
+          ],
+          "reasons": [
+            "task seed"
+          ],
+          "resolution": "exact",
+          "source": "def _ceil_div(value: int, divisor: int) -> int:\n    return -(-value // divisor)\n",
+          "symbol": "_ceil_div",
+          "symbol_signature": "",
+          "tier": "L0"
+        },
+        {
+          "docstring": "",
+          "kind": "symbol",
+          "path": "test_regression.py",
+          "range": [
+            5,
+            10
+          ],
+          "reasons": [
+            "test impact candidate via call",
+            "test impact candidate via import",
+            "test impact candidate via reference"
+          ],
+          "resolution": "exact",
+          "source": "",
+          "symbol": "Regression.test_token_rounding",
+          "symbol_signature": "def test_token_rounding(self):",
+          "tier": "L1"
+        }
+      ],
+      "prompt_estimated_tokens": 1724,
+      "usage": {
+        "input_tokens": 1691,
+        "output_tokens": 15,
+        "cached_input_tokens": 0
+      }
+    },
+    {
+      "turn": 4,
+      "tiers": [
+        {
+          "docstring": "",
+          "kind": "symbol",
+          "path": "tokens.py",
+          "range": [
+            66,
+            67
+          ],
+          "reasons": [
+            "task seed"
+          ],
+          "resolution": "exact",
+          "source": "def _ceil_div(value: int, divisor: int) -> int:\n    return -(-value // divisor)\n",
+          "symbol": "_ceil_div",
+          "symbol_signature": "",
+          "tier": "L0"
+        },
+        {
+          "docstring": "",
+          "kind": "symbol",
+          "path": "test_regression.py",
+          "range": [
+            5,
+            10
+          ],
+          "reasons": [
+            "test impact candidate via call",
+            "test impact candidate via import",
+            "test impact candidate via reference"
+          ],
+          "resolution": "exact",
+          "source": "",
+          "symbol": "Regression.test_token_rounding",
+          "symbol_signature": "def test_token_rounding(self):",
+          "tier": "L1"
+        }
+      ],
+      "prompt_estimated_tokens": 1878,
+      "usage": {
+        "input_tokens": 1843,
+        "output_tokens": 47,
+        "cached_input_tokens": 1536
+      }
+    }
+  ]
+}

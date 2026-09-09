@@ -1,0 +1,258 @@
+[
+  {
+    "turn": 1,
+    "tiers": [
+      {
+        "docstring": "",
+        "kind": "line",
+        "path": "paths.py",
+        "range": [
+          1,
+          40
+        ],
+        "reasons": [
+          "bounded module fallback"
+        ],
+        "resolution": "exact",
+        "source": "from __future__ import annotations\n\nimport os\nimport re\nfrom pathlib import PurePosixPath\n\n\n_DRIVE_PREFIX = re.compile(r\"^[A-Za-z]:\")\n\n\ndef canonical_repo_path(path: str) -> str:\n    \"\"\"Return one validated workspace-relative POSIX repository path.\"\"\"\n    if not isinstance(path, str):\n        raise TypeError(\"path must be text\")\n    if not path or \"\\0\" in path:\n        raise ValueError(\"path must be non-empty text without NUL\")\n    if \"\\\\\" in path or path.startswith(\"/\") or _DRIVE_PREFIX.match(path):\n        raise ValueError(\"path must be workspace-relative POSIX text\")\n    if \"//\" in path or path.endswith(\"/\"):\n        raise ValueError(\"path must already be canonical POSIX text\")\n    parts = tuple(path.split(\"/\"))\n    if not parts or any(part in {\".\", \"..\"} for part in parts):\n        raise ValueError(\"path must not contain dot segments\")\n    canonical = PurePosixPath(*parts).as_posix()\n    if canonical in {\"\", \".\"}:\n        raise ValueError(\"path must identify a repository entry\")\n    return canonical\n\n\ndef canonical_path_key(\n    path: str, *, case_insensitive: bool | None = None\n) -> str:\n    \"\"\"Return a stable comparison key while display spelling stays separate.\"\"\"\n    canonical = canonical_repo_path(path)\n    insensitive = os.name == \"nt\" if case_insensitive is None else case_insensitive\n    if not isinstance(insensitive, bool):\n        raise TypeError(\"case_insensitive must be a boolean or None\")\n    return canonical.casefold()\n\n\n",
+        "symbol": "",
+        "symbol_signature": "",
+        "tier": "L0"
+      },
+      {
+        "docstring": "",
+        "kind": "symbol",
+        "path": "test_regression.py",
+        "range": [
+          14,
+          16
+        ],
+        "reasons": [
+          "test impact candidate via call",
+          "test impact candidate via import",
+          "test impact candidate via reference"
+        ],
+        "resolution": "exact",
+        "source": "",
+        "symbol": "Regression.test_path_case",
+        "symbol_signature": "def test_path_case(self):",
+        "tier": "L1"
+      },
+      {
+        "docstring": "",
+        "kind": "symbol",
+        "path": "tokens.py",
+        "range": [
+          6,
+          17
+        ],
+        "reasons": [
+          "distance 2 dependency"
+        ],
+        "resolution": "exact",
+        "source": "",
+        "symbol": "estimate_tokens",
+        "symbol_signature": "",
+        "tier": "L2"
+      }
+    ],
+    "prompt_estimated_tokens": 1213,
+    "usage": {
+      "input_tokens": 1026,
+      "output_tokens": 80,
+      "cached_input_tokens": 0
+    }
+  },
+  {
+    "turn": 2,
+    "tiers": [
+      {
+        "docstring": "",
+        "kind": "line",
+        "path": "paths.py",
+        "range": [
+          1,
+          40
+        ],
+        "reasons": [
+          "bounded module fallback"
+        ],
+        "resolution": "exact",
+        "source": "from __future__ import annotations\n\nimport os\nimport re\nfrom pathlib import PurePosixPath\n\n\n_DRIVE_PREFIX = re.compile(r\"^[A-Za-z]:\")\n\n\ndef canonical_repo_path(path: str) -> str:\n    \"\"\"Return one validated workspace-relative POSIX repository path.\"\"\"\n    if not isinstance(path, str):\n        raise TypeError(\"path must be text\")\n    if not path or \"\\0\" in path:\n        raise ValueError(\"path must be non-empty text without NUL\")\n    if \"\\\\\" in path or path.startswith(\"/\") or _DRIVE_PREFIX.match(path):\n        raise ValueError(\"path must be workspace-relative POSIX text\")\n    if \"//\" in path or path.endswith(\"/\"):\n        raise ValueError(\"path must already be canonical POSIX text\")\n    parts = tuple(path.split(\"/\"))\n    if not parts or any(part in {\".\", \"..\"} for part in parts):\n        raise ValueError(\"path must not contain dot segments\")\n    canonical = PurePosixPath(*parts).as_posix()\n    if canonical in {\"\", \".\"}:\n        raise ValueError(\"path must identify a repository entry\")\n    return canonical\n\n\ndef canonical_path_key(\n    path: str, *, case_insensitive: bool | None = None\n) -> str:\n    \"\"\"Return a stable comparison key while display spelling stays separate.\"\"\"\n    canonical = canonical_repo_path(path)\n    insensitive = os.name == \"nt\" if case_insensitive is None else case_insensitive\n    if not isinstance(insensitive, bool):\n        raise TypeError(\"case_insensitive must be a boolean or None\")\n    return canonical.casefold()\n\n\n",
+        "symbol": "",
+        "symbol_signature": "",
+        "tier": "L0"
+      },
+      {
+        "docstring": "",
+        "kind": "symbol",
+        "path": "test_regression.py",
+        "range": [
+          14,
+          16
+        ],
+        "reasons": [
+          "test impact candidate via call",
+          "test impact candidate via import",
+          "test impact candidate via reference"
+        ],
+        "resolution": "exact",
+        "source": "",
+        "symbol": "Regression.test_path_case",
+        "symbol_signature": "def test_path_case(self):",
+        "tier": "L1"
+      },
+      {
+        "docstring": "",
+        "kind": "symbol",
+        "path": "tokens.py",
+        "range": [
+          6,
+          17
+        ],
+        "reasons": [
+          "distance 2 dependency"
+        ],
+        "resolution": "exact",
+        "source": "",
+        "symbol": "estimate_tokens",
+        "symbol_signature": "",
+        "tier": "L2"
+      }
+    ],
+    "prompt_estimated_tokens": 2129,
+    "usage": {
+      "input_tokens": 2021,
+      "output_tokens": 87,
+      "cached_input_tokens": 0
+    }
+  },
+  {
+    "turn": 3,
+    "tiers": [
+      {
+        "docstring": "",
+        "kind": "line",
+        "path": "paths.py",
+        "range": [
+          1,
+          40
+        ],
+        "reasons": [
+          "bounded module fallback"
+        ],
+        "resolution": "exact",
+        "source": "from __future__ import annotations\n\nimport os\nimport re\nfrom pathlib import PurePosixPath\n\n\n_DRIVE_PREFIX = re.compile(r\"^[A-Za-z]:\")\n\n\ndef canonical_repo_path(path: str) -> str:\n    \"\"\"Return one validated workspace-relative POSIX repository path.\"\"\"\n    if not isinstance(path, str):\n        raise TypeError(\"path must be text\")\n    if not path or \"\\0\" in path:\n        raise ValueError(\"path must be non-empty text without NUL\")\n    if \"\\\\\" in path or path.startswith(\"/\") or _DRIVE_PREFIX.match(path):\n        raise ValueError(\"path must be workspace-relative POSIX text\")\n    if \"//\" in path or path.endswith(\"/\"):\n        raise ValueError(\"path must already be canonical POSIX text\")\n    parts = tuple(path.split(\"/\"))\n    if not parts or any(part in {\".\", \"..\"} for part in parts):\n        raise ValueError(\"path must not contain dot segments\")\n    canonical = PurePosixPath(*parts).as_posix()\n    if canonical in {\"\", \".\"}:\n        raise ValueError(\"path must identify a repository entry\")\n    return canonical\n\n\ndef canonical_path_key(\n    path: str, *, case_insensitive: bool | None = None\n) -> str:\n    \"\"\"Return a stable comparison key while display spelling stays separate.\"\"\"\n    canonical = canonical_repo_path(path)\n    insensitive = os.name == \"nt\" if case_insensitive is None else case_insensitive\n    if not isinstance(insensitive, bool):\n        raise TypeError(\"case_insensitive must be a boolean or None\")\n    return canonical.casefold() if insensitive else canonical\n\n\n",
+        "symbol": "",
+        "symbol_signature": "",
+        "tier": "L0"
+      },
+      {
+        "docstring": "",
+        "kind": "symbol",
+        "path": "test_regression.py",
+        "range": [
+          14,
+          16
+        ],
+        "reasons": [
+          "test impact candidate via call",
+          "test impact candidate via import",
+          "test impact candidate via reference"
+        ],
+        "resolution": "exact",
+        "source": "",
+        "symbol": "Regression.test_path_case",
+        "symbol_signature": "def test_path_case(self):",
+        "tier": "L1"
+      },
+      {
+        "docstring": "",
+        "kind": "symbol",
+        "path": "tokens.py",
+        "range": [
+          6,
+          17
+        ],
+        "reasons": [
+          "distance 2 dependency"
+        ],
+        "resolution": "exact",
+        "source": "",
+        "symbol": "estimate_tokens",
+        "symbol_signature": "",
+        "tier": "L2"
+      }
+    ],
+    "prompt_estimated_tokens": 2375,
+    "usage": {
+      "input_tokens": 2279,
+      "output_tokens": 15,
+      "cached_input_tokens": 0
+    }
+  },
+  {
+    "turn": 4,
+    "tiers": [
+      {
+        "docstring": "",
+        "kind": "line",
+        "path": "paths.py",
+        "range": [
+          1,
+          40
+        ],
+        "reasons": [
+          "bounded module fallback"
+        ],
+        "resolution": "exact",
+        "source": "from __future__ import annotations\n\nimport os\nimport re\nfrom pathlib import PurePosixPath\n\n\n_DRIVE_PREFIX = re.compile(r\"^[A-Za-z]:\")\n\n\ndef canonical_repo_path(path: str) -> str:\n    \"\"\"Return one validated workspace-relative POSIX repository path.\"\"\"\n    if not isinstance(path, str):\n        raise TypeError(\"path must be text\")\n    if not path or \"\\0\" in path:\n        raise ValueError(\"path must be non-empty text without NUL\")\n    if \"\\\\\" in path or path.startswith(\"/\") or _DRIVE_PREFIX.match(path):\n        raise ValueError(\"path must be workspace-relative POSIX text\")\n    if \"//\" in path or path.endswith(\"/\"):\n        raise ValueError(\"path must already be canonical POSIX text\")\n    parts = tuple(path.split(\"/\"))\n    if not parts or any(part in {\".\", \"..\"} for part in parts):\n        raise ValueError(\"path must not contain dot segments\")\n    canonical = PurePosixPath(*parts).as_posix()\n    if canonical in {\"\", \".\"}:\n        raise ValueError(\"path must identify a repository entry\")\n    return canonical\n\n\ndef canonical_path_key(\n    path: str, *, case_insensitive: bool | None = None\n) -> str:\n    \"\"\"Return a stable comparison key while display spelling stays separate.\"\"\"\n    canonical = canonical_repo_path(path)\n    insensitive = os.name == \"nt\" if case_insensitive is None else case_insensitive\n    if not isinstance(insensitive, bool):\n        raise TypeError(\"case_insensitive must be a boolean or None\")\n    return canonical.casefold() if insensitive else canonical\n\n\n",
+        "symbol": "",
+        "symbol_signature": "",
+        "tier": "L0"
+      },
+      {
+        "docstring": "",
+        "kind": "symbol",
+        "path": "test_regression.py",
+        "range": [
+          14,
+          16
+        ],
+        "reasons": [
+          "test impact candidate via call",
+          "test impact candidate via import",
+          "test impact candidate via reference"
+        ],
+        "resolution": "exact",
+        "source": "",
+        "symbol": "Regression.test_path_case",
+        "symbol_signature": "def test_path_case(self):",
+        "tier": "L1"
+      },
+      {
+        "docstring": "",
+        "kind": "symbol",
+        "path": "tokens.py",
+        "range": [
+          6,
+          17
+        ],
+        "reasons": [
+          "distance 2 dependency"
+        ],
+        "resolution": "exact",
+        "source": "",
+        "symbol": "estimate_tokens",
+        "symbol_signature": "",
+        "tier": "L2"
+      }
+    ],
+    "prompt_estimated_tokens": 2529,
+    "usage": {
+      "input_tokens": 2427,
+      "output_tokens": 63,
+      "cached_input_tokens": 2176
+    }
+  }
+]

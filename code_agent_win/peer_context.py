@@ -157,10 +157,10 @@ class PeerContextBuilder:
             return bundle
         thread_id = _thread_id(args, kwargs)
         self._staged[thread_id] = selected
-        return ContextBundle(
+        from code_agent.context.measurements import with_system_prompt
+        return with_system_prompt(
+            bundle,
             bundle.system_prompt + _PREFIX + rendered + _SUFFIX,
-            bundle.messages,
-            bundle.measurements,
         )
 
     async def accept_pending_context(self, thread_id: str) -> None:

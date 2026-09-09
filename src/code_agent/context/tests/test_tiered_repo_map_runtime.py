@@ -54,6 +54,25 @@ class TieredRepoMapRuntimeTests(unittest.TestCase):
         self.assertIn('"source":', rendered)
         self.assertNotIn("not selected", rendered)
 
+    def test_real_source_survives_lower_tiers_at_its_exact_budget(self) -> None:
+        from code_agent.context.tokens import estimate_tokens
+
+        self.write("target.py", "def target():\n" + "    value = '正文'\n" * 30 + "    return value\n")
+        builder = RepoMapBuilder(self.files, self.config)
+        baseline = builder.render("target", (), 2000)
+        budget = estimate_tokens(baseline)
+        for index in range(12):
+            self.write(
+                f"caller_{index}.py",
+                "from target import target\ndef caller():\n    return target()\n",
+            )
+        # A fresh builder sees the same generation, now with L1/L2 competitors.
+        crowded = RepoMapBuilder(self.files, self.config)
+        rendered = crowded.render("target", (), budget)
+        self.assertEqual(rendered, baseline)
+        self.assertIn("正文", rendered)
+        self.assertLessEqual(estimate_tokens(rendered), budget)
+
     def test_one_stale_read_retries_but_two_stale_reads_fail_closed(self) -> None:
         self.write("target.py", "def target():\n    return 1\n")
         builder = RepoMapBuilder(self.files, self.config)

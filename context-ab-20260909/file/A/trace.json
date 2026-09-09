@@ -1,0 +1,111 @@
+[
+  {
+    "name": "read_file",
+    "arguments": {
+      "path": "paths.py"
+    },
+    "error": false,
+    "result": {
+      "request_id": "call_BaNoydBpwVyG5VfXsgM1okmZ",
+      "name": "read_file",
+      "output": {
+        "path": "paths.py",
+        "text": "from __future__ import annotations\r\n\r\nimport os\r\nimport re\r\nfrom pathlib import PurePosixPath\r\n\r\n\r\n_DRIVE_PREFIX = re.compile(r\"^[A-Za-z]:\")\r\n\r\n\r\ndef canonical_repo_path(path: str) -> str:\r\n    \"\"\"Return one validated workspace-relative POSIX repository path.\"\"\"\r\n    if not isinstance(path, str):\r\n        raise TypeError(\"path must be text\")\r\n    if not path or \"\\0\" in path:\r\n        raise ValueError(\"path must be non-empty text without NUL\")\r\n    if \"\\\\\" in path or path.startswith(\"/\") or _DRIVE_PREFIX.match(path):\r\n        raise ValueError(\"path must be workspace-relative POSIX text\")\r\n    if \"//\" in path or path.endswith(\"/\"):\r\n        raise ValueError(\"path must already be canonical POSIX text\")\r\n    parts = tuple(path.split(\"/\"))\r\n    if not parts or any(part in {\".\", \"..\"} for part in parts):\r\n        raise ValueError(\"path must not contain dot segments\")\r\n    canonical = PurePosixPath(*parts).as_posix()\r\n    if canonical in {\"\", \".\"}:\r\n        raise ValueError(\"path must identify a repository entry\")\r\n    return canonical\r\n\r\n\r\ndef canonical_path_key(\r\n    path: str, *, case_insensitive: bool | None = None\r\n) -> str:\r\n    \"\"\"Return a stable comparison key while display spelling stays separate.\"\"\"\r\n    canonical = canonical_repo_path(path)\r\n    insensitive = os.name == \"nt\" if case_insensitive is None else case_insensitive\r\n    if not isinstance(insensitive, bool):\r\n        raise TypeError(\"case_insensitive must be a boolean or None\")\r\n    return canonical.casefold()\r\n\r\n\r\ndef logical_lines(text: str) -> tuple[str, ...]:\r\n    \"\"\"Split decoded text into logical lines independently of newline style.\"\"\"\r\n    if not isinstance(text, str):\r\n        raise TypeError(\"text must be text\")\r\n    return tuple(text.splitlines())\r\n",
+        "total_lines": 45,
+        "encoding": "utf-8",
+        "bom": false,
+        "newline": "crlf"
+      },
+      "is_error": false,
+      "metadata": {
+        "duration_ms": 2
+      }
+    }
+  },
+  {
+    "name": "read_file",
+    "arguments": {
+      "path": "test_regression.py"
+    },
+    "error": false,
+    "result": {
+      "request_id": "call_Du0MkVz30OnPi6KFHmRMpIwK",
+      "name": "read_file",
+      "output": {
+        "path": "test_regression.py",
+        "text": "import unittest\r\nfrom tokens import estimate_tokens, truncate_to_tokens\r\nfrom paths import canonical_path_key, logical_lines\r\nclass Regression(unittest.TestCase):\r\n def test_token_rounding(self):\r\n  self.assertEqual(estimate_tokens('abc'),1)\r\n  self.assertEqual(estimate_tokens('a'*5),2)\r\n  self.assertEqual(estimate_tokens('中a'),2)\r\n  self.assertEqual(estimate_tokens(''),0)\r\n  self.assertLessEqual(estimate_tokens(truncate_to_tokens('abcdefghi',1)),1)\r\n def test_line_styles(self):\r\n  self.assertEqual(logical_lines('a\\r\\nb\\r\\n'),('a','b'))\r\n  self.assertEqual(logical_lines(''),())\r\n def test_path_case(self):\r\n  self.assertEqual(canonical_path_key('Src/File.py',case_insensitive=False),'Src/File.py')\r\n  self.assertEqual(canonical_path_key('Src/File.py',case_insensitive=True),'src/file.py')\r\n",
+        "total_lines": 16,
+        "encoding": "utf-8",
+        "bom": false,
+        "newline": "crlf"
+      },
+      "is_error": false,
+      "metadata": {
+        "duration_ms": 2
+      }
+    }
+  },
+  {
+    "name": "list_files",
+    "arguments": {},
+    "error": false,
+    "result": {
+      "request_id": "call_UaIxXijZNnpmCDmnGVlZ21os",
+      "name": "list_files",
+      "output": {
+        "files": [
+          "paths.py",
+          "test_regression.py",
+          "tokens.py"
+        ],
+        "truncated": false
+      },
+      "is_error": false,
+      "metadata": {
+        "count": 3,
+        "truncated": false,
+        "duration_ms": 2
+      }
+    }
+  },
+  {
+    "name": "replace_text",
+    "arguments": {
+      "path": "paths.py",
+      "old_text": "    return canonical.casefold()\r\n",
+      "new_text": "    return canonical.casefold() if insensitive else canonical\r\n"
+    },
+    "error": false,
+    "result": {
+      "request_id": "call_ycsRoo80ta5pH3GDxXCvGoh8",
+      "name": "replace_text",
+      "output": {
+        "path": "paths.py",
+        "encoding": "utf-8",
+        "bom": false,
+        "newline": "crlf"
+      },
+      "is_error": false,
+      "metadata": {
+        "diff": "--- a/paths.py\n+++ b/paths.py\n@@ -35,7 +35,7 @@\n     insensitive = os.name == \"nt\" if case_insensitive is None else case_insensitive\r\n     if not isinstance(insensitive, bool):\r\n         raise TypeError(\"case_insensitive must be a boolean or None\")\r\n-    return canonical.casefold()\r\n+    return canonical.casefold() if insensitive else canonical\r\n \r\n \r\n def logical_lines(text: str) -> tuple[str, ...]:\r\n",
+        "duration_ms": 83
+      }
+    }
+  },
+  {
+    "name": "run_verification",
+    "arguments": {},
+    "error": false,
+    "result": {
+      "request_id": "call_IY8SKuQHBoyrLuaaBusgTNR9",
+      "name": "run_verification",
+      "output": {
+        "passed": true,
+        "returncode": 0,
+        "output": "test_line_styles (test_regression.Regression.test_line_styles) ... ok\ntest_path_case (test_regression.Regression.test_path_case) ... ok\ntest_token_rounding (test_regression.Regression.test_token_rounding) ... ok\n\n----------------------------------------------------------------------\nRan 3 tests in 0.000s\n\nOK\n"
+      },
+      "is_error": false,
+      "metadata": {}
+    }
+  }
+]

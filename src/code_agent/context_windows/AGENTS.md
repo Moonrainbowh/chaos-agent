@@ -26,3 +26,5 @@
 - `WindowToolService`、`context_tools`: 当前任务的历史检索、工作笔记与延后换窗请求 | Sessions I/O | 不接受模型指定跨任务 ID
 
 - `QueuedContextBoundary`: 手动请求的排队回执 | 无副作用 | 不冒充已经完成的压缩检查点
+
+- 仅计数契约：窗口组装后刷新 `prompt_estimated_tokens`（复用 Context 本地估计器）、`prompt_budget_tokens`（有效 input cap）与 `prompt_safety_tokens=0`（cap 已处理预留，不重复扣减）。原 `prompt_tokens` 继续使用窗口专用 counter，控制策略不变；两种本地估计可能不同，均不代表 API usage。
