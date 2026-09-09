@@ -1,4 +1,4 @@
-"""Native Windows acceptance for alternate-screen restoration and TUI handoff."""
+"""Native Windows acceptance for pre-launch clearing and TUI handoff."""
 import os
 import subprocess
 import sys
@@ -50,8 +50,10 @@ def check():
             assert whole.count("█") > half.count("█") > 0, (whole.count("█"),half.count("█"))
         finally:
             splash.stop()
-        assert "ORIGINAL HISTORY" in screen()
+        assert "ORIGINAL HISTORY" not in screen()
         assert "█" not in screen()
+        sys.stdout.write("RUNTIME HISTORY\n")
+        sys.stdout.flush()
         from types import SimpleNamespace
         from code_agent.interfaces.windows_tui import WindowsTerminalApp
         from code_agent.interfaces.approval import ApprovalBroker
@@ -61,7 +63,8 @@ def check():
             redraw()
             text = screen()
             assert "›" in text, repr(text)
-            assert "ORIGINAL HISTORY" in text
+            assert "ORIGINAL HISTORY" not in text
+            assert "RUNTIME HISTORY" in text
             app.running = False
         app.redraw = first_frame
         asyncio.run(app.run())
@@ -77,7 +80,7 @@ except BaseException:
 
 @unittest.skipUnless(os.name == "nt", "Windows console required")
 class StartupConsoleTests(unittest.TestCase):
-    def test_scan_restores_history_and_hands_off_to_real_input_renderer(self):
+    def test_scan_clears_prelaunch_history_and_preserves_runtime_output(self):
         with tempfile.TemporaryDirectory() as temporary:
             errors = Path(temporary) / "errors.txt"
             startup = subprocess.STARTUPINFO()
