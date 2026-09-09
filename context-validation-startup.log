@@ -1,0 +1,29 @@
+test_escape_during_preparation_waits_for_cleanup_and_keeps_input (test_startup_responsiveness.StartupResponsivenessTests.test_escape_during_preparation_waits_for_cleanup_and_keeps_input) ... Timeout (0:00:20)!
+Thread 0x00013488 (most recent call first):
+  File "C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\traceback.py", line 282 in __init__
+  File "C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\traceback.py", line 425 in _extract_from_extended_frame_gen
+  File "C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\traceback.py", line 390 in extract
+  File "C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\asyncio\format_helpers.py", line 72 in extract_stack
+  File "C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\asyncio\events.py", line 45 in __init__
+  File "C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\asyncio\base_events.py", line 782 in _call_soon
+  File "C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\asyncio\base_events.py", line 766 in call_soon
+  File "C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\asyncio\futures.py", line 315 in _set_result_unless_cancelled
+  File "C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\asyncio\events.py", line 84 in _run
+  File "C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\asyncio\base_events.py", line 1928 in _run_once
+  File "C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\asyncio\base_events.py", line 608 in run_forever
+  File "C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\asyncio\windows_events.py", line 321 in run_forever
+  File "C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\asyncio\base_events.py", line 641 in run_until_complete
+  File "C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\asyncio\runners.py", line 118 in run
+  File "C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\unittest\async_case.py", line 112 in _callMaybeAsync
+  File "C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\unittest\async_case.py", line 90 in _callTestMethod
+  File "C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\unittest\case.py", line 623 in run
+  File "C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\unittest\async_case.py", line 131 in run
+  File "C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\unittest\case.py", line 678 in __call__
+  File "C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\unittest\suite.py", line 122 in run
+  File "C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\unittest\suite.py", line 84 in __call__
+  File "C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\unittest\suite.py", line 122 in run
+  File "C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\unittest\suite.py", line 84 in __call__
+  File "C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\unittest\suite.py", line 122 in run
+  File "C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\unittest\suite.py", line 84 in __call__
+  File "C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\unittest\runner.py", line 217 in run
+  File "<stdin>", line 4 in <module>

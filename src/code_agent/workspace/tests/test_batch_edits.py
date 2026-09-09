@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import sys
 import unittest
 from dataclasses import FrozenInstanceError, replace
@@ -12,6 +13,7 @@ SRC_ROOT = Path(__file__).resolve().parents[3]
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
+from code_agent.workspace.errors import WorkspaceError
 from code_agent.workspace import _batch_apply, _batch_plan  # noqa: E402
 from code_agent.workspace.edits import (  # noqa: E402
     BatchApplyStatus,
@@ -103,6 +105,20 @@ class BatchPlanningTests(WorkspaceEditorTestCase):
 
 
 class BatchApplyTests(WorkspaceEditorTestCase):
+    @unittest.skipIf(os.name == "nt", "POSIX unsupported move boundary")
+    def test_unsupported_move_rejects_entire_batch_before_writes(self) -> None:
+        source = self.root / "source.txt"
+        source.write_bytes(b"original")
+        plan = self.editor.plan_batch((
+            self.editor.plan_write("created.txt", "new"),
+            self.editor.plan_move("source.txt", "moved.txt"),
+        ))
+        with self.assertRaisesRegex(WorkspaceError, "only on Windows"):
+            self.editor.apply_batch(plan)
+        self.assertEqual(source.read_bytes(), b"original")
+        self.assertFalse((self.root / "moved.txt").exists())
+        self.assertFalse((self.root / "created.txt").exists())
+
     def test_full_preflight_conflict_has_zero_writes(self) -> None:
         target = self.root / "update.txt"
         target.write_bytes(b"before")
@@ -216,6 +232,7 @@ class BatchApplyTests(WorkspaceEditorTestCase):
             tuple(item.relative_path for item in result.conflicts), ("second.txt",)
         )
 
+    @unittest.skipUnless(os.name == "nt", "Windows exact batch move semantics")
     def test_delete_and_move_apply_together(self) -> None:
         deleted = self.root / "deleted.txt"
         source = self.root / "source.txt"
@@ -237,6 +254,7 @@ class BatchApplyTests(WorkspaceEditorTestCase):
         self.assertFalse(source.exists())
         self.assertEqual(destination.read_bytes(), b"move")
 
+    @unittest.skipUnless(os.name == "nt", "Windows exact batch move semantics")
     def test_failure_after_delete_and_move_restores_both(self) -> None:
         deleted = self.root / "deleted.txt"
         source = self.root / "source.txt"

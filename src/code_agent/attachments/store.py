@@ -123,10 +123,9 @@ class AttachmentStore:
                 mode="xb", dir=directory, prefix=".pending-", delete=False
             ) as stream:
                 temporary_path = Path(stream.name)
-                if os.name == "nt":
-                    temporary = OwnedTemporary.capture_cleanup_descriptor(
-                        temporary_path, stream.fileno()
-                    )
+                temporary = OwnedTemporary.capture_cleanup_descriptor(
+                    temporary_path, stream.fileno()
+                )
                 temporary = OwnedTemporary.capture_descriptor(
                     temporary_path,
                     stream.fileno(),

@@ -2,7 +2,7 @@
 以有界、可取消的事件循环协调模型、上下文和工具动作，形成与界面无关的编码 Agent 内核。
 
 ## 边界
-- 负责：确定性的普通问候按分析意图建立新任务；含执行要求的输入仍保留修改验证门。模型和自动验证均已停止后，缺少证据的任务进入有原因的等待决定，不永久停在验证中。
+- 负责：确定性的普通问候和只读问答按分析意图建立新任务；含执行要求的输入仍保留修改验证门。修改意图但没有工作区文件变化时不得运行无关项目测试或伪装完成，而应要求继续实现或说明无需修改；模型和自动验证均已停止后，缺少证据的实际改动进入有原因的等待决定，不永久停在验证中。
 - ContextBundle 允许 `context_tokens_remaining` 非负估算计数，用于 persistent 工作窗提示；它不代表 provider 实测或累计任务额度。
 - 负责：以不可变、可序列化的附件引用扩展 user Message，并让 Engine 在首回合、恢复和 steering 中持久化完整用户输入；引用只含内容摘要、类型、大小和安全显示元数据。
 - 负责：附件仅允许出现在 user Message；空文本但有附件是有效输入，空文本且无附件仍失败闭合。
@@ -31,7 +31,7 @@
 - 2026-09-05 的配置、验证与实验边界见根目录 `docs/context-boundary-experiment.md` 和 `docs/context-boundary-results.md`；具体候选值可配置，实验结果不自动推广为默认策略。
 
 ## Units
-- `infer_task_intent(...)`、`is_small_talk(...)`：对新任务确定问候/只读意图并复用为上下文轻量路径 | 无副作用 | 问候后包含工作请求不能按闲聊处理，不修改已持久化任务的意图。
+- `infer_task_intent(...)`、`is_small_talk(...)`：对新任务确定问候、中文/英文只读问答或修改意图，并复用为上下文轻量路径 | 无副作用 | “什么意思/图片内容”等问答不触发修改门，任何明确写入要求仍优先；不修改已持久化任务的意图。
 - `TaskIntent`、`AcceptanceCriterion`、`TaskContractRevision`: 表达不可降级的完成条件与 revision | 无副作用 | 不写入旧 `core/models.py`
 - `ActionEffect`、`CompletionCandidate`、`CompletionAssessment`、`assess_completion(...)`: 以 generation/subject/evidence 纯函数评估 verified、partial 或 unverified | 无副作用 | 模型文本不能生成通过证据
 - `VerificationService`: 约束 core 请求抽象验证与完成候选 | 具体副作用由实现负责 | core 不导入 verification 或 projects adapter
@@ -40,7 +40,7 @@
 - `TaskVerificationService.begin_logical_change(...)`、`commit_logical_change(...)`、`InFlightValidationError`: 以抽象协议把一组工具写入收敛为单次 generation，并把 Host 规划的 milestone verifier 返回给 engine | 具体语义图、快照和 evidence 副作用由 Verification 实现负责 | L0 失败必须携带已发生写入后的 TaskState，剩余同批工具不得继续执行
 - `validation_fingerprint(...)`、`circuit_breaker_result(...)`、`is_in_flight_failure(...)`: 将结构化失败归一为监督器可比较的有界身份，并识别重复动作/L0 阻断信号 | 无副作用 | 优先使用 Host 生成的失败摘要，不泄露任意长度输出
 - `AgentEngine._run_verification_call(...)`: 持久化并执行 Host 规划的 milestone/final verifier tool call | 消耗任务 tool budget、追加成对 assistant/tool 消息和事件 | L0 失败后的同批调用必须被拒绝；关键风险 final gate 按 tests→build 顺序补齐
-- `AgentEngineCompletionMixin._resolve_task_completion(...)`: 将模型停调用后的 assessment 交给持久验证门 | 调用抽象验证与 sessions 协议 | 只有 sessions 原子 finalize 可产生 `COMPLETED`
+- `AgentEngineCompletionMixin._resolve_task_completion(...)`: 将模型停调用后的 assessment 交给持久验证门，并在修改任务没有工作区文件变化时返回明确的未实现决定 | 调用抽象验证与 sessions 协议 | 无改动不运行项目测试也不伪装成功；只有 sessions 原子 finalize 可完成实际修改任务
 - `decide_verification_transition(...)`: 将 assessment 与 verifier outcome 映射为 `VERIFYING`、修复、等待或完成 | 无副作用 | 所有状态先持久化再由集成层发布
 - `AttachmentRef`: 表达不含路径/blob/base64 的内容摘要、类型、大小、显示名和可选图片尺寸 | 无副作用 | 摘要、MIME、容量和显示名在构造时校验
 - `Message`、`ToolCall`: 表达对话内容、用户附件引用与模型工具调用 | 无副作用 | 输入在构造时校验并冻结；附件仅允许 user role
@@ -67,3 +67,5 @@
 - `AgentEngine.run_peer(thread_id, cancellation)`: 不制造 user Message 地唤醒一个不可信 peer 回合，并在首个合法模型事件持久化后确认其上下文 | 调用抽象模型、上下文、动作与会话协议 | 工具强制投影到构造时冻结的 peer allowlist；默认空集，不能取得 TaskAuthorization
 - `SessionJournal`: 把会话协议异常转换为稳定的内核持久化错误 | 调用会话协议 | 不允许不可信历史消息进入上下文
 - `AgentEngineError` 及子类: 表达预算、模型流、上下文构建与持久化失败 | 无副作用 | 对外错误不包含上游异常文本；模型流失败保留异常 cause 供上层提取状态，不向终端直接打印 traceback
+
+- ContextBundle 数值白名单兼容新增 `prompt_budget_tokens`、`prompt_safety_tokens`、`prompt_estimated_tokens`、`repo_context_budget_tokens`、`repo_context_estimated_tokens`；全部为本地配置/估计，不是 Usage。

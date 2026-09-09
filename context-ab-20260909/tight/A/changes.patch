@@ -1,0 +1,8 @@
+--- before/tokens.py
++++ after/tokens.py
+@@ -64,4 +64,4 @@
+ 
+ 
+ def _ceil_div(value: int, divisor: int) -> int:
+-    return value // divisor
++    return -(-value // divisor)

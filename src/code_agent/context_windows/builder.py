@@ -2,6 +2,8 @@
 from dataclasses import replace
 
 from code_agent.core.models import ContextBundle
+from code_agent.context._builder_support import _render_tools
+from code_agent.context.measurements import prompt_estimate
 from .history import carried_messages, closed_group_ends, select_window, source_digest
 from .policy import QueuedContextBoundary
 
@@ -39,6 +41,8 @@ class WindowContextBuilder:
             raise ValueError("input cannot fit without dropping required state; history retained")
         measurements = await self._measurements(bundle, request.thread_id)
         measurements.update(prompt_tokens=tokens, window_input_cap=cap,
+                            prompt_budget_tokens=cap, prompt_safety_tokens=0,
+                            prompt_estimated_tokens=prompt_estimate(bundle.system_prompt, bundle.messages, _render_tools(request.tools)),
                             window_number=0 if not window else window["number"],
                             window_preparing=int(tokens >= int(cap * self.policy.prepare_ratio)))
         return replace(bundle, measurements=measurements)

@@ -40,6 +40,7 @@
 - 2026-09-05 的配置、验证与实验边界见根目录 `docs/context-boundary-experiment.md` 和 `docs/context-boundary-results.md`；具体候选值可配置，实验结果不自动推广为默认策略。
 
 ## Units
+- `OwnedTemporary`（共享临时文件助手）：迁移清理在 POSIX 使用稳定设备/inode 身份与可用的 birthtime，不把写入或硬链接引起的 ctime 更新判为替换；身份捕获失败仍关闭描述符并清理已确认归属的临时文件 | 文件 I/O | 不删除身份不同的替代文件，Windows 仍使用原 Win32 身份校验
 - `ContextNotesRepositoryMixin`: 笔记覆盖/追加单事务、幂等工具请求、版本保留 | SQLite I/O | 虚拟相对路径、单文件 1MB；内部 context:note_file 记录不作为工作区恢复点
 - `ThreadStatus`、`GoalStatus`、`ThreadSummary`、`ThreadRelation`、`MessageRecord`、`GoalRecord`、`CheckpointRecord`: 表达不可变的会话、父子关系和 checkpoint 状态 | 无副作用 | 时间归一化为 UTC，元数据深度冻结
 - `WorkspaceLineageRecord`、`WorkspaceSnapshotRecord`、`CheckpointCursor`、`RewindOperationRecord`: 表达 lineage、manifest、会话游标与 Rewind 状态 | 无副作用 | UUID、枚举、绝对路径、摘要、时间、JSON 与容量均严格校验
@@ -56,3 +57,5 @@
 - `ContextJournalRepositoryMixin`: 原子追加窗口/笔记/换窗请求与请求预算预留、用量结算 | SQLite I/O | CAS、幂等、未知请求保留预留；不覆盖原始消息
 
 - `context:` 为内部日志保留标签；普通检查点创建拒绝该命名空间，列表隐藏内部窗口/笔记/用量，防止工作区恢复误选。
+
+- POSIX 临时文件持有描述符至清理结束，防止删除后 inode 复用把外来替换文件误认为原文件；ctime 不作为创建身份。

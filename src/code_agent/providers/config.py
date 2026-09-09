@@ -9,12 +9,16 @@ from typing import Iterable
 from urllib.parse import unquote, urlsplit
 
 from .errors import ProviderConfigError
+from code_agent.authentication.source import StoredCredentialSource
 
 
 class ApiProtocol(str, Enum):
     RESPONSES = "responses"
     CHAT_COMPLETIONS = "chat_completions"
     ANTHROPIC_MESSAGES = "anthropic_messages"
+    CODEX_RESPONSES = "codex_responses"
+    GOOGLE_GENERATIVE_AI = "google_generative_ai"
+    PI_MESSAGES = "pi_messages"
 
 
 class InputModality(str, Enum):
@@ -134,6 +138,9 @@ class ProviderConfig:
     responses_path: str = "/v1/responses"
     chat_completions_path: str = "/v1/chat/completions"
     anthropic_messages_path: str = "/v1/messages"
+    provider_id: str | None = None
+    auth_source: StoredCredentialSource | None = field(default=None, repr=False, compare=False)
+    pi_messages_path: str = "/messages"
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "base_url", _require_safe_base_url(self.base_url))
@@ -148,8 +155,12 @@ class ProviderConfig:
             self.api_key_source, ConfiguredApiKey
         ):
             raise ProviderConfigError("api_key_source must be a ConfiguredApiKey")
-        if has_env == (self.api_key_source is not None):
+        if self.auth_source is not None and not isinstance(self.auth_source, StoredCredentialSource):
+            raise ProviderConfigError("auth_source must be a StoredCredentialSource")
+        if sum((has_env, self.api_key_source is not None, self.auth_source is not None)) != 1:
             raise ProviderConfigError("configure exactly one API key source")
+        if self.auth_source is not None and self.provider_id != self.auth_source.provider:
+            raise ProviderConfigError("credential provider must match provider_id")
         if (
             isinstance(self.timeout_s, bool)
             or not isinstance(self.timeout_s, (int, float))
@@ -174,6 +185,7 @@ class ProviderConfig:
             "responses_path",
             "chat_completions_path",
             "anthropic_messages_path",
+            "pi_messages_path",
         ):
             object.__setattr__(
                 self,
@@ -182,6 +194,8 @@ class ProviderConfig:
             )
 
     def resolve_api_key(self, env: Mapping[str, str] | None = None) -> str:
+        if self.auth_source is not None:
+            raise ProviderConfigError("Stored credentials must be resolved asynchronously")
         if self.api_key_source is not None:
             return self.api_key_source.resolve()
         source = os.environ if env is None else env
@@ -194,6 +208,8 @@ class ProviderConfig:
 
     @property
     def key_status(self) -> str:
+        if self.auth_source is not None:
+            return self.auth_source.status
         if self.api_key_source is not None:
             return self.api_key_source.status
         return f"environment ({self.api_key_env})"

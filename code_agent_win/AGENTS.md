@@ -12,6 +12,9 @@
 - 不负责：为 Repo Map、bug 定位或 dead-code 分析另建扫描缓存，也不因展示分析结果执行文件修改或验证命令。
 
 ## Units
+- `AuthenticationRuntimeControl`：TUI 隐藏输入登录、缓存已登录模型选项、显式内存 profile 注册与凭据槽影响检查；保存开始后等待原子提交结果，目录刷新失败不伪报登录失败；WorkBuddy 无离线种子时仍提供可选择的账号模型加载入口，显式异步发现按认证类型缓存，重登清除该槽缓存，失败保留登录；已保存登录 profile 可在恢复 task 时从同名平台/认证类型槽及模型目录重建，不写配置默认值。
+- `auth_cli.run_auth()`、`auth_profile_setup.configure()`：在模型/工作区初始化前提供平台登录、隐藏 API Key 输入、状态、退出、目录刷新与配置追加；profile 选择明确认证类型，配置写入前通过实际 ProviderConfig 校验；不自动替换旧 profile/default，不因目录刷新触发推理。
+- `bootstrap.main()`：重依赖导入前启动 Interfaces 临时全屏左到右扫描，初始化完成或失败恢复原屏幕；CLI 延迟加载 Application 与 ACP 适配器 | 终端输出 | 仅交互 TUI 使用，help/JSON/ACP/管道无动画；旧 CLI 启动器兼容同一动效。
 - `TaskScopedVerificationService.suggest_verification(...)`：仅对修改任务或实际变更刷新共享语义图；纯问答收尾直接委托验证服务的非修改路径 | 只读/调度 | 不改动修改任务的证据门，不把未执行的验证标记为通过。
 - `ModeAwareWindowsTerminalApp`：从 Interfaces 获取唯一 Muted Slate 主题，委托紧凑启动摘要、双层输入区渲染与动效；完整能力仍通过 `:status` 访问 | 终端输出 | 不修改持久配置或接管 Windows Terminal 设置。
 - `build_managed_context`：按冻结 profile 组合 summary/boundary 或 persistent 的上下文、工具和统一预算 client | Sessions/Provider I/O | persistent 不构造 HandoffWriter；模式只投影实际已注册工具，缺省路径不变
@@ -43,6 +46,7 @@
 - `TaskScopedVerificationService`：按 task/workspace 复用验证事务，并从活动 Context 的同一 `RepoIndexSnapshot` 刷新 Planner | 维护进程内 task 到 service 绑定并触发 milestone/final verifier | workspace root 漂移失败闭合；不另建 RepoIndex，不接受模型伪造验证 scope
 - `WorkspaceEditPlanStore`、`create_stored_edit_plan(...)`、`WorkspaceEditPlanActions`、`edit_plan_results`：把模型提供的多文件意图转换为 Host 所有的不可变计划，以 ID/digest 分离 plan 与 apply，并显式编码工作区是否可能已变化及涉及路径 | 进程内保存有界计划、只读 Git tracked/dirty 状态和工作区预览 | apply 前重新 preflight；Git ignored/untracked 既有文件必须标记显式风险；计划只能消费一次，取消前不得进入 applying；完整回滚、预检冲突和拒绝不得宣称工作区变化，模型不能提交风险标志或可信 Diff
 - `WorkspaceMutationPool`：按 canonical workspace root 复用 editor、快照、gate、capture、计划仓库和 coordinated session facade | 延迟创建每个 source/task root 的持久状态依赖 | source 与 task worktree 绝不共用 mutation gate、snapshot 或计划；所有 facade 共用同一个基础 Sessions 仓库
+- `WorkspaceMutationPool.needs_edit_batch_recovery(root)`：在既有工作区身份对应的 mutation gate 内查询未闭合批次，无记录则不构建 Git/RepoIndex 等完整服务；有记录时进入原恢复流程重新加锁、重读 | SQLite 读取/门锁 | 不缓存结果、不跳过 conflicted，不改变批次先于 rewind 的顺序；查询/加锁失败阻止启动。
 - `WorkspaceMutationGate`、`RewindCaptureCoordinator`、`CoordinatedSessionRepository`：共享一个基础回溯仓库并严格排序 mutation/checkpoint，批次 apply 在首次写前持久化 PRE/POST journal | 写入会话日志、快照和工作区 | 未知写者先持久化 gap；异常或取消先完成 owned-only 恢复再释放 gate，foreign 结果持久化为 conflict 并阻止后续写入
 - `recover_workspace_edit_batches(...)`：启动时逐个恢复 source/task root 中未闭合的编辑批次，再允许普通 checkpoint rewind 恢复 | 读取 durable journal 并按 workspace 执行恢复 | 并发启动只执行一次；任一 foreign conflict 立即失败闭合，不继续其他工作区写入
 - `WorkspaceSessionRouter`: 透传唯一 `RewindSessionRepository`，按 thread/owner 所属 workspace 把 checkpoint 路由到该 root 的 `CoordinatedSessionRepository` | 仅被选中的 facade 写入 checkpoint/coverage | 未绑定 child 回退 owner root，再回退 source root；任何 facade 必须共享同一基础仓库
@@ -53,3 +57,5 @@
 - `configure_product_controls(...)`、`configure_product_ui(...)`：组合 runtime、cost、doctor、semantic graph 与 TUI/foreground 控件 | 创建进程内依赖 | 从 app.py 抽离产品组合，不复制任何 Feature 行为
 - `PeerToolAdapter`、`PEER_TOOL_DEFINITIONS`: 独立暴露 `list_agents`、`send_message`、`rename_agent` typed tools | 仅委托已注册的 PeerMessagingService | 本 Unit 不接 Root dispatcher/UI，错误输出不回显正文，peer 输入仍不具有用户授权
 - `PeerRuntime`、`PeerDeliveryBuffer`、`PeerContextBuilder`: 仅随 Windows TUI 注册本机实例，续租并投递 queued 消息、提示 held 消息，把 PEER 正文以有界不可信 JSON 注入主上下文 | SQLite/模型回合/TUI 元数据 | task-owned thread 不后台恢复；taskless peer 回合只开放 list/send；失败指数退避，runtime 切换与 peer wake 共用 activity lock
+
+- BoundSkillContextBuilder / PeerContextBuilder 追加系统文本后仅刷新本地 `prompt_estimated_tokens`，不改变 Skills、peer、历史检索或 Harness 执行流程。

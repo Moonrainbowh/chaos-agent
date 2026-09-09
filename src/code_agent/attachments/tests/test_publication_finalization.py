@@ -14,7 +14,6 @@ SRC_ROOT = Path(__file__).resolve().parents[3]
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from code_agent import _windows_owned_temporary  # noqa: E402
 from code_agent.attachments.errors import (  # noqa: E402
     AttachmentCommittedError,
     AttachmentError,
@@ -33,6 +32,8 @@ class AttachmentPublicationFinalizationTests(unittest.TestCase):
 
     @unittest.skipUnless(os.name == "nt", "Windows committed publication")
     def test_close_failure_after_rename_reports_committed_reference(self) -> None:
+        from code_agent import _windows_owned_temporary
+
         store = AttachmentStore(self.root)
         real_rename = _windows_owned_temporary._rename_relative
         real_close = _windows_owned_temporary._close
@@ -72,6 +73,8 @@ class AttachmentPublicationFinalizationTests(unittest.TestCase):
 
     @unittest.skipUnless(os.name == "nt", "Windows guard ownership")
     def test_guard_close_failure_keeps_ownership_for_final_cleanup(self) -> None:
+        from code_agent import _windows_owned_temporary
+
         store = AttachmentStore(self.root)
         real_hash = _windows_owned_temporary._sha256_handle
         real_close = _windows_owned_temporary._close

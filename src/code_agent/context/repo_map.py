@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from threading import RLock
 
+from code_agent.workspace.errors import BinaryFileError, FileTooLargeError
 from code_agent.workspace.files import WorkspaceFiles
 
 from .cache import RepoMapCache
@@ -195,7 +196,11 @@ class RepoMapBuilder:
         query: str,
         touched_files: Sequence[str],
         token_budget: int,
+        *,
+        debug_report: dict[str, object] | None = None,
     ) -> tuple[str, int, int]:
+        if debug_report is not None:
+            debug_report.clear()
         if not isinstance(query, str):
             raise TypeError("query must be text")
         checked_touched = tuple(touched_files)
@@ -248,11 +253,25 @@ class RepoMapBuilder:
                 if attempt == 0:
                     continue
                 return "", total_hits, total_misses
+            unavailable = tuple(
+                node for node in selection.l0
+                if (node.path, node.start_line, node.end_line) not in sources
+            )
+            selection = replace(
+                selection,
+                l0=tuple(node for node in selection.l0 if node not in unavailable),
+                l1=(*tuple(replace(node, reasons=(*node.reasons, "source unavailable"))
+                           for node in unavailable), *selection.l1),
+            )
             rendered = render_tier_selection(selection, token_budget, sources)
             if self.index.snapshot_for_turn().generation != snapshot.generation:
                 if attempt == 0:
                     continue
                 return "", total_hits, total_misses
+            if debug_report is not None:
+                from .selection_debug import selection_report
+
+                debug_report.update(selection_report(selection, rendered))
             return (
                 rendered,
                 total_hits,
@@ -321,7 +340,11 @@ def _read_l0_sources(
     for node, absolute in prepared:
         expected = node.signature
         assert expected is not None
-        document = files.read_text(node.path, max_bytes=256_000)
+        try:
+            document = files.read_text(node.path, max_bytes=256_000)
+        except (BinaryFileError, FileTooLargeError):
+            # Indexed path metadata remains useful even when source is unavailable.
+            continue
         lines = logical_lines(document.text)
         if (
             node.start_line < 1

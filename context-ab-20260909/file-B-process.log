@@ -1,0 +1,1 @@
+{"arm": "B", "case": "file", "model": "gpt-5.6-sol", "reasoning": "high", "max_output_tokens": 8192, "repo_budget": 2400, "execution": "returned", "seconds": 30.52, "turns": 4, "tool_calls": 4, "localization_calls": 2}

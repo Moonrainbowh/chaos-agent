@@ -69,6 +69,15 @@ class RuntimeSelectionControl:
 
         return self.list_profiles()
 
+    def register_profile(self, profile: ModelProfile) -> None:
+        """Expose an in-memory profile to subsequent explicit selections."""
+        if not isinstance(profile, ModelProfile):
+            raise TypeError("profile must be a ModelProfile")
+        existing = self._profiles.get(profile.name)
+        if existing is not None and existing != profile:
+            raise ValueError("profile name already belongs to another configuration")
+        self._profiles[profile.name] = profile
+
     def list_topologies(self) -> tuple[str, ...]:
         return tuple(item.value for item in AgentTopology)
 

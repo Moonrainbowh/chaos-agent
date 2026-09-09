@@ -1,0 +1,16 @@
+--- before/tokens.py
++++ after/tokens.py
+@@ -64,4 +64,4 @@
+ 
+ 
+ def _ceil_div(value: int, divisor: int) -> int:
+-    return value // divisor
++    return -(-value // divisor)
+--- before/paths.py
++++ after/paths.py
+@@ -42,4 +42,4 @@
+     """Split decoded text into logical lines independently of newline style."""
+     if not isinstance(text, str):
+         raise TypeError("text must be text")
+-    return tuple(text.split('\n'))
++    return tuple(text.splitlines())

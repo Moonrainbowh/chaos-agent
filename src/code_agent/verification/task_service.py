@@ -220,7 +220,7 @@ class LedgerTaskVerificationService:
 
     async def suggest_verification(self, task: TaskRecord, state: TaskState) -> ToolCall | None:
         """Choose the next Host-planned final-gate step for the current subject."""
-        if task.contract.intent is not TaskIntent.MODIFY and not state.files_changed:
+        if not state.files_changed:
             return None
         current = tuple(
             item for item in await self._sessions.list_verification_evidence(task.id)

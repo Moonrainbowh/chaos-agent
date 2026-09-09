@@ -5,6 +5,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from typing import Optional
 
 import httpx
+from code_agent.authentication.models import AuthError, Credential
 
 from .config import ProviderConfig
 from .errors import ProviderError, ProviderResponseLimitError
@@ -64,7 +65,15 @@ class ProviderTransport:
     ) -> AsyncIterator[SSEEvent]:
         if self._closed:
             raise ProviderError("Provider transport is closed")
-        api_key = self._config.resolve_api_key()
+        try:
+            credential = (
+                await self._config.auth_source.resolve()
+                if self._config.auth_source is not None
+                else Credential("api_key", self._config.resolve_api_key())
+            )
+        except AuthError as error:
+            raise ProviderError(str(error)) from None
+        api_key = credential.access
         request_headers = {"Accept": "text/event-stream"}
         if headers:
             request_headers.update(headers)
@@ -72,6 +81,11 @@ class ProviderTransport:
             f"{auth_scheme} {api_key}" if auth_scheme else api_key
         )
         url = f"{self._config.base_url}{path}"
+        if self._config.provider_id:
+            from .auth_request import authenticated_request
+            url, payload, request_headers = authenticated_request(
+                self._config, credential, path, payload, request_headers
+            )
         attempt = 0
 
         while True:

@@ -73,15 +73,22 @@ def _activity_status(status, action, language, design, modern, symbols, spinner_
         spinner = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏" if modern else ("◐◓◑◒" if symbols else "|/-\\")
         return (
             zh if language is Language.ZH_CN else en,
-            (design.frames if design else spinner)[spinner_index % len(design.frames if design else spinner)],
+            _activity_icon(design, spinner, spinner_index),
             ACTIVE_GOLD if design else TOOL_GRAY,
         )
     if status == "running":
         detail = action or "generating response"
         prefix = "Working · "
         spinner = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏" if modern else ("◐◓◑◒" if symbols else "|/-\\")
-        return prefix + detail, (design.frames if design else spinner)[spinner_index % len(design.frames if design else spinner)], ACTIVE_GOLD if design else WARNING_YELLOW
+        return prefix + detail, _activity_icon(design, spinner, spinner_index), ACTIVE_GOLD if design else WARNING_YELLOW
     return None
+
+
+def _activity_icon(design, fallback, tick):
+    if design:
+        # Fixed width keeps status text still as the bright dot moves.
+        return ("●··", "·●·", "··●", "·●·")[(tick // 2) % 4]
+    return fallback[tick % len(fallback)]
 
 
 def status_context(

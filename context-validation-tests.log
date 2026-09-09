@@ -1,0 +1,68 @@
+=== src/code_agent/acp/tests ===
+...........
+----------------------------------------------------------------------
+Ran 11 tests in 0.479s
+
+OK
+=== src/code_agent/attachments/tests ===
+........................
+----------------------------------------------------------------------
+Ran 24 tests in 1.075s
+
+OK
+=== src/code_agent/authentication/tests ===
+..............................................
+----------------------------------------------------------------------
+Ran 46 tests in 4.708s
+
+OK
+=== src/code_agent/capabilities/tests ===
+.........
+----------------------------------------------------------------------
+Ran 9 tests in 0.001s
+
+OK
+=== src/code_agent/checkpoints/tests ===
+....................
+----------------------------------------------------------------------
+Ran 20 tests in 0.837s
+
+OK
+=== src/code_agent/config/tests ===
+..............................
+----------------------------------------------------------------------
+Ran 30 tests in 0.072s
+
+OK
+=== src/code_agent/context/tests ===
+.................................................................................................................................................................................
+----------------------------------------------------------------------
+Ran 177 tests in 5.332s
+
+OK
+=== src/code_agent/context_windows/tests ===
+......................
+----------------------------------------------------------------------
+Ran 22 tests in 7.108s
+
+OK
+=== src/code_agent/core/tests ===
+.....................................................................................................................
+----------------------------------------------------------------------
+Ran 117 tests in 6.528s
+
+OK
+=== src/code_agent/evaluation/tests ===
+.....................................
+----------------------------------------------------------------------
+Ran 37 tests in 22.707s
+
+OK
+=== src/code_agent/interfaces/tests ===
+.................................................Executing <Task finished name='Task-230' coro=<CheckpointTuiSafetyTests.test_service_errors_are_in_band_bounded_and_leave_tui_usable() done, defined at F:\code-ai-chaos\chaos-16-agent\src\code_agent\interfaces\tests\test_checkpoint_tui_safety.py:183> result=None created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\asyncio\runners.py:100> took 0.125 seconds
+.....Executing <Task finished name='Task-252' coro=<CollapsedComposerTests.test_space_expands_and_esc_collapses_preserving_draft() done, defined at F:\code-ai-chaos\chaos-16-agent\src\code_agent\interfaces\tests\test_collapsed_composer.py:54> result=None created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\asyncio\runners.py:100> took 0.109 seconds
+......Executing <Task finished name='Task-282' coro=<CommandNavigationTests.test_model_and_effort_enter_real_choices_and_apply() done, defined at F:\code-ai-chaos\chaos-16-agent\src\code_agent\interfaces\tests\test_command_navigation.py:37> result=None created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\asyncio\runners.py:100> took 0.172 seconds
+..Executing <Task finished name='Task-292' coro=<CommandNavigationTests.test_tab_completes_and_escape_returns_one_level_without_applying() done, defined at F:\code-ai-chaos\chaos-16-agent\src\code_agent\interfaces\tests\test_command_navigation.py:52> result=None created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\asyncio\runners.py:100> took 0.109 seconds
+.............................................................................................................................................Executing <Task finished name='Task-675' coro=<PasteTests.test_total_limit_rejects_entire_paste_without_changing_cursor() done, defined at F:\code-ai-chaos\chaos-16-agent\src\code_agent\interfaces\tests\test_paste_limits_and_sections.py:42> result=None created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\asyncio\runners.py:100> took 1.109 seconds
+..............................................................................Executing <Task finished name='Task-709' coro=<RuntimeNewConversationTests.test_each_entrypoint_detaches_active_and_completed_conversations() done, defined at F:\code-ai-chaos\chaos-16-agent\src\code_agent\interfaces\tests\test_runtime_new_conversation.py:28> result=None created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\asyncio\runners.py:100> took 0.125 seconds
+........................test suite failed: src/code_agent/interfaces/tests

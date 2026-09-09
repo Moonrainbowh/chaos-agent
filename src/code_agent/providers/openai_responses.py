@@ -188,7 +188,7 @@ class OpenAIResponsesClient:
         reasoning_effort: str | None = None,
         max_output_tokens: int = 4_096,
     ) -> None:
-        if config.api is not ApiProtocol.RESPONSES:
+        if config.api not in {ApiProtocol.RESPONSES, ApiProtocol.CODEX_RESPONSES}:
             raise ProviderConfigError("OpenAIResponsesClient requires responses API")
         self._config = config
         self._attachments = ProviderAttachmentEncoder(

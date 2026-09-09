@@ -50,6 +50,8 @@ class RuntimeControls:
     profile_resolver: Callable[[str], Awaitable[None]]
     runtime_selection: RuntimeSelectionControl
     runtime_resolver: Callable[[TaskContract], Awaitable[None]]
+    register_profile: Callable[[ModelProfile], None] | None = None
+    set_profile_restorer: Callable[[Callable[[str], Awaitable[None]]], None] | None = None
 
 
 def compose_runtime_controls(
@@ -98,6 +100,8 @@ def compose_runtime_controls(
         controls.permission_control, controls.profile_facts,
         controls.resolve_profile, controls.runtime_selection,
         controls.resolve_runtime_contract,
+        controls.register_profile,
+        controls.set_profile_restorer,
     )
 
 

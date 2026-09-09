@@ -111,6 +111,8 @@ async def listen_interactions(app: object) -> None:
 async def close_tasks(app: object) -> None:
     app._closing = True
     app.running = False
+    from .tui_auth_prompt import cancel_auth_input
+    await cancel_auth_input(app)
     if app._pending_approval is not None:
         app.approvals.resolve(app._pending_approval.request_id, False)
         app._pending_approval = None
@@ -133,6 +135,9 @@ async def close_tasks(app: object) -> None:
     await close_rewind_flow(app)
     await _await_durable_interrupt(app)
     await _allow_run_to_finish(app)
+    pause_task = getattr(app, "_pause_task", None)
+    if pause_task:
+        await asyncio.gather(pause_task, return_exceptions=True)
     if app.state.has_draft:
         app.state._freeze_partial_answer()
         app._flush_pending_entries()

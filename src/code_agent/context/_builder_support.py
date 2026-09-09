@@ -13,6 +13,7 @@ from .budget import PromptAllocation
 from .errors import ContextBudgetError
 from .models import CompactionResult, ContextConfig
 from .tokens import estimate_tokens
+from .measurements import prompt_estimate
 
 
 def _context_bundle(
@@ -24,12 +25,9 @@ def _context_bundle(
     cache_hits: int,
     cache_misses: int,
     semantic: SemanticCompactionResult | None,
+    rendered_repo_context: str = "",
 ) -> ContextBundle:
-    prompt_tokens = (
-        estimate_tokens(system_prompt)
-        + estimate_tokens(rendered_tools)
-        + _message_tokens(compacted.messages)
-    )
+    prompt_tokens = prompt_estimate(system_prompt, compacted.messages, rendered_tools)
     if prompt_tokens > (
         config.prompt_budget.max_prompt_tokens - config.prompt_budget.safety_tokens
     ):
@@ -38,7 +36,8 @@ def _context_bundle(
         system_prompt=system_prompt,
         messages=compacted.messages,
         measurements=_measurements(
-            config, compacted, allocation, cache_hits, cache_misses, semantic
+            config, compacted, allocation, cache_hits, cache_misses, semantic,
+            prompt_tokens, estimate_tokens(rendered_repo_context),
         ),
     )
 
@@ -50,9 +49,17 @@ def _measurements(
     cache_hits: int,
     cache_misses: int,
     semantic: SemanticCompactionResult | None,
+    prompt_estimated_tokens: int,
+    repo_context_estimated_tokens: int,
 ) -> dict[str, int]:
     return {
+        # Legacy fields retain allocation semantics; estimates are local.
         "prompt_tokens": config.prompt_budget.max_prompt_tokens,
+        "prompt_budget_tokens": config.prompt_budget.max_prompt_tokens,
+        "prompt_safety_tokens": config.prompt_budget.safety_tokens,
+        "prompt_estimated_tokens": prompt_estimated_tokens,
+        "repo_context_budget_tokens": allocation.repo_map_tokens,
+        "repo_context_estimated_tokens": repo_context_estimated_tokens,
         "rule_tokens": allocation.rule_tokens,
         "tool_tokens": allocation.tool_tokens,
         "task_state_tokens": allocation.task_state_tokens,

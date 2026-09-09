@@ -9,6 +9,11 @@ from .repo_search import RepoLexicalRanks
 
 
 _QUERY_TOKEN = re.compile(r"[\w.-]+", re.UNICODE)
+_DEFAULT_PATH_PRIOR = 1.0
+_TEST_PATH_PRIOR = 0.25
+_DOCS_PATH_PRIOR = 0.30
+_TEST_QUERY = re.compile(r"\b(?:tests?|testing|pytest|unittest)\b|测试", re.I)
+_DOCS_QUERY = re.compile(r"\b(?:docs?|readme|documentation)\b|文档", re.I)
 _RRF_K = 60
 _MAX_CONTRACT_EXPANSIONS = 1
 _SOURCE_SUFFIXES = frozenset(
@@ -26,6 +31,8 @@ def rank_repo_entries(
     checked_entries, checked_touched = _validate_rank_inputs(
         entries, query, touched_files, lexical
     )
+    query = bound_repo_query(query).replace("\\", "/")
+    explicit_paths = {entry.path for entry in checked_entries if _explicit_path(entry.path, query)}
     scores = {entry.path: 0.0 for entry in checked_entries}
     for path in _touched_paths(checked_entries, checked_touched):
         scores[path] += 8.0 / (_RRF_K + 1)
@@ -44,11 +51,12 @@ def rank_repo_entries(
         (_dependency_paths(checked_entries), 0.5, False),
     )
     for paths, weight, lexical_channel in channels:
-        _add_rank_channel(scores, paths, weight, lexical_channel)
+        _add_rank_channel(scores, paths, weight, lexical_channel, query)
     return tuple(
         sorted(
             checked_entries,
             key=lambda entry: (
+                0 if entry.path in explicit_paths else 1,
                 -scores[entry.path],
                 entry.path.casefold(),
                 entry.path,
@@ -84,12 +92,13 @@ def _add_rank_channel(
     paths: Sequence[str],
     weight: float,
     lexical_channel: bool,
+    query: str = "",
 ) -> None:
     for rank, path in enumerate(dict.fromkeys(paths), start=1):
         if path not in scores:
             continue
         path_weight = (
-            weight * _lexical_path_prior(path)
+            weight * _lexical_path_prior(path, query)
             if lexical_channel
             else weight
         )
@@ -207,14 +216,19 @@ def _is_test_path(path: str) -> bool:
     return "/tests/" in normalized or name.startswith("test_")
 
 
-def _lexical_path_prior(path: str) -> float:
+def _explicit_path(path: str, query: str) -> bool:
+    pattern = r"(?<![\w.-])" + re.escape(_normalize_path(path)) + r"(?![\w./-])"
+    return re.search(pattern, query.replace("\\", "/"), re.I) is not None
+
+
+def _lexical_path_prior(path: str, query: str = "") -> float:
+    """Apply default priors unless the request explicitly targets the category."""
+    query = bound_repo_query(query)
+    if _explicit_path(path, query):
+        return _DEFAULT_PATH_PRIOR
     normalized = _normalize_path(path)
     if _is_test_path(normalized):
-        return 0.25
-    if normalized.startswith("docs/"):
-        return 0.3
-    if normalized.endswith("/agents.md") or normalized == "agents.md":
-        return 0.35
-    if normalized.endswith(".md"):
-        return 0.5
-    return 1.0
+        return _DEFAULT_PATH_PRIOR if _TEST_QUERY.search(query) else _TEST_PATH_PRIOR
+    if normalized.startswith("docs/") or normalized.endswith(".md"):
+        return _DEFAULT_PATH_PRIOR if _DOCS_QUERY.search(query) else _DOCS_PATH_PRIOR
+    return _DEFAULT_PATH_PRIOR

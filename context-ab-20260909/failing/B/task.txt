@@ -1,0 +1,1 @@
+The failing test is test_regression.py Regression.test_token_rounding: estimate_tokens("abc") returned 0 instead of 1. Locate and fix the implementation; preserve mixed Unicode counting. Do not alter tests. Use run_verification and finish after it passes.

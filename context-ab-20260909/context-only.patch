@@ -1,0 +1,585 @@
+diff --git a/src/code_agent/context/_builder_support.py b/src/code_agent/context/_builder_support.py
+index 1281fbf..a35cea2 100644
+--- a/src/code_agent/context/_builder_support.py
++++ b/src/code_agent/context/_builder_support.py
+@@ -13,6 +13,7 @@ from .budget import PromptAllocation
+ from .errors import ContextBudgetError
+ from .models import CompactionResult, ContextConfig
+ from .tokens import estimate_tokens
++from .measurements import prompt_estimate
+ 
+ 
+ def _context_bundle(
+@@ -24,12 +25,9 @@ def _context_bundle(
+     cache_hits: int,
+     cache_misses: int,
+     semantic: SemanticCompactionResult | None,
++    rendered_repo_context: str = "",
+ ) -> ContextBundle:
+-    prompt_tokens = (
+-        estimate_tokens(system_prompt)
+-        + estimate_tokens(rendered_tools)
+-        + _message_tokens(compacted.messages)
+-    )
++    prompt_tokens = prompt_estimate(system_prompt, compacted.messages, rendered_tools)
+     if prompt_tokens > (
+         config.prompt_budget.max_prompt_tokens - config.prompt_budget.safety_tokens
+     ):
+@@ -38,7 +36,8 @@ def _context_bundle(
+         system_prompt=system_prompt,
+         messages=compacted.messages,
+         measurements=_measurements(
+-            config, compacted, allocation, cache_hits, cache_misses, semantic
++            config, compacted, allocation, cache_hits, cache_misses, semantic,
++            prompt_tokens, estimate_tokens(rendered_repo_context),
+         ),
+     )
+ 
+@@ -50,9 +49,17 @@ def _measurements(
+     cache_hits: int,
+     cache_misses: int,
+     semantic: SemanticCompactionResult | None,
++    prompt_estimated_tokens: int,
++    repo_context_estimated_tokens: int,
+ ) -> dict[str, int]:
+     return {
++        # Legacy fields retain allocation semantics; estimates are local.
+         "prompt_tokens": config.prompt_budget.max_prompt_tokens,
++        "prompt_budget_tokens": config.prompt_budget.max_prompt_tokens,
++        "prompt_safety_tokens": config.prompt_budget.safety_tokens,
++        "prompt_estimated_tokens": prompt_estimated_tokens,
++        "repo_context_budget_tokens": allocation.repo_map_tokens,
++        "repo_context_estimated_tokens": repo_context_estimated_tokens,
+         "rule_tokens": allocation.rule_tokens,
+         "tool_tokens": allocation.tool_tokens,
+         "task_state_tokens": allocation.task_state_tokens,
+diff --git a/src/code_agent/context/builder.py b/src/code_agent/context/builder.py
+index 50b1df4..34135f0 100644
+--- a/src/code_agent/context/builder.py
++++ b/src/code_agent/context/builder.py
+@@ -3,7 +3,7 @@ from __future__ import annotations
+ import asyncio
+ from dataclasses import dataclass
+ from math import ceil
+-from typing import Sequence
++from typing import Callable, Sequence
+ 
+ from code_agent.core.context_request import ContextRequest
+ from code_agent.core.models import ContextBundle, Message, ToolDefinition
+@@ -52,6 +52,7 @@ class WorkspaceContextBuilder:
+         compactor: DeterministicCompactor,
+         *,
+         semantic_compactor: SemanticCompactor | None = None,
++        debug_report: Callable[[dict[str, object]], None] | None = None,
+     ) -> None:
+         if not isinstance(config, ContextConfig):
+             raise TypeError("config must be a ContextConfig")
+@@ -76,6 +77,7 @@ class WorkspaceContextBuilder:
+         self.repo_map = repo_map
+         self.compactor = compactor
+         self.semantic_compactor = semantic_compactor
++        self.debug_report = debug_report
+ 
+     def semantic_snapshot_for_turn(self) -> RepoIndexSnapshot:
+         """Return the exact immutable repository snapshot used by Repo Map."""
+@@ -222,19 +224,22 @@ class WorkspaceContextBuilder:
+         compacted = self.compactor.compact(messages, plan.allocation.message_tokens)
+         query = request.user_input or _latest_user_text(compacted.messages)
+         request.cancellation.raise_if_cancelled()
++        report: dict[str, object] = {}
++        debug_options = {"debug_report": report} if self.debug_report is not None else {}
+         if self.config.repo_map_enabled and _requires_repo_map(query):
+             rendered_map, cache_hits, cache_misses = (
+                 self.repo_map.render_with_metrics(
+                     query,
+                     _touched_files(request.task_state),
+                     plan.allocation.repo_map_tokens,
++                    **debug_options,
+                 )
+             )
+         else:
+             rendered_map, cache_hits, cache_misses = "", 0, 0
+         request.cancellation.raise_if_cancelled()
+         system_prompt = plan.prefix + rendered_map
+-        return _context_bundle(
++        bundle = _context_bundle(
+             self.config,
+             system_prompt,
+             plan.rendered_tools,
+@@ -243,4 +248,10 @@ class WorkspaceContextBuilder:
+             cache_hits,
+             cache_misses,
+             semantic,
++            rendered_map,
+         )
++        if self.debug_report is not None:
++            from .selection_debug import complete_report
++
++            self.debug_report(complete_report(report, rendered_map, bundle.measurements))
++        return bundle
+diff --git a/src/code_agent/context/repo_map.py b/src/code_agent/context/repo_map.py
+index 7222c0b..5bd33f1 100644
+--- a/src/code_agent/context/repo_map.py
++++ b/src/code_agent/context/repo_map.py
+@@ -195,7 +195,11 @@ class RepoMapBuilder:
+         query: str,
+         touched_files: Sequence[str],
+         token_budget: int,
++        *,
++        debug_report: dict[str, object] | None = None,
+     ) -> tuple[str, int, int]:
++        if debug_report is not None:
++            debug_report.clear()
+         if not isinstance(query, str):
+             raise TypeError("query must be text")
+         checked_touched = tuple(touched_files)
+@@ -253,6 +257,10 @@ class RepoMapBuilder:
+                 if attempt == 0:
+                     continue
+                 return "", total_hits, total_misses
++            if debug_report is not None:
++                from .selection_debug import selection_report
++
++                debug_report.update(selection_report(selection, rendered))
+             return (
+                 rendered,
+                 total_hits,
+diff --git a/src/code_agent/context/repo_ranking.py b/src/code_agent/context/repo_ranking.py
+index 09d67ad..60f925f 100644
+--- a/src/code_agent/context/repo_ranking.py
++++ b/src/code_agent/context/repo_ranking.py
+@@ -9,6 +9,11 @@ from .repo_search import RepoLexicalRanks
+ 
+ 
+ _QUERY_TOKEN = re.compile(r"[\w.-]+", re.UNICODE)
++_DEFAULT_PATH_PRIOR = 1.0
++_TEST_PATH_PRIOR = 0.25
++_DOCS_PATH_PRIOR = 0.30
++_TEST_QUERY = re.compile(r"\b(?:tests?|testing|pytest|unittest)\b|测试", re.I)
++_DOCS_QUERY = re.compile(r"\b(?:docs?|readme|documentation)\b|文档", re.I)
+ _RRF_K = 60
+ _MAX_CONTRACT_EXPANSIONS = 1
+ _SOURCE_SUFFIXES = frozenset(
+@@ -26,6 +31,8 @@ def rank_repo_entries(
+     checked_entries, checked_touched = _validate_rank_inputs(
+         entries, query, touched_files, lexical
+     )
++    query = bound_repo_query(query).replace("\\", "/")
++    explicit_paths = {entry.path for entry in checked_entries if _explicit_path(entry.path, query)}
+     scores = {entry.path: 0.0 for entry in checked_entries}
+     for path in _touched_paths(checked_entries, checked_touched):
+         scores[path] += 8.0 / (_RRF_K + 1)
+@@ -44,11 +51,12 @@ def rank_repo_entries(
+         (_dependency_paths(checked_entries), 0.5, False),
+     )
+     for paths, weight, lexical_channel in channels:
+-        _add_rank_channel(scores, paths, weight, lexical_channel)
++        _add_rank_channel(scores, paths, weight, lexical_channel, query)
+     return tuple(
+         sorted(
+             checked_entries,
+             key=lambda entry: (
++                0 if entry.path in explicit_paths else 1,
+                 -scores[entry.path],
+                 entry.path.casefold(),
+                 entry.path,
+@@ -84,12 +92,13 @@ def _add_rank_channel(
+     paths: Sequence[str],
+     weight: float,
+     lexical_channel: bool,
++    query: str = "",
+ ) -> None:
+     for rank, path in enumerate(dict.fromkeys(paths), start=1):
+         if path not in scores:
+             continue
+         path_weight = (
+-            weight * _lexical_path_prior(path)
++            weight * _lexical_path_prior(path, query)
+             if lexical_channel
+             else weight
+         )
+@@ -207,14 +216,19 @@ def _is_test_path(path: str) -> bool:
+     return "/tests/" in normalized or name.startswith("test_")
+ 
+ 
+-def _lexical_path_prior(path: str) -> float:
++def _explicit_path(path: str, query: str) -> bool:
++    pattern = r"(?<![\w.-])" + re.escape(_normalize_path(path)) + r"(?![\w./-])"
++    return re.search(pattern, query.replace("\\", "/"), re.I) is not None
++
++
++def _lexical_path_prior(path: str, query: str = "") -> float:
++    """Apply default priors unless the request explicitly targets the category."""
++    query = bound_repo_query(query)
++    if _explicit_path(path, query):
++        return _DEFAULT_PATH_PRIOR
+     normalized = _normalize_path(path)
+     if _is_test_path(normalized):
+-        return 0.25
+-    if normalized.startswith("docs/"):
+-        return 0.3
+-    if normalized.endswith("/agents.md") or normalized == "agents.md":
+-        return 0.35
+-    if normalized.endswith(".md"):
+-        return 0.5
+-    return 1.0
++        return _DEFAULT_PATH_PRIOR if _TEST_QUERY.search(query) else _TEST_PATH_PRIOR
++    if normalized.startswith("docs/") or normalized.endswith(".md"):
++        return _DEFAULT_PATH_PRIOR if _DOCS_QUERY.search(query) else _DOCS_PATH_PRIOR
++    return _DEFAULT_PATH_PRIOR
+diff --git a/src/code_agent/context/repo_tiered_context.py b/src/code_agent/context/repo_tiered_context.py
+index f3aba63..a2c780d 100644
+--- a/src/code_agent/context/repo_tiered_context.py
++++ b/src/code_agent/context/repo_tiered_context.py
+@@ -2,16 +2,18 @@ from __future__ import annotations
+ 
+ import json
+ import re
+-from dataclasses import dataclass, field
++from dataclasses import dataclass, field, replace
+ from collections.abc import Sequence
+ 
+ from .models import FileSignature, RepoEntry, RepoRelation, Symbol
+ from .repo_index import RepoIndexSnapshot
+ from .repo_paths import canonical_path_key
++from .repo_query import contract_query_terms, expand_search_terms, plan_repo_query
++from .repo_ranking import _DOCS_QUERY
++from .repo_query import bound_repo_query
+ from .tokens import estimate_tokens, truncate_to_tokens
+ 
+ 
+-_PATH_LINE = re.compile(r"(?P<path>[^\r\n:\"']+?\.py):(?P<line>[1-9][0-9]*)")
+ _TEST_LIMIT = 16
+ TOKENIZER_VERSION = "estimate_tokens:v1"
+ 
+@@ -39,6 +41,7 @@ class TierSelection:
+     l1: tuple[TierNode, ...] = ()
+     l2: tuple[TierNode, ...] = ()
+     overflow_targets: tuple[TierNode, ...] = ()
++    candidates: tuple[tuple[str, TierNode], ...] = field(default=(), compare=False, repr=False)
+ 
+ 
+ def select_tiered_context(
+@@ -59,8 +62,7 @@ def select_tiered_context(
+         raise ValueError("token_budget must not be negative")
+     entries = tuple(ranked)
+     by_key = {canonical_path_key(entry.path): entry for entry in snapshot.entries}
+-    anchor = _select_anchor(entries, by_key, query, touched_files)
+-    l0_candidates = (anchor,) if anchor is not None else ()
++    l0_candidates = _select_anchor(entries, by_key, query, touched_files)
+     l1_candidates, l2_candidates = _expand(snapshot.entries, l0_candidates)
+     return _pack(
+         snapshot.generation,
+@@ -76,63 +78,106 @@ def _select_anchor(
+     by_key: dict[str, RepoEntry],
+     query: str,
+     touched_files: Sequence[str],
+-) -> TierNode | None:
+-    normalized_query = query.replace("\\", "/")
+-    for match in _PATH_LINE.finditer(normalized_query):
+-        raw_path = match.group("path").strip()
+-        exact = by_key.get(canonical_path_key(raw_path)) if not _looks_absolute(raw_path) else None
+-        suffix_matches = tuple(
+-            candidate
+-            for candidate in by_key.values()
+-            if raw_path.casefold().endswith(candidate.path.casefold())
+-        )
+-        entry = exact or (suffix_matches[0] if len(suffix_matches) == 1 else None)
+-        if entry is not None:
+-            line = int(match.group("line"))
+-            symbol = next(
+-                (
+-                    item
+-                    for item in entry.symbols
+-                    if item.end_line is not None and item.line <= line <= item.end_line
+-                ),
+-                None,
+-            )
+-            if symbol is not None:
+-                return _node(entry, symbol, "symbol", ("explicit path:line",), 0)
+-            return TierNode(
+-                entry.path,
+-                "line",
+-                max(1, line - 20),
+-                line + 20,
+-                signature=entry.signature,
+-                reasons=("module-level path:line",),
+-            )
+-    query_folded = query.casefold()
++) -> tuple[TierNode, ...]:
++    """Select up to two non-overlapping anchors, strongest evidence first."""
++    mentions, symbol_query = _anchor_mentions(by_key, query)
+     touched = {canonical_path_key(path) for path in touched_files}
+-    ranks = {entry.path: rank for rank, entry in enumerate(ranked)}
+-    candidates = sorted(
+-        ranked,
+-        key=lambda entry: (
+-            0 if canonical_path_key(entry.path) in touched else 1,
+-            0 if entry.path.casefold() in query_folded else 1,
+-            0 if any(symbol.name.casefold() in query_folded for symbol in entry.symbols) else 1,
+-            ranks[entry.path],
+-            entry.path.casefold(),
+-        ),
++    entries = tuple(dict.fromkeys((*[entry for entry, _ in mentions], *ranked)))
++    explicit = []
++    for entry, line in mentions:
++        if line is not None:
++            containing = [s for s in entry.symbols if s.line <= line <= (s.end_line or s.line)]
++            symbol = min(containing, key=lambda s: ((s.end_line or s.line) - s.line, s.line, s.name), default=None)
++            explicit.append(_node(entry, symbol, "symbol", ("explicit path:line",), 0)
++                            if symbol else _module_anchor(entry, line))
++    # Exact identifiers can locate symbols even outside the file retrieval list.
++    for entry in dict.fromkeys((*entries, *by_key.values())):
++        for symbol in sorted(entry.symbols, key=lambda s: (s.line, s.name)):
++            if re.search(r"(?<![\w])" + re.escape(symbol.name) + r"(?![\w])", symbol_query, re.I):
++                explicit.append(_node(entry, symbol, "symbol", ("explicit symbol",), 0))
++    selected = _independent_anchors(explicit)
++    terms = set(contract_query_terms(plan_repo_query(symbol_query))) - _ANCHOR_STOP_TERMS
++    scored = sorted(
++        ((-_symbol_score(symbol, terms), 0 if canonical_path_key(entry.path) in touched else 1,
++          rank, symbol.line, symbol.name, entry.path, entry, symbol)
++         for rank, entry in enumerate(entries) for symbol in entry.symbols),
++        key=lambda item: item[:6],
+     )
+-    for entry in candidates:
+-        if not entry.symbols:
++    # An explicitly named file gets its own anchor before unrelated retrieved files.
++    for entry, _ in mentions:
++        if any(node.path == entry.path for node in selected):
+             continue
+-        symbol = next(
+-            (item for item in entry.symbols if item.name.casefold() in query_folded),
+-            entry.symbols[0],
+-        )
+-        return _node(entry, symbol, "symbol", ("task seed",), 0)
+-    return None
++        best = next((item for item in scored if item[6].path == entry.path and item[0] <= -4), None)
++        node = (_node(entry, best[7], "symbol", ("file-to-symbol relevance",), 0)
++                if best else _module_anchor(entry))
++        selected = _independent_anchors((*selected, node))
++    reranked = [_node(item[6], item[7], "symbol", ("file-to-symbol relevance",), 0)
++                for item in scored if item[0] <= -4]
++    if not selected:
++        selected = _independent_anchors(reranked)
++    if not selected and entries:
++        entry = min(entries, key=lambda e: (
++            0 if canonical_path_key(e.path) in touched else 1,
++            0 if _DOCS_QUERY.search(bound_repo_query(query)) or e.symbols or e.path.endswith(".py") else 1,
++        ))
++        selected = (_module_anchor(entry),)
++    return selected
++
++
++_ANCHOR_STOP_TERMS = frozenset({
++    "def", "class", "self", "return", "none", "true", "false", "py", "function",
++    "file", "fix", "repair", "please", "the", "a", "an", "in", "of", "to", "and",
++})
++
++
++def _anchor_mentions(
++    by_key: dict[str, RepoEntry], query: str,
++) -> tuple[list[tuple[RepoEntry, int | None]], str]:
++    normalized = query.replace("\\", "/")
++    matches = []
++    for entry in by_key.values():
++        pattern = r"(?<![\w.-])" + re.escape(entry.path) + r"(?::([1-9][0-9]*))?(?![\w./-])"
++        for match in re.finditer(pattern, normalized, re.I):
++            matches.append((match.start(), match.end(), entry, int(match[1]) if match[1] else None))
++    accepted = []
++    for start, end, entry, line in sorted(matches, key=lambda item: (item[0], -item[1], item[2].path)):
++        if accepted and start < accepted[-1][1]:
++            continue
++        accepted.append((start, end, entry, line))
++    chars = list(normalized)
++    for start, end, _, _ in accepted:
++        chars[start:end] = " " * (end - start)
++    return [(entry, line) for _, _, entry, line in accepted], "".join(chars)
++
+ 
++def _symbol_score(symbol: Symbol, terms: set[str]) -> int:
++    """One name term or two metadata terms reach the minimum score of four."""
++    def words(text: str) -> set[str]:
++        return set(re.findall(r"\w+", expand_search_terms(text)))
+ 
+-def _looks_absolute(path: str) -> bool:
+-    return path.startswith("/") or (len(path) >= 2 and path[1] == ":")
++    return (4 * len(terms & words(symbol.name))
++            + 2 * len(terms & words(symbol.signature))
++            + 2 * len(terms & words(symbol.docstring)))
++
++
++def _module_anchor(entry: RepoEntry, line: int | None = None) -> TierNode:
++    return TierNode(
++        entry.path, "line", max(1, line - 20) if line else 1,
++        line + 20 if line else 40, signature=entry.signature,
++        reasons=("module-level path:line" if line else "bounded module fallback",),
++    )
++
++
++def _independent_anchors(nodes: Sequence[TierNode]) -> tuple[TierNode, ...]:
++    result: list[TierNode] = []
++    for node in nodes:
++        if any(node.path == other.path and node.start_line <= other.end_line
++               and other.start_line <= node.end_line for other in result):
++            continue
++        result.append(node)
++        if len(result) == 2:
++            break
++    return tuple(result)
+ 
+ 
+ def _expand(
+@@ -232,51 +277,21 @@ def _pack(
+ ) -> TierSelection:
+     if budget == 0:
+         return TierSelection(generation, TOKENIZER_VERSION)
++    candidates = tuple((f"L{tier}", node) for tier, nodes in enumerate((l0, l1, l2)) for node in nodes)
+     large = tuple(node for node in l0 if node.end_line - node.start_line + 1 > 400)
+     l0 = tuple(node for node in l0 if node not in large)
+     l1 = tuple((*large, *l1))
+-    quotas = [budget * 60 // 100, budget * 25 // 100]
+-    quotas.append(budget - quotas[0] - quotas[1])
+-    selected: list[list[TierNode]] = [[], [], []]
+-    deferred: list[tuple[int, TierNode]] = []
+-    unused = 0
+-    for tier, (nodes, quota) in enumerate(zip((l0, l1, l2), quotas)):
+-        remaining = quota
+-        for node in nodes:
+-            cost = estimate_tokens(_render_node(tier, node))
+-            if cost <= remaining:
+-                selected[tier].append(node)
+-                remaining -= cost
+-            else:
+-                deferred.append((tier, node))
+-        unused += remaining
+-    deferred.sort(
+-        key=lambda item: (
+-            item[0],
+-            0 if item[1].resolution == "exact" else 1,
+-            item[1].distance,
+-            item[1].path.casefold(),
+-            item[1].start_line,
+-            item[1].symbol,
+-        )
+-    )
+-    overflow: list[TierNode] = [part for node in large for part in _split_target(node)]
+-    for tier, node in deferred:
+-        cost = estimate_tokens(_render_node(tier, node))
+-        if cost <= unused:
+-            selected[tier].append(node)
+-            unused -= cost
+-        elif tier == 0:
+-            overflow.extend(_split_target(node))
++    # This cached selection is provisional: source is read and signature-checked
++    # by RepoMapBuilder before render_tier_selection applies the real cost.
+     result = TierSelection(
+         generation,
+         TOKENIZER_VERSION,
+-        tuple(selected[0][:2]),
+-        tuple(selected[1][:8]),
+-        tuple(selected[2][:16]),
+-        tuple(overflow),
++        tuple(l0[:2]),
++        tuple(l1[:8]),
++        tuple(l2[:16]),
++        tuple(part for node in large for part in _split_target(node)),
+     )
+-    return _trim_to_budget(result, budget)
++    return replace(_trim_to_budget(result, budget), candidates=candidates)
+ 
+ 
+ def render_tier_selection(
+@@ -286,49 +301,49 @@ def render_tier_selection(
+ ) -> str:
+     if token_budget <= 0:
+         return ""
+-    rendered = _render(selection, sources)
+-    if not rendered:
+-        return _compact_fallback(selection, token_budget)
+-    if estimate_tokens(rendered) <= token_budget:
+-        return rendered
+-    if sources and selection.l0:
+-        downgraded = TierSelection(
+-            selection.generation,
+-            selection.tokenizer_version,
+-            (),
+-            tuple((*selection.l0, *selection.l1))[:8],
+-            selection.l2,
+-            tuple((*selection.overflow_targets, *selection.l0)),
+-        )
+-        compacted = _render(_trim_to_budget(downgraded, token_budget))
+-        if compacted and estimate_tokens(compacted) <= token_budget:
+-            return compacted
+-        return _compact_fallback(downgraded, token_budget)
+-    compacted = _render(_trim_to_budget(selection, token_budget))
++    compacted = _render(_trim_to_budget(selection, token_budget, sources), sources)
+     if compacted and estimate_tokens(compacted) <= token_budget:
+         return compacted
+     return _compact_fallback(selection, token_budget)
+ 
+ 
+-def _trim_to_budget(selection: TierSelection, budget: int) -> TierSelection:
++def _trim_to_budget(
++    selection: TierSelection,
++    budget: int,
++    sources: dict[tuple[str, int, int], str] | None = None,
++) -> TierSelection:
+     groups = [list(selection.l0), list(selection.l1), list(selection.l2)]
+-    while any(groups):
++    overflow = list(selection.overflow_targets)
++    while any(groups) or overflow:
+         candidate = TierSelection(
+             selection.generation,
+             selection.tokenizer_version,
+             tuple(groups[0]),
+             tuple(groups[1]),
+             tuple(groups[2]),
+-            selection.overflow_targets,
++            tuple(overflow),
+         )
+-        if estimate_tokens(_render(candidate)) <= budget:
++        # Count the complete JSON payload, including escaped source and headers.
++        if estimate_tokens(_render(candidate, sources)) <= budget:
+             return candidate
+-        removable = 2 if groups[2] else 1 if groups[1] else 0
+-        groups[removable].pop()
++        if groups[2]:
++            groups[2].pop()
++        elif groups[1]:
++            groups[1].pop()
++        elif overflow:
++            overflow.pop()
++        else:
++            # Only L0 remains and still cannot fit. Preserve higher-priority
++            # anchors, and expose bounded reads for the removed source.
++            node = groups[0].pop()
++            groups[1].append(node)
++            overflow.extend(_split_target(node))
++    # Keep a bounded-read identity for the compact fallback at tiny budgets.
+     return TierSelection(
+-        selection.generation,
+-        selection.tokenizer_version,
+-        overflow_targets=selection.overflow_targets,
++        selection.generation, selection.tokenizer_version,
++        overflow_targets=selection.overflow_targets or tuple(
++            part for node in selection.l0 for part in _split_target(node)
++        ),
+     )
+ 
+ 
+diff --git a/src/code_agent/core/models.py b/src/code_agent/core/models.py
+index 3584f77..2c2263a 100644
+--- a/src/code_agent/core/models.py
++++ b/src/code_agent/core/models.py
+@@ -21,6 +21,11 @@ _MESSAGE_ROLES = frozenset({"system", "developer", "user", "assistant", "tool"})
+ _CONTEXT_MEASUREMENT_KEYS = frozenset(
+     {
+         "prompt_tokens",
++        "prompt_budget_tokens",
++        "prompt_safety_tokens",
++        "prompt_estimated_tokens",
++        "repo_context_budget_tokens",
++        "repo_context_estimated_tokens",
+         "rule_tokens",
+         "tool_tokens",
+         "task_state_tokens",

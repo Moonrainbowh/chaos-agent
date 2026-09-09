@@ -1,0 +1,1 @@
+Fix two independent regressions: tokens.py _ceil_div must round integer division up; paths.py logical_lines must handle CRLF, CR and empty text without spurious trailing lines. Only tokens.py and paths.py may be edited. Do not alter tests. Use run_verification and finish after it passes.

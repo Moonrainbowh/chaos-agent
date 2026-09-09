@@ -1,0 +1,26 @@
+test_running_icon_changes_but_completion_icon_is_static (test_windows_tui_interaction.WindowsTerminalAppTests.test_running_icon_changes_but_completion_icon_is_static) ... FAIL
+
+======================================================================
+FAIL: test_running_icon_changes_but_completion_icon_is_static (test_windows_tui_interaction.WindowsTerminalAppTests.test_running_icon_changes_but_completion_icon_is_static)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\unittest\async_case.py", line 90, in _callTestMethod
+    if self._callMaybeAsync(method) is not None:
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\unittest\async_case.py", line 112, in _callMaybeAsync
+    return self._asyncioRunner.run(
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\asyncio\runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\asyncio\base_events.py", line 654, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "F:\code-ai-chaos\chaos-16-agent\src\code_agent\interfaces\tests\test_windows_tui_interaction.py", line 101, in test_running_icon_changes_but_completion_icon_is_static
+    self.assertNotEqual(first[1], second[1])
+AssertionError: '●··' == '●··'
+
+----------------------------------------------------------------------
+Ran 1 test in 0.052s
+
+FAILED (failures=1)

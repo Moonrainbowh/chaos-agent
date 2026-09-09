@@ -11,12 +11,15 @@ from .terminal_display import DisplayKind
 from .tui_commands import parse_tui_command
 from .tui_peer_turn import yield_peer_slot
 from .tui_submission import submit_active_input
+from .tui_auth_prompt import auth_active
 
 
 async def submit(app: object, text: str, attachments: object = None) -> bool:
     """Accept input without holding the keyboard loop during workspace creation."""
     if not isinstance(text, str):
         raise TypeError("text must be a string")
+    if auth_active(app):
+        return False
     if not has_submission_input(app.attachment_draft, text, attachments):
         return False
     if app._pending_approval is not None:

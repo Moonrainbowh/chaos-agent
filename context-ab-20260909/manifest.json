@@ -1,0 +1,55 @@
+{
+  "baseline_commit": "6b9e032c8814754edb10394dffa7d3cae4958ab9",
+  "A": "F:\\code-ai-chaos\\context-ab-baseline-20260909",
+  "B": "F:\\code-ai-chaos\\context-ab-current-20260909",
+  "B_definition": "baseline plus frozen context directory Python source and core.models measurement whitelist; all other runtime identical",
+  "B_tracked_changes": [
+    "src/code_agent/context/_builder_support.py",
+    "src/code_agent/context/builder.py",
+    "src/code_agent/context/repo_map.py",
+    "src/code_agent/context/repo_ranking.py",
+    "src/code_agent/context/repo_tiered_context.py",
+    "src/code_agent/core/models.py"
+  ],
+  "B_untracked_context": [
+    "src/code_agent/context/measurements.py",
+    "src/code_agent/context/selection_debug.py"
+  ],
+  "task_provenance": [
+    "src/code_agent/context/tokens.py",
+    "src/code_agent/repo_paths.py"
+  ],
+  "cases": [
+    "single",
+    "two",
+    "failing",
+    "file",
+    "tight"
+  ],
+  "model": "gpt-5.6-sol",
+  "api": "chat_completions",
+  "reasoning_effort": "high",
+  "max_output_tokens": 8192,
+  "max_prompt_tokens": 24000,
+  "repo_budget": {
+    "default": 2400,
+    "tight": 200
+  },
+  "max_agent_rounds": 12,
+  "max_tool_calls": 40,
+  "tools": [
+    "read_file",
+    "write_file",
+    "replace_text",
+    "search_text",
+    "list_files",
+    "run_verification"
+  ],
+  "verifier": "python -X utf8 -m unittest test_regression -v",
+  "repeats_per_arm": 1,
+  "fixture_kind": "two real repository modules copied without imports outside stdlib; controlled seeded regressions and fixed independent tests",
+  "excluded_from_comparison": "uncommitted UI, auth, session, verification and other host changes",
+  "usage": "API provider usage event input/output/cached, total calculated as input+output; missing events remain unknown",
+  "excluded_pilot": "pilot-whitelist-contamination: blanket writable file names polluted task localization; excluded before formal comparison",
+  "prompt_control": "Task prompt has no generic writable-file list. Same tool-side write restriction in A/B."
+}

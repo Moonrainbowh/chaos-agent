@@ -88,7 +88,11 @@ class PersistentContextBuilder(WindowContextBuilder):
         remaining = max(0, cap - self.counter.request(system, messages, request.tools) - 160)
         system += f"\nEstimated remaining input capacity: {remaining} tokens."
         tokens = self.counter.request(system, messages, request.tools)
+        from code_agent.context._builder_support import _render_tools
+        from code_agent.context.measurements import prompt_estimate
         return ContextBundle(system, messages, {**scaffold.measurements,
+            "prompt_budget_tokens": cap, "prompt_safety_tokens": 0,
+            "prompt_estimated_tokens": prompt_estimate(system, messages, _render_tools(request.tools)),
             "prompt_tokens": tokens, "window_input_cap": cap,
             "window_number": len(windows), "context_tokens_remaining": remaining,
             "window_preparing": int(tokens >= int(cap * self.policy.prepare_ratio))})

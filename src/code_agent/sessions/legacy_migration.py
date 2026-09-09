@@ -141,10 +141,7 @@ def _create_temporary(destination: Path) -> OwnedTemporary:
     temporary: OwnedTemporary | None = None
     failure: BaseException | None = None
     try:
-        if os.name == "nt":
-            cleanup = OwnedTemporary.capture_cleanup_descriptor(
-                Path(name), descriptor
-            )
+        cleanup = OwnedTemporary.capture_cleanup_descriptor(Path(name), descriptor)
         temporary = OwnedTemporary.capture_descriptor(Path(name), descriptor)
     except BaseException as error:
         failure = error

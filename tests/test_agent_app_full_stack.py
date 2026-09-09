@@ -162,7 +162,23 @@ class FullStackTests(unittest.IsolatedAsyncioTestCase):
             (root / "pyproject.toml").write_text("[project]\nname = 'demo'\nversion = '0.0.0'\n", encoding="utf-8")
             runtime = _RecordingRuntime((0,))
             sessions = SQLiteSessionRepository(root / "sessions.sqlite3")
-            model = FakeModel(((ModelEvent(ModelEventKind.TEXT_DELTA, text="done"), ModelEvent(ModelEventKind.COMPLETED)),))
+            model = FakeModel((
+                (
+                    ModelEvent(
+                        ModelEventKind.TOOL_CALL,
+                        tool_call=ToolCall(
+                            "write",
+                            "write_file",
+                            {"path": "app.py", "content": "VALUE = 1\n"},
+                        ),
+                    ),
+                    ModelEvent(ModelEventKind.COMPLETED),
+                ),
+                (
+                    ModelEvent(ModelEventKind.TEXT_DELTA, text="done"),
+                    ModelEvent(ModelEventKind.COMPLETED),
+                ),
+            ))
             controller = _task_controller(root, runtime, model, sessions)
             task = await controller.start("repair project")
 
@@ -210,7 +226,7 @@ class FullStackTests(unittest.IsolatedAsyncioTestCase):
             )
             task = await first.start("run tests")
             running = asyncio.create_task(_collect_events(first.events(task.id)))
-            await first_runtime.started.wait()
+            await asyncio.wait_for(first_runtime.started.wait(), 5)
             await first.pause(task.id, "terminal closed")
             await running
 

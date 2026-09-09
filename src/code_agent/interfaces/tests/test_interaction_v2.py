@@ -70,7 +70,7 @@ class PickerStateTests(unittest.TestCase):
         services = {
             "sessions", "history", "tasks", "evidence", "modes", "permissions", "workflows",
             "skills", "mcp", "checkpoints", "plugins", "attachments",
-            "runtime_selection", "task_modes", "semantic_graph",
+            "runtime_selection", "task_modes", "semantic_graph", "authentication",
         }
         items = command_picker_items(REGISTRY.all(), services)
 
@@ -79,7 +79,7 @@ class PickerStateTests(unittest.TestCase):
             (
                 "/clear", "/compact", "/cost", "/status",
                 "/doctor", "/exit", "/diff", "/map", "/review", "/test",
-                "/rewind", "/attach", "/model", "/mode", "/effort", "/permission",
+                "/rewind", "/attach", "/login", "/logswitch", "/model", "/mode", "/effort", "/permission",
                 "/mcp", "/plugin", "/tasks",
             ),
         )

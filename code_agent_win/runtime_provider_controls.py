@@ -33,6 +33,20 @@ from code_agent_win.runtime_selection_control import (
 
 
 class ProviderControls:
+    def set_profile_restorer(self, restore) -> None:
+        self._profile_restorer = restore
+
+    def register_profile(self, profile: ModelProfile) -> None:
+        """Register in all runtime views without switching or writing config."""
+        if not isinstance(profile, ModelProfile):
+            raise TypeError("profile must be a ModelProfile")
+        previous = self._profiles.get(profile.name)
+        if previous is not None and previous != profile:
+            raise ValueError("profile name already belongs to another configuration")
+        self.manager.register_profile(profile)
+        self.runtime_selection.register_profile(profile)
+        self._profiles[profile.name] = profile
+
     def __init__(
         self,
         *,
@@ -218,6 +232,9 @@ class ProviderControls:
                 await self.manager.switch(name, idle=True)
 
     async def resolve_runtime_contract(self, contract: TaskContract) -> None:
+        restore = getattr(self, "_profile_restorer", None)
+        if restore is not None:
+            await restore(contract.profile_id)
         facts = _contract_facts(contract)
         if not all(isinstance(value, str) and value.strip() for value in facts):
             raise ValueError("recorded runtime selection is incomplete")
@@ -244,7 +261,6 @@ class ProviderControls:
         await self._replace_runtime(snapshot)
         self.runtime_selection.observe(snapshot)
 
-
 def _contract_facts(contract: TaskContract) -> tuple[str | None, ...]:
     return (
         contract.profile_id, contract.model, contract.protocol,
@@ -252,7 +268,6 @@ def _contract_facts(contract: TaskContract) -> tuple[str | None, ...]:
         contract.reasoning_effort, contract.runtime_mode,
         contract.runtime_selection_digest,
     )
-
 
 def _active_matches(
     active: ModeSnapshot, selection_digest: str, contract_digest: str | None
@@ -264,14 +279,12 @@ def _active_matches(
         and selection.digest == selection_digest
     )
 
-
 def _profile_identity(profile: ModelProfile) -> tuple[str, str, str]:
     return (
         profile.provider.model,
         profile.provider.api.value,
         _endpoint_host(profile),
     )
-
 
 def _endpoint_host(profile: ModelProfile) -> str:
     return urlsplit(profile.provider.base_url).hostname or "unknown"

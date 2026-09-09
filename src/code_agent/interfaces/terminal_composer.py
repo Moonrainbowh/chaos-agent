@@ -5,7 +5,7 @@ from .terminal_display import clip_display, display_width, safe_text
 from .terminal_style import BODY_WHITE, BRAND_CYAN, DIM_GRAY, ColorMode, colorize, color_enabled
 from .terminal_tail_content import _render_draft
 from .terminal_tail_geometry import (
-    LiveTailFrame, LiveTailGeometry, _layout_input, _visible_input_rows, _rewrite_tail,
+    LiveTailFrame, LiveTailGeometry, _layout_input, _visible_input_rows, _rewrite_tail, tail_geometry,
 )
 from .terminal_theme import Theme, design_for, recolor, ACTIVE_GOLD
 
@@ -51,7 +51,7 @@ def render_designed_frame(
         char_count=len(supplied), image_count=image_count, target_rows=input_box_rows,
     )
     lines.append(_status_row(status_icon, status, context, frame_width, color, status_color))
-    geometry = LiveTailGeometry(len(lines), offset + cursor_row + 1)
+    geometry = tail_geometry(lines, offset + cursor_row + 1, cursor_col + 4)
     rendered = _rewrite_tail(lines, geometry.cursor_row, cursor_col + 4, previous, height)
     return LiveTailFrame(recolor(rendered, theme), geometry)
 
@@ -69,7 +69,7 @@ def render_collapsed_capsule(
     if supplied:
         left = f"› [Draft: {clip_display(supplied.replace(chr(10), ' '), 28)}] · [Space] Edit"
     else:
-        left = "› [Space] Compose (6-row) · [:] Commands" if not active else "› [Space] Steer/Queue · [Esc] Pause"
+        left = "› [Space] Compose · [:] Commands" if not active else "› [Space] Steer/Queue · [Esc] Pause"
     left_width = display_width(left)
     right_raw = f"{status_icon} {status} · {context}".strip(" · ")
     max_right = max(1, frame_width - left_width - 6)
@@ -79,7 +79,7 @@ def render_collapsed_capsule(
     right_part = colorize(right, status_color or design.muted, color)
     capsule = colorize("╭─ ", design.border, color) + left_part + gap + right_part + colorize(" ─╮", design.border, color)
     lines = [capsule]
-    geometry = LiveTailGeometry(len(lines), 0)
+    geometry = tail_geometry(lines, 0, 4)
     rendered = _rewrite_tail(lines, 0, 4, previous, height)
     return LiveTailFrame(recolor(rendered, theme), geometry)
 
@@ -93,9 +93,12 @@ def composer_rows(
     target_rows: int = 1,
 ) -> list[str]:
     design = design_for(theme)
-    label = f" {'FOLLOW-UP' if active else 'CHAOS AGENT (6-ROW)'} "
+    label = f" {'FOLLOW-UP' if active else 'CHAOS AGENT'} "
     hint = " Esc collapse · Enter queue · Tab steer " if active else " Esc collapse · Enter send · Shift+Enter newline "
-    top = _rule(width, label, design.corners[:2], design.border, ACTIVE_GOLD if active else design.accent, color, progress, exiting)
+    top = _rule(width, label, design.corners[:2], design.border, design.accent, color,
+                0.0 if active else progress, False if active else exiting)
+    if active:
+        top = top.replace(label, colorize(label, design.muted, color) + ("\x1b[" + design.border + "m" if color_enabled(color) else ""))
     left_meta = ""
     if char_count > 0:
         left_meta = f" {char_count} chars "
@@ -108,8 +111,8 @@ def composer_rows(
     while len(rendered_rows) < target_rows:
         rendered_rows.append("")
     for number, row in enumerate(rendered_rows):
-        prompt = ("✦" if active else design.marker) if number == 0 else "·"
-        prompt_accent = ACTIVE_GOLD if (active and number == 0) else design.accent
+        prompt = design.marker if number == 0 else (" " if active else "·")
+        prompt_accent = design.accent
         value = row + " " * max(0, width - 6 - display_width(row))
         body.append(
             colorize(side + " ", design.border, color)

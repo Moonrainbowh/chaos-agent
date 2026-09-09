@@ -21,6 +21,11 @@ _MESSAGE_ROLES = frozenset({"system", "developer", "user", "assistant", "tool"})
 _CONTEXT_MEASUREMENT_KEYS = frozenset(
     {
         "prompt_tokens",
+        "prompt_budget_tokens",
+        "prompt_safety_tokens",
+        "prompt_estimated_tokens",
+        "repo_context_budget_tokens",
+        "repo_context_estimated_tokens",
         "rule_tokens",
         "tool_tokens",
         "task_state_tokens",

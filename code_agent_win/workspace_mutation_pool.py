@@ -6,6 +6,7 @@ from pathlib import Path
 
 from code_agent.sessions.rewind_models import RewindBaseline
 from code_agent.workspace.edits import WorkspaceEditor
+from code_agent.workspace.paths import WorkspacePathGuard
 from code_agent.workspace.snapshot_store import WorkspaceSnapshotStore
 
 from code_agent_win.edit_plan_preview import default_workspace_fingerprint
@@ -65,6 +66,41 @@ class WorkspaceMutationPool:
         if coordinated is None:
             raise RuntimeError("workspace session coordination is unavailable")
         return coordinated
+
+    async def needs_edit_batch_recovery(self, root: Path) -> bool:
+        """Check under the existing workspace gate before building Git/UI services.
+
+        This is only a negative fast path. A positive result goes through the
+        normal recovery path, which reacquires the gate and rereads durable facts.
+        No result is cached across startup calls or later mutations.
+        """
+        source = self._source_capture
+        if source is None:
+            return False
+        if not isinstance(source, RewindCaptureCoordinator):
+            return True
+        key = str(root.resolve()).casefold()
+        with self._lock:
+            current = self._bundles.get(key)
+        if current is not None:
+            gate, fingerprint = current.gate, current.workspace_fingerprint
+        else:
+            editor = WorkspaceEditor(WorkspacePathGuard(root))
+            fingerprint = default_workspace_fingerprint(editor)
+            gate = WorkspaceMutationGate(
+                _gate_state_root(source.gate, source.workspace_fingerprint),
+                fingerprint,
+            )
+        if not isinstance(gate, WorkspaceMutationGate):
+            raise RuntimeError("workspace recovery gate is unavailable")
+        lease = await gate.acquire()
+        try:
+            records = await source.sessions.list_unresolved_edit_batches(fingerprint)
+            if type(records) is not tuple:
+                raise TypeError("workspace recovery query returned invalid results")
+            return bool(records)
+        finally:
+            await lease.release()
 
     def _source_bundle(
         self, services: object, capture: object | None

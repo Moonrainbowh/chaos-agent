@@ -6,7 +6,7 @@ from enum import Enum
 from typing import Iterable
 
 from .terminal_display import DisplayEntry, DisplayKind, display_width, safe_text, text_entry
-from .terminal_markdown import style_inline_markdown
+from .terminal_markdown import render_streaming_markdown_rows, style_inline_markdown
 from .terminal_style import (
     BODY_WHITE,
     BORDER_GRAY,
@@ -19,6 +19,7 @@ from .terminal_style import (
     WARNING_YELLOW,
     ColorMode,
     colorize,
+    color_enabled,
 )
 from .terminal_tail import render_live_tail
 
@@ -62,6 +63,11 @@ def render_entry(entry: DisplayEntry, width: int, *, theme: Theme = Theme.SYMBOL
     if theme is Theme.SLATE and entry.kind is DisplayKind.DIFF_ADD:
         code = SUCCESS_GREEN
     content_width = max(1, width - display_width(prefix) - 1)
+    if entry.kind is DisplayKind.AGENT and theme is Theme.SLATE:
+        from .terminal_ac_layout import render_ac_rows
+        rows = render_ac_rows(entry.text, content_width, color)
+        header = colorize(f"{prefix} Chaos Agent", BRIGHT_CYAN, color)
+        return recolor("\n".join([header, *("  " + row for row in rows)]), theme)
     if entry.kind is DisplayKind.AGENT:
         lines = _markdown_lines(entry.text, content_width, theme)
         if theme is Theme.MODERN or design_for(theme):
@@ -72,12 +78,27 @@ def render_entry(entry: DisplayEntry, width: int, *, theme: Theme = Theme.SYMBOL
         lines = [_RenderLine("Incomplete response", "partial_label"), *body]
     else:
         lines = [_RenderLine(line) for line in entry.text.splitlines() or [""]]
+    if entry.kind is DisplayKind.USER and "\nAttachments:\n" in entry.text:
+        attachment_start = max(i for i, line in enumerate(lines) if line.text == "Attachments:")
+        lines[attachment_start:] = [
+            _RenderLine(line.text, "user_attachment") for line in lines[attachment_start:]
+        ]
     rendered = []
     for index, line in enumerate(lines):
+        if line.role == "quote":
+            rendered.extend(render_streaming_markdown_rows("> " + line.text, width, color))
+            continue
         leader = prefix if index == 0 else " " * display_width(prefix)
         for part in _wrap_display(line.text, max(1, width - display_width(leader) - 1)):
             rendered.append(_style_line(leader, part, code, color, role=line.role, kind=entry.kind))
             leader = " " * display_width(prefix)
+    if entry.kind is DisplayKind.USER and theme is Theme.SLATE and color_enabled(color):
+        background = "\x1b[48;2;30;48;76m"
+        rendered = [
+            background + row.replace("\x1b[0m", "\x1b[0m" + background)
+            + " " * max(0, width - display_width(re.sub(r"\x1b\[[0-9;]*m", "", row))) + "\x1b[0m"
+            for row in rendered
+        ]
     return recolor("\n".join(rendered), theme)
 
 
@@ -160,7 +181,7 @@ def _highlight_inline_spans(value: str, base_code: str, color: ColorMode) -> str
     quote_match = re.match(r"^(\s*>)\s*(.+)$", value)
     if quote_match:
         quote_prefix = colorize("│", BORDER_GRAY, color)
-        return f"{quote_prefix} {colorize(quote_match.group(2), DIM_GRAY, color)}"
+        return f"{quote_prefix} {style_inline_markdown(quote_match.group(2), BODY_WHITE, color)}"
 
     return style_inline_markdown(value, base_code, color)
 
@@ -172,10 +193,12 @@ def _style_line(leader: str, value: str, code: str | None, color: ColorMode, *, 
         return colorize(f"{leader} {value}", BRIGHT_CYAN, color)
     elif role == "quote":
         styled_leader = colorize("│", BRAND_CYAN, color)
-        styled_value = _highlight_inline_spans(value, DIM_GRAY, color)
+        styled_value = _highlight_inline_spans(value, BODY_WHITE, color)
         return f"{styled_leader} {styled_value}"
     elif role == "partial_label":
         body_code = WARNING_YELLOW
+    elif role == "user_attachment":
+        return f"{styled_leader} {colorize(value, TOOL_GRAY, color)}"
     elif role in {"heading", "table_header"}:
         body_code = BRIGHT_CYAN
     elif role == "table_border":

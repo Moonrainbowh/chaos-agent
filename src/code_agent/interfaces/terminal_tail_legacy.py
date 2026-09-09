@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from .terminal_display import clip_display, display_width, safe_text
 from .terminal_style import BORDER_GRAY, BRAND_CYAN, BRIGHT_CYAN, DIM_GRAY, BODY_WHITE, SUCCESS_GREEN, WARNING_YELLOW, ColorMode, colorize
-from .terminal_tail_geometry import LiveTailFrame, LiveTailGeometry, _layout_input, _visible_input_rows, _rewrite_tail
+from .terminal_tail_geometry import LiveTailFrame, LiveTailGeometry, _layout_input, _visible_input_rows, _rewrite_tail, tail_geometry
 from .terminal_tail_content import _style_box_border, _style_box_row, _render_palette, _render_draft
 
 
@@ -81,7 +81,7 @@ def _legacy_frame(rows, cursor_row, cursor_column, frame_width, text_width, heig
 
     lines.append(_render_status(status_icon, status, status_context, width, color, status_color))
 
-    geometry = LiveTailGeometry(height=len(lines), cursor_row=cursor_row + 1 + len(palette_items) + len(draft_lines))
+    geometry = tail_geometry(lines, cursor_row + 1 + len(palette_items) + len(draft_lines), cursor_column + 4)
     output = _rewrite_tail(
         lines, geometry.cursor_row, cursor_column + 4, previous, height
     )
@@ -126,10 +126,7 @@ def _modern_frame(rows, cursor_row, cursor_column, frame_width, text_width, heig
     )
     lines.append(_style_box_border(bottom_border, color, border_code=border_code))
 
-    geometry = LiveTailGeometry(
-        height=len(lines),
-        cursor_row=cursor_row + 1 + len(palette_items) + len(draft_lines),
-    )
+    geometry = tail_geometry(lines, cursor_row + 1 + len(palette_items) + len(draft_lines), cursor_column + 4)
     output = _rewrite_tail(
         lines, geometry.cursor_row, cursor_column + 4, previous, height
     )

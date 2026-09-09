@@ -1,0 +1,272 @@
+{
+  "kind": "deterministic local build fixture; no model call",
+  "examples": [
+    {
+      "query": "repair target",
+      "report": {
+        "selected": [
+          {
+            "docstring": "",
+            "kind": "symbol",
+            "path": "target.py",
+            "range": [
+              2,
+              3
+            ],
+            "reasons": [
+              "explicit symbol"
+            ],
+            "resolution": "exact",
+            "source": "def target():\n    return helper()\n",
+            "symbol": "target",
+            "symbol_signature": "",
+            "tier": "L0",
+            "source_range": [
+              2,
+              3
+            ]
+          },
+          {
+            "docstring": "",
+            "kind": "symbol",
+            "path": "helper.py",
+            "range": [
+              2,
+              3
+            ],
+            "reasons": [
+              "outgoing call",
+              "outgoing import",
+              "outgoing reference"
+            ],
+            "resolution": "exact",
+            "source": "",
+            "symbol": "helper",
+            "symbol_signature": "def helper():",
+            "tier": "L1"
+          },
+          {
+            "docstring": "",
+            "kind": "symbol",
+            "path": "leaf.py",
+            "range": [
+              1,
+              2
+            ],
+            "reasons": [
+              "distance 2 dependency"
+            ],
+            "resolution": "exact",
+            "source": "",
+            "symbol": "leaf",
+            "symbol_signature": "",
+            "tier": "L2"
+          }
+        ],
+        "deferred": [],
+        "decisions": [
+          {
+            "path": "target.py",
+            "range": [
+              2,
+              3
+            ],
+            "symbol": "target",
+            "candidate_tier": "L0",
+            "final_tier": "L0",
+            "status": "kept",
+            "selection_reasons": [
+              "explicit symbol"
+            ],
+            "stage": "final_render",
+            "reason": "selected"
+          },
+          {
+            "path": "helper.py",
+            "range": [
+              2,
+              3
+            ],
+            "symbol": "helper",
+            "candidate_tier": "L1",
+            "final_tier": "L1",
+            "status": "kept",
+            "selection_reasons": [
+              "outgoing call",
+              "outgoing import",
+              "outgoing reference"
+            ],
+            "stage": "final_render",
+            "reason": "selected"
+          },
+          {
+            "path": "leaf.py",
+            "range": [
+              1,
+              2
+            ],
+            "symbol": "leaf",
+            "candidate_tier": "L2",
+            "final_tier": "L2",
+            "status": "kept",
+            "selection_reasons": [
+              "distance 2 dependency"
+            ],
+            "stage": "final_render",
+            "reason": "selected"
+          }
+        ],
+        "generation": 1,
+        "candidate_scope": "bounded L0/L1/L2 candidates before budget packing",
+        "compact_fallback": false,
+        "rendered_repo_context": "Repository context [UNTRUSTED_REPOSITORY_DATA]\n{\"generation\":1,\"tokenizer_version\":\"estimate_tokens:v1\"}\n{\"docstring\":\"\",\"kind\":\"symbol\",\"path\":\"target.py\",\"range\":[2,3],\"reasons\":[\"explicit symbol\"],\"resolution\":\"exact\",\"source\":\"def target():\\n    return helper()\\n\",\"symbol\":\"target\",\"symbol_signature\":\"\",\"tier\":\"L0\"}\n{\"docstring\":\"\",\"kind\":\"symbol\",\"path\":\"helper.py\",\"range\":[2,3],\"reasons\":[\"outgoing call\",\"outgoing import\",\"outgoing reference\"],\"resolution\":\"exact\",\"source\":\"\",\"symbol\":\"helper\",\"symbol_signature\":\"def helper():\",\"tier\":\"L1\"}\n{\"docstring\":\"\",\"kind\":\"symbol\",\"path\":\"leaf.py\",\"range\":[1,2],\"reasons\":[\"distance 2 dependency\"],\"resolution\":\"exact\",\"source\":\"\",\"symbol\":\"leaf\",\"symbol_signature\":\"\",\"tier\":\"L2\"}",
+        "measurements": {
+          "prompt_tokens": 20000,
+          "prompt_budget_tokens": 20000,
+          "prompt_safety_tokens": 500,
+          "prompt_estimated_tokens": 252,
+          "repo_context_budget_tokens": 4000,
+          "repo_context_estimated_tokens": 184,
+          "rule_tokens": 63,
+          "tool_tokens": 0,
+          "task_state_tokens": 0,
+          "repo_map_tokens": 4000,
+          "message_tokens": 8000,
+          "removed_message_count": 0,
+          "cache_hits": 0,
+          "cache_misses": 1,
+          "semantic_triggered": 0,
+          "semantic_fallback": 0,
+          "semantic_source_count": 0
+        },
+        "token_source": "local estimate; not model API usage",
+        "measurement_scope": "WorkspaceContextBuilder result; outer wrappers refresh bundle counters separately"
+      }
+    },
+    {
+      "query": "repair target",
+      "report": {
+        "selected": [
+          {
+            "docstring": "",
+            "kind": "symbol",
+            "path": "target.py",
+            "range": [
+              2,
+              3
+            ],
+            "reasons": [
+              "explicit symbol"
+            ],
+            "resolution": "exact",
+            "source": "def target():\n    return helper()\n",
+            "symbol": "target",
+            "symbol_signature": "",
+            "tier": "L0",
+            "source_range": [
+              2,
+              3
+            ]
+          },
+          {
+            "docstring": "",
+            "kind": "symbol",
+            "path": "helper.py",
+            "range": [
+              2,
+              3
+            ],
+            "reasons": [
+              "outgoing call",
+              "outgoing import",
+              "outgoing reference"
+            ],
+            "resolution": "exact",
+            "source": "",
+            "symbol": "helper",
+            "symbol_signature": "def helper():",
+            "tier": "L1"
+          }
+        ],
+        "deferred": [],
+        "decisions": [
+          {
+            "path": "target.py",
+            "range": [
+              2,
+              3
+            ],
+            "symbol": "target",
+            "candidate_tier": "L0",
+            "final_tier": "L0",
+            "status": "kept",
+            "selection_reasons": [
+              "explicit symbol"
+            ],
+            "stage": "final_render",
+            "reason": "selected"
+          },
+          {
+            "path": "helper.py",
+            "range": [
+              2,
+              3
+            ],
+            "symbol": "helper",
+            "candidate_tier": "L1",
+            "final_tier": "L1",
+            "status": "kept",
+            "selection_reasons": [
+              "outgoing call",
+              "outgoing import",
+              "outgoing reference"
+            ],
+            "stage": "final_render",
+            "reason": "selected"
+          },
+          {
+            "path": "leaf.py",
+            "range": [
+              1,
+              2
+            ],
+            "symbol": "leaf",
+            "candidate_tier": "L2",
+            "final_tier": null,
+            "status": "removed",
+            "selection_reasons": [
+              "distance 2 dependency"
+            ],
+            "stage": "final_render",
+            "reason": "rendered token budget"
+          }
+        ],
+        "generation": 1,
+        "candidate_scope": "bounded L0/L1/L2 candidates before budget packing",
+        "compact_fallback": false,
+        "rendered_repo_context": "Repository context [UNTRUSTED_REPOSITORY_DATA]\n{\"generation\":1,\"tokenizer_version\":\"estimate_tokens:v1\"}\n{\"docstring\":\"\",\"kind\":\"symbol\",\"path\":\"target.py\",\"range\":[2,3],\"reasons\":[\"explicit symbol\"],\"resolution\":\"exact\",\"source\":\"def target():\\n    return helper()\\n\",\"symbol\":\"target\",\"symbol_signature\":\"\",\"tier\":\"L0\"}\n{\"docstring\":\"\",\"kind\":\"symbol\",\"path\":\"helper.py\",\"range\":[2,3],\"reasons\":[\"outgoing call\",\"outgoing import\",\"outgoing reference\"],\"resolution\":\"exact\",\"source\":\"\",\"symbol\":\"helper\",\"symbol_signature\":\"def helper():\",\"tier\":\"L1\"}",
+        "measurements": {
+          "prompt_tokens": 20000,
+          "prompt_budget_tokens": 20000,
+          "prompt_safety_tokens": 500,
+          "prompt_estimated_tokens": 206,
+          "repo_context_budget_tokens": 180,
+          "repo_context_estimated_tokens": 138,
+          "rule_tokens": 63,
+          "tool_tokens": 0,
+          "task_state_tokens": 0,
+          "repo_map_tokens": 180,
+          "message_tokens": 8000,
+          "removed_message_count": 0,
+          "cache_hits": 0,
+          "cache_misses": 1,
+          "semantic_triggered": 0,
+          "semantic_fallback": 0,
+          "semantic_source_count": 0
+        },
+        "token_source": "local estimate; not model API usage",
+        "measurement_scope": "WorkspaceContextBuilder result; outer wrappers refresh bundle counters separately"
+      }
+    }
+  ]
+}

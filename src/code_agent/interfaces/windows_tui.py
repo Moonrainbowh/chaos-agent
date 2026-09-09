@@ -18,6 +18,7 @@ from .input_buffer import InputBuffer
 from .input_events import ExitGuard
 from .terminal_display import DisplayKind, text_entry
 from .terminal_renderer import ColorMode, Theme, render_entries
+from .terminal_win32_input import WIN32_INPUT_ENABLE, WIN32_INPUT_DISABLE
 from .terminal_io import BRACKETED_PASTE_DISABLE, BRACKETED_PASTE_ENABLE, capture_ctrl_c_as_input, read_key, render_terminal as render_terminal, stdout_write
 from .terminal_tail import LiveTailGeometry, clear_live_tail
 from .terminal_state import ApprovalBroker, ApprovalRequest, TerminalState
@@ -43,6 +44,7 @@ from .tui_lifecycle import close_tasks, listen_approvals, listen_interactions, s
 from .tui_submission import SubmitMode, pause_active_task, toggle_submit_mode
 from .tui_protocols import EvidenceReader, SessionBrowser
 from .tui_run import submit as submit_input, start_prepared, finish_run
+from .tui_auth_prompt import handle_auth_key
 
 _SPINNER_FRAMES = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
 
@@ -77,6 +79,7 @@ class WindowsTerminalApp(TerminalPresentation):
         self.active_task_id: str | None = None; self.running = False; self._run_task: asyncio.Task[None] | None = None
         self.submit_mode = SubmitMode.QUEUE
         self._peer_run_task: asyncio.Task[None] | None = None
+        self._pause_task: asyncio.Task[None] | None = None
         self._animation_task: asyncio.Task[None] | None = None; self._spinner_index = 0; self._redraw_dirty = True
         self._token: CancellationToken | None = None; self._approval_task: asyncio.Task[None] | None = None
         self._pending_approval: ApprovalRequest | None = None; self._approval_done = asyncio.Event()
@@ -100,7 +103,7 @@ class WindowsTerminalApp(TerminalPresentation):
         self.update_terminal_title()
         restore_ctrl_c = capture_ctrl_c_as_input()
         try:
-            self._write(BRACKETED_PASTE_ENABLE); self.running = True; self._approval_task = asyncio.create_task(listen_approvals(self))
+            self._write("\x1b[6 q" + WIN32_INPUT_ENABLE + BRACKETED_PASTE_ENABLE); self.running = True; self._approval_task = asyncio.create_task(listen_approvals(self))
             if self.interaction_broker is not None:
                 self._interaction_task = asyncio.create_task(listen_interactions(self))
             self.redraw()
@@ -109,8 +112,11 @@ class WindowsTerminalApp(TerminalPresentation):
                 key = await asyncio.to_thread(read_key, timeout=.1)
                 if key is not None: await self.handle_key(key)
         finally:
-            self.reset_terminal_title()
-            self._write(BRACKETED_PASTE_DISABLE); await close_tasks(self); restore_ctrl_c()
+            try:
+                self.reset_terminal_title()
+                self._write(BRACKETED_PASTE_DISABLE + WIN32_INPUT_DISABLE + "\x1b[0 q"); await close_tasks(self)
+            finally:
+                restore_ctrl_c()
     async def submit(
         self,
         text: str,
@@ -129,6 +135,9 @@ class WindowsTerminalApp(TerminalPresentation):
     async def close_checkpoint_flow(self) -> None:
         await close_rewind_flow(self)
     async def handle_key(self, key: str) -> None:
+        if await handle_auth_key(self, key):
+            self.redraw()
+            return
         sync_attachment_input(self)
         if key == "\x03":
             await handle_interrupt(self)
@@ -152,7 +161,7 @@ class WindowsTerminalApp(TerminalPresentation):
             self.composer_expanded = True
             if self._tail_geometry is not None:
                 height = shutil.get_terminal_size((100, 30)).lines
-                self._write(clear_live_tail(self._tail_geometry, terminal_height=height))
+                self._write(self._tail_clear_sequence())
                 self._tail_geometry = None
         elif key == "\r":
             if not self.composer_expanded:
@@ -170,9 +179,9 @@ class WindowsTerminalApp(TerminalPresentation):
         elif key == "up" and not self.input.move_up(): self.input.previous()
         elif key == "down" and not self.input.move_down(): self.input.next()
         elif key in {"\x08", "\x7f"}:
-            if delete_input(self, backwards=True): self._clear_input_tail()
+            delete_input(self, backwards=True)
         elif key == "delete":
-            if delete_input(self, backwards=False): self._clear_input_tail()
+            delete_input(self, backwards=False)
         elif key.isprintable():
             self.composer_expanded = True
             self.exit_guard.input_received(); insert_input(self, key)
@@ -180,7 +189,7 @@ class WindowsTerminalApp(TerminalPresentation):
     def _clear_input_tail(self) -> None:
         if self._tail_geometry is None: return
         height = shutil.get_terminal_size((100, 30)).lines
-        self._write(clear_live_tail(self._tail_geometry, terminal_height=height))
+        self._write(self._tail_clear_sequence())
         self._tail_geometry = None
     async def restore_thread(self, thread_id: str) -> bool:
         if self.history is None: self._append(DisplayKind.ERROR, "session history unavailable"); return False
@@ -195,7 +204,7 @@ class WindowsTerminalApp(TerminalPresentation):
         self.state = restored; self.current_thread_id = thread_id
         self.active_task_id = restored.task_id if restored.task_status not in {None, "completed", "failed", "accepted_partial", "superseded"} else None
         height = shutil.get_terminal_size((100, 30)).lines
-        self._write(clear_live_tail(self._tail_geometry, terminal_height=height) + render_entries(restored.entries, 100, theme=self.theme, color=self.color) + "\n\r")
+        self._write(self._tail_clear_sequence() + render_entries(restored.entries, 100, theme=self.theme, color=self.color) + "\n\r")
         self._tail_geometry = None; self._flushed_entries = len(restored.entries); return True
     async def _consume(
         self,
@@ -282,7 +291,7 @@ class WindowsTerminalApp(TerminalPresentation):
             previous = self.state.entries[self._flushed_entries - 1] if self._flushed_entries else None
             rendered = render_entries(new, self._columns(), theme=self.theme, color=self.color, previous=previous)
             height = shutil.get_terminal_size((100, 30)).lines
-            self._write(clear_live_tail(self._tail_geometry, terminal_height=height) + rendered + "\n\r")
+            self._write(self._tail_clear_sequence() + rendered + "\n\r")
             self._tail_geometry = None
             self._flushed_entries = len(self.state.entries)
 

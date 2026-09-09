@@ -6,6 +6,7 @@ from enum import Enum
 from .command_registry import CommandRegistry, REGISTRY
 
 _DEFAULT_SERVICES = {
+    "authentication",
     "sessions",
     "history",
     "tasks",
@@ -26,6 +27,8 @@ _DEFAULT_SERVICES = {
 
 
 class TuiCommandKind(str, Enum):
+    LOGIN = "login"
+    LOGSWITCH = "logswitch"
     THEME = "theme"
     HELP = "help"; STATUS = "status"; CLEAR = "clear"; COMPACT = "compact"; EXIT = "exit"; NEW = "new"; SESSIONS = "sessions"; RESTORE = "restore"; TASKS = "tasks"; ACCEPT = "accept"; DIFF = "diff"; MAP = "map"; ATTACHMENT = "attachment"; EVIDENCE = "evidence"; CHECKPOINT = "checkpoint"; REWIND = "rewind"; MODEL = "model"; MODE = "mode"; EFFORT = "effort"; PERMISSION = "permission"; WORKFLOW = "workflow"; SKILL = "skill"; MCP = "mcp"; PLUGIN_CONTROL = "plugin_control"; PLUGIN = "plugin"; COST = "cost"; DOCTOR = "doctor"; REVIEW = "review"; TEST = "test"
 
@@ -91,6 +94,7 @@ def parse_tui_command(
 
 def _parsed_command(spec: object, arguments: tuple[str, ...], normalized_action: str | None) -> ParseOutcome:
     kinds = {
+        "login": "login", "logswitch": "logswitch",
         "theme": "theme", "help": "help", "status": "status", "clear": "clear", "compact": "compact",
         "exit": "exit", "new": "new", "sessions": "sessions", "restore": "restore",
         "tasks": "tasks", "accept": "accept", "diff": "diff", "map": "map", "attach": "attachment",
@@ -109,6 +113,7 @@ def _parsed_command(spec: object, arguments: tuple[str, ...], normalized_action:
     kind = TuiCommandKind.PLUGIN if spec.source == "plugin" else TuiCommandKind(kinds[spec.name])
     value = " ".join(arguments) or None
     instructions = {
+        TuiCommandKind.LOGIN, TuiCommandKind.LOGSWITCH,
         TuiCommandKind.HELP, TuiCommandKind.SESSIONS, TuiCommandKind.RESTORE,
         TuiCommandKind.ATTACHMENT, TuiCommandKind.EVIDENCE,
         TuiCommandKind.CHECKPOINT, TuiCommandKind.REWIND,

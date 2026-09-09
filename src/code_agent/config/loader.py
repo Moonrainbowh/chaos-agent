@@ -10,6 +10,7 @@ from code_agent.capabilities import CapabilityStrategy
 from code_agent.config.capability_strategy import configured_capability_strategy
 from code_agent.config.context_policy import configured_context_policy
 from code_agent.config._environment import environment_value as _environment_value
+from code_agent.config.provider_settings import provider_config as _provider_config
 
 try:
     import tomllib
@@ -188,27 +189,6 @@ def _select_provider(
     return selected, values
 
 
-def _provider_config(values: Mapping[str, Any], env: Mapping[str, str], *, allow_environment: bool) -> ProviderConfig:
-    override = lambda primary, legacy, default=None: _environment_value(env, primary, legacy, default) if allow_environment else default
-    api = _protocol(override("CHAOS_API", "CODE_AGENT_API", values.get("api")))
-    base_url = _text(override("CHAOS_BASE_URL", "CODE_AGENT_BASE_URL", values.get("base_url")), "base_url")
-    model = _text(override("CHAOS_MODEL", "CODE_AGENT_MODEL", values.get("model")), "model")
-    override_key_env = override("CHAOS_API_KEY_ENV", "CODE_AGENT_API_KEY_ENV")
-    configured_key = values.get("api_key")
-    profile_key_env = values.get("api_key_env")
-    if override_key_env is not None:
-        return ProviderConfig(base_url, model, api, _text(override_key_env, "api_key_env"))
-    if (configured_key is None) == (profile_key_env is None) and values:
-        raise LocalConfigError("provider must define exactly one of api_key or api_key_env")
-    try:
-        if configured_key is not None:
-            return ProviderConfig(base_url, model, api, api_key_source=ConfiguredApiKey(_text(configured_key, "api_key")))
-        key_env = profile_key_env or override("CHAOS_API_KEY_ENV", "CODE_AGENT_API_KEY_ENV", "OPENAI_API_KEY")
-        return ProviderConfig(base_url, model, api, _text(key_env, "api_key_env"))
-    except ProviderConfigError as error:
-        raise LocalConfigError(f"invalid provider configuration: {error}") from None
-
-
 def _approval_mode(document: Mapping[str, Any], env: Mapping[str, str]) -> ApprovalMode:
     agent = document.get("agent", {})
     if agent is not None and not isinstance(agent, dict):
@@ -291,7 +271,7 @@ def _protocol(value: object) -> ApiProtocol:
     try:
         return ApiProtocol(_text(value, "api"))
     except ValueError:
-        raise LocalConfigError("api must be responses, chat_completions, or anthropic_messages") from None
+        raise LocalConfigError("api must be one of: " + ", ".join(item.value for item in ApiProtocol)) from None
 
 
 def _text(value: object, field: str) -> str:

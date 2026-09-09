@@ -2,16 +2,18 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from collections.abc import Sequence
 
 from .models import FileSignature, RepoEntry, RepoRelation, Symbol
 from .repo_index import RepoIndexSnapshot
 from .repo_paths import canonical_path_key
+from .repo_query import contract_query_terms, expand_search_terms, plan_repo_query
+from .repo_ranking import _DOCS_QUERY
+from .repo_query import bound_repo_query
 from .tokens import estimate_tokens, truncate_to_tokens
 
 
-_PATH_LINE = re.compile(r"(?P<path>[^\r\n:\"']+?\.py):(?P<line>[1-9][0-9]*)")
 _TEST_LIMIT = 16
 TOKENIZER_VERSION = "estimate_tokens:v1"
 
@@ -39,6 +41,7 @@ class TierSelection:
     l1: tuple[TierNode, ...] = ()
     l2: tuple[TierNode, ...] = ()
     overflow_targets: tuple[TierNode, ...] = ()
+    candidates: tuple[tuple[str, TierNode], ...] = field(default=(), compare=False, repr=False)
 
 
 def select_tiered_context(
@@ -59,8 +62,7 @@ def select_tiered_context(
         raise ValueError("token_budget must not be negative")
     entries = tuple(ranked)
     by_key = {canonical_path_key(entry.path): entry for entry in snapshot.entries}
-    anchor = _select_anchor(entries, by_key, query, touched_files)
-    l0_candidates = (anchor,) if anchor is not None else ()
+    l0_candidates = _select_anchor(entries, by_key, query, touched_files)
     l1_candidates, l2_candidates = _expand(snapshot.entries, l0_candidates)
     return _pack(
         snapshot.generation,
@@ -76,63 +78,106 @@ def _select_anchor(
     by_key: dict[str, RepoEntry],
     query: str,
     touched_files: Sequence[str],
-) -> TierNode | None:
-    normalized_query = query.replace("\\", "/")
-    for match in _PATH_LINE.finditer(normalized_query):
-        raw_path = match.group("path").strip()
-        exact = by_key.get(canonical_path_key(raw_path)) if not _looks_absolute(raw_path) else None
-        suffix_matches = tuple(
-            candidate
-            for candidate in by_key.values()
-            if raw_path.casefold().endswith(candidate.path.casefold())
-        )
-        entry = exact or (suffix_matches[0] if len(suffix_matches) == 1 else None)
-        if entry is not None:
-            line = int(match.group("line"))
-            symbol = next(
-                (
-                    item
-                    for item in entry.symbols
-                    if item.end_line is not None and item.line <= line <= item.end_line
-                ),
-                None,
-            )
-            if symbol is not None:
-                return _node(entry, symbol, "symbol", ("explicit path:line",), 0)
-            return TierNode(
-                entry.path,
-                "line",
-                max(1, line - 20),
-                line + 20,
-                signature=entry.signature,
-                reasons=("module-level path:line",),
-            )
-    query_folded = query.casefold()
+) -> tuple[TierNode, ...]:
+    """Select up to two non-overlapping anchors, strongest evidence first."""
+    mentions, symbol_query = _anchor_mentions(by_key, query)
     touched = {canonical_path_key(path) for path in touched_files}
-    ranks = {entry.path: rank for rank, entry in enumerate(ranked)}
-    candidates = sorted(
-        ranked,
-        key=lambda entry: (
-            0 if canonical_path_key(entry.path) in touched else 1,
-            0 if entry.path.casefold() in query_folded else 1,
-            0 if any(symbol.name.casefold() in query_folded for symbol in entry.symbols) else 1,
-            ranks[entry.path],
-            entry.path.casefold(),
-        ),
+    entries = tuple(dict.fromkeys((*[entry for entry, _ in mentions], *ranked)))
+    explicit = []
+    for entry, line in mentions:
+        if line is not None:
+            containing = [s for s in entry.symbols if s.line <= line <= (s.end_line or s.line)]
+            symbol = min(containing, key=lambda s: ((s.end_line or s.line) - s.line, s.line, s.name), default=None)
+            explicit.append(_node(entry, symbol, "symbol", ("explicit path:line",), 0)
+                            if symbol else _module_anchor(entry, line))
+    # Exact identifiers can locate symbols even outside the file retrieval list.
+    for entry in dict.fromkeys((*entries, *by_key.values())):
+        for symbol in sorted(entry.symbols, key=lambda s: (s.line, s.name)):
+            if re.search(r"(?<![\w])" + re.escape(symbol.name) + r"(?![\w])", symbol_query, re.I):
+                explicit.append(_node(entry, symbol, "symbol", ("explicit symbol",), 0))
+    selected = _independent_anchors(explicit)
+    terms = set(contract_query_terms(plan_repo_query(symbol_query))) - _ANCHOR_STOP_TERMS
+    scored = sorted(
+        ((-_symbol_score(symbol, terms), 0 if canonical_path_key(entry.path) in touched else 1,
+          rank, symbol.line, symbol.name, entry.path, entry, symbol)
+         for rank, entry in enumerate(entries) for symbol in entry.symbols),
+        key=lambda item: item[:6],
     )
-    for entry in candidates:
-        if not entry.symbols:
+    # An explicitly named file gets its own anchor before unrelated retrieved files.
+    for entry, _ in mentions:
+        if any(node.path == entry.path for node in selected):
             continue
-        symbol = next(
-            (item for item in entry.symbols if item.name.casefold() in query_folded),
-            entry.symbols[0],
-        )
-        return _node(entry, symbol, "symbol", ("task seed",), 0)
-    return None
+        best = next((item for item in scored if item[6].path == entry.path and item[0] <= -4), None)
+        node = (_node(entry, best[7], "symbol", ("file-to-symbol relevance",), 0)
+                if best else _module_anchor(entry))
+        selected = _independent_anchors((*selected, node))
+    reranked = [_node(item[6], item[7], "symbol", ("file-to-symbol relevance",), 0)
+                for item in scored if item[0] <= -4]
+    if not selected:
+        selected = _independent_anchors(reranked)
+    if not selected and entries:
+        entry = min(entries, key=lambda e: (
+            0 if canonical_path_key(e.path) in touched else 1,
+            0 if _DOCS_QUERY.search(bound_repo_query(query)) or e.symbols or e.path.endswith(".py") else 1,
+        ))
+        selected = (_module_anchor(entry),)
+    return selected
 
 
-def _looks_absolute(path: str) -> bool:
-    return path.startswith("/") or (len(path) >= 2 and path[1] == ":")
+_ANCHOR_STOP_TERMS = frozenset({
+    "def", "class", "self", "return", "none", "true", "false", "py", "function",
+    "file", "fix", "repair", "please", "the", "a", "an", "in", "of", "to", "and",
+})
+
+
+def _anchor_mentions(
+    by_key: dict[str, RepoEntry], query: str,
+) -> tuple[list[tuple[RepoEntry, int | None]], str]:
+    normalized = query.replace("\\", "/")
+    matches = []
+    for entry in by_key.values():
+        pattern = r"(?<![\w.-])" + re.escape(entry.path) + r"(?::([1-9][0-9]*))?(?![\w./-])"
+        for match in re.finditer(pattern, normalized, re.I):
+            matches.append((match.start(), match.end(), entry, int(match[1]) if match[1] else None))
+    accepted = []
+    for start, end, entry, line in sorted(matches, key=lambda item: (item[0], -item[1], item[2].path)):
+        if accepted and start < accepted[-1][1]:
+            continue
+        accepted.append((start, end, entry, line))
+    chars = list(normalized)
+    for start, end, _, _ in accepted:
+        chars[start:end] = " " * (end - start)
+    return [(entry, line) for _, _, entry, line in accepted], "".join(chars)
+
+
+def _symbol_score(symbol: Symbol, terms: set[str]) -> int:
+    """One name term or two metadata terms reach the minimum score of four."""
+    def words(text: str) -> set[str]:
+        return set(re.findall(r"\w+", expand_search_terms(text)))
+
+    return (4 * len(terms & words(symbol.name))
+            + 2 * len(terms & words(symbol.signature))
+            + 2 * len(terms & words(symbol.docstring)))
+
+
+def _module_anchor(entry: RepoEntry, line: int | None = None) -> TierNode:
+    return TierNode(
+        entry.path, "line", max(1, line - 20) if line else 1,
+        line + 20 if line else 40, signature=entry.signature,
+        reasons=("module-level path:line" if line else "bounded module fallback",),
+    )
+
+
+def _independent_anchors(nodes: Sequence[TierNode]) -> tuple[TierNode, ...]:
+    result: list[TierNode] = []
+    for node in nodes:
+        if any(node.path == other.path and node.start_line <= other.end_line
+               and other.start_line <= node.end_line for other in result):
+            continue
+        result.append(node)
+        if len(result) == 2:
+            break
+    return tuple(result)
 
 
 def _expand(
@@ -232,51 +277,21 @@ def _pack(
 ) -> TierSelection:
     if budget == 0:
         return TierSelection(generation, TOKENIZER_VERSION)
+    candidates = tuple((f"L{tier}", node) for tier, nodes in enumerate((l0, l1, l2)) for node in nodes)
     large = tuple(node for node in l0 if node.end_line - node.start_line + 1 > 400)
     l0 = tuple(node for node in l0 if node not in large)
     l1 = tuple((*large, *l1))
-    quotas = [budget * 60 // 100, budget * 25 // 100]
-    quotas.append(budget - quotas[0] - quotas[1])
-    selected: list[list[TierNode]] = [[], [], []]
-    deferred: list[tuple[int, TierNode]] = []
-    unused = 0
-    for tier, (nodes, quota) in enumerate(zip((l0, l1, l2), quotas)):
-        remaining = quota
-        for node in nodes:
-            cost = estimate_tokens(_render_node(tier, node))
-            if cost <= remaining:
-                selected[tier].append(node)
-                remaining -= cost
-            else:
-                deferred.append((tier, node))
-        unused += remaining
-    deferred.sort(
-        key=lambda item: (
-            item[0],
-            0 if item[1].resolution == "exact" else 1,
-            item[1].distance,
-            item[1].path.casefold(),
-            item[1].start_line,
-            item[1].symbol,
-        )
-    )
-    overflow: list[TierNode] = [part for node in large for part in _split_target(node)]
-    for tier, node in deferred:
-        cost = estimate_tokens(_render_node(tier, node))
-        if cost <= unused:
-            selected[tier].append(node)
-            unused -= cost
-        elif tier == 0:
-            overflow.extend(_split_target(node))
+    # This cached selection is provisional: source is read and signature-checked
+    # by RepoMapBuilder before render_tier_selection applies the real cost.
     result = TierSelection(
         generation,
         TOKENIZER_VERSION,
-        tuple(selected[0][:2]),
-        tuple(selected[1][:8]),
-        tuple(selected[2][:16]),
-        tuple(overflow),
+        tuple(l0[:2]),
+        tuple(l1[:8]),
+        tuple(l2[:16]),
+        tuple(part for node in large for part in _split_target(node)),
     )
-    return _trim_to_budget(result, budget)
+    return replace(_trim_to_budget(result, budget), candidates=candidates)
 
 
 def render_tier_selection(
@@ -286,49 +301,49 @@ def render_tier_selection(
 ) -> str:
     if token_budget <= 0:
         return ""
-    rendered = _render(selection, sources)
-    if not rendered:
-        return _compact_fallback(selection, token_budget)
-    if estimate_tokens(rendered) <= token_budget:
-        return rendered
-    if sources and selection.l0:
-        downgraded = TierSelection(
-            selection.generation,
-            selection.tokenizer_version,
-            (),
-            tuple((*selection.l0, *selection.l1))[:8],
-            selection.l2,
-            tuple((*selection.overflow_targets, *selection.l0)),
-        )
-        compacted = _render(_trim_to_budget(downgraded, token_budget))
-        if compacted and estimate_tokens(compacted) <= token_budget:
-            return compacted
-        return _compact_fallback(downgraded, token_budget)
-    compacted = _render(_trim_to_budget(selection, token_budget))
+    compacted = _render(_trim_to_budget(selection, token_budget, sources), sources)
     if compacted and estimate_tokens(compacted) <= token_budget:
         return compacted
     return _compact_fallback(selection, token_budget)
 
 
-def _trim_to_budget(selection: TierSelection, budget: int) -> TierSelection:
+def _trim_to_budget(
+    selection: TierSelection,
+    budget: int,
+    sources: dict[tuple[str, int, int], str] | None = None,
+) -> TierSelection:
     groups = [list(selection.l0), list(selection.l1), list(selection.l2)]
-    while any(groups):
+    overflow = list(selection.overflow_targets)
+    while any(groups) or overflow:
         candidate = TierSelection(
             selection.generation,
             selection.tokenizer_version,
             tuple(groups[0]),
             tuple(groups[1]),
             tuple(groups[2]),
-            selection.overflow_targets,
+            tuple(overflow),
         )
-        if estimate_tokens(_render(candidate)) <= budget:
+        # Count the complete JSON payload, including escaped source and headers.
+        if estimate_tokens(_render(candidate, sources)) <= budget:
             return candidate
-        removable = 2 if groups[2] else 1 if groups[1] else 0
-        groups[removable].pop()
+        if groups[2]:
+            groups[2].pop()
+        elif groups[1]:
+            groups[1].pop()
+        elif overflow:
+            overflow.pop()
+        else:
+            # Only L0 remains and still cannot fit. Preserve higher-priority
+            # anchors, and expose bounded reads for the removed source.
+            node = groups[0].pop()
+            groups[1].append(node)
+            overflow.extend(_split_target(node))
+    # Keep a bounded-read identity for the compact fallback at tiny budgets.
     return TierSelection(
-        selection.generation,
-        selection.tokenizer_version,
-        overflow_targets=selection.overflow_targets,
+        selection.generation, selection.tokenizer_version,
+        overflow_targets=selection.overflow_targets or tuple(
+            part for node in selection.l0 for part in _split_target(node)
+        ),
     )
 
 

@@ -1,0 +1,11 @@
+--- before/paths.py
++++ after/paths.py
+@@ -35,7 +35,7 @@
+     insensitive = os.name == "nt" if case_insensitive is None else case_insensitive
+     if not isinstance(insensitive, bool):
+         raise TypeError("case_insensitive must be a boolean or None")
+-    return canonical.casefold()
++    return canonical.casefold() if insensitive else canonical
+ 
+ 
+ def logical_lines(text: str) -> tuple[str, ...]:

@@ -1,0 +1,15 @@
+test_each_entrypoint_detaches_active_and_completed_conversations (test_runtime_new_conversation.RuntimeNewConversationTests.test_each_entrypoint_detaches_active_and_completed_conversations) ... Executing <Task finished name='Task-2' coro=<RuntimeNewConversationTests.test_each_entrypoint_detaches_active_and_completed_conversations() done, defined at F:\code-ai-chaos\chaos-16-agent\src\code_agent\interfaces\tests\test_runtime_new_conversation.py:28> result=None created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\asyncio\runners.py:100> took 0.125 seconds
+ok
+test_explicit_new_uses_same_empty_state (test_runtime_new_conversation.RuntimeNewConversationTests.test_explicit_new_uses_same_empty_state) ... ok
+test_failure_keeps_original_context_and_runtime (test_runtime_new_conversation.RuntimeNewConversationTests.test_failure_keeps_original_context_and_runtime) ... ok
+test_next_prompt_uses_no_old_thread (test_runtime_new_conversation.RuntimeNewConversationTests.test_next_prompt_uses_no_old_thread) ... ok
+test_restore_failure_preserves_current_conversation (test_runtime_new_conversation.RuntimeNewConversationTests.test_restore_failure_preserves_current_conversation) ... ok
+test_running_task_blocks_both_picker_and_typed_switch (test_runtime_new_conversation.RuntimeNewConversationTests.test_running_task_blocks_both_picker_and_typed_switch) ... ok
+test_same_selection_preserves_context_without_rebuilding (test_runtime_new_conversation.RuntimeNewConversationTests.test_same_selection_preserves_context_without_rebuilding) ... ok
+test_saved_task_picker_explains_and_opens_new_conversation (test_runtime_new_conversation.RuntimeNewConversationTests.test_saved_task_picker_explains_and_opens_new_conversation) ... ok
+test_saved_task_survives_switch_and_new_task_freezes_new_settings (test_runtime_new_conversation.RuntimeNewConversationTests.test_saved_task_survives_switch_and_new_task_freezes_new_settings) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 1.625s
+
+OK

@@ -1,0 +1,26 @@
+[
+  {
+    "arm": "A",
+    "test": "test_startup_responsiveness.StartupResponsivenessTests.test_escape_during_preparation_waits_for_cleanup_and_keeps_input",
+    "timeout": 25,
+    "output": "test_escape_during_preparation_waits_for_cleanup_and_keeps_input (test_startup_responsiveness.StartupResponsivenessTests.test_escape_during_preparation_waits_for_cleanup_and_keeps_input) ... "
+  },
+  {
+    "arm": "A",
+    "test": "test_windows_tui_interaction.WindowsTerminalAppTests.test_running_icon_changes_but_completion_icon_is_static",
+    "returncode": 0,
+    "output": "test_running_icon_changes_but_completion_icon_is_static (test_windows_tui_interaction.WindowsTerminalAppTests.test_running_icon_changes_but_completion_icon_is_static) ... ok\n\n----------------------------------------------------------------------\nRan 1 test in 0.051s\n\nOK\n"
+  },
+  {
+    "arm": "current",
+    "test": "test_startup_responsiveness.StartupResponsivenessTests.test_escape_during_preparation_waits_for_cleanup_and_keeps_input",
+    "timeout": 25,
+    "output": "test_escape_during_preparation_waits_for_cleanup_and_keeps_input (test_startup_responsiveness.StartupResponsivenessTests.test_escape_during_preparation_waits_for_cleanup_and_keeps_input) ... "
+  },
+  {
+    "arm": "current",
+    "test": "test_windows_tui_interaction.WindowsTerminalAppTests.test_running_icon_changes_but_completion_icon_is_static",
+    "returncode": 1,
+    "output": "test_running_icon_changes_but_completion_icon_is_static (test_windows_tui_interaction.WindowsTerminalAppTests.test_running_icon_changes_but_completion_icon_is_static) ... FAIL\n\n======================================================================\nFAIL: test_running_icon_changes_but_completion_icon_is_static (test_windows_tui_interaction.WindowsTerminalAppTests.test_running_icon_changes_but_completion_icon_is_static)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"C:\\Users\\Windows11\\AppData\\Roaming\\uv\\python\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\async_case.py\", line 90, in _callTestMethod\n    if self._callMaybeAsync(method) is not None:\n       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\Windows11\\AppData\\Roaming\\uv\\python\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\async_case.py\", line 112, in _callMaybeAsync\n    return self._asyncioRunner.run(\n           ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\Windows11\\AppData\\Roaming\\uv\\python\\cpython-3.11-windows-x86_64-none\\Lib\\asyncio\\runners.py\", line 118, in run\n    return self._loop.run_until_complete(task)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\Windows11\\AppData\\Roaming\\uv\\python\\cpython-3.11-windows-x86_64-none\\Lib\\asyncio\\base_events.py\", line 654, in run_until_complete\n    return future.result()\n           ^^^^^^^^^^^^^^^\n  File \"F:\\code-ai-chaos\\chaos-16-agent\\src\\code_agent\\interfaces\\tests\\test_windows_tui_interaction.py\", line 101, in test_running_icon_changes_but_completion_icon_is_static\n    self.assertNotEqual(first[1], second[1])\nAssertionError: '\u25cf\u00b7\u00b7' == '\u25cf\u00b7\u00b7'\n\n----------------------------------------------------------------------\nRan 1 test in 0.043s\n\nFAILED (failures=1)\n"
+  }
+]

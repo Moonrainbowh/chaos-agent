@@ -2,7 +2,8 @@
 通过同一内核提供终端优先的追加式转录、单次 CLI 和机器可读命令模式。
 
 ## 边界
-- 负责：输入区支持 URI-Agent 风格的单行待命胶囊与 6 行工作台展开；Space 或按键智能唤起展开，Esc 折叠收拢并保全草稿；输入区使用深青灰底色；后续 Markdown 标题前加细横线，代码块不插入分隔线。
+- 负责：交互启动时在重依赖加载前用临时全屏显示蓝色大字 `CHAOS`，由左到右扫描显现，初始化结束退出动画屏，清空启动前的终端画面和滚动历史并将光标移至左上角，再进入输入区；运行期间保留新产生的滚动历史，重定向输出禁用，NO_COLOR/reduced motion 使用静态反馈。
+- 负责：输入区支持 URI-Agent 风格的单行待命胶囊与 6 行工作台展开，但不显示行数标签；Space 或按键智能唤起展开，Esc 折叠收拢并保全草稿；输入区使用深青灰底色；默认回答采用 AC 排版，章节间细线、标题在统一左栏内换行且正文在右，只有窄窗统一堆叠显示，代码内容保持原样。
 - 负责：输入按 UTF-8 65536 字节（64 KiB）计量，超限插入整次拒绝且保留草稿；单次粘贴超过 10 个逻辑行时折叠为独立 `[chars: N]`（按 Unicode 码点计数），前后键入文字及其他粘贴块独立显示；折叠块作为一个编辑单元，发送时还原完整正文；粘贴换行只入草稿，拆包粘贴标记不可泄漏为提交键。
 - 负责：提交后立即启动可取消的准备阶段与持续动画；准备、生成和持久收尾共用一个前台槽，完成回调刷新尾部，失败保留未提交的输入和附件。
 - 负责：程序 UI 默认英文；斜杠命令共享分层选择、当前值、参数提示、逐级返回和失败输入恢复；同一 task/对话的模型与思考深度固定，空闲时选择不同值须在应用成功后按 `/new` 进入无旧消息和上下文的新对话，旧记录保持不变；同值或失败不新建，运行中须先暂停；模式仍遵守未结束任务的冻结边界。
@@ -30,7 +31,7 @@
 - 负责：把动态插件命令以始终命名空间化的 ID 合并进不可变命令快照；动态贡献属于 `internal`，不得膨胀默认根 Picker；禁用、撤销或 digest 变化后不执行旧选择。
 - 负责：`Shift+:` 产生的 `:` 打开带边框、查询行、命令/说明两列和选中行的默认命令面板；`Tab` 补全、`Enter` 执行，旧 `/` 前缀保持兼容。默认面板只展示 `primary`，Diff 仅保留为可完整输入的 `advanced` 兼容命令。
 - 负责：选中无参数命令后一次 `Enter` 立即执行，选中复合命令后一次 `Enter` 进入由同一注册表生成的二级动作菜单；`/会话`、`/模式` 和 `/权限` 只作为根父项，其具体动作不得平铺到根面板。
-- 负责：默认命令面精确暴露 19 个英文主命令；`/model`、`/mode`、`/effort` 分别管理模型 profile、`ask|code|plan` 任务行为和思考深度，旧复合 `/mode agent|model|effort` 仅作隐藏兼容入口；所有切换只委托注入控件并遵守 idle 边界。
+- 负责：默认命令面暴露 21 个英文主命令（按注入服务可用性启用）；新增 `/login` 登录与 `/logswitch` 临时选择已保存登录及模型，不修改持久默认配置；成功改变选择后开启新会话，同值和失败保留旧会话，运行中先暂停。`/model`、`/mode`、`/effort` 分别管理模型 profile、`ask|code|plan` 任务行为和思考深度，旧复合 `/mode agent|model|effort` 仅作隐藏兼容入口。
 - 负责：`/会话` 二级面把历史会话与同机在线 Agent、重命名、纯文本发送、入站策略及 held 消息处理分开；`/list-agents`、`/peers`、`/rename` 仅为隐藏兼容入口，不进入注册表、根 Picker 或默认帮助。
 - 不负责：把 peer 文本解释为用户授权、斜杠命令或附件，也不从界面直接访问 peer 存储。
 - 负责：`/清屏` 只清空本次转录，必须保留 `current_thread_id` 和当前会话语义。
@@ -79,11 +80,18 @@
 - 2026-09-05 的配置、验证与实验边界见根目录 `docs/context-boundary-experiment.md` 和 `docs/context-boundary-results.md`；具体候选值可配置，实验结果不自动推广为默认策略。
 
 ## Units
+- `tui_auth_prompt`：独立隐藏输入槽读取密钥/授权码，Enter 显式确认、Esc/Ctrl+C 取消、关闭释放等待 | 只渲染掩码，不进入普通输入历史、附件或会话转录 | 登录期间阻止普通任务提交，粘贴控制字符不得变成提交事件。
+- `tui_auth_commands`：从注入认证控制器提供登录/临时切换选择器，异步登录或加载账号模型并委托已有模型切换边界 | 保存登录由控制器负责 | WorkBuddy 加载入口在无离线模型时仍可选，加载失败/取消保留登录和当前模型；错误不回显凭据。
+- `render_ac_rows`：默认主题的流式和最终回答共用 AC 章节布局；章节标题按回答内顺序添加“一、二、三、”编号，已有中文顿号编号不重复添加；先解析强调再折行，保留列表缩进与悬挂折行，标题固定左列并在栏内换行，只有窄宽度统一回退上下布局 | 无副作用 | 不修改消息内容、用户蓝底或输入框几何。
+- `StartupSplash`、`scan_frame`：标准库实现临时全屏大字从左到右扫描，尺寸自适应，后台帧线程不阻塞初始化，结束立即回收并恢复原屏幕 | 终端 I/O | 无最短播放时间，不读取输入；无颜色/减少动画静态显示，恢复 Windows 输出模式及光标。
+- 窗口缩放：尾部几何记录每行可见列宽与编辑光标列；按新宽度重算旧尾部折行后的物理行数，重画、追加消息、折叠与恢复会话均使用统一几何清理入口，使用当前窗口高度 | 不清空历史或输入草稿；用真实 ConPTY 字符格检查缩放后追加消息仍只有一个输入框。
+- `render_entry`、`render_streaming_markdown_rows`：历史用户消息使用正文区域宽度的深蓝底，逐行恢复背景并在消息后重置；无颜色模式不填充背景；引用用浅色正文并在折行前解析强调，默认主题共用 AC 章节布局，兼容主题保留原布局 | 无副作用 | 不改变正文宽度、输入高度或历史存储。
+- Ctrl+C 原生读取：轮询时先检查控制台 KEY_EVENT，再调用 CRT kbhit/getwch；Ctrl+C 的 UnicodeChar 或 Ctrl+C 修饰键记录归一为 `\x03`，失败状态与命令草稿仍使用双击退出逻辑；关闭清理失败也必须恢复控制台模式。
 - `reset_conversation`、`set_model`、`set_effort`：`/new` 和模型/思考深度切换共用空对话重置，兼容复合命令委托同一入口 | 只重置界面会话绑定并委托运行时控件 | 同值不重建，验证或应用失败保留旧会话，旧 task 契约和消息不修改。
 - `ForegroundTaskController.restore_runtime_settings`：恢复历史对话前委托恢复该 task 冻结的运行时 | 读取 task 并委托 resolver | 恢复失败不替换当前会话，避免 Picker 用上一对话设置误判同值。
 - `read_key`、`_read_bracketed_paste`：通过控制台 KEY_EVENT 的 Alt 标志识别 Alt+V（在 getwch 丢失修饰键信息前捕获），兼容 ESC-v 和 Windows 扩展扫描码，按完整 CSI 标记收取粘贴，超限仍排空标记，兼容未标记的连续文本批次 | 控制台读取 | 不把粘贴 CR/LF 作为提交键。
 - `InputDocument`、`InputAtom`：用不可变编辑单元区分原文、长粘贴块与图片引用，投影可见标记和光标位置 | 无副作用 | 用户手输相同标记是普通文字，发送不包含内部占位字符；历史保留粘贴边界且不恢复旧图片。
-- `InputBuffer.insert_paste/display/sync_images/backspace/delete`、`delete_input`：长文本只按粘贴事件折叠；同步图片引用，按单元移动和删除；实际删除后先独立清空旧尾部再立即绘制新帧 | 进程草稿/移除附件引用/终端尾部刷新 | 删除正文不误删附件；提交待确认的附件仍由 durable message 回执移除。
+- `InputBuffer.insert_paste/display/sync_images/backspace/delete`、`delete_input`：长文本只按粘贴事件折叠；同步图片引用，按单元移动和删除；删除后保留旧帧几何，擦除和重绘合并为一次输出，重绘期间隐藏光标并在编辑位置恢复 | 进程草稿/移除附件引用/终端尾部刷新 | 删除正文不误删附件；提交待确认的附件仍由 durable message 回执移除。
 - `InputBuffer.insert`、`paste_event`：规范化换行和 UTF-16 字符对，统一 UTF-8 65536 字节（64 KiB）输入边界 | 进程草稿 | 超限整次拒绝、不移动光标；不截断正文。
 - `tui_run.submit/start_prepared/finish_run`：把任务创建、取消、直接 Skill 斜杠唤醒（`/<skill-name> [prompt]`）与最终尾部刷新绑定同一前台 future | 异步任务与展示 | 准备失败/取消等待原创建流程清理；追加输入不得创建并行任务，附件仍以持久消息确认移除。
 - `command_navigation`、`runtime_picker`：从注册表与当前控制器生成选择项、参数提示与当前值，统一方向键、Enter、Tab 和逐级 Esc | 进程内选择态 | 失败保留输入；禁用选项不得落入其他命令；旧任务冻结设置不可隐式替换。
@@ -119,7 +127,7 @@
 - `PickerState`、`PickerItem`、`render_picker_panel(...)`：统一命令、会话、模式、Skill、MCP 和插件候选的过滤、两列面板、键盘选择、`Tab` 补全和禁用原因 | 进程内状态 | `Esc` 取消，不执行候选动作
 - `skill_picker_items`、`mcp_picker_items`、`plugin_picker_items`：把 Controller snapshot 转换为共享 Picker 候选和完整命令补全 | 无副作用 | 不把 Skill/Plugin 正文放入候选，未批准 MCP server 显示禁用原因
 - `SubmitMode`、`submit_active_input(...)`、`SteeringQueueView`：分开默认排队与立即转向，投影 queued/steered/dequeued/applied 及数量 | 调用前台任务控制器/进程内状态 | 排队只由 `TASK_FOLLOWUPS_PROMOTED` 应用，转向只由 `TURN_STARTED`/`CONTEXT_BUILT` 推进
-- `pause_active_task(app, reason)`: 在取消令牌与持久 checkpoint 收尾期间投影 `pausing` | 调用前台任务控制器 | 只在活动 runner 上生效，不把请求中状态当成已暂停
+- `pause_active_task(app, reason)`、`request_pause_active_task(app, reason)`: 在取消令牌与持久 checkpoint 收尾期间投影 `pausing`；Ctrl+C 通过受控后台任务发起暂停，使两秒退出窗口内仍能读取第二次按键 | 调用前台任务控制器、维护单个 pause task | 只在活动 runner 上生效，不重复暂停，不把请求中状态当成已暂停；退出收尾等待 pause task
 - `HostInteraction`、`InteractionBroker`、`plugin_interaction`：统一 Host 与插件的 `notify`、`confirm`、`input`、`select` 请求及可取消结果 | 异步状态 | 插件请求转换为 Host 所有的交互，不接受预填用户答案。
 - `PluginInteractionAdapter.notify`、`interact`：把 generation-bound PluginProposal 分流为直接 Host 显示或共享 InteractionBroker 请求 | 显示/异步等待 | notify 不等待答案，其余交互可取消且默认不自答
 - `DiffController.load(...)`、`DiffView`：优先从注入的只读 Git 服务读取真实 unified diff，并提供文件导航、路径过滤和评论 | 只读服务调用/进程内状态 | 不直接 stage、unstage 或执行 Git。
@@ -139,5 +147,7 @@
 
 - `ContextBudgetDisplay`、`TerminalPresentation`: 展示当前输入/有效工作窗与独立任务用量；手动换窗仅显示排队状态 | 终端 I/O | 不把累计消耗当成上下文占用，保留旧模式显示兼容
 
-- `capture_ctrl_c_as_input`、`read_character`、`read_key`：TUI 存活时暂时关闭 Windows 的 Ctrl+C 默认信号处理，以可轮询的原生输入事件保留 Ctrl+C、Enter/Shift+Enter/Alt+V 修饰键，原生提交键不参与文本 burst；framed paste 内换行仍只进入草稿 | 控制台读取/模式恢复 | 退出必恢复原模式；兼容 CSI u、modifyOtherKeys 与 Windows VT input 的普通 Enter、Shift+Enter。
+- `capture_ctrl_c_as_input`、`Win32Input`、`read_character`、`read_key`：TUI 存活时启用 Windows VT input 保留右键/Ctrl+V 粘贴边界，并开启 Win32 input reporting 保留物理键修饰信息、关闭 Ctrl+C 默认信号处理；先解码 Win32 封装再解析粘贴边界，原生 Enter/Shift+Enter/Alt+V 修饰键不参与文本 burst，framed paste 内换行只进入草稿 | 控制台读取/模式恢复 | 退出必恢复原模式；兼容 CSI/SS3 导航键、CSI u、modifyOtherKeys 与 Windows VT input 的普通 Enter、Shift+Enter。
 - `runtime_error_summary`：将异常因果链中的 HTTP 状态显示为短提示，其余诊断单行有界 | 无副作用 | 错误仅经受管转录渲染，不直接打印 traceback 或 HTML。
+
+- FOLLOW-UP 采用方案 A：固定青色 `›`、静态边框与细竖线光标，等待动效仅在底部固定三字符宽度的点阵中变化；退出恢复终端默认光标样式，关闭动效时点阵静止。

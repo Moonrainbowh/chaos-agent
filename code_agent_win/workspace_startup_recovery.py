@@ -25,6 +25,13 @@ async def recover_workspace_edit_batches(
         raise TypeError("workspace recovery dependencies are incomplete")
     results: list[BatchApplyResult] = []
     for root in _workspace_roots(runtime, source_root):
+        probe = getattr(mutations, "needs_edit_batch_recovery", None)
+        if callable(probe):
+            required = await probe(root)
+            if type(required) is not bool:
+                raise TypeError("workspace recovery probe must return a bool")
+            if not required:
+                continue
         services = services_for_root(root)
         bundle = for_services(services)
         capture = getattr(bundle, "capture", None)

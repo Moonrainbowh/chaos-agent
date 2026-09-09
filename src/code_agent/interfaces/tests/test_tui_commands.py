@@ -102,7 +102,7 @@ class TuiCommandTests(unittest.TestCase):
             (
                 "theme",
                 "clear", "compact", "cost", "status", "doctor", "exit",
-                "diff", "map", "review", "test", "rewind", "attach", "model", "mode",
+                "diff", "map", "review", "test", "rewind", "attach", "login", "logswitch", "model", "mode",
                 "effort", "permission", "mcp", "plugin", "tasks", "help",
                 "sessions", "new", "restore", "accept",
                 "evidence", "checkpoint", "flow", "skill",
@@ -114,7 +114,7 @@ class TuiCommandTests(unittest.TestCase):
             tuple(spec.name for spec in REGISTRY.primary()),
             (
                 "clear", "compact", "cost", "status", "doctor", "exit",
-                "diff", "map", "review", "test", "rewind", "attach", "model", "mode",
+                "diff", "map", "review", "test", "rewind", "attach", "login", "logswitch", "model", "mode",
                 "effort", "permission", "mcp", "plugin", "tasks",
             ),
         )

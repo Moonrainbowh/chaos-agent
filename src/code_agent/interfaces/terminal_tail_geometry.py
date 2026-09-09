@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 from .terminal_display import clip_display, display_width, graphemes, grapheme_width, safe_text
 
 
@@ -8,6 +9,23 @@ from .terminal_display import clip_display, display_width, graphemes, grapheme_w
 class LiveTailGeometry:
     height: int
     cursor_row: int
+    row_widths: tuple[int, ...] = ()
+    cursor_column: int = 0
+
+
+def tail_geometry(lines: list[str], cursor_row: int, cursor_column: int) -> LiveTailGeometry:
+    widths = tuple(display_width(re.sub(r"\x1b\[[0-9;]*m", "", line)) for line in lines)
+    return LiveTailGeometry(len(lines), cursor_row, widths, cursor_column)
+
+
+def resized_tail_geometry(geometry: LiveTailGeometry, width: int) -> LiveTailGeometry:
+    """Account for physical rows added by terminal reflow, not just logical lines."""
+    if not geometry.row_widths:
+        return geometry
+    width = max(1, width)
+    heights = [max(1, (length + width - 1) // width) for length in geometry.row_widths]
+    cursor_row = sum(heights[:geometry.cursor_row]) + geometry.cursor_column // width
+    return LiveTailGeometry(sum(heights), cursor_row)
 
 
 @dataclass(frozen=True)
@@ -28,8 +46,8 @@ def _compact_frame(
     lines = [composer]
     if height > 1:
         lines.append(clip_display(safe_text(status).replace("\n", " "), width))
-    geometry = LiveTailGeometry(len(lines), 0)
     column = min(max(0, width - 1), cursor_column + (2 if width > 1 else 0))
+    geometry = tail_geometry(lines, 0, column)
     return LiveTailFrame(_rewrite_tail(lines, 0, column, previous, height), geometry)
 
 

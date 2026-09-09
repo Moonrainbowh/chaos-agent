@@ -66,6 +66,24 @@ class TuiRepairIntegrationTests(unittest.IsolatedAsyncioTestCase):
             finally:
                 await app.aclose()
 
+    async def test_chinese_image_question_finishes_without_project_validation(self):
+        with application_fixture() as app:
+            try:
+                refresh = Mock(side_effect=AssertionError("Q&A must not refresh the verification graph"))
+                app.controller._engine._verification._semantic_snapshot = refresh
+
+                self.assertTrue(await app.tui.submit("[image1]这个是什么意思"))
+                await app.tui.wait_idle()
+
+                records = await app.sessions.list_tasks(include_terminal=True)
+                self.assertEqual(len(records), 1)
+                self.assertEqual(records[0].status, TaskStatus.COMPLETED)
+                self.assertEqual(records[0].contract.intent.value, "analyze")
+                self.assertEqual(await app.sessions.list_verification_evidence(records[0].id), ())
+                refresh.assert_not_called()
+            finally:
+                await app.aclose()
+
     async def test_keyboard_selection_rebuilds_real_runtime_and_freezes_next_task(self):
         with application_fixture() as app:
             try:
@@ -95,7 +113,7 @@ class TuiRepairIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 await app.tui.wait_idle()
                 task = (await app.sessions.list_tasks())[0]
                 self.assertEqual(task.status, TaskStatus.WAITING_DECISION)
-                self.assertIn("Missing", task.stop_reason)
+                self.assertIn("no workspace file changes", task.stop_reason)
                 self.assertEqual(app.tui.state.status, "waiting_decision")
                 messages = await app.sessions.load_messages(task.thread_id)
                 self.assertTrue(await app.tui.submit("/model terra"))

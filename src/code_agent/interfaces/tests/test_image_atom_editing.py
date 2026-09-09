@@ -79,23 +79,26 @@ class ImageAtomEditingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(draft.items, ())
         self.assertEqual(app.input.display, ("", 0))
 
-    async def test_backspace_clears_old_tail_before_showing_cjk_deletion(self):
+    async def test_deletion_repaints_once_with_cursor_hidden_until_positioned(self):
         app, _, _, output = self.make_app()
         await app.handle_key("alt+v")
         await app.handle_key("照片里面有啥")
         output.clear()
         await app.handle_key("\x08")
         self.assertEqual(app.input.display[0], "[image1]照片里面有")
-        self.assertEqual(len(output), 2)
+        self.assertEqual(len(output), 1)
         self.assertIn("\x1b[2K", output[0])
-        self.assertIn("[image1]照片里面有", output[1])
-        self.assertNotIn("照片里面有啥", output[1])
+        self.assertTrue(output[0].startswith("\x1b[?25l"))
+        self.assertTrue(output[0].endswith("\x1b[22C\x1b[?25h"))
+        self.assertIn("[image1]照片里面有", output[0])
+        self.assertNotIn("照片里面有啥", output[0])
         await app.handle_key("home")
         output.clear()
         await app.handle_key("delete")
         self.assertEqual(app.input.display[0], "照片里面有")
-        self.assertEqual(len(output), 2)
-        self.assertNotIn("[image1]", output[1])
+        self.assertEqual(len(output), 1)
+        self.assertNotIn("[image1]", output[0])
+        self.assertTrue(output[0].endswith("\x1b[4C\x1b[?25h"))
 
     async def test_clear_removes_both_images_and_paste_atoms(self):
         app, draft, _, _ = self.make_app()
