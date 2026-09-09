@@ -78,7 +78,8 @@ asyncio.run(check())
         with ConsoleProcess(_program(body)) as console:
             console.wait_for("READY")
             console.send("\x1b[200~" + payload + "\x1b[201~")
-            console.wait_for("DRAFT_OK")
+            # Hosted Windows ConPTY may translate large Unicode pastes slowly.
+            console.wait_for("DRAFT_OK", timeout=30)
             console.send("\r")
             console.wait_for("SUBMITTED_ONCE_OK")
             console.wait_for("RESTORED_OK")
