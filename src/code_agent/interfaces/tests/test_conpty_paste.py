@@ -11,6 +11,9 @@ _PROLOGUE = r'''
 import asyncio, ctypes, json, msvcrt, sys, traceback
 from ctypes import wintypes
 sys.stdout = open('CONOUT$', 'w', encoding='utf-8')
+sys.stderr = sys.stdout
+import faulthandler
+faulthandler.dump_traceback_later(7, file=sys.stderr)
 sys.stdin = open('CONIN$', 'r')
 k = ctypes.WinDLL('kernel32', use_last_error=True)
 k.SetStdHandle.argtypes = [wintypes.DWORD, wintypes.HANDLE]
@@ -28,6 +31,7 @@ print('\x1b[?9001h', end='', flush=True)
 '''
 _EPILOGUE = r'''
 finally:
+    faulthandler.cancel_dump_traceback_later()
     restore()
     after = wintypes.DWORD()
     assert k.GetConsoleMode(h, ctypes.byref(after))
