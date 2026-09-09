@@ -6,6 +6,7 @@ from .command_registry import REGISTRY
 from .picker import mcp_picker_items, skill_picker_items
 from .plugin_picker import plugin_picker_items
 from .runtime_picker import runtime_picker_items
+from .tui_auth_commands import auth_picker_items
 
 _SKILL_COMMANDS = {"/技能", "/skill", "/skills"}
 _SKILL_ACTIONS = {"信息", "info", "启用", "enable", "禁用", "disable", "来源", "source"}
@@ -35,6 +36,9 @@ def picker_context(
 def dynamic_picker_items(
     app: object,
 ) -> tuple[tuple[object, ...], str] | None:
+    authentication = auth_picker_items(app)
+    if authentication is not None:
+        return authentication
     runtime = runtime_picker_items(app)
     if runtime is not None:
         return runtime

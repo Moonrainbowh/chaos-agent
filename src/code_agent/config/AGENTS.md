@@ -4,7 +4,7 @@
 ## 边界
 - 支持本地可信 profile 的 `model_metadata.token_budget` 默认启用 persistent；显式 `context_policy`（包括 false）优先，不联网猜测能力、不接受模型输出作为配置。
 - 负责：解析默认或显式配置路径、读取 TOML、验证 provider profile、合并既有环境变量和 CLI profile 覆盖，以及生成可安全展示的运行配置。
-- 负责：校验每个 profile 的 `api`、`base_url`、`model`、`context_window`、`max_output_tokens` 和恰好一种密钥来源，并单独解析各 profile 以避免全局环境污染。
+- 负责：校验每个 profile 的 `api`、`base_url`、`model`、`context_window`、`max_output_tokens` 和恰好一种认证来源（`api_key`、`api_key_env` 或 `auth` + `provider_id`），并单独解析各 profile 以避免全局环境污染；存储凭据引用在加载时不读取或刷新令牌。
 - 负责：校验每个 profile 的显式 `input_modalities`；缺失时默认仅 `text`，只接受受支持、去重的 `text`/`image` 组合。
 - 负责：分别解析配置与会话路径，兼容旧 `code-agent` 配置；不以新目录是否存在决定旧会话是否可见。
 - 负责：解析 `legacy` / `hybrid` / `progressive` 工具能力策略，缺失时采用推荐的 `hybrid`。
@@ -22,6 +22,7 @@
 - 2026-09-05 的配置、验证与实验边界见根目录 `docs/context-boundary-experiment.md` 和 `docs/context-boundary-results.md`；具体候选值可配置，实验结果不自动推广为默认策略。
 
 ## Units
+- `provider_settings.provider_config()`、`provider_auth_options()`：保留旧 API Key 配置并解析按平台的 OAuth/存储 API Key 引用和显式协议路径；拒绝认证冲突和 API Key 环境覆盖 OAuth，不联网。
 - `default_config_path(env)`、`resolve_config_path(env)`: 解析默认或绝对覆盖配置文件路径 | 无副作用 | 相对 `CHAOS_CONFIG` 拒绝；无新配置时回退旧目录
 - `load_runtime_config(env, cli_profile)`: 读取、验证、选择并合并本地 provider 配置 | 文件 I/O | `CHAOS_*` 优先、`CODE_AGENT_*` 回退；异常不包含文件内容或密钥
 - `RuntimeConfig`: 冻结已选择的 Provider、profile、审批模式、敏感路径开关、PowerShell 方言请求、能力策略和配置路径 | 无副作用 | 能力策略默认 hybrid 且只接受 legacy/hybrid/progressive；方言缺失为兼容期 `auto`；默认审批模式为 `auto`；密钥状态只能显示脱敏描述

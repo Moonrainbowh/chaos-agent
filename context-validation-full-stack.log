@@ -1,0 +1,6 @@
+test_model_completion_automatically_runs_discovered_project_tests (test_agent_app_full_stack.FullStackTests.test_model_completion_automatically_runs_discovered_project_tests) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 2.998s
+
+OK

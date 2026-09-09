@@ -75,3 +75,43 @@ async def pause_active_task(app: object, reason: str) -> bool:
     app.state.status = "paused"
     app._append(DisplayKind.METADATA, "task paused")
     return True
+
+
+def request_pause_active_task(app: object, reason: str) -> bool:
+    """Start pausing without occupying the keyboard dispatch loop."""
+    pending = getattr(app, "_pause_task", None)
+    if pending is not None and not pending.done():
+        return True
+    can_pause = bool(
+        (getattr(app, "_starting_task", False) and app._run_task)
+        or (
+            app.tasks
+            and app.active_task_id
+            and app._run_task
+            and not app._run_task.done()
+        )
+    )
+    if not can_pause:
+        return False
+    app.state.status = "pausing"
+    app._request_redraw(immediate=True)
+    app._pause_task = asyncio.create_task(_finish_requested_pause(app, reason))
+    return True
+
+
+async def _finish_requested_pause(app: object, reason: str) -> None:
+    try:
+        await pause_active_task(app, reason)
+    except asyncio.CancelledError:
+        raise
+    except Exception as error:
+        app.state.status = "error"
+        app._append(
+            DisplayKind.ERROR,
+            f"pause failed ({type(error).__name__})",
+        )
+    finally:
+        current = asyncio.current_task()
+        if getattr(app, "_pause_task", None) is current:
+            app._pause_task = None
+        app._request_redraw(immediate=True)

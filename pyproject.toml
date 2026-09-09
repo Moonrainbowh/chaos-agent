@@ -13,6 +13,10 @@ authors = [{name = "lack"}]
 dependencies = ["agent-client-protocol>=0.12,<0.13", "httpx>=0.28,<0.29", "mcp>=1.0,<2", "Pillow>=10,<12", "psutil>=5.9", "regex>=2024.0", "tomli>=2.0,<3", "tiktoken>=0.12,<1"]
 
 [project.scripts]
-chaos-agent = "code_agent_win.cli:main"
-agent = "code_agent_win.cli:main"
+chaos-agent = "code_agent_win.bootstrap:main"
+agent = "code_agent_win.bootstrap:main"
 chaos-agent-acp = "code_agent_win.acp_cli:main"
+
+[tool.setuptools.package-data]
+"code_agent.authentication" = ["catalog_seed.json"]
+"code_agent.providers" = ["URI_AGENT_LICENSE.txt"]

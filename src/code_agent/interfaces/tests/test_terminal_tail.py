@@ -4,7 +4,7 @@ import re
 import unittest
 
 from code_agent.interfaces.terminal_renderer import ColorMode, render_live_tail
-from code_agent.interfaces.terminal_style import BRAND_CYAN, BRIGHT_CYAN, DIM_GRAY
+from code_agent.interfaces.terminal_style import BRAND_CYAN, BRIGHT_CYAN, DIM_GRAY, BODY_WHITE
 from code_agent.interfaces.terminal_tail import _wrap_plain, render_live_tail_frame
 from code_agent.interfaces.i18n import Language
 from code_agent.interfaces.terminal_renderer import Theme
@@ -53,7 +53,7 @@ class TerminalTailPaletteTests(unittest.TestCase):
         self.assertIn(f"\x1b[{BRIGHT_CYAN}m重点\x1b[0m", frame.text)
         self.assertIn(f"\x1b[{BRAND_CYAN}msrc/app.py\x1b[0m", frame.text)
         self.assertIn(f"\x1b[{BRAND_CYAN}m│ \x1b[0m", frame.text)
-        self.assertIn(f"\x1b[{DIM_GRAY}m仍在生成\x1b[0m", frame.text)
+        self.assertIn(f"\x1b[{BODY_WHITE}m仍在生成\x1b[0m", frame.text)
         plain = re.sub(r"\x1b\[[0-9;?]*[ -/]*[@-~]", "", frame.text)
         self.assertNotIn("##", plain)
         self.assertNotIn("**", plain)

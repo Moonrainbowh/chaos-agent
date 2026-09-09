@@ -15,11 +15,14 @@ from .runtime_picker import selection_blocked_reason
 from .tui_semantic_insight_commands import handle_semantic_insight_command
 from .tui_workflow_commands import handle_workflow_command
 from .tui_theme_commands import set_theme
+from .tui_auth_commands import handle_auth_command
 
 
 async def handle_tui_command(app: object, outcome: ParseOutcome) -> bool:
     command = outcome.command
     assert command is not None
+    if command.kind in {TuiCommandKind.LOGIN, TuiCommandKind.LOGSWITCH}:
+        return await handle_auth_command(app, command.kind.value, command.instruction)
     if (builtin := await handle_builtin_command(app, command)) is not None:
         return builtin
     if command.kind is TuiCommandKind.THEME:

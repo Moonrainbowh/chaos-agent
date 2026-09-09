@@ -30,6 +30,9 @@ def configure_product_controls(host: Any) -> None:
         activity_lock=host.activity_lock,
     )
     host.snapshot = host.controls.runtime_selection.snapshot
+    from code_agent_win.auth_runtime_control import AuthenticationRuntimeControl
+    host.authentication = AuthenticationRuntimeControl(host.profiles, host.controls.register_profile)
+    host.controls.set_profile_restorer(host.authentication.restore_profile)
     host.task_modes = TaskModeControl()
     host.costs = TaskCostControl(host.sessions, host.profiles)
     host.semantic_graph = SemanticGraphControl(host.root, host.workspace_runtime)
@@ -82,3 +85,4 @@ def configure_product_ui(host: Any) -> None:
         doctor=host.doctor,
         semantic_graph=host.semantic_graph,
     )
+    host.tui.authentication = host.authentication

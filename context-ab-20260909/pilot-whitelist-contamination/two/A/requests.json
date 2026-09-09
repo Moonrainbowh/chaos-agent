@@ -1,0 +1,254 @@
+[
+  {
+    "turn": 1,
+    "tiers": [
+      {
+        "docstring": "",
+        "kind": "symbol",
+        "path": "tokens.py",
+        "range": [
+          66,
+          67
+        ],
+        "reasons": [
+          "task seed"
+        ],
+        "resolution": "exact",
+        "source": "def _ceil_div(value: int, divisor: int) -> int:\n    return value // divisor\n",
+        "symbol": "_ceil_div",
+        "symbol_signature": "",
+        "tier": "L0"
+      },
+      {
+        "docstring": "",
+        "kind": "symbol",
+        "path": "test_regression.py",
+        "range": [
+          5,
+          10
+        ],
+        "reasons": [
+          "test impact candidate via call",
+          "test impact candidate via import",
+          "test impact candidate via reference"
+        ],
+        "resolution": "exact",
+        "source": "",
+        "symbol": "Regression.test_token_rounding",
+        "symbol_signature": "def test_token_rounding(self):",
+        "tier": "L1"
+      },
+      {
+        "docstring": "",
+        "kind": "symbol",
+        "path": "paths.py",
+        "range": [
+          41,
+          45
+        ],
+        "reasons": [
+          "distance 2 dependency"
+        ],
+        "resolution": "exact",
+        "source": "",
+        "symbol": "logical_lines",
+        "symbol_signature": "",
+        "tier": "L2"
+      }
+    ],
+    "prompt_estimated_tokens": 853,
+    "usage": {
+      "input_tokens": 667,
+      "output_tokens": 78,
+      "cached_input_tokens": 0
+    }
+  },
+  {
+    "turn": 2,
+    "tiers": [
+      {
+        "docstring": "",
+        "kind": "symbol",
+        "path": "tokens.py",
+        "range": [
+          66,
+          67
+        ],
+        "reasons": [
+          "task seed"
+        ],
+        "resolution": "exact",
+        "source": "def _ceil_div(value: int, divisor: int) -> int:\n    return value // divisor\n",
+        "symbol": "_ceil_div",
+        "symbol_signature": "",
+        "tier": "L0"
+      },
+      {
+        "docstring": "",
+        "kind": "symbol",
+        "path": "test_regression.py",
+        "range": [
+          5,
+          10
+        ],
+        "reasons": [
+          "test impact candidate via call",
+          "test impact candidate via import",
+          "test impact candidate via reference"
+        ],
+        "resolution": "exact",
+        "source": "",
+        "symbol": "Regression.test_token_rounding",
+        "symbol_signature": "def test_token_rounding(self):",
+        "tier": "L1"
+      },
+      {
+        "docstring": "",
+        "kind": "symbol",
+        "path": "paths.py",
+        "range": [
+          41,
+          45
+        ],
+        "reasons": [
+          "distance 2 dependency"
+        ],
+        "resolution": "exact",
+        "source": "",
+        "symbol": "logical_lines",
+        "symbol_signature": "",
+        "tier": "L2"
+      }
+    ],
+    "prompt_estimated_tokens": 2492,
+    "usage": {
+      "input_tokens": 2496,
+      "output_tokens": 316,
+      "cached_input_tokens": 0
+    }
+  },
+  {
+    "turn": 3,
+    "tiers": [
+      {
+        "docstring": "",
+        "kind": "symbol",
+        "path": "tokens.py",
+        "range": [
+          66,
+          67
+        ],
+        "reasons": [
+          "task seed"
+        ],
+        "resolution": "exact",
+        "source": "def _ceil_div(value: int, divisor: int) -> int:\n    return -(-value // divisor)\n",
+        "symbol": "_ceil_div",
+        "symbol_signature": "",
+        "tier": "L0"
+      },
+      {
+        "docstring": "",
+        "kind": "symbol",
+        "path": "test_regression.py",
+        "range": [
+          5,
+          10
+        ],
+        "reasons": [
+          "test impact candidate via call",
+          "test impact candidate via import",
+          "test impact candidate via reference"
+        ],
+        "resolution": "exact",
+        "source": "",
+        "symbol": "Regression.test_token_rounding",
+        "symbol_signature": "def test_token_rounding(self):",
+        "tier": "L1"
+      },
+      {
+        "docstring": "",
+        "kind": "symbol",
+        "path": "paths.py",
+        "range": [
+          41,
+          45
+        ],
+        "reasons": [
+          "distance 2 dependency"
+        ],
+        "resolution": "exact",
+        "source": "",
+        "symbol": "logical_lines",
+        "symbol_signature": "",
+        "tier": "L2"
+      }
+    ],
+    "prompt_estimated_tokens": 2888,
+    "usage": {
+      "input_tokens": 2961,
+      "output_tokens": 15,
+      "cached_input_tokens": 0
+    }
+  },
+  {
+    "turn": 4,
+    "tiers": [
+      {
+        "docstring": "",
+        "kind": "symbol",
+        "path": "tokens.py",
+        "range": [
+          66,
+          67
+        ],
+        "reasons": [
+          "task seed"
+        ],
+        "resolution": "exact",
+        "source": "def _ceil_div(value: int, divisor: int) -> int:\n    return -(-value // divisor)\n",
+        "symbol": "_ceil_div",
+        "symbol_signature": "",
+        "tier": "L0"
+      },
+      {
+        "docstring": "",
+        "kind": "symbol",
+        "path": "test_regression.py",
+        "range": [
+          5,
+          10
+        ],
+        "reasons": [
+          "test impact candidate via call",
+          "test impact candidate via import",
+          "test impact candidate via reference"
+        ],
+        "resolution": "exact",
+        "source": "",
+        "symbol": "Regression.test_token_rounding",
+        "symbol_signature": "def test_token_rounding(self):",
+        "tier": "L1"
+      },
+      {
+        "docstring": "",
+        "kind": "symbol",
+        "path": "paths.py",
+        "range": [
+          41,
+          45
+        ],
+        "reasons": [
+          "distance 2 dependency"
+        ],
+        "resolution": "exact",
+        "source": "",
+        "symbol": "logical_lines",
+        "symbol_signature": "",
+        "tier": "L2"
+      }
+    ],
+    "prompt_estimated_tokens": 3042,
+    "usage": null
+  }
+]

@@ -86,6 +86,8 @@ def _workspace_specs() -> tuple[CommandSpec, ...]:
 def _runtime_specs() -> tuple[CommandSpec, ...]:
     runtime = ("runtime_selection",)
     return (
+        CommandSpec("login", (), "Configuration", "Sign in to a provider or save an API key", "[provider [method]]", requires=("authentication",)),
+        CommandSpec("logswitch", (), "Configuration", "Temporarily select a saved login and model; opens a new conversation", "[profile|provider:auth model]", requires=("authentication", "runtime_selection")),
         CommandSpec(
             "model", ("m",), "Configuration",
             "Select a model; a changed selection opens a new conversation", "[profile]",

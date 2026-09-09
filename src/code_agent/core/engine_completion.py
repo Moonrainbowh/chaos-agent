@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .completion_contract import CompletionAssessment, CompletionKind
+from .completion_contract import CompletionAssessment, CompletionKind, TaskIntent
 from .events import AgentEvent, EventKind
 from .limits import TaskBudget, usage_payload
 from .models import Usage
@@ -12,6 +12,15 @@ class AgentEngineCompletionMixin:
     """Resolve a model completion through the persistent verification gate."""
 
     async def _resolve_task_completion(self, task: TaskRecord, thread_id: str) -> TaskRecord:
+        if task.contract.intent is TaskIntent.MODIFY:
+            state = await self._journal.load_task_state(thread_id)
+            if not state.files_changed:
+                return await self._journal.transition_task(
+                    task.id,
+                    TaskStatus.WAITING_DECISION,
+                    "Requested modification produced no workspace file changes. "
+                    "Continue with implementation or explain why no change is required.",
+                )
         if self._verification is None:
             assessment = CompletionAssessment(CompletionKind.UNVERIFIED, ("verification evidence",))
             outcome = VerifierOutcome.NOT_RUN

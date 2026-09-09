@@ -35,6 +35,39 @@ def _plain(value: str) -> str:
 
 
 class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
+    async def test_second_ctrl_c_is_read_while_first_pause_is_still_settling(self) -> None:
+        class BlockingTasks:
+            def __init__(self) -> None:
+                self.pause_started = asyncio.Event()
+                self.release_pause = asyncio.Event()
+
+            async def pause(self, task_id: str, reason: str) -> None:
+                self.pause_started.set()
+                await self.release_pause.wait()
+
+        tasks = BlockingTasks()
+        app = WindowsTerminalApp(
+            AgentController(FakeEngine(())), ApprovalBroker(), tasks=tasks, write=lambda _: None
+        )
+        app.running = True
+        app.active_task_id = "task-1"
+        app._run_task = asyncio.create_task(asyncio.sleep(10))
+        try:
+            await asyncio.wait_for(app.handle_key("\x03"), 0.5)
+            await asyncio.wait_for(tasks.pause_started.wait(), 0.5)
+            self.assertTrue(app.running)
+            self.assertEqual(app.state.status, "pausing")
+
+            await asyncio.wait_for(app.handle_key("\x03"), 0.5)
+
+            self.assertFalse(app.running)
+        finally:
+            tasks.release_pause.set()
+            if app._pause_task:
+                await asyncio.gather(app._pause_task, return_exceptions=True)
+            app._run_task.cancel()
+            await asyncio.gather(app._run_task, return_exceptions=True)
+
     async def test_two_ctrl_c_keys_exit_without_cancelling_a_reader_thread(self) -> None:
         app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker(), write=lambda _: None)
         restore = Mock()

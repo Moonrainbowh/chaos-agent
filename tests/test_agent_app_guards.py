@@ -202,10 +202,23 @@ class ApplicationGuardTests(unittest.IsolatedAsyncioTestCase):
             (root / "pyproject.toml").write_text("[project]\nname = 'demo'\nversion = '0.0.0'\n", encoding="utf-8")
             runtime = _RecordingRuntime((0,))
             sessions = SQLiteSessionRepository(root / "sessions.sqlite3")
-            model = FakeModel(((
-                ModelEvent(ModelEventKind.TEXT_DELTA, text="done"),
-                ModelEvent(ModelEventKind.COMPLETED),
-            ),))
+            model = FakeModel((
+                (
+                    ModelEvent(
+                        ModelEventKind.TOOL_CALL,
+                        tool_call=ToolCall(
+                            "write",
+                            "write_file",
+                            {"path": "app.py", "content": "VALUE = 1\n"},
+                        ),
+                    ),
+                    ModelEvent(ModelEventKind.COMPLETED),
+                ),
+                (
+                    ModelEvent(ModelEventKind.TEXT_DELTA, text="done"),
+                    ModelEvent(ModelEventKind.COMPLETED),
+                ),
+            ))
             controller = ForegroundTaskController(
                 AgentController(AgentEngine(
                     model,

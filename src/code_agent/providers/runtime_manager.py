@@ -34,6 +34,15 @@ class ProviderRuntimeManager:
     def current(self) -> ProviderRuntime:
         return self._current
 
+    def register_profile(self, profile: ModelProfile) -> None:
+        """Add a validated profile without changing the active runtime."""
+        if not isinstance(profile, ModelProfile):
+            raise TypeError("profile must be a ModelProfile")
+        existing = self._profiles.get(profile.name)
+        if existing is not None and existing != profile:
+            raise ValueError("profile name already belongs to another configuration")
+        self._profiles[profile.name] = profile
+
     async def switch(self, name: str, *, idle: bool) -> ProviderRuntime:
         if not idle:
             raise RuntimeError("model switching is available only when idle")

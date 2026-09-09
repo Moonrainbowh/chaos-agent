@@ -59,7 +59,7 @@ class TaskScopedVerificationService:
 
     async def suggest_verification(self, task: object, state: object) -> object:
         service = self._service(task)
-        if task.contract.intent is TaskIntent.MODIFY or state.files_changed:
+        if state.files_changed:
             await self._refresh(service, self._root(task))
         return await service.suggest_verification(task, state)
 

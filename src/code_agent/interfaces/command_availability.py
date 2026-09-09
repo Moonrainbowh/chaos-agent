@@ -7,6 +7,7 @@ def available_services(app: Any) -> set[str]:
     return {
         name
         for name in (
+            "authentication",
             "sessions",
             "evidence",
             "checkpoints",

@@ -47,7 +47,8 @@ class CollapsedComposerTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertGreaterEqual(frame.geometry.height, 8)
         text = plain(frame.text)
-        self.assertIn("6-ROW", text)
+        self.assertIn("CHAOS AGENT", text)
+        self.assertNotIn("6-ROW", text)
         self.assertIn("Esc collapse", text)
 
     async def test_space_expands_and_esc_collapses_preserving_draft(self) -> None:

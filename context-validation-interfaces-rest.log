@@ -1,0 +1,32 @@
+.................................................Executing <Task finished name='Task-230' coro=<CheckpointTuiSafetyTests.test_service_errors_are_in_band_bounded_and_leave_tui_usable() done, defined at F:\code-ai-chaos\chaos-16-agent\src\code_agent\interfaces\tests\test_checkpoint_tui_safety.py:183> result=None created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\asyncio\runners.py:100> took 0.125 seconds
+.....Executing <Task finished name='Task-252' coro=<CollapsedComposerTests.test_space_expands_and_esc_collapses_preserving_draft() done, defined at F:\code-ai-chaos\chaos-16-agent\src\code_agent\interfaces\tests\test_collapsed_composer.py:54> result=None created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\asyncio\runners.py:100> took 0.125 seconds
+......Executing <Task finished name='Task-282' coro=<CommandNavigationTests.test_model_and_effort_enter_real_choices_and_apply() done, defined at F:\code-ai-chaos\chaos-16-agent\src\code_agent\interfaces\tests\test_command_navigation.py:37> result=None created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\asyncio\runners.py:100> took 0.188 seconds
+..Executing <Task finished name='Task-292' coro=<CommandNavigationTests.test_tab_completes_and_escape_returns_one_level_without_applying() done, defined at F:\code-ai-chaos\chaos-16-agent\src\code_agent\interfaces\tests\test_command_navigation.py:52> result=None created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\asyncio\runners.py:100> took 0.109 seconds
+.............................................................................................................................................Executing <Task finished name='Task-675' coro=<PasteTests.test_total_limit_rejects_entire_paste_without_changing_cursor() done, defined at F:\code-ai-chaos\chaos-16-agent\src\code_agent\interfaces\tests\test_paste_limits_and_sections.py:42> result=None created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\asyncio\runners.py:100> took 1.156 seconds
+..............................................................................Executing <Task finished name='Task-709' coro=<RuntimeNewConversationTests.test_each_entrypoint_detaches_active_and_completed_conversations() done, defined at F:\code-ai-chaos\chaos-16-agent\src\code_agent\interfaces\tests\test_runtime_new_conversation.py:28> result=None created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\asyncio\runners.py:100> took 0.125 seconds
+.......................................................................................................................Executing <Task finished name='Task-1068' coro=<ThemeInteractionTests.test_theme_commands_reach_the_real_app_without_starting_a_model() done, defined at F:\code-ai-chaos\chaos-16-agent\src\code_agent\interfaces\tests\test_terminal_themes.py:100> result=None created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\asyncio\runners.py:100> took 0.125 seconds
+..................................................................F..................................
+======================================================================
+FAIL: test_running_icon_changes_but_completion_icon_is_static (test_windows_tui_interaction.WindowsTerminalAppTests.test_running_icon_changes_but_completion_icon_is_static)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\unittest\async_case.py", line 90, in _callTestMethod
+    if self._callMaybeAsync(method) is not None:
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\unittest\async_case.py", line 112, in _callMaybeAsync
+    return self._asyncioRunner.run(
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\asyncio\runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\asyncio\base_events.py", line 654, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "F:\code-ai-chaos\chaos-16-agent\src\code_agent\interfaces\tests\test_windows_tui_interaction.py", line 101, in test_running_icon_changes_but_completion_icon_is_static
+    self.assertNotEqual(first[1], second[1])
+AssertionError: '●··' == '●··'
+
+----------------------------------------------------------------------
+Ran 501 tests in 31.077s
+
+FAILED (failures=1)

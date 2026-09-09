@@ -6,8 +6,9 @@ from collections import deque
 from collections.abc import Callable
 import os
 
+from .terminal_win32_input import Win32Input
 from .input_events import MAX_PASTE_BYTES
-from .console_shortcuts import read_character
+from .console_shortcuts import read_character, _consume_shortcut
 
 from .terminal_renderer import ColorMode, Theme, render_entries, render_live_tail
 from .terminal_state import TerminalState
@@ -26,16 +27,28 @@ _EXTENDED_KEYS = {
     "I": "page_up",
     "Q": "page_down",
 }
+_VT_KEYS = {
+    "\x1b[A": "up", "\x1b[B": "down", "\x1b[C": "right", "\x1b[D": "left",
+    "\x1b[H": "home", "\x1b[F": "end", "\x1b[1~": "home", "\x1b[4~": "end",
+    "\x1b[3~": "delete", "\x1b[5~": "page_up", "\x1b[6~": "page_down",
+    "\x1bOA": "up", "\x1bOB": "down", "\x1bOC": "right", "\x1bOD": "left",
+    "\x1bOH": "home", "\x1bOF": "end",
+}
 
 
 _pending: deque[str] = deque()
 _console = None
+_decoded_console = None
 _PASTE_START = "\x1b[200~"
 _PASTE_END = "\x1b[201~"
 
 
 def capture_ctrl_c_as_input() -> Callable[[], None]:
-    """Temporarily deliver Ctrl+C as \x03 instead of a process signal."""
+    """Preserve paste framing and deliver Ctrl+C as input for the TUI lifetime.
+
+    ConPTY strips bracketed-paste delimiters without VT input, even when output
+    has enabled bracketed paste. Keep native shortcuts and restore all flags.
+    """
     if os.name != "nt":
         return _noop
     try:
@@ -49,7 +62,7 @@ def capture_ctrl_c_as_input() -> Callable[[], None]:
         handle, original = kernel.GetStdHandle(-10), wintypes.DWORD()
         if not kernel.GetConsoleMode(handle, original):
             return _noop
-        if not kernel.SetConsoleMode(handle, original.value & ~0x0001):
+        if not kernel.SetConsoleMode(handle, (original.value | 0x0200) & ~0x0001):
             return _noop
     except (AttributeError, OSError):
         return _noop
@@ -114,16 +127,31 @@ def _available(console, timeout=.02):
 def read_key(*, timeout: float | None = None) -> str | None:
     """Keep framed paste atomic even when the console delivers its marker in chunks."""
     import msvcrt
-    global _console
+    global _console, _decoded_console
     if _console is not msvcrt:
         _pending.clear()
         _console = msvcrt
-    if not _pending and timeout is not None and not _available(msvcrt, timeout):
-        return None
+        _decoded_console = Win32Input(msvcrt) if getattr(msvcrt, "__name__", "") == "msvcrt" else msvcrt
+    msvcrt = _decoded_console
+    if not _pending and timeout is not None:
+        deadline = time.monotonic() + timeout
+        while True:
+            # CRT kbhit/getwch can filter Ctrl+C. Inspect native records first.
+            shortcut = _consume_shortcut() if isinstance(msvcrt, Win32Input) and not msvcrt.pending else ""
+            if shortcut:
+                _pending.append(shortcut)
+                break
+            if msvcrt.kbhit():
+                break
+            if time.monotonic() >= deadline:
+                return None
+            time.sleep(.001)
     key = _pending.popleft() if _pending else read_character(msvcrt)
     if key == "enter":
         return "\r"
-    if key in {"alt+v", "shift+enter"}:
+    if key == "escape":
+        return "\x1b"
+    if key in {"alt+v", "shift+enter", *_VT_KEYS.values()}:
         return key
     if key == "\x1b":
         if not _available(msvcrt, .08):
@@ -131,6 +159,8 @@ def read_key(*, timeout: float | None = None) -> str | None:
         suffix = msvcrt.getwch()
         if suffix in {"v", "V"}:
             return "alt+v"
+        if suffix == "O":
+            return _VT_KEYS.get("\x1bO" + msvcrt.getwch(), "")
         if suffix != "[":
             _pending.append(suffix)
             return key
@@ -144,7 +174,7 @@ def read_key(*, timeout: float | None = None) -> str | None:
                 break
         if sequence == _PASTE_START:
             return _read_bracketed_paste(msvcrt)
-        return _enter_sequence(sequence)
+        return _VT_KEYS.get(sequence, "") or _enter_sequence(sequence)
     if key in {"\x00", "\xe0"}:
         suffix = msvcrt.getwch()
         if suffix == "/":  # Windows console Alt+V scan code (VK_V -> 0x2f).
@@ -181,7 +211,7 @@ def _read_text_burst(console, first):
     chars, count = [first], 1
     while _available(console):
         character = read_character(console)
-        if character in {"alt+v", "enter", "shift+enter"} or (not character.isprintable() and character not in {"\r", "\n", "\t"}):
+        if character in {"alt+v", "enter", "shift+enter", "escape", *_VT_KEYS.values()} or (not character.isprintable() and character not in {"\r", "\n", "\t"}):
             _pending.append(character)
             break
         count += 1

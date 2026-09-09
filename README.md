@@ -2,11 +2,11 @@
 
 `Chaos Agent` is a Windows-first, open-source coding agent with a shared headless core, an append-only Windows Terminal UI, and non-interactive CLI/JSON modes.
 
-It is a clean-room implementation. It takes architectural lessons from projects such as uv-agent, Aider, Cline, OpenCode, mini-swe-agent, OpenHands, and Goose, but does not copy their source code.
+The core takes architectural lessons from projects such as uv-agent, Aider, Cline, OpenCode, mini-swe-agent, OpenHands, and Goose. Provider authentication and selected protocol adapters include MIT-licensed work adapted from URI Agent; see [third-party notices](THIRD_PARTY_NOTICES.md).
 
 ## What It Does
 
-- Uses OpenAI Responses, OpenAI Chat Completions, or Anthropic Messages through one streaming model protocol.
+- Uses OpenAI Responses, Codex Responses, Chat Completions, Anthropic Messages, Google Generative AI and pi-messages through one streaming model interface, with provider-specific OAuth and API Key login.
 - Keeps sessions, messages, events, goals, and checkpoints in a versioned SQLite database.
 - Discovers hierarchical `AGENTS.md` rules, builds a bounded repository map, and creates source-anchored semantic checkpoints near context pressure with deterministic fallback.
 - Freezes `low`, `medium`, `high`, or `ultra` task modes to an actual provider profile, model, prompt policy, tool set, reasoning effort, and execution limits. Modes never grant permission.
@@ -52,6 +52,28 @@ so a save cannot return a handle that is already unreadable.
 
 ## Configure A Provider
 
+Inside the TUI, `/login` opens provider/method choices and hidden credential input.
+`/logswitch` temporarily selects a saved OAuth/API login and model or an existing
+API profile without changing the configured startup default. A changed selection
+opens a new conversation; pause a running task first.
+
+Use the authentication CLI before opening a workspace:
+
+```powershell
+chaos-agent auth providers
+chaos-agent auth login openai-codex --method browser
+chaos-agent auth login openai --api-key
+chaos-agent auth models openai-codex
+chaos-agent auth configure openai-codex <model-id> --profile codex-account
+chaos-agent --profile codex-account
+```
+
+The [provider login guide](docs/provider-login.md) lists the 10 account-login
+platforms and ordinary API Key providers. `auth status` shows saved login state;
+`auth logout <provider>` removes local credentials. On Windows saved credentials
+use user-scoped DPAPI. OAuth and API Key credentials can coexist for one platform;
+`auth configure ... --auth oauth|api_key` chooses which the profile uses.
+
 Create `%LOCALAPPDATA%\chaos-agent\config.toml` to configure a provider once for the current Windows user. An existing `%LOCALAPPDATA%\code-agent\config.toml` is read when the new file is absent:
 
 ```toml
@@ -83,7 +105,7 @@ capability_strategy = "hybrid"
 # allow_sensitive_paths = true
 ```
 
-Every configured `[providers.<name>]` profile must declare `api`, `base_url`, `model`, exactly one of `api_key`/`api_key_env`, `context_window`, and `max_output_tokens`. Optional `input_cost_per_million` and `output_cost_per_million` rates must be configured together; `/cost` always reports durable task tokens and adds an estimated USD breakdown only when those rates exist. Use `chaos-agent --profile <name>` or `CHAOS_PROFILE` to choose one; `CHAOS_CONFIG` may select another absolute config path. `CHAOS_API`, `CHAOS_BASE_URL`, `CHAOS_MODEL`, and `CHAOS_API_KEY_ENV` override only the selected profile. Legacy `CODE_AGENT_*` names remain fallback aliases during migration.
+Every configured `[providers.<name>]` profile must declare `api`, `base_url`, `model`, one authentication source (`api_key`, `api_key_env`, or `auth` with `provider_id`), `context_window`, and `max_output_tokens`. Optional `input_cost_per_million` and `output_cost_per_million` rates must be configured together; `/cost` always reports durable task tokens and adds an estimated USD breakdown only when those rates exist. Use `chaos-agent --profile <name>` or `CHAOS_PROFILE` to choose one; `CHAOS_CONFIG` may select another absolute config path. `CHAOS_API`, `CHAOS_BASE_URL`, `CHAOS_MODEL`, and `CHAOS_API_KEY_ENV` override only the selected profile; a key override cannot replace stored authentication. Legacy `CODE_AGENT_*` names remain fallback aliases during migration.
 
 `[agent].powershell_dialect` accepts `powershell_7` or
 `windows_powershell_5_1`; omit it (or set `auto`) for the migration default.

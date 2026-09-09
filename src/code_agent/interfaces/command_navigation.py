@@ -9,7 +9,7 @@ from .picker import command_picker_items
 from .runtime_picker import selection_blocked_reason
 
 
-_SELECTORS = {"model", "effort"}
+_SELECTORS = {"model", "effort", "login", "logswitch"}
 
 
 def command_rows(interactions: object, app: object) -> tuple[str, ...]:

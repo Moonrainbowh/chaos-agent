@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+from dataclasses import replace
 
 from code_agent.providers.attachments import AttachmentResolver
 from code_agent.plugins.models import PluginRisk
@@ -31,10 +32,16 @@ def model_client(
         "reasoning_effort": reasoning_effort,
         "max_output_tokens": max_output_tokens,
     }
-    if config.api is ApiProtocol.RESPONSES:
+    if config.api in {ApiProtocol.RESPONSES, ApiProtocol.CODEX_RESPONSES}:
         return OpenAIResponsesClient(config, **options)
     if config.api is ApiProtocol.CHAT_COMPLETIONS:
         return OpenAIChatClient(config, **options)
+    if config.api is ApiProtocol.GOOGLE_GENERATIVE_AI:
+        from code_agent.providers.google_generative_ai import GoogleGenerativeAIClient
+        return GoogleGenerativeAIClient(config, **options)
+    if config.api is ApiProtocol.PI_MESSAGES:
+        from code_agent.providers.pi_messages import PiMessagesClient
+        return PiMessagesClient(config, **options)
     # No Anthropic reasoning-effort wire mapping is confirmed for this host.
     # Keep the frozen UI/audit choice, but do not invent a provider field.
     options["reasoning_effort"] = None
@@ -76,35 +83,7 @@ def profile_model_factory(
 
 
 def replace_model(profile: ModelProfile, model: str) -> ModelProfile:
-    config = profile.provider
-    provider = ProviderConfig(
-        config.base_url,
-        model,
-        config.api,
-        config.api_key_env,
-        config.api_key_source,
-        config.timeout_s,
-        config.max_retries,
-        config.max_event_bytes,
-        config.max_response_bytes,
-        config.max_tool_argument_bytes,
-        config.max_tool_calls,
-        config.responses_path,
-        config.chat_completions_path,
-        config.anthropic_messages_path,
-    )
-    return ModelProfile(
-        profile.name,
-        provider,
-        profile.context_window,
-        profile.max_output_tokens,
-        profile.max_agent_rounds,
-        profile.max_tool_calls,
-        profile.max_tool_calls_per_round,
-        profile.input_modalities,
-        profile.input_cost_per_million,
-        profile.output_cost_per_million,
-    )
+    return replace(profile, provider=replace(profile.provider, model=model))
 
 
 def host_risks() -> dict[str, PluginRisk]:

@@ -5,8 +5,6 @@ import sys
 from collections.abc import Sequence
 from importlib.metadata import PackageNotFoundError, version as package_version
 
-from .app import create_application
-from .acp_adapter import serve_acp
 from code_agent.config.loader import LocalConfigError, default_config_path, resolve_config_path
 from code_agent.interfaces.attachment_input import DEFAULT_ATTACHMENT_PROMPT
 from code_agent.interfaces.commands import CommandKind, execute_command, parse_command
@@ -27,6 +25,7 @@ _ATTACHMENT_COMMANDS = frozenset(
 _HELP = """Usage: chaos-agent [global options] [command]
 
 Commands:
+  auth <command>               Login, API keys, model catalog and configuration
   acp                          Serve ACP v1 over stdio for editor clients
   ask <prompt>                 Run one request and print the result
   resume <thread-id> [prompt]  Resume a saved task or open it in the TUI
@@ -52,7 +51,22 @@ The process working directory is the single ACP workspace root.
 """
 
 
-async def run(arguments: Sequence[str]) -> int:
+def create_application(**kwargs):
+    from .app import create_application as create
+    return create(**kwargs)
+
+
+async def serve_acp(application):
+    from .acp_adapter import serve_acp as serve
+    return await serve(application)
+
+
+async def run(arguments: Sequence[str], *, splash=None) -> int:
+    if arguments and arguments[0] == "auth":
+        if splash is not None:
+            splash.stop()
+        from .auth_cli import run_auth
+        return await run_auth(arguments[1:])
     try:
         attachment_paths, without_attachments = _split_attachment_options(arguments)
         mode_name, remaining = _split_mode_option(without_attachments)
@@ -81,14 +95,20 @@ async def run(arguments: Sequence[str]) -> int:
             command = parse_command(command_arguments)
             _require_attachment_consumer(command.kind, attachment_paths)
     except (TypeError, ValueError) as error:
+        if splash is not None:
+            splash.stop()
         print(f"usage error: {error}", file=sys.stderr)
         return 2
     application = None
     try:
-        application = create_application(
-            model_name=model_name, profile_name=profile_name, mode_name=mode_name
-        )
-        await application.startup()
+        try:
+            application = create_application(
+                model_name=model_name, profile_name=profile_name, mode_name=mode_name
+            )
+            await application.startup()
+        finally:
+            if splash is not None:
+                splash.stop()
         if command is None:
             await serve_acp(application)
             return 0
@@ -135,12 +155,21 @@ async def run(arguments: Sequence[str]) -> int:
             await application.aclose()
 
 
-def main() -> int:
+def main(*, splash=None) -> int:
     configure_windows_utf8_stdio()
     try:
-        return asyncio.run(run(sys.argv[1:]))
+        if splash is None:
+            from .bootstrap import _interactive
+            from code_agent.interfaces.startup_splash import StartupSplash
+            splash = StartupSplash()
+            if _interactive(sys.argv[1:]) and sys.stdin.isatty():
+                splash.start()
+        return asyncio.run(run(sys.argv[1:], splash=splash))
     except KeyboardInterrupt:
         return 130
+    finally:
+        if splash is not None:
+            splash.stop()
 
 
 def _meta_command_output(arguments: Sequence[str]) -> str | None:

@@ -5,7 +5,7 @@ from typing import Any
 from .attachment_input import dropped_file_paths
 from .input_events import paste_event
 from .terminal_display import DisplayKind
-from .tui_submission import pause_active_task
+from .tui_submission import request_pause_active_task
 
 
 async def handle_interrupt(app: Any) -> None:
@@ -20,7 +20,7 @@ async def handle_interrupt(app: Any) -> None:
         app.approvals.resolve(app._pending_approval.request_id, False)
         app._pending_approval = None
         app._approval_done.set()
-    elif await pause_active_task(app, "user requested pause"):
+    elif request_pause_active_task(app, "user requested pause"):
         pass
     elif app._token:
         app._token.cancel("user requested pause")

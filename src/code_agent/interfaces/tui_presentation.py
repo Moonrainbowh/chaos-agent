@@ -7,14 +7,26 @@ from pathlib import Path
 from .terminal_motion import motion_allowed
 from .terminal_theme import design_for
 from .terminal_tail import clear_live_tail, get_console_dock_padding, render_live_tail_frame
+from .terminal_tail_geometry import resized_tail_geometry
 from .terminal_status import status_presentation, status_context
 from .tui_input import sync_attachment_input
+from .tui_auth_prompt import auth_input_view
 
 _SPINNER_FRAMES = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
 
 
 class TerminalPresentation:
     """Visual projection shared by the terminal app; owns no task transitions."""
+
+    def _current_tail_geometry(self, size):
+        previous = self._tail_geometry
+        if previous is not None and self._drawn_size != (size.columns, size.lines):
+            previous = resized_tail_geometry(previous, size.columns)
+        return previous
+
+    def _tail_clear_sequence(self):
+        size = shutil.get_terminal_size((100, 30))
+        return clear_live_tail(self._current_tail_geometry(size), terminal_height=size.lines)
 
     def set_terminal_title(self, title: str) -> None:
         if title != self._last_terminal_title:
@@ -70,12 +82,12 @@ class TerminalPresentation:
         sync_attachment_input(self)
         input_text, input_cursor = self.input.display
         now = time.monotonic(); size = shutil.get_terminal_size((100, 30))
-        if self._drawn_size is not None and self._drawn_size != (size.columns, size.lines):
-            if self._tail_geometry is not None:
-                self._write(clear_live_tail(self._tail_geometry, terminal_height=self._drawn_size[1]))
-                self._tail_geometry = None
+        previous = self._current_tail_geometry(size)
         active = bool(self._run_task and not self._run_task.done())
         palette = self.interactions.rows(self, max_rows=max(0, size.lines - 4))
+        auth_view = auth_input_view(self)
+        if auth_view is not None:
+            input_text, input_cursor, palette = auth_view
         self.motion.observe((self.theme, self.state.status, bool(palette)), now)
         progress = ((now % 2.4) / 2.4 if active else self.motion.progress(now)) if motion_allowed(self) else 1.0
         tick = self._spinner_index if not design_for(self.theme) or motion_allowed(self) else 0
@@ -107,12 +119,13 @@ class TerminalPresentation:
                 task_reserved=self.state.context_budget.task_tokens_reserved,
                 branch=self._git_branch() if design_for(self.theme) is None else None,
             ),
-            previous=self._tail_geometry,
+            previous=previous,
             theme=self.theme,
             motion_progress=progress, exiting=self.motion.exiting, active=active,
             expanded=getattr(self, "composer_expanded", True),
         )
-        self._write(frame.text)
+        # Hide intermediate cursor moves; erase and replacement share one flush.
+        self._write("\x1b[?25l" + frame.text + "\x1b[?25h")
         self._tail_geometry = frame.geometry; self._redraw_dirty = False; self._drawn_draft_revision = self.state.draft_revision; self._drawn_size = (size.columns, size.lines)
 
     def _git_branch(self) -> str | None:

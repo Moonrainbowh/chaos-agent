@@ -79,12 +79,14 @@ class PasteTests(unittest.IsolatedAsyncioTestCase):
 
 
 class SectionTests(unittest.TestCase):
-    def test_rules_separate_headings_but_not_code(self):
+    def test_headings_use_blank_line_without_automatic_rules(self):
         text = "## One\nbody\n```python\n## code\n```\n## Two\nend"
         result = render_entry(text_entry(DisplayKind.AGENT, text), 60, theme=Theme.SLATE, color=ColorMode.NEVER)
-        self.assertEqual(result.count("─" * 58), 1)
+        self.assertIn("─" * 58, result)
+        self.assertIn("## code", result)
         rows = render_streaming_markdown_rows(text, 58, ColorMode.NEVER)
-        self.assertEqual(rows.count("─" * 58), 1)
+        self.assertNotIn("─" * 58, rows)
+        self.assertEqual(rows[rows.index("Two") - 1], "")
 
     def test_background_is_local_to_input_and_disabled_without_color(self):
         frame = render_live_tail_frame("text", "ready", 60, theme=Theme.SLATE, color=ColorMode.ALWAYS)

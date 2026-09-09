@@ -2,7 +2,7 @@
 把不同模型协议转换为统一、可流式处理的消息与工具调用接口。
 
 ## 边界
-- 负责：OpenAI-compatible Responses、Chat Completions 与 Anthropic Messages 适配。
+- 负责：OpenAI-compatible Responses、Codex Responses、Chat Completions、Anthropic Messages、Google Generative AI 与 pi Messages 适配。
 - 负责：流式事件规范化、超时与有限重试、能力声明、用量统计和配置校验。
 - 负责：按 profile 显式声明的输入模态，在发起网络请求前解析并校验附件引用；把图片和文本附件分别映射为 Responses、Chat Completions 与 Anthropic Messages 的原生 content blocks。
 - 负责：缺失能力、缺失/损坏 blob、不允许的 MIME 或超限附件必须在零网络请求下失败闭合；纯文本消息保持既有字符串 payload。
@@ -18,6 +18,7 @@
 - 依赖：运行时使用 `httpx`；测试只能使用 `MockTransport` 或自定义内存字节流。
 - 密钥边界：配置保存环境变量名或私有、本地配置密钥来源；请求时才读取密钥，公开表示、序列化和异常不得包含认证头或明文密钥。
 - 资源边界：事件、完整响应、单个工具参数和工具调用总数分别受独立正数配置限制。
+- OAuth 路由：固定平台仅允许对应 HTTPS 主机；Radius 和 WorkBuddy 使用登录凭据绑定的端点，平台头不由配置覆盖。Antigravity 包装 Google 请求并解包响应；现有公共消息不保存 thought signature，历史函数调用使用上游参考兼容标记，真实账号多轮验收独立完成。
 
 ### 预算框架（显式启用的 v1 已实现）
 
@@ -29,7 +30,7 @@
 - `ProviderConfig`、`ApiProtocol`: 校验并冻结端点、协议和传输限制 | 请求时读取 API key 环境变量
 - `InputModality`、`ModelProfile`、`ModelProfileResolver`: 显式校验单模型输入模态、提供方和 Agent 限制，并按 CLI 模型名选择 profile | 请求时读取 API key 环境变量 | 缺失模态声明默认仅 text
 - `AttachmentResolver`、`ProviderAttachmentEncoder`: 逐引用复核 blob 并生成三种协议的图片/不可信文本原生块 | 调用注入 resolver | 能力、缺失和完整性失败发生在网络请求前
-- `ProviderRuntimeManager`: 原子切换、异步 retirement、关闭重试和审计当前 profile/client/runner | 网络资源生命周期 | 构建/提交失败保留旧运行时；提交后旧 client 清理失败或取消不向调用方伪报切换失败，`aclose()` 汇合并重试 retirement
+- `ProviderRuntimeManager`: 注册内存 profile、原子切换、异步 retirement、关闭重试和审计当前 profile/client/runner | 网络资源生命周期 | 注册不切换；构建/提交失败保留旧运行时；提交后旧 client 清理失败或取消不向调用方伪报切换失败，`aclose()` 汇合并重试 retirement
 - `ProviderRequestOptions`、`request_options(...)`: 校验 provider-facing effort 与正数输出上限 | 无副作用 | Anthropic reasoning 不猜测映射并失败闭合
 - `SSEDecoder.feed(chunk)`: 有界增量解码 UTF-8 SSE 事件 | 保存未完成行与事件状态
 - `ArgumentBuffer`、`ToolBudget`: 按 UTF-8 字节累计工具参数并限制工具调用数 | 保存当前流的有界分片
@@ -38,3 +39,6 @@
 - `OpenAIResponsesClient.stream(system_prompt, messages, tools)`: 适配 Responses item/call 事件并去重工具调用，发送冻结的 `reasoning.effort`/`max_output_tokens` | 网络 I/O
 - `AnthropicClient.stream(system_prompt, messages, tools)`: 适配 Messages content block、工具输入与累计用量，发送 profile `max_tokens` | 网络 I/O | 非空 reasoning effort 在构造期明确拒绝
 - `ModelProfile.context_policy`、`api_input_tokens`: 显式启用策略及输入上限；缺省保留旧策略 | 无副作用 | 配置能力不是 provider 发现
+- `authenticated_request(...)`: 平台认证头、Codex 请求字段、WorkBuddy 身份与端点及云模型 `max_tokens` 输出上限、Cloudflare 路由、Antigravity 信封变换 | 无网络 I/O | 协议参考 github.com/4fuu/uri-agent（MIT），凭据只进入请求
+- `GoogleGenerativeAIClient.stream(...)`: Google 原生文本、图片、函数调用、推理和用量映射；按工具历史关联函数响应 | 网络 I/O | 非 STOP 终止失败，未返回 usage 时保持未知
+- `PiMessagesClient.stream(...)`: pi context/options、toolResult 关联及有界内容块事件转换 | 网络 I/O | 工具未结束、块类型冲突或重复结束失败

@@ -24,5 +24,5 @@
 - `VerificationPlanner`: 基于 ChangeSet、RiskTier 与同代 UnifiedSemanticGraph 规划三阶段渐进验证（In-Flight L0 语法截瘫、Local Milestone 影响域单测、Final Gate 全量门禁） | 无外部副作用 | 计划携带 semantic generation，结合反向依赖图排除无关测试，并提供审查范围与重构拓扑排序
 - `PlannerVerificationAdapter`: 把计划转换成受限结构化请求或 L0/免测试结果 | 只读取语法目标 | 不接收 shell/argv，不执行验证进程
 - `PlannedCallRegistry`: 将 Host 生成的不可伪造 call id 绑定 phase/risk/step 和 completion criterion | 维护进程内一次性映射 | 模型自选 targeted test 只能产生 integrity evidence，不能直接满足完成条件
-- `validation_contract(...)`、`planner_attestation_allowed(...)`、`record_planner_attestation(...)`、`verifier_outcome(...)`: 建立风险适配完成条件、明确文档路径的低风险规划证明与标准结果 | 追加 evidence ledger | 模糊 `.txt`、未修改任务和可执行文件不能免测，高/关键风险仍必须运行 verifier
+- `validation_contract(...)`、`planner_attestation_allowed(...)`、`record_planner_attestation(...)`、`verifier_outcome(...)`: 建立风险适配完成条件、明确文档路径的低风险规划证明与标准结果 | 追加 evidence ledger | 没有工作区文件变化时不调度项目验证，由 Core 区分只读完成与修改未实现；模糊 `.txt` 和实际可执行文件改动不能免测，高/关键风险仍必须运行 verifier
 - `LedgerTaskVerificationService`: 支持 Logical Change 验证事务（解耦单个 Tool Call 与 Generation 递增，批次提交时单调递增一次）并结合 guarded subject snapshot 和 evidence ledger | 事务内多编辑共享 generation、逐写 L0 fail-fast、提交时产生 milestone 计划；完成仍由 sessions 原子复核 | 该事务管理 generation/evidence，不宣称回滚已写文件；文件恢复属于 Workspace edit batch

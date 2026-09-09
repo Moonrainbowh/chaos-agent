@@ -22,6 +22,8 @@ class _InputRecord(ctypes.Structure):
 
 
 def read_character(console: object) -> str:
+    if callable(getattr(console, "read_key_character", None)):
+        return console.read_key_character()
     if os.name == "nt" and getattr(console, "__name__", "") == "msvcrt":
         # Wait before peeking: getwch would otherwise consume the event that
         # arrives later, losing its modifier flags in Windows Terminal/ConPTY.
@@ -68,6 +70,8 @@ def _shortcut_prefix(records: list[_InputRecord]) -> tuple[int, str]:
             continue
         if key.virtual_key in {0x10, 0x11, 0x12}:  # Bare Shift, Ctrl, Alt.
             continue
+        if key.character == "\x03" or (key.virtual_key == 0x43 and key.modifiers & 12 and not key.modifiers & 3):
+            return index + 1, "\x03"
         if key.virtual_key == 0x56 and key.modifiers & 3 and not key.modifiers & 12:
             return index + 1, "alt+v"
         if key.virtual_key == 0x0D:
