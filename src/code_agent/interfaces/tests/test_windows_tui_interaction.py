@@ -94,13 +94,23 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_running_icon_changes_but_completion_icon_is_static(self) -> None:
         app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker(), write=lambda _: None)
-        app.state.begin_run(); first = status_presentation(app.state.status, app.state.execution_summary, app.state.active_action, app.catalog.language, app.theme, app._spinner_index)
-        app._spinner_index = 1; second = status_presentation(app.state.status, app.state.execution_summary, app.state.active_action, app.catalog.language, app.theme, app._spinner_index)
-        app.state.status = "completed"; app.state.execution_summary = "1 action finished"
-
-        self.assertNotEqual(first[1], second[1])
-        completed = status_presentation(app.state.status, app.state.execution_summary, app.state.active_action, app.catalog.language, app.theme, app._spinner_index)
-        self.assertEqual(completed[1], "✓")
+        app.state.begin_run()
+        icons = {
+            status_presentation(app.state.status, app.state.execution_summary,
+                                app.state.active_action, app.catalog.language,
+                                app.theme, tick)[1]
+            for tick in range(8)
+        }
+        self.assertGreater(len(icons), 1)
+        app.state.status = "completed"
+        app.state.execution_summary = "1 action finished"
+        completed_icons = {
+            status_presentation(app.state.status, app.state.execution_summary,
+                                app.state.active_action, app.catalog.language,
+                                app.theme, tick)[1]
+            for tick in range(8)
+        }
+        self.assertEqual(completed_icons, {"✓"})
 
     async def test_arrow_keys_and_ctrl_u_edit_instead_of_printing_escape_bytes(self) -> None:
         app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker(), write=lambda _: None)
