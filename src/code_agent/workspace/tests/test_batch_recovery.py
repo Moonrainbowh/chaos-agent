@@ -31,6 +31,7 @@ class BatchRecoveryTests(WorkspaceEditorTestCase):
         recovery = _batch_recovery.recovery_operations_from_prepared(prepared)
         return plan, snapshot, recovery
 
+    @unittest.skipUnless(os.name == "nt", "Windows exact batch move semantics")
     def test_snapshot_contains_every_unique_preimage(self) -> None:
         (self.root / "update.txt").write_bytes(b"update-before")
         (self.root / "delete.txt").write_bytes(b"delete-before")
@@ -65,6 +66,7 @@ class BatchRecoveryTests(WorkspaceEditorTestCase):
         )
         self.assertTrue(recovery[0].case_only)
 
+    @unittest.skipUnless(os.name == "nt", "Windows exact batch move semantics")
     def test_recovery_needs_only_transitions_and_snapshot(self) -> None:
         first = self.root / "first.txt"
         deleted = self.root / "deleted.txt"
@@ -110,6 +112,7 @@ class BatchRecoveryTests(WorkspaceEditorTestCase):
         self.assertEqual(second.read_bytes(), b"user-foreign")
         self.assertEqual(result.rolled_back_operations, ())
 
+    @unittest.skipUnless(os.name == "nt", "Windows exact batch move semantics")
     def test_corrupt_move_preimage_causes_zero_recovery_writes(self) -> None:
         source = self.root / "source.txt"
         destination = self.root / "destination.txt"
@@ -133,6 +136,7 @@ class BatchRecoveryTests(WorkspaceEditorTestCase):
         self.assertFalse(source.exists())
         self.assertEqual(destination.read_bytes(), b"source-before")
 
+    @unittest.skipUnless(os.name == "nt", "Windows exact batch move semantics")
     def test_overlapping_recovery_journal_is_rejected_before_writes(self) -> None:
         source = self.root / "source.txt"
         destination = self.root / "destination.txt"
