@@ -2,6 +2,8 @@
 组合各 Feature 成为 Windows TUI、CLI 和 JSON 模式共用的可运行代理。
 
 ## 边界
+- 负责：CSV continuity 评测的独立进程宿主，组合生产 AgentEngine、PersistentContextBuilder、SQLite History/Notes 和受限 Workspace 工具；D 组退出并重启相同持久 thread，保留真实回执与版本验证。离线 scripted model 仅用于接线测试，不计 API 成绩；不等同完整 TUI 前台 TaskRecord 生命周期验收。
+- 负责：显式选择 v2 时通过宿主 RPC 设置诊断/修复阶段，记录越界尝试；保存阶段快照、最终正确性、挑战覆盖及笔记生命周期，语义审阅未完成不得声称整链覆盖。v1 默认事件与预算保持不变。
 - 负责：创建共享依赖、调度 typed tools、把策略审批结果传递给文件和运行时 Feature。
 - 负责：声明 Windows/PowerShell 执行契约，按工作区能力注册 Git 工具，并把方言不匹配、非零退出码和已知 Git 故障转换为可修复的结构化 tool result。
 - 负责：在基础 Provider 提示中声明克制的 Markdown 可读性约定，要求结果前置、短层级和有意义的重点标粗，不以装饰性格式虚构重要性。
@@ -12,13 +14,15 @@
 - 不负责：为 Repo Map、bug 定位或 dead-code 分析另建扫描缓存，也不因展示分析结果执行文件修改或验证命令。
 
 ## Units
+- `continuity_runtime`、`continuity_dispatcher`：组合 AgentEngine、persistent context、SQLite History/Notes 与受限文件工具、真实公开 verifier | 工作区/会话/Provider I/O | 20 轮与 100 工具调用累计限制；阶段仅在完整工具组落盘后结束；不修改生产记忆策略
+- `continuity_worker`、`continuity_process`、`continuity_run`：有界控制器 RPC、真实进程退出重启、独立最终评分与失败用量回收 | 进程/SQLite/报告 I/O | 固定模型/profile/effort；模型输出不是宿主回执；unknown usage 保留预留；offline 模式的模型输出和 usage 均为脚本值
 - `AuthenticationRuntimeControl`：TUI 隐藏输入登录、缓存已登录模型选项、显式内存 profile 注册与凭据槽影响检查；保存开始后等待原子提交结果，目录刷新失败不伪报登录失败；WorkBuddy 无离线种子时仍提供可选择的账号模型加载入口，显式异步发现按认证类型缓存，重登清除该槽缓存，失败保留登录；已保存登录 profile 可在恢复 task 时从同名平台/认证类型槽及模型目录重建，不写配置默认值。
 - `auth_cli.run_auth()`、`auth_profile_setup.configure()`：在模型/工作区初始化前提供平台登录、隐藏 API Key 输入、状态、退出、目录刷新与配置追加；profile 选择明确认证类型，配置写入前通过实际 ProviderConfig 校验；不自动替换旧 profile/default，不因目录刷新触发推理。
 - `bootstrap.main()`：重依赖导入前启动 Interfaces 临时全屏左到右扫描，初始化完成或失败恢复原屏幕；CLI 延迟加载 Application 与 ACP 适配器 | 终端输出 | 仅交互 TUI 使用，help/JSON/ACP/管道无动画；旧 CLI 启动器兼容同一动效。
 - `TaskScopedVerificationService.suggest_verification(...)`：仅对修改任务或实际变更刷新共享语义图；纯问答收尾直接委托验证服务的非修改路径 | 只读/调度 | 不改动修改任务的证据门，不把未执行的验证标记为通过。
 - `ModeAwareWindowsTerminalApp`：从 Interfaces 获取唯一 Muted Slate 主题，委托紧凑启动摘要、双层输入区渲染与动效；完整能力仍通过 `:status` 访问 | 终端输出 | 不修改持久配置或接管 Windows Terminal 设置。
-- `build_managed_context`：按冻结 profile 组合 summary/boundary 或 persistent 的上下文、工具和统一预算 client | Sessions/Provider I/O | persistent 不构造 HandoffWriter；模式只投影实际已注册工具，缺省路径不变
-- `tool_definitions(include_git, powershell): tuple[ToolDefinition, ...]`: 声明严格且递归校验的契约 loader、工具 schema、generation-aware `read_code_slices`、不可变 edit-plan 契约、冻结 PowerShell 方言和 versioned `run_process_v1`，并按仓库能力省略 Git 工具 | 无副作用 | batch slice 为 1–16 个 target，提示合并当前已知目标但允许新信息后的后续批次；structured process 不接受 shell/env/stdin；文件 auto 不猜 legacy code page
+- `build_managed_context(..., memory_project_id=..., memory_user_scope_id=..., allow_user_memory=...)`：按冻结 profile 组合 summary/boundary 或 persistent 的上下文、工具和统一预算 client，并在宿主提供可信身份时接入受限记忆投影 | Sessions/Provider I/O | persistent 不构造 HandoffWriter；记忆作用域默认关闭，不能由 builder 从目录名猜测；模式只投影实际已注册工具，缺省路径不变
+- `tool_definitions(include_git, powershell, include_web): tuple[ToolDefinition, ...]`: 声明严格且递归校验的契约 loader、tool schema、generation-aware `read_code_slices`、不可变 edit-plan 契约、冻结 PowerShell 方言和 versioned `run_process_v1`，并按显式注入的 Git/Web 能力省略对应工具 | 无副作用 | batch slice 为 1–16 个 target，提示合并当前已知目标但允许新信息后的后续批次；structured process 不接受 shell/env/stdin；文件 auto 不猜 legacy code page
 - `windows_system_prompt(...)`：组合冻结的 PowerShell/Git 能力与用户正文的 Markdown 可读性约定 | 无副作用 | 强调仅服务于决策、风险、结果和下一步，不要求逐句装饰
 - `RootActionDispatcher`: 在执行前验证 typed schema、评估策略并请求交互审批，再调用文件、编辑、Git 或命令 Unit；`read_code_slices` 先校验当前 RepoIndex generation/snapshot signatures，再委托 Workspace 前后复核 | 产生如实标记成功/失败且保留有界诊断的 tool result | batch 任一 stale 返回 `stale_repo_context` 且不含部分源码；只有已通过策略的外部路径可抵达 workspace Unit
 - `run_powershell_action(...)`、`run_process_action(...)`: 分别把冻结方言、默认 Stop 且保留 native 原始字节的脚本和 shell-free `program + args` 映射为 `CommandSpec` | 启动本地进程并失效工作区缓存 | structured process 拒绝 shell launcher、`.cmd/.bat`、NUL 与超限 Windows command line；stdout/stderr 独立严格解码并逐流报告截断，无法解码时返回完整 Base64/code page；legacy script 映射仅供旧 Runtime 兼容
@@ -59,3 +63,7 @@
 - `PeerRuntime`、`PeerDeliveryBuffer`、`PeerContextBuilder`: 仅随 Windows TUI 注册本机实例，续租并投递 queued 消息、提示 held 消息，把 PEER 正文以有界不可信 JSON 注入主上下文 | SQLite/模型回合/TUI 元数据 | task-owned thread 不后台恢复；taskless peer 回合只开放 list/send；失败指数退避，runtime 切换与 peer wake 共用 activity lock
 
 - BoundSkillContextBuilder / PeerContextBuilder 追加系统文本后仅刷新本地 `prompt_estimated_tokens`，不改变 Skills、peer、历史检索或 Harness 执行流程。
+
+- `search_text` 暴露 `root`、`include_globs`、`max_results` 并委托 Workspace 限域搜索；超时仍返回 matches，但 `complete=false` / `incomplete_reason=timeout`，结果上限标记 `result_limit`。部分结果不能作为完整的无命中结论。系统提示要求预留修复验证预算并检查附近既有行为。
+
+- Git 工作区的 `search_text` 与列表工具复用 `GitWorkspace.snapshot_paths`（tracked 与非 ignored untracked），将其作为 Host 所有的 inventory 回调注入 Workspace，遵守子目录 `.gitignore`；Git 枚举计入搜索总 deadline，失败不回退为全盘遍历。
