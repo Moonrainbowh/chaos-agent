@@ -11,6 +11,12 @@ from .models import Scenario, ScenarioResult
 from .observation import HarnessObservation
 from .report import EvaluationMetrics, render_markdown_report
 from .runner import ScenarioExecutor, ScenarioRunner
+from .experience_metrics import (
+    ExperienceEvaluationMetrics,
+    ExperienceTaskRecord,
+    FailureSource,
+    render_experience_metrics,
+)
 
 
 @dataclass(frozen=True)
@@ -44,11 +50,19 @@ class ReplayBenchmarkResult:
     def metrics(self) -> EvaluationMetrics:
         return EvaluationMetrics.from_records(self.records)
 
+    @property
+    def experience_metrics(self) -> ExperienceEvaluationMetrics:
+        """Project trusted benchmark records into real-task UX metrics."""
+        return ExperienceEvaluationMetrics.from_records(
+            tuple(_experience_record(record) for record in self.records)
+        )
+
     def to_json(self) -> str:
         return json.dumps(
             {
                 "corpus_fingerprint": self.corpus_fingerprint,
                 "metrics": json.loads(self.metrics.to_json()),
+                "experience_metrics": self.experience_metrics.to_dict(),
                 "scenarios": [_record_json(record) for record in self.records],
             },
             sort_keys=True,
@@ -59,6 +73,8 @@ class ReplayBenchmarkResult:
         infrastructure = sum(bool(record.observation.infrastructure_failures) for record in self.records)
         lines = [
             render_markdown_report(self.metrics),
+            "",
+            render_experience_metrics(self.experience_metrics),
             "",
             f"- Corpus fingerprint: `{self.corpus_fingerprint}`",
             f"- Infrastructure failures: {infrastructure}",
@@ -124,6 +140,37 @@ def _record_json(record: BenchmarkRecord) -> dict[str, object]:
         "termination_confirmed": observation.termination_confirmed,
         "infrastructure_failures": list(observation.infrastructure_failures),
     }
+
+
+def _experience_record(record: BenchmarkRecord) -> ExperienceTaskRecord:
+    """Derive only facts available from the sealed runner observation."""
+    observation = record.observation
+    result = record.result
+    verified = bool(record.grade.passed and not observation.infrastructure_failures)
+    expected_status = record.scenario.expected.task_status
+    completed = result.task_status in {"completed", "accepted_partial"} or result.task_status == expected_status
+    false_completion = bool(completed and not verified)
+    if observation.infrastructure_failures:
+        source = FailureSource.INFRASTRUCTURE
+    elif any("provider" in item.casefold() for item in record.grade.failures):
+        source = FailureSource.PROVIDER
+    elif not verified:
+        source = FailureSource.AGENT
+    else:
+        source = FailureSource.NONE
+    return ExperienceTaskRecord(
+        task_id=record.scenario.identifier,
+        category=record.scenario.category,
+        completed=completed,
+        verified=verified,
+        false_completion=false_completion,
+        elapsed_seconds=max(0, round(observation.elapsed_seconds)),
+        model_tokens=observation.trace.model_tokens,
+        tool_calls=result.tool_calls,
+        user_interventions=observation.trace.user_interventions or 0,
+        retries=observation.trace.retries or 0,
+        failure_source=source,
+    )
 
 
 def _verifier_json(item: object) -> dict[str, object]:

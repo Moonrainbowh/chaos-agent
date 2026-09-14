@@ -16,6 +16,9 @@ class TrustedExecutionTrace:
     evidence_generation: int | None = None
     lifecycle_events: tuple[LifecycleEvent, ...] = ()
     sealed: bool = False
+    user_interventions: int | None = None
+    retries: int | None = None
+    model_tokens: int | None = None
 
 
 class TrustedTraceRecorder:
@@ -29,6 +32,9 @@ class TrustedTraceRecorder:
         self._generation: int | None = None
         self._lifecycle: list[LifecycleEvent] = []
         self._sealed = False
+        self._interventions: int | None = None
+        self._retries: int | None = None
+        self._model_tokens: int | None = None
 
     def record_status(self, status: str) -> None:
         self._ensure_open()
@@ -60,6 +66,21 @@ class TrustedTraceRecorder:
             raise ValueError("trusted evidence generation must be non-negative")
         self._generation = generation
 
+    def record_user_interventions(self, count: int) -> None:
+        self._ensure_open()
+        _non_negative(count, "user interventions")
+        self._interventions = count
+
+    def record_retries(self, count: int) -> None:
+        self._ensure_open()
+        _non_negative(count, "retries")
+        self._retries = count
+
+    def record_model_tokens(self, count: int) -> None:
+        self._ensure_open()
+        _non_negative(count, "model tokens")
+        self._model_tokens = count
+
     def record_lifecycle(self, event: LifecycleEvent) -> None:
         self._ensure_open()
         if not isinstance(event, LifecycleEvent):
@@ -81,8 +102,16 @@ class TrustedTraceRecorder:
             self._generation,
             tuple(self._lifecycle),
             self._sealed,
+            self._interventions,
+            self._retries,
+            self._model_tokens,
         )
 
     def _ensure_open(self) -> None:
         if self._sealed:
             raise RuntimeError("trusted trace is sealed")
+
+
+def _non_negative(value: int, label: str) -> None:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f"{label} must be non-negative")
