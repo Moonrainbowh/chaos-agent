@@ -16,6 +16,7 @@
 
 ## Units
 - `PersistentContextBuilder`: 剩余额度提示、主动/硬容量换窗及恢复引用 | Sessions I/O | 不调用 HandoffWriter、不注入整份笔记，完整工具组落盘后才切换
+- `PersistentContextBuilder` optional memory projection: when host supplies an explicit project identity, injects at most four active lexical memory references into the counted system prompt; user scope requires explicit opt-in | Sessions I/O | memory text is reference-only and never overrides current user instructions or permissions
 - `PersistentToolService`、`history_action`、`notes_action`: 稳定窗口/条目定位、含工具参数的原文检索、按路径笔记及有界分页 | Sessions I/O | 当前任务隔离；工具名用下划线适配现有 API，原文保持不变
 - `WindowPolicy`、`ApiContextLimits`: 明确容量来源、软阈值和独立任务上限 | 无副作用 | 输出预留按实际 client 配置
 - `PromptTokenCounter`: 对最终系统提示、消息、工具协议统一估算 | 可选 tokenizer | provider usage 为实测；未校准模态拒绝

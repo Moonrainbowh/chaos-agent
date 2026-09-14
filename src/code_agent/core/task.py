@@ -34,8 +34,8 @@ _ALLOWED = {
     TaskStatus.CREATED: {TaskStatus.RUNNING, TaskStatus.PAUSED, TaskStatus.FAILED, TaskStatus.INTERRUPTED},
     TaskStatus.RUNNING: {TaskStatus.VERIFYING, TaskStatus.PAUSED, TaskStatus.WAITING_DECISION, TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.INTERRUPTED, TaskStatus.SUPERSEDED},
     TaskStatus.VERIFYING: {TaskStatus.RUNNING, TaskStatus.PAUSED, TaskStatus.WAITING_DECISION, TaskStatus.ACCEPTED_PARTIAL, TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.INTERRUPTED, TaskStatus.SUPERSEDED},
-    TaskStatus.PAUSED: {TaskStatus.RUNNING, TaskStatus.SUPERSEDED},
-    TaskStatus.INTERRUPTED: {TaskStatus.RUNNING, TaskStatus.SUPERSEDED},
+    TaskStatus.PAUSED: {TaskStatus.RUNNING, TaskStatus.WAITING_DECISION, TaskStatus.SUPERSEDED},
+    TaskStatus.INTERRUPTED: {TaskStatus.RUNNING, TaskStatus.WAITING_DECISION, TaskStatus.SUPERSEDED},
     TaskStatus.WAITING_DECISION: {TaskStatus.RUNNING, TaskStatus.ACCEPTED_PARTIAL, TaskStatus.FAILED, TaskStatus.SUPERSEDED},
 }
 

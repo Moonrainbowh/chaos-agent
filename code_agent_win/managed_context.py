@@ -12,7 +12,16 @@ from code_agent.context_windows.persistent_tools import PersistentToolService
 from code_agent_win.runtime_extensions import BoundSkillContextBuilder
 
 
-def build_managed_context(config, rules, repo_map, skills, sessions, binding, client, profile):
+def build_managed_context(config, rules, repo_map, skills, sessions, binding, client, profile, *,
+                          memory_project_id=None, memory_user_scope_id=None,
+                          allow_user_memory=False):
+    """Compose managed context; memory scope must be supplied by the host.
+
+    Keeping the identity explicit prevents a context builder from guessing a
+    project from a directory name or accidentally enabling cross-project user
+    memory.  Existing callers remain unchanged and therefore receive no
+    memory projection until the host opts in with a verified identity.
+    """
     policy = profile.context_policy
     limits = ApiContextLimits(profile.context_window, profile.max_output_tokens, profile.api_input_tokens)
     counter = configured_counter(profile.provider.model)
@@ -20,7 +29,12 @@ def build_managed_context(config, rules, repo_map, skills, sessions, binding, cl
     workspace = WorkspaceContextBuilder(config, rules, repo_map, DeterministicCompactor(config))
     scaffold = BoundSkillContextBuilder(workspace, binding, skills)
     if policy.strategy == "persistent":
-        result = PersistentContextBuilder(scaffold, sessions, policy, limits, counter, None)
+        result = PersistentContextBuilder(
+            scaffold, sessions, policy, limits, counter, None,
+            memory_project_id=memory_project_id,
+            memory_user_scope_id=memory_user_scope_id,
+            allow_user_memory=allow_user_memory,
+        )
         result.context_actions = PersistentToolService(sessions, binding.current, result)
     else:
         result = WindowContextBuilder(scaffold, sessions, policy, limits, counter,

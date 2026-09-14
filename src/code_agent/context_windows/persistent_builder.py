@@ -26,8 +26,12 @@ GUIDANCE = (
 
 class PersistentContextBuilder(WindowContextBuilder):
     def __init__(self, *args, **kwargs):
+        self.memory_project_id = kwargs.pop("memory_project_id", None)
+        self.memory_user_scope_id = kwargs.pop("memory_user_scope_id", None)
+        self.allow_user_memory = kwargs.pop("allow_user_memory", False)
         super().__init__(*args, **kwargs)
         self.remaining_by_thread = {}
+        self._memory_context = ()
 
     async def build(self, request):
         request.cancellation.raise_if_cancelled()
@@ -36,6 +40,7 @@ class PersistentContextBuilder(WindowContextBuilder):
             raise ValueError("managed context requires durable messages")
         users = tuple(r.message for r in records if r.message.role == "user")
         scaffold = await self._inner.build(replace(request, messages=users[-1:], user_input=""))
+        self._memory_context = await self._load_memory_context(request.user_input or users[-1].content, request.task_facts)
         windows = await self.sessions.context_records(request.thread_id, "window")
         for prior in windows:
             if prior["strategy"] != "persistent":
@@ -76,6 +81,8 @@ class PersistentContextBuilder(WindowContextBuilder):
         system = scaffold.system_prompt + GUIDANCE + (
             f"\nCurrent window: {current}; previous window: {previous}. "
             f"First window: {first_window_id(request.thread_id)}.")
+        if self._memory_context:
+            system += "\nProject memory (reference only; verify against current code and user instructions):\n" + "\n".join(f"- {item}" for item in self._memory_context)
         if windows and windows[-1].get("reason") == "capacity_fallback":
             system += "\nCapacity forced a reset; do not assume a fresh checkpoint exists. Recover from history."
         cap = self.limits.input_cap(self.policy)
@@ -96,6 +103,16 @@ class PersistentContextBuilder(WindowContextBuilder):
             "prompt_tokens": tokens, "window_input_cap": cap,
             "window_number": len(windows), "context_tokens_remaining": remaining,
             "window_preparing": int(tokens >= int(cap * self.policy.prepare_ratio))})
+
+    async def _load_memory_context(self, query, task_facts):
+        if not self.memory_project_id or not isinstance(query, str) or not query.strip():
+            return ()
+        search = getattr(self.sessions, "search_memories", None)
+        if not callable(search):
+            return ()
+        records = await search(self.memory_project_id, query[:512], user_scope_id=self.memory_user_scope_id, allow_user_scope=self.allow_user_memory, limit=4)
+        from code_agent.sessions._memory import assess_memory_applicability
+        return tuple("[" + assess_memory_applicability(record, task_facts) + "] " + " ".join(record.content.split())[:390] for record in records)
 
     async def _reset(self, request, records, active, windows, requests, scaffold, reason):
         _, closed = closed_group_ends(active)

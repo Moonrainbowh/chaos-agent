@@ -64,6 +64,7 @@ class ContextRequest:
     timeout_seconds: float | None = None
     budget_lease: Mapping[str, JSONValue] = field(default_factory=dict)
     attachments: tuple[AttachmentRef, ...] = field(default_factory=tuple)
+    task_facts: Mapping[str, JSONValue] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not isinstance(self.thread_id, str):
@@ -93,6 +94,12 @@ class ContextRequest:
             object.__setattr__(self, name, freeze_mapping(getattr(self, name), name))
         object.__setattr__(self, "budget_lease", _freeze_budget_lease(self.budget_lease))
         object.__setattr__(self, "attachments", freeze_attachments(self.attachments))
+        object.__setattr__(self, "task_facts", freeze_mapping(self.task_facts, "task_facts"))
+        for key, value in self.task_facts.items():
+            if not isinstance(key, str) or not key.strip():
+                raise ValueError("task_facts keys must be non-blank text")
+            if isinstance(value, (dict, list)):
+                raise ValueError("task_facts values must be scalar JSON facts")
 
     def _validate_limits(self) -> None:
         if self.context_pressure is not None:

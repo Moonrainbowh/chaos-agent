@@ -13,6 +13,7 @@ from code_agent.context_windows.persistent_builder import PersistentContextBuild
 from code_agent.context_windows.persistent_tools import PersistentToolService
 from code_agent.context_windows.policy import ApiContextLimits, WindowPolicy
 from code_agent.sessions.repository import SQLiteSessionRepository
+from code_agent.sessions.models import MemoryLifecycle
 
 
 class Prefix:
@@ -58,6 +59,27 @@ class PersistentTests(unittest.IsolatedAsyncioTestCase):
             await self.repo.append_message(self.thread, Message("tool", str(result.output), tool_call_id=key))
         self.assertFalse(result.is_error, str(result.output))
         return result.output
+
+    async def test_confirmed_project_memory_is_optional_and_reference_only(self):
+        await self.repo.create_memory(
+            "project", "repo-alpha", "decision", "Keep the API contract",
+            lifecycle=MemoryLifecycle.ACTIVE,
+        )
+        builder = PersistentContextBuilder(
+            Prefix(), self.repo, self.policy, ApiContextLimits(20000, 1000),
+            PromptTokenCounter(), NoSummary(), memory_project_id="repo-alpha",
+        )
+        request = ContextRequest(self.thread, 1, (), "", (), TaskState(), CancellationToken())
+        bundle = await builder.build(request)
+        self.assertIn("Project memory (reference only", bundle.system_prompt)
+        self.assertIn("Keep the API contract", bundle.system_prompt)
+
+    async def test_memory_applicability_uses_host_task_facts(self):
+        await self.repo.create_memory("project", "repo-alpha", "constraint", "main branch only", lifecycle=MemoryLifecycle.ACTIVE, conditions={"branch": "main"})
+        builder = PersistentContextBuilder(Prefix(), self.repo, self.policy, ApiContextLimits(20000, 1000), PromptTokenCounter(), NoSummary(), memory_project_id="repo-alpha")
+        request = ContextRequest(self.thread, 1, (), "main branch", (), TaskState(), CancellationToken(), task_facts={"branch": "main"})
+        bundle = await builder.build(request)
+        self.assertIn("[applicable] main branch only", bundle.system_prompt)
 
     async def test_three_windows_restart_and_exact_tool_history(self):
         await self.tool("notes_write_file", {"path": "state.md", "text": "private checkpoint"})

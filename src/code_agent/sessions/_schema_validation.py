@@ -71,4 +71,6 @@ REQUIRED_COLUMNS = {
         "content_sha256", "status", "claim_token", "claimed_at",
         "claim_expires_at", "created_at", "updated_at", "expires_at",
     },
+    "memories": {"memory_id", "revision", "scope_type", "scope_id", "kind", "content", "source_refs", "origin", "conditions", "lifecycle", "supersedes", "derived_from", "created_at", "updated_at", "idempotency_key"},
+    "memory_forget": {"scope_type", "scope_id", "content_sha256", "deleted_at"},
 }

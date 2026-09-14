@@ -44,7 +44,8 @@
 - `decide_verification_transition(...)`: 将 assessment 与 verifier outcome 映射为 `VERIFYING`、修复、等待或完成 | 无副作用 | 所有状态先持久化再由集成层发布
 - `AttachmentRef`: 表达不含路径/blob/base64 的内容摘要、类型、大小、显示名和可选图片尺寸 | 无副作用 | 摘要、MIME、容量和显示名在构造时校验
 - `Message`、`ToolCall`: 表达对话内容、用户附件引用与模型工具调用 | 无副作用 | 输入在构造时校验并冻结；附件仅允许 user role
-- `ContextRequest`: 以不可变快照携带单次上下文构建的 thread、revision、输入、附件、控制与纯数值预算 | 无副作用 | JSON 快照深复制并冻结
+- `ContextRequest`: 以不可变快照携带单次上下文构建的 thread、revision、输入、附件、宿主核对 task_facts、控制与纯数值预算 | 无副作用 | task_facts 仅允许标量 JSON 事实并冻结，不能由历史正文提供
+- `AgentEngine._build_turn_context`: 将宿主已冻结的 mode/permission 快照作为 task_facts 传给上下文构建器 | 无副作用 | 仅传递已存在的标量事实，不从消息内容推断
 - `ActionRequest`、`ActionResult`、`ToolDefinition`: 定义动作请求、结果与工具元数据 | 无副作用 | 仅承载 JSON 兼容数据
 - `ActionLineage`: 冻结父动作传给 child engine 的 owner、task 与 parent request | 无副作用 | 不携带 child 自身 origin/request
 - `ActionExecutionContext`: 冻结单次实际 dispatcher 调用的 owner/origin/task/request/parent request | 无副作用 | 所有存在的标识均为有界非空文本
@@ -55,6 +56,7 @@
 - `ContextBuilder.build(request: ContextRequest)`: 以 Host 注入的不可变请求快照构建当前回合上下文 | 具体副作用由实现负责 | 不从消息文本猜测身份；内部异常不得触发重复调用
 - `CommandFact`、`TaskState`、`TaskStateUpdate`、`reduce_task_state`: 以有界 JSON 兼容事实表达持久任务进度 | 无副作用 | 只有实际尝试且失败的 raw shell/structured process 才记录失败事实；策略或预检拒绝不伪装成执行失败
 - `ActionDispatcher`: 暴露工具并接收可取消动作、可选任务授权和 keyword-only execution context | 具体副作用由实现负责 | unavailable/dispatch 前暂停不产生执行上下文
+- `AgentEngine._dispatch`: 单步动作执行与结果落地 | 调用 dispatcher、发布 `MESSAGE_ADDED` | 取消仅在动作、其结果与工具消息均已持久后生效（`token.raise_if_cancelled()` 置于结果记录之后），使运行在下一步停止而非丢弃该结果；已开始的写操作无论取消与否都必须先落可恢复记录
 - `SessionRepository`: 异步创建线程并持久化消息与事件 | 具体副作用由实现负责
 - `EngineLimits`: 冻结模型回合、工具调用、token 与输出字符预算 | 无副作用 | 越界前先阻止新的外部工具动作
 - `TaskBudget`: 表达可恢复任务的模型名、限制和已消耗额度 | 无副作用 | 只允许单调增加的使用量
