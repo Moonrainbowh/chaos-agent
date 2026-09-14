@@ -13,6 +13,7 @@ from code_agent.sessions.rewind_repository import RewindSessionRepository
 from code_agent.workspace.edits import BatchApplyStatus, WorkspaceEditor
 from code_agent.workspace.snapshot_store import WorkspaceSnapshotStore
 from code_agent_win.rewind_capture import RewindCaptureCoordinator
+from code_agent_win.rewind_edit_batch import _persist_post_identities
 from code_agent_win.rewind_edit_batch_models import prepare_request
 from code_agent_win.rewind_gate import WorkspaceMutationGate
 from code_agent_win.workspace_mutation_pool import WorkspaceMutationPool
@@ -65,6 +66,11 @@ class StartupRecoveryFastPathTests(unittest.IsolatedAsyncioTestCase):
         ))
         await self.sessions.transition_edit_batch(record.mutation.mutation_id, EditBatchState.APPLYING)
         editor.apply_batch(plan)
+        # Simulate a crash after apply but *after* the ownership proof was
+        # written, which is the only window in which recovery may roll a batch
+        # back. A crash before that point leaves no proof and recovery refuses
+        # every POST path; that branch is covered separately.
+        await _persist_post_identities(capture, prepared, record)
         return record
 
     async def test_empty_history_builds_no_services_or_mutation_bundles(self):

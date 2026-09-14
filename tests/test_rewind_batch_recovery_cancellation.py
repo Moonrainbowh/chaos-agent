@@ -15,6 +15,7 @@ from code_agent.workspace.edits import WorkspaceEditor
 from code_agent.workspace.paths import WorkspacePathGuard
 from code_agent.workspace.snapshot_store import WorkspaceSnapshotStore
 from code_agent_win.rewind_capture import RewindCaptureCoordinator
+from code_agent_win.rewind_edit_batch import _persist_post_identities
 from code_agent_win.rewind_edit_batch_models import prepare_request
 
 
@@ -66,6 +67,10 @@ class RewindBatchRecoveryCancellationTests(unittest.IsolatedAsyncioTestCase):
                 record.mutation.mutation_id, EditBatchState.APPLYING
             )
             editor.apply_batch(plan)
+            # A real interruption is observed after the apply-time ownership
+            # proof is durable; without it recovery would refuse every POST
+            # path instead of rolling the batch back.
+            await _persist_post_identities(capture, prepared, record)
             started = threading.Event()
             finish = threading.Event()
             real_recover = editor.recover_batch

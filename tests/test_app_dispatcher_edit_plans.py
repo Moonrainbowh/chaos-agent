@@ -265,6 +265,82 @@ class EditPlanDispatcherTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(result.output["workspace_may_have_changed"], True)
         self.assertEqual(result.output["paths"], ("maybe.txt",))
 
+    async def test_cancelled_apply_still_reports_the_recovered_conflict(self) -> None:
+        class CancelledCapture:
+            workspace_fingerprint = _FINGERPRINT
+
+            def __init__(self, token: CancellationToken) -> None:
+                self.token = token
+
+            async def apply_edit_plan(self, *args):
+                self.token.cancel("user interrupted")
+                return BatchApplyResult(
+                    BatchApplyStatus.PARTIAL_CONFLICT,
+                    conflicts=(BatchConflict("raced.txt", "user file preserved"),),
+                    error="injected",
+                )
+
+        token = CancellationToken()
+        self.dispatcher.capture = CancelledCapture(token)
+        self.dispatcher.edit_plan_actions.capture = self.dispatcher.capture
+        planned = await self._dispatch(ActionRequest(
+            "plan-cancel-partial", "plan_workspace_edits_v1",
+            {"operations": [{"kind": "write", "path": "raced.txt", "content": "agent"}]},
+        ))
+        apply_request = ActionRequest(
+            "apply-cancel-partial", "apply_workspace_edit_plan_v1",
+            {"plan_id": planned.output["plan_id"], "plan_digest": planned.output["plan_digest"]},
+        )
+        result = await self.dispatcher.dispatch(
+            apply_request,
+            token,
+            execution_context=self._context(apply_request.id),
+        )
+
+        # Cancelling while the batch was recovered must not swallow the outcome:
+        # the conflict is what expires the verification evidence recorded before
+        # the cancellation.
+        self.assertTrue(result.is_error)
+        self.assertEqual(result.output["error_code"], "apply_failed_partial_conflict")
+        self.assertIs(result.output["workspace_may_have_changed"], True)
+        self.assertEqual(result.output["paths"], ("raced.txt",))
+        self.assertEqual(
+            result.output["conflicts"],
+            ({"path": "raced.txt", "reason": "user file preserved"},),
+        )
+        self.assertEqual(
+            self.store.get(planned.output["plan_id"]).status,
+            StoredPlanStatus.RECOVERY_REQUIRED,
+        )
+
+    async def test_interrupted_started_apply_reports_possible_workspace_change(self) -> None:
+        class InterruptedCapture:
+            workspace_fingerprint = _FINGERPRINT
+
+            async def apply_edit_plan(self, *args):
+                raise CancellationError("user interrupted")
+
+        self.dispatcher.capture = InterruptedCapture()
+        self.dispatcher.edit_plan_actions.capture = self.dispatcher.capture
+        planned = await self._dispatch(ActionRequest(
+            "plan-interrupted", "plan_workspace_edits_v1",
+            {"operations": [{"kind": "write", "path": "maybe.txt", "content": "agent"}]},
+        ))
+        result = await self._dispatch(ActionRequest(
+            "apply-interrupted", "apply_workspace_edit_plan_v1",
+            {"plan_id": planned.output["plan_id"], "plan_digest": planned.output["plan_digest"]},
+        ))
+
+        # An apply that could not be reconciled is never reported as clean.
+        self.assertTrue(result.is_error)
+        self.assertEqual(result.output["error_code"], "recovery_required")
+        self.assertIs(result.output["workspace_may_have_changed"], True)
+        self.assertEqual(result.output["paths"], ("maybe.txt",))
+        self.assertEqual(
+            self.store.get(planned.output["plan_id"]).status,
+            StoredPlanStatus.RECOVERY_REQUIRED,
+        )
+
     async def test_complete_rollback_reports_no_workspace_change(self) -> None:
         class RolledBackCapture:
             workspace_fingerprint = _FINGERPRINT

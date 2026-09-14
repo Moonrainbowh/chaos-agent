@@ -182,7 +182,11 @@ class WorkspaceEditPlanActions:
             self._settle_if_applying(
                 request, StoredPlanStatus.RECOVERY_REQUIRED
             )
-            raise
+            if not apply_started or stored is None:
+                # Nothing was attempted, so this is a plain interruption: the
+                # plan stays retryable and the cancellation propagates.
+                raise
+            return self._interrupted_result(request, stored)
         except asyncio.CancelledError:
             self._settle_if_applying(request, StoredPlanStatus.RECOVERY_REQUIRED)
             raise
@@ -220,6 +224,26 @@ class WorkspaceEditPlanActions:
                 cancellation,
             )
         return await asyncio.to_thread(self.editor.apply_batch, stored.plan)
+
+    def _interrupted_result(
+        self, request: ActionRequest, stored: StoredWorkspaceEditPlan
+    ) -> ActionResult:
+        """Report a cancelled apply that already started.
+
+        The capture layer reports its own outcome once it recovered the batch,
+        so reaching here means the interruption bypassed that report. An apply
+        that started but could not be reconciled cannot be proven to have left
+        the workspace untouched, and the verification ledger expires evidence on
+        exactly this signal. Erring towards invalidation costs a re-run; erring
+        the other way would leave pre-cancellation evidence looking valid.
+        """
+        failed = error_result(
+            request,
+            "edit apply interrupted",
+            "cancelled while applying",
+            error_code="recovery_required",
+        )
+        return mutation_result(failed, stored, True)
 
     def _settle_if_applying(
         self, request: ActionRequest, status: StoredPlanStatus

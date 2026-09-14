@@ -48,6 +48,14 @@ def _write(path: str = "notes.txt") -> EditBatchOperation:
     )
 
 
+def _delete(path: str = "gone.txt") -> EditBatchOperation:
+    return EditBatchOperation(
+        EditBatchOperationKind.DELETE,
+        None,
+        EditBatchPath(path, True, HASH_A, SIZE_A, False, None, 0),
+    )
+
+
 def _case_move() -> EditBatchOperation:
     return EditBatchOperation(
         EditBatchOperationKind.MOVE,
@@ -293,6 +301,93 @@ class EditBatchRepositoryTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(current.state, EditBatchState.APPLYING)
         self.assertEqual(current.mutation.status, RewindMutationStatus.PREPARED)
+
+    async def test_post_identity_is_recorded_after_apply_and_survives_reopen(
+        self,
+    ) -> None:
+        request = await self._request("identity", (_write(), _delete()))
+        prepared = await self.repository.prepare_edit_batch(request)
+        self.assertIsNone(
+            prepared.operations[0].operation.target.after_identity
+        )
+        self.assertIsNone(
+            prepared.operations[1].operation.target.after_identity
+        )
+        await self.repository.transition_edit_batch(
+            prepared.mutation.mutation_id, EditBatchState.APPLYING
+        )
+        recorded = await self.repository.record_edit_batch_post_identities(
+            prepared.mutation.mutation_id,
+            {"notes.txt": (11, 22), "gone.txt": None},
+        )
+        self.assertEqual(
+            recorded.operations[0].operation.target.after_identity, (11, 22)
+        )
+        # A deleted endpoint owns no file, so it must stay without a proof.
+        self.assertIsNone(
+            recorded.operations[1].operation.target.after_identity
+        )
+        # The proof is deliberately excluded from operation equality: otherwise
+        # replaying the original prepare request would look like drift.
+        self.assertEqual(recorded.operations[0].operation, _write())
+        reopened = RewindSessionRepository(self.database)
+        self.assertEqual(
+            await reopened.get_edit_batch(prepared.mutation.mutation_id), recorded
+        )
+        self.assertEqual(
+            await reopened.prepare_edit_batch(request), recorded
+        )
+
+    async def test_post_identity_requires_an_applying_batch(self) -> None:
+        prepared = await self.repository.prepare_edit_batch(
+            await self._request("identity-state", (_write(),))
+        )
+        with self.assertRaises(SessionStorageError):
+            await self.repository.record_edit_batch_post_identities(
+                prepared.mutation.mutation_id, {"notes.txt": (11, 22)}
+            )
+        await self.repository.settle_edit_batch(
+            prepared.mutation.mutation_id, EditBatchState.ROLLED_BACK
+        )
+        with self.assertRaises(SessionStorageError):
+            await self.repository.record_edit_batch_post_identities(
+                prepared.mutation.mutation_id, {"notes.txt": (11, 22)}
+            )
+
+    async def test_post_identity_rejects_malformed_values(self) -> None:
+        prepared = await self.repository.prepare_edit_batch(
+            await self._request("identity-invalid", (_write(),))
+        )
+        await self.repository.transition_edit_batch(
+            prepared.mutation.mutation_id, EditBatchState.APPLYING
+        )
+        mutation_id = prepared.mutation.mutation_id
+        for identities in (
+            [("notes.txt", (11, 22))],
+            {"notes.txt": (11,)},
+            {"notes.txt": (11, 22, 33)},
+            {"notes.txt": (11, "22")},
+            {"notes.txt": (-1, 22)},
+            {"notes.txt": (11, True)},
+        ):
+            with self.subTest(identities=identities), self.assertRaises(
+                (TypeError, ValueError)
+            ):
+                await self.repository.record_edit_batch_post_identities(
+                    mutation_id, identities
+                )
+
+    async def test_post_identity_ignores_unknown_paths(self) -> None:
+        prepared = await self.repository.prepare_edit_batch(
+            await self._request("identity-extra", (_write(),))
+        )
+        await self.repository.transition_edit_batch(
+            prepared.mutation.mutation_id, EditBatchState.APPLYING
+        )
+        record = await self.repository.record_edit_batch_post_identities(
+            prepared.mutation.mutation_id, {"other.txt": (11, 22)}
+        )
+        self.assertIsNone(record.operations[0].operation.target.after_identity)
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import ntpath
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 
@@ -52,6 +52,15 @@ UNRESOLVED_EDIT_BATCH_STATES = frozenset(
 
 @dataclass(frozen=True)
 class EditBatchPath:
+    """Persisted endpoint facts for one batch operation.
+
+    ``after_device`` and ``after_inode`` carry the durable ownership proof of the
+    file this operation left behind. They are excluded from equality so that the
+    identity captured after the batch was applied never invalidates the
+    idempotent replay of the original prepare request, which necessarily ran
+    before that identity existed.
+    """
+
     path: str
     before_existed: bool
     before_sha256: str | None
@@ -59,6 +68,8 @@ class EditBatchPath:
     after_existed: bool
     after_sha256: str | None
     after_size: int
+    after_device: int | None = field(default=None, compare=False)
+    after_inode: int | None = field(default=None, compare=False)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "path", canonical_path(self.path))
@@ -77,6 +88,36 @@ class EditBatchPath:
             not self.after_existed and after_size != 0
         ):
             raise ValueError("after existence, hash, and size must agree")
+        device, inode = _after_identity(self.after_device, self.after_inode)
+        if not self.after_existed and device is not None:
+            raise ValueError("a missing path cannot carry an after identity")
+        object.__setattr__(self, "after_device", device)
+        object.__setattr__(self, "after_inode", inode)
+
+    @property
+    def after_identity(self) -> tuple[int, int] | None:
+        """Return the persisted ``(device, inode)`` proof, or ``None``."""
+        if self.after_device is None or self.after_inode is None:
+            return None
+        return (self.after_device, self.after_inode)
+
+
+def _after_identity(
+    device: object, inode: object
+) -> tuple[int | None, int | None]:
+    values = []
+    for value, label in ((device, "after_device"), (inode, "after_inode")):
+        if value is None:
+            values.append(None)
+            continue
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise TypeError(f"{label} must be an integer or None")
+        if value < 0:
+            raise ValueError(f"{label} cannot be negative")
+        values.append(value)
+    if (values[0] is None) != (values[1] is None):
+        raise ValueError("after identity needs both device and inode")
+    return values[0], values[1]
 
 
 @dataclass(frozen=True)

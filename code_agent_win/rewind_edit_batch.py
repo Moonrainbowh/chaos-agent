@@ -102,6 +102,13 @@ async def apply_edit_plan(
         result = applied.value
         if not isinstance(result, BatchApplyResult):
             raise TypeError("apply_batch must return BatchApplyResult")
+        if result.status is BatchApplyStatus.APPLIED:
+            # Capture the ownership proof before honouring any cancellation. The
+            # files are on disk at this instant, and without a recorded proof
+            # recovery could not tell the agent's own output apart from a user
+            # replacement carrying identical bytes -- it would have to refuse
+            # the whole batch instead of rolling it back.
+            await _persist_post_identities(capture, prepared, record)
         if applied.cancellation is not None:
             raise applied.cancellation
         _check(cancellation)
@@ -116,11 +123,18 @@ async def apply_edit_plan(
                 add_note = getattr(primary, "add_note", None)
                 if callable(add_note):
                     add_note(f"edit batch recovery failed: {recovery_error}")
-        if (
-            recovered is not None
-            and recovered.status is BatchApplyStatus.APPLIED
-            and isinstance(primary, (CancellationError, asyncio.CancelledError))
+        if recovered is not None and isinstance(
+            primary, (CancellationError, asyncio.CancelledError)
         ):
+            # A cancelled apply must still hand its outcome to the caller. The
+            # recovered status is the only evidence of what the workspace now
+            # holds, and the verification ledger derives evidence invalidation
+            # from the recorded result: a ``PARTIAL_CONFLICT`` carries
+            # ``workspace_may_have_changed`` while a full ``ROLLED_BACK`` reports
+            # that the workspace is clean again. Raising here would drop that
+            # distinction and leave pre-cancellation evidence looking valid.
+            # The engine honours the cancelled token once the result is
+            # recorded, so the task still stops.
             return recovered
         raise
     finally:
@@ -141,6 +155,35 @@ async def recover_edit_batches(capture: object) -> tuple[BatchApplyResult, ...]:
         return tuple(results)
     finally:
         await lease.release()
+
+
+async def _persist_post_identities(
+    capture: object,
+    prepared: object,
+    record: EditBatchRecord,
+) -> None:
+    """Persist the ownership proofs of the files this batch left behind.
+
+    An atomic replace installs a new file index and a created file does not
+    exist before the write, so the value can only be observed now, after
+    ``apply_batch`` returned. Recording it before the operations are marked
+    committed keeps the journal self-sufficient: a crash at any later point can
+    still tell the agent's own output apart from a user replacement that happens
+    to carry identical bytes. A crash before this point leaves the proof
+    missing, and recovery refuses to guess instead of trusting content alone.
+
+    This write deliberately ignores cancellation. It is the difference between a
+    later recovery that rolls the batch back and one that must refuse every
+    path, so it runs to completion even while the task is being torn down.
+    """
+    identities = await value(await thread(capture.editor.post_identities, prepared))
+    captured = {
+        path: None if identity is None else (identity.device, identity.inode)
+        for path, identity in identities.items()
+    }
+    await value(await ordered(capture.sessions.record_edit_batch_post_identities(
+        record.mutation.mutation_id, captured
+    )))
 
 
 async def _persist_apply_result(

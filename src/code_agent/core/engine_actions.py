@@ -69,6 +69,12 @@ class AgentEngineActionMixin:
         added = self._journal.message_added(message)
         await self._journal.append_event(thread_id, added)
         yield added
+        # Honour a cancellation only after the action, its result, and its tool
+        # message are durable. An action that observed the cancellation still
+        # has an outcome worth recording -- a partially applied workspace must
+        # expire earlier verification evidence -- so the run stops on the next
+        # step instead of discarding that outcome.
+        token.raise_if_cancelled()
     async def _supervise_action(
         self,
         thread_id: str,

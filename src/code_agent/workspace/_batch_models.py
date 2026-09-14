@@ -5,6 +5,7 @@ from enum import Enum
 from typing import TypeAlias
 
 from ._edit_plan import EditPlan
+from ._secure_io import PathIdentity
 
 
 @dataclass(frozen=True)
@@ -106,12 +107,35 @@ class RecoveryOperationKind(str, Enum):
     MOVE = "move"
 
 
+def durable_identity(device: int, inode: int) -> PathIdentity:
+    """Rebuild a persisted ownership identity from stored values.
+
+    ``PathIdentity`` defines equality over ``device`` and ``inode`` only; the
+    remaining fields are declared ``compare=False``. A durable ownership proof
+    therefore stores just those two values and zeroes the mutation-scoped
+    metadata, which legitimately differs across a crash (size, mtime).
+    """
+    if device < 0 or inode < 0:
+        raise ValueError("durable identity values cannot be negative")
+    return PathIdentity(device, inode, 0, 0, 0, 0)
+
+
 @dataclass(frozen=True)
 class RecoveryPathState:
+    """One endpoint of a recovery transition.
+
+    ``identity`` carries the durable ownership proof for an existing path. It is
+    ``None`` for missing paths, and may also be ``None`` for states persisted
+    before the identity migration or for POST states that predate the apply-time
+    capture. Recovery treats a missing identity on an existing path as
+    unprovable and refuses to classify it rather than guessing.
+    """
+
     relative_path: str
     existed: bool
     sha256: str | None
     size: int
+    identity: PathIdentity | None = None
 
     def __post_init__(self) -> None:
         if not self.relative_path or self.size < 0:
@@ -120,6 +144,15 @@ class RecoveryPathState:
             raise ValueError("recovery existence and SHA-256 must agree")
         if not self.existed and self.size != 0:
             raise ValueError("missing recovery paths must have zero size")
+        if not self.existed and self.identity is not None:
+            raise ValueError("missing recovery paths cannot carry an identity")
+
+    @property
+    def identity_values(self) -> tuple[int, int] | None:
+        """Return ``(device, inode)`` for persistence, or ``None`` when absent."""
+        if self.identity is None:
+            return None
+        return (self.identity.device, self.identity.inode)
 
 
 @dataclass(frozen=True)

@@ -2,16 +2,19 @@ from __future__ import annotations
 
 import sqlite3
 import uuid
+from collections.abc import Mapping
 
 from ._codec import encode_datetime, utc_now
 from ._edit_batch_repository_support import (
     idempotent_batch,
     list_batches,
+    post_identity_map,
     require_settlement_ready,
 )
 from ._edit_batch_rows import load_edit_batch
 from ._edit_batch_writes import (
     insert_edit_batch,
+    record_post_identity,
     require_workspace_available,
 )
 from ._records import _text
@@ -151,6 +154,47 @@ class EditBatchRepositoryMixin:
             )
             if changed.rowcount != 1:
                 raise SessionStorageError("edit batch state moved")
+            return load_edit_batch(connection, mutation_id)
+
+        return await self._database.write(write)  # type: ignore[attr-defined]
+
+    async def record_edit_batch_post_identities(
+        self,
+        mutation_id: str,
+        identities: Mapping[str, tuple[int, int] | None],
+    ) -> EditBatchRecord:
+        """Persist the durable ownership proofs observed after apply.
+
+        The journal row is written before the batch runs, at a moment when the
+        file index of the applied file cannot be known: an atomic replace
+        installs a new file object and a created file does not exist yet. The
+        caller therefore observes the identities once the batch has been
+        applied and hands them here, before any operation is marked committed,
+        so a crash can never settle a batch whose proof is missing.
+        """
+        mutation_id = _text(mutation_id, "mutation_id")
+        recorded = post_identity_map(identities)
+
+        def write(connection: sqlite3.Connection) -> EditBatchRecord:
+            current = load_edit_batch(connection, mutation_id)
+            if current.state is not EditBatchState.APPLYING:
+                raise SessionStorageError("edit batch is not applying")
+            for item in current.operations:
+                endpoint = item.operation.target
+                if not endpoint.after_existed:
+                    continue
+                identity = recorded.get(endpoint.path)
+                if identity is None:
+                    continue
+                record_post_identity(
+                    connection, current.mutation.sequence, item.ordinal, identity
+                )
+            timestamp = encode_datetime(utc_now())
+            connection.execute(
+                "UPDATE workspace_edit_batches SET updated_at = ? "
+                "WHERE mutation_sequence = ?",
+                (timestamp, current.mutation.sequence),
+            )
             return load_edit_batch(connection, mutation_id)
 
         return await self._database.write(write)  # type: ignore[attr-defined]

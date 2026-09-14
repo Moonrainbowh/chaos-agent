@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import tempfile
 import threading
 import unittest
@@ -8,7 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from code_agent.core.action_execution import ActionExecutionContext
-from code_agent.core.cancellation import CancellationError, CancellationToken
+from code_agent.core.cancellation import CancellationToken
 from code_agent.core.models import ActionRequest
 from code_agent.sessions.edit_batch_models import (
     EditBatchOperation,
@@ -52,10 +53,12 @@ class RewindBatchCaptureTests(unittest.IsolatedAsyncioTestCase):
         self.root = base / "workspace"
         self.root.mkdir()
         self.editor = WorkspaceEditor(WorkspacePathGuard(self.root))
+        self.sessions_database = base / "sessions.sqlite3"
+        self.snapshots_root = base / "product-state" / "rewind-snapshots"
         self.snapshots = WorkspaceSnapshotStore(
-            self.editor.guard, base / "product-state" / "rewind-snapshots"
+            self.editor.guard, self.snapshots_root
         )
-        self.sessions = RewindSessionRepository(base / "sessions.sqlite3")
+        self.sessions = RewindSessionRepository(self.sessions_database)
         self.owner = await self.sessions.create_thread()
         self.capture = RewindCaptureCoordinator(
             self.sessions, self.editor, self.snapshots, _Gate()
@@ -129,8 +132,7 @@ class RewindBatchCaptureTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_startup_recovery_rolls_back_durable_postimages(self) -> None:
         plan = self._representative_plan()
-        await self._leave_applying(plan, "crash")
-        self.assertEqual(self.editor.apply_batch(plan).status, BatchApplyStatus.APPLIED)
+        await self._crash_after_apply(plan, "crash")
 
         results = await self.capture.recover_edit_batches()
 
@@ -152,12 +154,13 @@ class RewindBatchCaptureTests(unittest.IsolatedAsyncioTestCase):
                 self.editor.plan_write("second.txt", "second-after"),
             )
         )
-        await self._leave_applying(plan, "foreign")
-        self.assertEqual(self.editor.apply_batch(plan).status, BatchApplyStatus.APPLIED)
+        await self._crash_after_apply(plan, "foreign")
         (self.root / "second.txt").write_bytes(b"user-change")
 
         results = await self.capture.recover_edit_batches()
 
+        # One unclassifiable path refuses the whole batch, so the provable
+        # sibling is deliberately left applied rather than rolled back.
         self.assertEqual(results[0].status, BatchApplyStatus.PARTIAL_CONFLICT)
         self.assertEqual((self.root / "first.txt").read_bytes(), b"first-after")
         self.assertEqual((self.root / "second.txt").read_bytes(), b"user-change")
@@ -188,15 +191,78 @@ class RewindBatchCaptureTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(await asyncio.to_thread(started.wait, 2))
             cancellation.cancel("user paused")
             finish.set()
-            with self.assertRaises(CancellationError):
-                await task
+            # Cancellation no longer discards the recovered outcome: the caller
+            # needs the structured status to know whether the workspace changed,
+            # and it stops the task itself once the result is recorded.
+            recovered = await task
 
+        self.assertEqual(recovered.status, BatchApplyStatus.ROLLED_BACK)
         self.assertFalse((self.root / "create.txt").exists())
         self.assertEqual((self.root / "update.txt").read_bytes(), b"update-before")
         record = (await self.sessions.list_edit_batches(
             self.snapshots.workspace_fingerprint
         ))[0]
         self.assertEqual(record.state, EditBatchState.ROLLED_BACK)
+
+    async def test_crash_without_ownership_proof_refuses_every_rollback(self) -> None:
+        plan = self._representative_plan()
+        await self._leave_applying(plan, "unproved")
+        self.assertEqual(
+            self.editor.apply_batch(plan).status, BatchApplyStatus.APPLIED
+        )
+
+        results = await self.capture.recover_edit_batches()
+
+        # The journal never learned which file objects the batch created, so a
+        # content match alone cannot prove ownership and recovery must refuse
+        # the whole batch instead of deleting or overwriting anything.
+        self.assertEqual(results[0].status, BatchApplyStatus.PARTIAL_CONFLICT)
+        self.assertEqual((self.root / "create.txt").read_bytes(), b"create-after")
+        self.assertEqual((self.root / "update.txt").read_bytes(), b"update-after")
+        self.assertEqual((self.root / "moved.txt").read_bytes(), b"move-before")
+        record = (await self.sessions.list_unresolved_edit_batches(
+            self.snapshots.workspace_fingerprint
+        ))[0]
+        self.assertEqual(record.state, EditBatchState.CONFLICTED)
+
+    async def test_identical_content_replacement_survives_recovery(self) -> None:
+        plan = self._representative_plan()
+        await self._crash_after_apply(plan, "replaced")
+        # The user rewrites the file with the very same bytes through a new file
+        # object: content alone cannot distinguish it from the agent's output.
+        _rewrite_as_new_file(self.root / "update.txt", b"update-after")
+
+        recovered = await self._reopen_and_recover("replaced")
+
+        self.assertEqual(recovered[0].status, BatchApplyStatus.PARTIAL_CONFLICT)
+        self.assertEqual((self.root / "update.txt").read_bytes(), b"update-after")
+        self.assertEqual((self.root / "create.txt").read_bytes(), b"create-after")
+
+    async def _crash_after_apply(self, plan, request_id: str) -> None:
+        """Apply a batch and drop the process before the batch settles."""
+        context, request = self._identity(request_id)
+        with patch(
+            "code_agent_win.rewind_edit_batch._persist_apply_result",
+            side_effect=RuntimeError("injected crash"),
+        ), patch(
+            "code_agent_win.rewind_edit_batch._recover_record",
+            side_effect=RuntimeError("process is gone"),
+        ):
+            with self.assertRaises(RuntimeError):
+                await self.capture.apply_edit_plan(
+                    context, request, plan, f"stored-{request_id}"
+                )
+
+    async def _reopen_and_recover(self, request_id: str):
+        reopened = RewindSessionRepository(self.sessions_database)
+        editor = WorkspaceEditor(WorkspacePathGuard(self.root))
+        snapshots = WorkspaceSnapshotStore(
+            editor.guard, self.snapshots_root
+        )
+        capture = RewindCaptureCoordinator(reopened, editor, snapshots, _Gate())
+        results = await capture.recover_edit_batches()
+        self.assertEqual(len(results), 1, request_id)
+        return results
 
     async def _leave_applying(self, plan, request_id: str) -> None:
         prepared = self.editor.preflight_batch(plan)
@@ -229,6 +295,13 @@ class RewindBatchCaptureTests(unittest.IsolatedAsyncioTestCase):
         await self.sessions.transition_edit_batch(
             record.mutation.mutation_id, EditBatchState.APPLYING
         )
+
+
+def _rewrite_as_new_file(target: Path, data: bytes) -> None:
+    """Replace ``target`` with the same bytes carried by a new file object."""
+    replacement = target.with_name(target.name + ".replacement")
+    replacement.write_bytes(data)
+    os.replace(replacement, target)
 
 
 def _journal_operation(operation: RecoveryOperation) -> EditBatchOperation:

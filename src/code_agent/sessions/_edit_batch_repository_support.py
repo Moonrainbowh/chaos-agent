@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Mapping
 
 from ._edit_batch_rows import edit_batch_record, load_edit_batch
 from ._edit_batch_writes import batch_matches
+from ._rewind_model_base import canonical_path
 from ._rewind_mutation_sql import _matches_prepare
 from .edit_batch_models import (
     EditBatchOperationProgress,
@@ -37,6 +39,34 @@ def idempotent_batch(
     if not batch_matches(record, request):
         raise SessionStorageError("edit batch idempotency key was reused")
     return record
+
+
+def post_identity_map(
+    identities: Mapping[str, tuple[int, int] | None],
+) -> dict[str, tuple[int, int] | None]:
+    """Validate and canonicalise captured post-apply ownership proofs."""
+    if not isinstance(identities, Mapping):
+        raise TypeError("identities must be a mapping")
+    recorded: dict[str, tuple[int, int] | None] = {}
+    for path, identity in identities.items():
+        key = canonical_path(path)
+        if key in recorded:
+            raise ValueError("duplicate post identity path")
+        recorded[key] = _identity_pair(identity)
+    return recorded
+
+
+def _identity_pair(identity: object) -> tuple[int, int] | None:
+    if identity is None:
+        return None
+    if not isinstance(identity, tuple) or len(identity) != 2:
+        raise TypeError("post identity must be a (device, inode) pair or None")
+    for value in identity:
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise TypeError("post identity values must be integers")
+        if value < 0:
+            raise ValueError("post identity values cannot be negative")
+    return identity
 
 
 def require_settlement_ready(

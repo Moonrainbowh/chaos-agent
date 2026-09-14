@@ -29,6 +29,7 @@ from ._batch_models import (
     RecoveryOperation,
     RecoveryOperationKind,
     RecoveryPathState,
+    durable_identity,
 )
 from ._workspace_read import read_current
 from .errors import (

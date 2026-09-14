@@ -13,6 +13,7 @@ from ._batch_models import (
     RecoveryPathState,
 )
 from ._batch_recovery_prepare import (
+    post_identities,
     recovery_operations_from_prepared,
     snapshot_from_prepared,
 )
@@ -188,17 +189,54 @@ def _path_position(
     *,
     allow_lookup_alias: bool = False,
 ) -> str:
-    current = observe(editor, transition.before.relative_path).state
+    """Classify a live path against one recorded transition endpoint.
+
+    A path matching the PRE endpoint is reported as ``pre``, which means
+    recovery performs no write for it. A content match is therefore sufficient,
+    and demanding a durable identity would only turn the harmless case of "the
+    user replaced the file with identical bytes" into a spurious conflict.
+
+    A path matching the POST endpoint is reported as ``post``, and that is the
+    classification recovery acts on: rolling it back deletes, overwrites or
+    moves the file. It additionally requires the recorded POST identity to be
+    present and to match the live file, because a content match alone cannot
+    tell the agent's own output from a user replacement with identical bytes.
+    Without that proof the position is refused instead of guessed.
+    """
+    observation = observe(editor, transition.before.relative_path)
+    current = observation.state
     exact = RecoveryPathState(
-        current.relative_path, current.existed, current.sha256, current.size
+        current.relative_path,
+        current.existed,
+        current.sha256,
+        current.size,
+        observation.identity,
     )
     if not current.existed and current.lookup_existed and not allow_lookup_alias:
         return "foreign"
-    if exact == transition.before:
+    if _matches_recorded_position(exact, transition.before, require_identity=False):
         return "pre"
-    if exact == transition.after:
+    if _matches_recorded_position(exact, transition.after, require_identity=True):
         return "post"
     return "foreign"
+
+
+def _matches_recorded_position(
+    current: RecoveryPathState,
+    recorded: RecoveryPathState,
+    *,
+    require_identity: bool,
+) -> bool:
+    if not require_identity:
+        return (
+            current.relative_path == recorded.relative_path
+            and current.existed == recorded.existed
+            and current.sha256 == recorded.sha256
+            and current.size == recorded.size
+        )
+    if recorded.existed and (recorded.identity is None or current.identity is None):
+        return False
+    return current == recorded
 
 
 def _positions(editor: object, operation: RecoveryOperation) -> tuple[str, ...]:
