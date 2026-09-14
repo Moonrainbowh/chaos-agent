@@ -16,6 +16,7 @@ from .errors import (
 )
 from code_agent.repo_paths import canonical_path_key, canonical_repo_path
 from ._file_walk import iter_workspace_files
+from ._search_inventory import iter_search_inventory
 from ._known_files import known_workspace_files
 from ._text_search import (
     MAX_SEARCH_PATTERN_LENGTH,
@@ -94,7 +95,7 @@ class WorkspaceFiles:
         guard: WorkspacePathGuard,
         ignore: IgnoreRules,
         *,
-        search_timeout_s: float = 2.0,
+        search_timeout_s: float = 10.0,
         inventory_ttl_s: float = DEFAULT_INVENTORY_TTL_S,
     ) -> None:
         if isinstance(search_timeout_s, bool) or not isinstance(
@@ -330,10 +331,21 @@ class WorkspaceFiles:
         case_sensitive: bool = False,
         include_globs: Sequence[str] = (),
         max_results: int = 100,
+        max_match_chars: int = 4_000,
+        max_total_chars: int = 64_000,
+        *,
+        root: str | None = None,
+        inventory: Callable[..., Sequence[str]] | None = None,
     ) -> tuple[SearchMatch, ...]:
         """Search visible text files and return bounded, deterministic matches."""
         return search_text(
-            self._iter_files,
+            lambda limit, check: (
+                iter_search_inventory(self.guard, self.ignore, inventory, root, limit, check)
+                if inventory is not None else (
+                    self._iter_files(limit, check) if root is None else
+                    iter_workspace_files(self.guard, self.ignore, limit, check, root=root)
+                )
+            ),
             self.read_text,
             self.search_timeout_s,
             pattern,
@@ -341,6 +353,8 @@ class WorkspaceFiles:
             case_sensitive,
             include_globs,
             max_results,
+            max_match_chars,
+            max_total_chars,
         )
 
     def _iter_files(

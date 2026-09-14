@@ -21,22 +21,26 @@ def iter_workspace_files(
     ignore: IgnoreRules,
     max_scanned_entries: int,
     check: Callable[[], None] | None = None,
+    root: str | None = None,
 ) -> Iterator[str]:
     """Yield guarded files in global relative-path order."""
+    directory = guard.root if root is None else guard.resolve(root)
+    logical_root = directory.relative_to(guard.root)
+    if ignore.is_builtin_ignored(logical_root.as_posix()):
+        return
+    if directory.is_file():
+        if not ignore.is_ignored(logical_root.as_posix()):
+            yield logical_root.as_posix()
+        return
+    if not directory.is_dir():
+        raise WorkspaceError("search root must be an existing file or directory")
     pending: list[tuple[str, int, Path, Path]] = []
     sequence = itertools.count()
     visited: set[tuple[int, int]] = set()
     budget = _ScanBudget(max_scanned_entries)
     _enqueue_directory(
-        guard.root,
-        Path(),
-        guard,
-        ignore,
-        pending,
-        sequence,
-        visited,
-        budget,
-        check,
+        directory, logical_root, guard, ignore,
+        pending, sequence, visited, budget, check,
     )
 
     while pending:

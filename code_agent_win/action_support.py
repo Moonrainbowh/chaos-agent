@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import time
 from collections.abc import Awaitable, Mapping
 
@@ -18,7 +19,7 @@ from code_agent_win.tools import (
 )
 
 
-LIST_FILES_RESULT_LIMIT = 200
+LIST_FILES_RESULT_LIMIT = int(os.environ.get("CHAOS_LIST_FILES_RESULT_LIMIT", "200"))
 LIST_FILES_SCAN_LIMIT = 200_000
 
 

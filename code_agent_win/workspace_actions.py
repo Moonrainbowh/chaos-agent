@@ -7,7 +7,7 @@ from code_agent.core.action_execution import ActionExecutionContext
 from code_agent.core.cancellation import CancellationToken
 from code_agent.core.models import ActionRequest, ActionResult
 from code_agent.context.repo_paths import canonical_path_key
-from code_agent.workspace.errors import CodeSliceStaleError
+from code_agent.workspace.errors import CodeSliceStaleError, SearchTimeoutError
 from code_agent.workspace.files import CodeSliceRequest
 
 from code_agent_win.action_support import (
@@ -41,15 +41,7 @@ async def execute_workspace_action(
             raise ValueError("root must be text")
         return await list_action_result(request, host.files, host.git, root)
     if request.name == "search_text":
-        matches = await asyncio.to_thread(
-            host.files.search,
-            text_argument(arguments, "pattern"),
-            bool(arguments.get("regex", False)),
-            bool(arguments.get("case_sensitive", False)),
-        )
-        return ok_result(
-            request, {"matches": [match.__dict__ for match in matches]}
-        )
+        return await _search_workspace(host, request)
     if request.name in {"write_file", "replace_text"}:
         plan = await asyncio.to_thread(edit_plan, host.editor, request)
         if host.capture is not None and not is_external_plan(plan.relative_path):
@@ -68,6 +60,29 @@ async def execute_workspace_action(
             {"diff": plan.diff},
         )
     return None
+
+
+async def _search_workspace(host: object, request: ActionRequest) -> ActionResult:
+    arguments = request.arguments
+    limit = arguments.get("max_results", 100)
+    try:
+        matches = await asyncio.to_thread(
+            host.files.search, text_argument(arguments, "pattern"),
+            bool(arguments.get("regex", False)),
+            bool(arguments.get("case_sensitive", False)),
+            include_globs=arguments.get("include_globs", ()),
+            max_results=limit, root=arguments.get("root"),
+            inventory=None if host.git is None else host.git.snapshot_paths,
+        )
+        reason = "result_limit" if len(matches) >= limit else None
+    except SearchTimeoutError as error:
+        matches = error.matches
+        reason = "timeout"
+    return ok_result(request, {
+        "matches": [match.__dict__ for match in matches],
+        "complete": reason is None,
+        "incomplete_reason": reason,
+    })
 
 
 async def _read_code_slices(host: object, request: ActionRequest) -> ActionResult:

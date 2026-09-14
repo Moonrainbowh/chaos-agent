@@ -9,6 +9,13 @@ from .models import CompactionResult, ContextConfig
 from .attachment_budget import message_tokens
 from ._compaction_render import _last_resort, _summary, _truncate_message
 from .errors import ContextBudgetError
+from .tokens import truncate_to_tokens
+
+
+# A single tool response must not be able to consume an entire history window.
+# This is applied before block selection so the compactor can still retain
+# neighbouring progress and tool-call/result pairs.
+_MAX_TOOL_CONTENT_TOKENS = 6_000
 
 
 @dataclass(frozen=True)
@@ -34,6 +41,7 @@ class DeterministicCompactor:
         checked, budget = _validated_input(
             messages, self.config.message_tokens, token_budget
         )
+        checked = tuple(_bound_tool_message(message) for message in checked)
         original_cost = _messages_cost(checked)
         if original_cost <= budget:
             return CompactionResult(checked, 0, original_cost)
@@ -85,6 +93,22 @@ def _compact_over_budget(
         )
         estimated = _messages_cost(compacted)
     return CompactionResult(compacted, len(removed), estimated, summary)
+
+
+def _bound_tool_message(message: Message) -> Message:
+    if message.role != "tool" or not message.content:
+        return message
+    bounded = truncate_to_tokens(message.content, _MAX_TOOL_CONTENT_TOKENS)
+    if bounded == message.content:
+        return message
+    return Message(
+        role=message.role,
+        content=bounded + "\n[tool result truncated; re-read the source if needed]",
+        name=message.name,
+        tool_calls=message.tool_calls,
+        tool_call_id=message.tool_call_id,
+        attachments=message.attachments,
+    )
 
 
 def _ensure_latest_attachment_budget(

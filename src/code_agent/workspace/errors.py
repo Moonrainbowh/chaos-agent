@@ -74,6 +74,10 @@ class CrossVolumeMoveError(WorkspaceError):
 class SearchTimeoutError(WorkspaceError):
     """Raised when a workspace search exceeds its global deadline."""
 
+    def __init__(self, message: str, matches: tuple = ()) -> None:
+        super().__init__(message)
+        self.matches = matches
+
 
 class WorkspaceScanLimitError(WorkspaceError):
     """Raised before a directory scan can exceed its entry budget."""

@@ -111,6 +111,14 @@ class SearchTests(WorkspaceFilesTestCase):
 
         self.assertEqual([match.path for match in matches], ["a.py", "a.py", "b.txt"])
 
+    def test_search_bounds_match_line_and_total_text(self) -> None:
+        (self.root / "long.py").write_text("needle-" + ("x" * 100) + "\nneedle-two\n", encoding="utf-8")
+        matches = self.files().search("needle", max_match_chars=12, max_total_chars=20)
+        self.assertEqual(len(matches), 2)
+        self.assertTrue(matches[0].truncated)
+        self.assertEqual(len(matches[0].text), 12)
+        self.assertLessEqual(sum(len(item.text) for item in matches), 20)
+
     def test_invalid_regex_and_limits_are_explicit_errors(self) -> None:
         with self.assertRaisesRegex(ValueError, "invalid regular expression"):
             self.files().search("(", regex=True)
@@ -120,7 +128,7 @@ class SearchTests(WorkspaceFilesTestCase):
                     self.files().search("needle", max_results=limit)
 
     def test_search_timeout_configuration_and_pattern_length_are_bounded(self) -> None:
-        self.assertEqual(self.files().search_timeout_s, 2.0)
+        self.assertEqual(self.files().search_timeout_s, 10.0)
         for invalid in (0, -1, float("inf"), True, "2"):
             with self.subTest(search_timeout_s=invalid):
                 with self.assertRaises((TypeError, ValueError)):
@@ -149,13 +157,17 @@ class SearchTests(WorkspaceFilesTestCase):
         self.assertEqual(type(raised.exception).__name__, "SearchTimeoutError")
 
     def test_literal_search_uses_the_same_global_deadline(self) -> None:
+        files = self.files()
+        files.search_timeout_s = 2.0
         with patch.object(files_module.time, "monotonic", side_effect=(0.0, 3.0)):
             with self.assertRaises(WorkspaceError) as raised:
-                self.files().search("needle")
+                files.search("needle")
 
         self.assertEqual(type(raised.exception).__name__, "SearchTimeoutError")
 
     def test_search_deadline_is_checked_inside_directory_enumeration(self) -> None:
+        files = self.files()
+        files.search_timeout_s = 2.0
         for index in range(5):
             (self.root / f"scan-{index}.txt").write_text(
                 "needle", encoding="utf-8"
@@ -175,7 +187,7 @@ class SearchTests(WorkspaceFilesTestCase):
             side_effect=counting_scandir,
         ), patch.object(files_module.time, "monotonic", side_effect=clock):
             with self.assertRaises(WorkspaceError) as raised:
-                self.files().search("needle")
+                files.search("needle")
         self.assertEqual(type(raised.exception).__name__, "SearchTimeoutError")
         self.assertEqual(len(consumed), 2)
 

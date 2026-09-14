@@ -107,6 +107,14 @@ class FinalContextSelectionTests(unittest.IsolatedAsyncioTestCase):
         _, report = await self.build("repair decodePayload")
         self.assertEqual([(r["path"], r["symbol"]) for r in self.l0(report)], [("app.py", "decodePayload")])
 
+    async def test_prose_symbol_relevance_reaches_final_source_body(self):
+        self.write("feature/cache.py", 'def evict_records():\n    """Session cache expiry."""\n    return "CACHE_EXPIRY_BODY"\n')
+        self.write("unrelated/session.py", 'class Session:\n    value = "UNRELATED_BODY"\n')
+        bundle, report = await self.build("Repair Session cache expiry")
+        self.assertEqual(self.l0(report)[0]["path"], "feature/cache.py")
+        self.assertIn("CACHE_EXPIRY_BODY", self.l0(report)[0]["source"])
+        self.assertIn("CACHE_EXPIRY_BODY", bundle.system_prompt)
+
     async def test_report_matches_final_prompt_and_cache_hit(self):
         self.write("target.py", "from helper import helper\ndef target():\n    return helper()\n")
         self.write("helper.py", "from leaf import leaf\ndef helper():\n    return leaf()\n")

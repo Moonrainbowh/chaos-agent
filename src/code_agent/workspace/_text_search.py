@@ -3,7 +3,6 @@ from __future__ import annotations
 import fnmatch
 import time
 from dataclasses import dataclass
-from itertools import islice
 from typing import Callable, Iterator, Protocol, Sequence
 
 import regex as regex_lib
@@ -13,12 +12,15 @@ from .errors import (
     FileTooLargeError,
     SearchTimeoutError,
     WorkspaceError,
+    WorkspaceScanLimitError,
 )
 
 
 MAX_SEARCH_PATTERN_LENGTH = 10_000
 _MAX_VISIBLE_FILES = 10_000
 _MAX_SCANNED_ENTRIES = 200_000
+DEFAULT_MAX_MATCH_CHARS = 4_000
+DEFAULT_MAX_TOTAL_CHARS = 64_000
 
 
 @dataclass(frozen=True)
@@ -27,6 +29,7 @@ class SearchMatch:
     line: int
     column: int
     text: str
+    truncated: bool = False
 
 
 class _TextDocument(Protocol):
@@ -54,36 +57,41 @@ def search_text(
     case_sensitive: bool = False,
     include_globs: Sequence[str] = (),
     max_results: int = 100,
+    max_match_chars: int = DEFAULT_MAX_MATCH_CHARS,
+    max_total_chars: int = DEFAULT_MAX_TOTAL_CHARS,
 ) -> tuple[SearchMatch, ...]:
     """Search text exposed by bounded workspace callbacks."""
-    _validate_parameters(pattern, include_globs, max_results)
+    _validate_parameters(pattern, include_globs, max_results, max_match_chars, max_total_chars)
     deadline = time.monotonic() + search_timeout_s
     compiled = _compile_pattern(pattern, regex, case_sensitive)
     matches: list[SearchMatch] = []
-    visible_files = islice(
-        iter_files(_MAX_SCANNED_ENTRIES, lambda: _remaining(deadline)),
-        _MAX_VISIBLE_FILES,
-    )
-    for relative_path in visible_files:
-        _remaining(deadline)
-        if include_globs and not _included(relative_path, include_globs):
-            continue
-        try:
-            document = read_text(relative_path)
-        except (BinaryFileError, FileTooLargeError, OSError, WorkspaceError):
-            continue
-        if _append_document_matches(
-            matches,
-            relative_path,
-            document.text,
-            pattern,
-            compiled,
-            case_sensitive,
-            max_results,
-            deadline,
-            search_timeout_s,
-        ):
-            return tuple(matches)
+    visible_files = iter_files(_MAX_SCANNED_ENTRIES, lambda: _remaining(deadline))
+    try:
+        for file_number, relative_path in enumerate(visible_files, 1):
+            _remaining(deadline)
+            if file_number > _MAX_VISIBLE_FILES:
+                raise WorkspaceScanLimitError("search visible file limit exceeded")
+            if include_globs and not _included(relative_path, include_globs):
+                continue
+            try:
+                document = read_text(relative_path)
+            except (BinaryFileError, FileTooLargeError, OSError, WorkspaceError):
+                continue
+            _remaining(deadline)
+            if _append_document_matches(
+                matches,
+                relative_path,
+                document.text,
+                pattern,
+                compiled,
+                case_sensitive,
+                max_results,
+                deadline,
+                search_timeout_s, max_match_chars, max_total_chars,
+            ):
+                return tuple(matches)
+    except SearchTimeoutError as error:
+        raise SearchTimeoutError(str(error), tuple(matches)) from error
     return tuple(matches)
 
 
@@ -91,6 +99,8 @@ def _validate_parameters(
     pattern: str,
     include_globs: Sequence[str],
     max_results: int,
+    max_match_chars: int,
+    max_total_chars: int,
 ) -> None:
     if not isinstance(pattern, str) or not pattern:
         raise ValueError("search pattern must be non-empty text")
@@ -104,6 +114,9 @@ def _validate_parameters(
         raise ValueError("max_results must be positive")
     if any(not isinstance(item, str) or not item for item in include_globs):
         raise ValueError("include_globs must contain non-empty strings")
+    for name, value in (("max_match_chars", max_match_chars), ("max_total_chars", max_total_chars)):
+        if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+            raise ValueError(f"{name} must be a positive integer")
 
 
 def _compile_pattern(
@@ -130,6 +143,8 @@ def _append_document_matches(
     max_results: int,
     deadline: float,
     search_timeout_s: float,
+    max_match_chars: int,
+    max_total_chars: int,
 ) -> bool:
     for line_number, line in enumerate(text.splitlines(), start=1):
         if _append_line_matches(
@@ -142,7 +157,7 @@ def _append_document_matches(
             case_sensitive,
             max_results,
             deadline,
-            search_timeout_s,
+            search_timeout_s, max_match_chars, max_total_chars,
         ):
             return True
     return False
@@ -159,6 +174,8 @@ def _append_line_matches(
     max_results: int,
     deadline: float,
     search_timeout_s: float,
+    max_match_chars: int,
+    max_total_chars: int,
 ) -> bool:
     remaining = _remaining(deadline)
     try:
@@ -167,9 +184,12 @@ def _append_line_matches(
         )
         for column in columns:
             _remaining(deadline)
-            matches.append(
-                SearchMatch(relative_path, line_number, column, line)
-            )
+            remaining_chars = max_total_chars - sum(len(item.text) for item in matches)
+            if remaining_chars <= 0:
+                return True
+            visible = line[:min(max_match_chars, remaining_chars)]
+            matches.append(SearchMatch(relative_path, line_number, column, visible,
+                                       len(visible) < len(line)))
             if len(matches) == max_results:
                 return True
     except TimeoutError as error:
