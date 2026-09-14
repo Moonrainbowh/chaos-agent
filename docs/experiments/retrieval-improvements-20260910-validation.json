@@ -1,0 +1,208 @@
+{
+  "command": ".venv/Scripts/python.exe -X utf8 scripts/run_tests.py",
+  "exit_code": 0,
+  "total_tests": 2565,
+  "total_skipped": 23,
+  "suites": [
+    {
+      "suite": "src/code_agent/acp/tests",
+      "tests": 11,
+      "seconds": 0.542,
+      "skipped": 0,
+      "passed": true
+    },
+    {
+      "suite": "src/code_agent/attachments/tests",
+      "tests": 24,
+      "seconds": 1.339,
+      "skipped": 0,
+      "passed": true
+    },
+    {
+      "suite": "src/code_agent/authentication/tests",
+      "tests": 53,
+      "seconds": 5.164,
+      "skipped": 0,
+      "passed": true
+    },
+    {
+      "suite": "src/code_agent/capabilities/tests",
+      "tests": 9,
+      "seconds": 0.006,
+      "skipped": 0,
+      "passed": true
+    },
+    {
+      "suite": "src/code_agent/checkpoints/tests",
+      "tests": 20,
+      "seconds": 0.908,
+      "skipped": 0,
+      "passed": true
+    },
+    {
+      "suite": "src/code_agent/config/tests",
+      "tests": 30,
+      "seconds": 0.093,
+      "skipped": 0,
+      "passed": true
+    },
+    {
+      "suite": "src/code_agent/context/tests",
+      "tests": 182,
+      "seconds": 5.996,
+      "skipped": 0,
+      "passed": true
+    },
+    {
+      "suite": "src/code_agent/context_windows/tests",
+      "tests": 22,
+      "seconds": 7.806,
+      "skipped": 0,
+      "passed": true
+    },
+    {
+      "suite": "src/code_agent/core/tests",
+      "tests": 117,
+      "seconds": 7.706,
+      "skipped": 0,
+      "passed": true
+    },
+    {
+      "suite": "src/code_agent/evaluation/tests",
+      "tests": 40,
+      "seconds": 47.989,
+      "skipped": 0,
+      "passed": true
+    },
+    {
+      "suite": "src/code_agent/interfaces/tests",
+      "tests": 516,
+      "seconds": 30.504,
+      "skipped": 0,
+      "passed": true
+    },
+    {
+      "suite": "src/code_agent/mcp/tests",
+      "tests": 9,
+      "seconds": 8.569,
+      "skipped": 0,
+      "passed": true
+    },
+    {
+      "suite": "src/code_agent/orchestration/tests",
+      "tests": 17,
+      "seconds": 0.579,
+      "skipped": 0,
+      "passed": true
+    },
+    {
+      "suite": "src/code_agent/peers/tests",
+      "tests": 11,
+      "seconds": 3.629,
+      "skipped": 0,
+      "passed": true
+    },
+    {
+      "suite": "src/code_agent/plugins/tests",
+      "tests": 22,
+      "seconds": 0.122,
+      "skipped": 0,
+      "passed": true
+    },
+    {
+      "suite": "src/code_agent/policy/tests",
+      "tests": 68,
+      "seconds": 0.336,
+      "skipped": 0,
+      "passed": true
+    },
+    {
+      "suite": "src/code_agent/projects/tests",
+      "tests": 2,
+      "seconds": 0.035,
+      "skipped": 0,
+      "passed": true
+    },
+    {
+      "suite": "src/code_agent/providers/tests",
+      "tests": 80,
+      "seconds": 4.128,
+      "skipped": 0,
+      "passed": true
+    },
+    {
+      "suite": "src/code_agent/runtime/tests",
+      "tests": 138,
+      "seconds": 34.752,
+      "skipped": 0,
+      "passed": true
+    },
+    {
+      "suite": "src/code_agent/semantic_insights/tests",
+      "tests": 17,
+      "seconds": 0.051,
+      "skipped": 0,
+      "passed": true
+    },
+    {
+      "suite": "src/code_agent/sessions/tests",
+      "tests": 173,
+      "seconds": 51.168,
+      "skipped": 2,
+      "passed": true
+    },
+    {
+      "suite": "src/code_agent/skills/tests",
+      "tests": 4,
+      "seconds": 0.549,
+      "skipped": 0,
+      "passed": true
+    },
+    {
+      "suite": "src/code_agent/thread_intelligence/tests",
+      "tests": 35,
+      "seconds": 2.452,
+      "skipped": 0,
+      "passed": true
+    },
+    {
+      "suite": "src/code_agent/verification/tests",
+      "tests": 51,
+      "seconds": 2.729,
+      "skipped": 0,
+      "passed": true
+    },
+    {
+      "suite": "src/code_agent/workflows/tests",
+      "tests": 11,
+      "seconds": 0.14,
+      "skipped": 0,
+      "passed": true
+    },
+    {
+      "suite": "src/code_agent/workspace/tests",
+      "tests": 462,
+      "seconds": 81.62,
+      "skipped": 21,
+      "passed": true
+    },
+    {
+      "suite": "tests",
+      "tests": 441,
+      "seconds": 198.273,
+      "skipped": 0,
+      "passed": true
+    }
+  ],
+  "final_context_recheck": {
+    "tests": 183,
+    "passed": true,
+    "note": "Includes final L0 ordering and new actual system Prompt source-body regression."
+  },
+  "build": {
+    "backend": "setuptools.build_meta",
+    "sdist": true,
+    "wheel": true,
+    "wheel_paths_checked": 4
+  }
+}

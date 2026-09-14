@@ -1,0 +1,175 @@
+{
+  "pattern": "def _literal_columns",
+  "scope": "workspace root",
+  "default_changed": false,
+  "rows": [
+    {
+      "repeat": 1,
+      "budget_s": 2,
+      "elapsed_s": 1.996,
+      "complete": false,
+      "matches": []
+    },
+    {
+      "repeat": 1,
+      "budget_s": 5,
+      "elapsed_s": 4.998,
+      "complete": false,
+      "matches": []
+    },
+    {
+      "repeat": 1,
+      "budget_s": 10,
+      "elapsed_s": 10.001,
+      "complete": false,
+      "matches": [
+        {
+          "path": ".venv-regression/Lib/site-packages/code_agent/workspace/_text_search.py",
+          "line": 198,
+          "column": 1,
+          "text": "def _literal_columns("
+        }
+      ]
+    },
+    {
+      "repeat": 1,
+      "budget_s": 20,
+      "elapsed_s": 20.002,
+      "complete": false,
+      "matches": [
+        {
+          "path": ".venv-regression/Lib/site-packages/code_agent/workspace/_text_search.py",
+          "line": 198,
+          "column": 1,
+          "text": "def _literal_columns("
+        }
+      ]
+    },
+    {
+      "repeat": 2,
+      "budget_s": 20,
+      "elapsed_s": 19.988,
+      "complete": false,
+      "matches": [
+        {
+          "path": ".venv-regression/Lib/site-packages/code_agent/workspace/_text_search.py",
+          "line": 198,
+          "column": 1,
+          "text": "def _literal_columns("
+        }
+      ]
+    },
+    {
+      "repeat": 2,
+      "budget_s": 10,
+      "elapsed_s": 9.996,
+      "complete": false,
+      "matches": [
+        {
+          "path": ".venv-regression/Lib/site-packages/code_agent/workspace/_text_search.py",
+          "line": 198,
+          "column": 1,
+          "text": "def _literal_columns("
+        }
+      ]
+    },
+    {
+      "repeat": 2,
+      "budget_s": 5,
+      "elapsed_s": 4.998,
+      "complete": false,
+      "matches": []
+    },
+    {
+      "repeat": 2,
+      "budget_s": 2,
+      "elapsed_s": 1.998,
+      "complete": false,
+      "matches": []
+    },
+    {
+      "repeat": 3,
+      "budget_s": 5,
+      "elapsed_s": 4.998,
+      "complete": false,
+      "matches": [
+        {
+          "path": ".venv-regression/Lib/site-packages/code_agent/workspace/_text_search.py",
+          "line": 198,
+          "column": 1,
+          "text": "def _literal_columns("
+        }
+      ]
+    },
+    {
+      "repeat": 3,
+      "budget_s": 20,
+      "elapsed_s": 19.997,
+      "complete": false,
+      "matches": [
+        {
+          "path": ".venv-regression/Lib/site-packages/code_agent/workspace/_text_search.py",
+          "line": 198,
+          "column": 1,
+          "text": "def _literal_columns("
+        }
+      ]
+    },
+    {
+      "repeat": 3,
+      "budget_s": 2,
+      "elapsed_s": 2.0,
+      "complete": false,
+      "matches": []
+    },
+    {
+      "repeat": 3,
+      "budget_s": 10,
+      "elapsed_s": 9.996,
+      "complete": false,
+      "matches": [
+        {
+          "path": ".venv-regression/Lib/site-packages/code_agent/workspace/_text_search.py",
+          "line": 198,
+          "column": 1,
+          "text": "def _literal_columns("
+        }
+      ]
+    },
+    {
+      "repeat": 1,
+      "budget_s": 60,
+      "elapsed_s": 59.987,
+      "complete": false,
+      "read_attempts": 9414,
+      "last_read_path": ".venv-regression/final-install/Lib/site-packages/pip/_vendor/cachecontrol/adapter.py",
+      "matches": [
+        {
+          "path": ".venv-regression/Lib/site-packages/code_agent/workspace/_text_search.py",
+          "line": 198,
+          "column": 1,
+          "text": "def _literal_columns("
+        },
+        {
+          "path": ".venv-regression/clean-install/Lib/site-packages/code_agent/workspace/_text_search.py",
+          "line": 198,
+          "column": 1,
+          "text": "def _literal_columns("
+        },
+        {
+          "path": ".venv-regression/final-install/Lib/site-packages/code_agent/workspace/_text_search.py",
+          "line": 198,
+          "column": 1,
+          "text": "def _literal_columns("
+        }
+      ]
+    }
+  ],
+  "extended_trial_note": "The earlier diagnostic JSON existed during this additional trial; no production defaults changed.",
+  "finding": {
+    "git_ignores_regression_environment": true,
+    "git_ignore_rule": ".venv-regression/.gitignore:1:*",
+    "workspace_ignore_loader": "root .gitignore only",
+    "production_defaults_changed": false
+  }
+}
