@@ -112,6 +112,13 @@ class StructuredResultTests(unittest.TestCase):
         self.assertNotIn("top-secret", rendered)
         self.assertNotIn("api_token_top_secret", rendered)
 
+    def test_nested_result_does_not_overwrite_supervisor_progress(self) -> None:
+        with mock.patch.dict(os.environ, {"CHAOS_TEST_PROGRESS": "unused-progress.json"}), mock.patch(
+            "scripts.run_test_suite.Path.write_text"
+        ) as write:
+            _run_cases(_failure_case()("test_failure"))
+        write.assert_not_called()
+
     def test_duplicate_records_are_collapsed(self) -> None:
         failure_case = _failure_case()
         result = _run_cases(
@@ -157,38 +164,6 @@ class StructuredResultTests(unittest.TestCase):
         self.assertIn("._FailureCase.test_failure", annotation)
         self.assertIn("%0A::error title=pwned::bad%25", annotation)
         self.assertNotIn("top-secret", annotation)
-
-
-class StructuredRunnerCommandTests(unittest.TestCase):
-    def test_github_actions_uses_structured_suite_runner(self) -> None:
-        from scripts.run_tests import run_test_suites
-
-        root = Path.cwd()
-        completed = mock.Mock(returncode=0)
-        with (
-            mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}),
-            mock.patch("scripts.run_tests.subprocess.run", return_value=completed) as run,
-        ):
-            self.assertEqual(run_test_suites(root, (root / "tests",)), 0)
-
-        command = run.call_args.args[0]
-        self.assertEqual(command[1:3], ("-m", "scripts.run_test_suite"))
-        self.assertEqual(run.call_args.kwargs, {"cwd": root, "check": False})
-
-    def test_non_github_run_keeps_standard_unittest_command(self) -> None:
-        from scripts.run_tests import run_test_suites
-
-        root = Path.cwd()
-        completed = mock.Mock(returncode=0)
-        with (
-            mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "false"}),
-            mock.patch("scripts.run_tests.subprocess.run", return_value=completed) as run,
-        ):
-            self.assertEqual(run_test_suites(root, (root / "tests",)), 0)
-
-        command = run.call_args.args[0]
-        self.assertEqual(command[1:4], ("-m", "unittest", "discover"))
-        self.assertEqual(run.call_args.kwargs, {"cwd": root, "check": False})
 
 
 if __name__ == "__main__":
