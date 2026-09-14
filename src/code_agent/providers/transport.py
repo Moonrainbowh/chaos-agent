@@ -133,11 +133,13 @@ class ProviderTransport:
                     retry_delay = self._backoff(attempt)
                 else:
                     raise ProviderError(
-                        f"Provider transport failure: {type(error).__name__}"
+                        f"Provider transport failure: {type(error).__name__}",
+                        effect_unknown=True,
                     ) from None
             except httpx.TransportError as error:
                 raise ProviderError(
-                    f"Provider transport failure: {type(error).__name__}"
+                    f"Provider transport failure: {type(error).__name__}",
+                    effect_unknown=True,
                 ) from None
 
             if retry_delay is None:
