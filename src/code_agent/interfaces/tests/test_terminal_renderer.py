@@ -42,6 +42,22 @@ class TerminalFirstRendererTests(unittest.TestCase):
         self.assertNotIn("\x1b[2J", rendered)
         self.assertIn("bad?[2J?", rendered)
 
+    def test_windows_paths_are_ctrl_clickable(self) -> None:
+        rendered = render_entry(text_entry(DisplayKind.AGENT, r"文件：F:\work\result.exe"), 80, color=ColorMode.NEVER)
+        self.assertIn("\x1b]8;;file:///F:/work/result.exe\x07F:\\work\\result.exe\x1b]8;;\x07", rendered)
+
+    def test_code_blocks_have_separate_language_and_copy_friendly_rows(self) -> None:
+        rendered = render_entry(
+            text_entry(DisplayKind.AGENT, "```powershell\nWrite-Host 'ok'\n```"),
+            80,
+            theme=Theme.SLATE,
+            color=ColorMode.ALWAYS,
+        )
+        self.assertIn("powershell", _plain(rendered))
+        self.assertIn("Write-Host 'ok'", _plain(rendered))
+        self.assertIn("\x1b[48;2;24;40;62m", rendered)
+        self.assertNotIn("  Write-Host", _plain(rendered))
+
     def test_never_color_has_ascii_fallback(self) -> None:
         rendered = render_entry(text_entry(DisplayKind.SUCCESS, "saved"), 80, theme=Theme.SIGNAL, color=ColorMode.NEVER)
         self.assertEqual(rendered, "+ saved")
@@ -131,6 +147,21 @@ class TerminalFirstRendererTests(unittest.TestCase):
         )
 
         self.assertIn("› first\n↳ read_file completed\n\n◆ done\n\n› next", rendered)
+
+    def test_completed_transcript_can_fold_consecutive_tool_entries(self) -> None:
+        rendered = render_entries(
+            (
+                text_entry(DisplayKind.TOOL, "List files in workspace"),
+                text_entry(DisplayKind.TOOL, "Read file a.py"),
+                text_entry(DisplayKind.AGENT, "done"),
+            ),
+            80,
+            theme=Theme.SLATE,
+            color=ColorMode.NEVER,
+            fold_tools=True,
+        )
+        self.assertIn("Executed 2 tools (listed files · read 1 files)", rendered)
+        self.assertNotIn("Read file a.py", rendered)
 
     def test_status_context_is_right_aligned_and_hidden_when_space_is_tight(self) -> None:
         wide = _plain(render_live_tail("x", "处理中", 80, color=ColorMode.ALWAYS, status_context="gpt-5 · 00:18"))

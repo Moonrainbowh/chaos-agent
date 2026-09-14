@@ -16,3 +16,30 @@ def runtime_error_summary(error: BaseException) -> str:
     if "<html" in message.lower() or "<!doctype" in message.lower():
         message = "Request failed; upstream returned an HTML error page."
     return f"{type(error).__name__}: {message[:240]}"
+
+
+def explain_runtime_error(
+    error: BaseException,
+    *,
+    status: str,
+    changed: bool = False,
+    checkpoint_saved: bool = False,
+) -> str:
+    """Translate a bounded runtime error into an actionable task explanation.
+
+    ``changed`` and ``checkpoint_saved`` are host facts; callers must not infer
+    them from exception text.  The legacy one-line summary remains available
+    for machine-oriented callers.
+    """
+    if not isinstance(status, str) or not status.strip():
+        raise ValueError("status must be non-blank text")
+    lines = ["The task did not finish.", f"Status: {status.replace('_', ' ')}."]
+    if changed:
+        lines.append("Changes may already exist in the workspace; review them before retrying.")
+    else:
+        lines.append("No workspace change has been confirmed.")
+    if checkpoint_saved:
+        lines.append("A recovery checkpoint was saved.")
+    lines.append("Error: " + runtime_error_summary(error))
+    lines.append("Next: retry from the current workspace or inspect the failure details.")
+    return "\n".join(lines)

@@ -51,4 +51,4 @@ class ReadabilityTests(unittest.TestCase):
         rows = render_streaming_markdown_rows("one\n\n\n## Two\ntext", 60, ColorMode.NEVER)
         self.assertEqual(rows, ["one", "", "Two", "text"])
         rows = render_streaming_markdown_rows("```\na\n\n\nb\n```", 60, ColorMode.NEVER)
-        self.assertIn(["  a", "  ", "  ", "  b"], [rows[1:5]])
+        self.assertIn(["a", "", "", "b"], [rows[1:5]])

@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from .experience_summary import build_experience_snapshot, format_experience_summary
+
 
 def format_status(app: Any) -> str:
     runtime = getattr(app, "runtime_selection", None)
@@ -40,6 +42,13 @@ def format_status(app: Any) -> str:
     host = getattr(app, "host_runtime_summary", None)
     if isinstance(host, str) and host.strip():
         lines.append("Host runtime: " + host)
+    # Keep the detailed /status facts intact, then add the compact user-facing
+    # conclusion.  This is a projection only; it does not alter task state.
+    state = getattr(app, "state", None)
+    if state is not None:
+        snapshot = build_experience_snapshot(state)
+        if snapshot.status != "idle" or snapshot.changed.files:
+            lines.extend(("", format_experience_summary(snapshot)))
     return "\n".join(lines)
 
 

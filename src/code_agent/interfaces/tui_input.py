@@ -87,6 +87,11 @@ async def apply_clipboard_images(app: Any) -> bool:
     except (RuntimeError, ValueError) as error:
         app._append(DisplayKind.ERROR, str(error))
         return False
+    if not added:
+        # A replayed clipboard event did not change the draft; keep the
+        # transcript quiet and let the existing attachment marker stand.
+        app.exit_guard.input_received()
+        return True
     app._append(
         DisplayKind.METADATA,
         f"clipboard images staged · {len(added)} · total {len(draft.items)}",

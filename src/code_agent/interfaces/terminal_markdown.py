@@ -60,7 +60,7 @@ def render_streaming_markdown_rows(
         if not in_code and not stripped and (not rows or not rows[-1]):
             continue
         if in_code:
-            spans = (_Span("  " + raw.rstrip(), BRAND_CYAN),)
+            spans = (_Span(raw.rstrip(), BRAND_CYAN),)
         else:
             spans = _block_spans(raw)
         rows.extend(_render_rows(spans, width, color))

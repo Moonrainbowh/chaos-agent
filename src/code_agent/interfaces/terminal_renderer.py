@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from urllib.parse import quote
 from dataclasses import dataclass
 from enum import Enum
 from typing import Iterable
@@ -42,6 +43,9 @@ _COLORS = {
     DisplayKind.METADATA: DIM_GRAY, DisplayKind.DIFF_ADD: BRAND_CYAN,
     DisplayKind.DIFF_REMOVE: ERROR_RED,
 }
+_ANSI_CODES = re.compile(r"\x1b\[[0-9;]*m")
+_CODE_BG = "\x1b[48;2;24;40;62m"
+_CODE_HEADER_BG = "\x1b[48;2;34;52;76m"
 
 
 def render_entry(entry: DisplayEntry, width: int, *, theme: Theme = Theme.SYMBOL, color: ColorMode = ColorMode.AUTO) -> str:
@@ -67,7 +71,14 @@ def render_entry(entry: DisplayEntry, width: int, *, theme: Theme = Theme.SYMBOL
         from .terminal_ac_layout import render_ac_rows
         rows = render_ac_rows(entry.text, content_width, color)
         header = colorize(f"{prefix} Chaos Agent", BRIGHT_CYAN, color)
-        return recolor("\n".join([header, *("  " + row for row in rows)]), theme)
+        def row_prefix(row: str) -> str:
+            # Code rows already carry their own full-width background and are
+            # intentionally emitted without the prose gutter so copying them
+            # from the terminal does not add synthetic indentation.
+            if "48;2;24;40;62m" in row or "48;2;34;52;76m" in row:
+                return ""
+            return "  "
+        return recolor("\n".join([header, *(row_prefix(row) + row for row in rows)]), theme)
     if entry.kind is DisplayKind.AGENT:
         lines = _markdown_lines(entry.text, content_width, theme)
         if theme is Theme.MODERN or design_for(theme):
@@ -90,7 +101,15 @@ def render_entry(entry: DisplayEntry, width: int, *, theme: Theme = Theme.SYMBOL
             continue
         leader = prefix if index == 0 else " " * display_width(prefix)
         for part in _wrap_display(line.text, max(1, width - display_width(leader) - 1)):
-            rendered.append(_style_line(leader, part, code, color, role=line.role, kind=entry.kind))
+            styled = _style_line(leader, part, code, color, role=line.role, kind=entry.kind)
+            if line.role in {"code", "code_language"} and color_enabled(color):
+                plain_width = display_width(_ANSI_CODES.sub("", styled))
+                fill = max(0, width - plain_width)
+                styled = (
+                    (_CODE_HEADER_BG if line.role == "code_language" else _CODE_BG)
+                    + styled + (" " * fill) + "\x1b[0m"
+                )
+            rendered.append(styled)
             leader = " " * display_width(prefix)
     if entry.kind is DisplayKind.USER and theme is Theme.SLATE and color_enabled(color):
         background = "\x1b[48;2;30;48;76m"
@@ -148,12 +167,16 @@ def _fold_tool_entries(entries: list[DisplayEntry]) -> list[DisplayEntry]:
 
 
 def render_entries(
-    entries: Iterable[DisplayEntry], width: int, *, theme: Theme, color: ColorMode, previous: DisplayEntry | None = None
+    entries: Iterable[DisplayEntry], width: int, *, theme: Theme, color: ColorMode,
+    previous: DisplayEntry | None = None, fold_tools: bool = False,
 ) -> str:
     rendered: list[str] = []
     prior = previous
     entry_list = list(entries)
-    if theme is Theme.MODERN:
+    # Tool calls are streamed one entry at a time while a run is active.  The
+    # caller can request a compact transcript once the run has finished;
+    # keeping this opt-in preserves live progress and append-only rendering.
+    if fold_tools or theme is Theme.MODERN:
         entry_list = _fold_tool_entries(entry_list)
     for entry in entry_list:
         if prior is not None and _needs_gap(prior, entry):
@@ -197,6 +220,10 @@ def _style_line(leader: str, value: str, code: str | None, color: ColorMode, *, 
         return f"{styled_leader} {styled_value}"
     elif role == "partial_label":
         body_code = WARNING_YELLOW
+    elif role == "code_language":
+        body_code = BRIGHT_CYAN
+    elif role == "code":
+        body_code = BRAND_CYAN
     elif role == "user_attachment":
         return f"{styled_leader} {colorize(value, TOOL_GRAY, color)}"
     elif role in {"heading", "table_header"}:
@@ -224,7 +251,21 @@ def _style_line(leader: str, value: str, code: str | None, color: ColorMode, *, 
         styled_value = _highlight_inline_spans(value, body_code, color)
     else:
         styled_value = colorize(value, body_code, color)
-    return f"{styled_leader} {styled_value}"
+    return _link_local_paths(f"{styled_leader} {styled_value}")
+
+
+# Stop at terminal control sequences as well as whitespace/punctuation; the
+# path is searched inside already-colourized text.
+_WINDOWS_PATH = re.compile(r"(?<![\w])([A-Za-z]:\\[^\s<>\"'\x1b]+)")
+
+
+def _link_local_paths(value: str) -> str:
+    """Wrap plain Windows paths in OSC 8 links for Ctrl+Click opening."""
+    def replace(match: re.Match[str]) -> str:
+        path = match.group(1).rstrip(".,;:，。；：")
+        uri = "file:///" + quote(path.replace("\\", "/"), safe="/:@-._~")
+        return f"\x1b]8;;{uri}\x07{path}\x1b]8;;\x07" + match.group(1)[len(path):]
+    return _WINDOWS_PATH.sub(replace, value)
 
 
 def _needs_gap(previous: DisplayEntry, current: DisplayEntry) -> bool:
