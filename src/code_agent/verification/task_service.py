@@ -54,6 +54,8 @@ class LedgerTaskVerificationService:
         self._sessions = sessions
         self._planner = planner or VerificationPlanner(self._guard.root)
         self._active_changes: dict[str, set[str]] = {}
+        self._active_diffs: dict[str, list[str]] = {}
+        self._task_diffs: dict[str, list[str]] = {}
         self._syntax_failures: dict[str, tuple[str, ...]] = {}
         self._planned_calls = PlannedCallRegistry()
 
@@ -70,6 +72,7 @@ class LedgerTaskVerificationService:
     def begin_logical_change(self, task_id: str) -> None:
         """Open a logical change transaction for a task. Edits are batched until commit."""
         self._active_changes.setdefault(task_id, set())
+        self._active_diffs.setdefault(task_id, [])
 
     def in_logical_change(self, task_id: str) -> bool:
         """Check whether a logical change transaction is active for the task."""
@@ -82,6 +85,7 @@ class LedgerTaskVerificationService:
     def rollback_logical_change(self, task_id: str) -> None:
         """Abandon pending validation metadata; workspace rollback is separate."""
         self._active_changes.pop(task_id, None)
+        self._active_diffs.pop(task_id, None)
         self._syntax_failures.pop(task_id, None)
 
     async def commit_logical_change(
@@ -93,12 +97,15 @@ class LedgerTaskVerificationService:
         """Commit pending edits in a logical change transaction:
         monotonically advances generation once, snapshots subject, and plans verification."""
         pending = self._active_changes.pop(task.id, set())
+        diff_parts = self._active_diffs.pop(task.id, [])
+        for part in diff_parts:
+            _append_patch(self._task_diffs, task.id, part)
         failures = self._syntax_failures.pop(task.id, ())
         if not pending:
             return state, None
         new_generation = state.code_generation + 1
         state = await self._snapshot(task, state, new_generation)
-        plan = self._planner.plan(tuple(sorted(pending)), phase=phase)
+        plan = self._planner.plan(tuple(sorted(pending)), phase=phase, diff="\n".join(diff_parts))
         if failures:
             return state, None
         if plan.tier is RiskTier.LOW and planner_attestation_allowed(
@@ -128,7 +135,7 @@ class LedgerTaskVerificationService:
     ) -> TaskState:
         changed_paths = _changed_paths(request, result)
         if changed_paths is not None:
-            return await self._record_edit(task, state, changed_paths)
+            return await self._record_edit(task, state, changed_paths, result)
         is_attempted_cmd = request.name in {"run_command", "run_process_v1"} and (
             result.metadata.get("execution_attempted") is True
         )
@@ -170,10 +177,17 @@ class LedgerTaskVerificationService:
         return state
 
     async def _record_edit(
-        self, task: TaskRecord, state: TaskState, changed_paths: tuple[str, ...]
+        self, task: TaskRecord, state: TaskState, changed_paths: tuple[str, ...], result: ActionResult
     ) -> TaskState:
+        if not self.in_logical_change(task.id):
+            diff = result.metadata.get("diff")
+            if isinstance(diff, str):
+                _append_patch(self._task_diffs, task.id, diff)
         if self.in_logical_change(task.id):
             self._active_changes[task.id].update(changed_paths)
+            diff = result.metadata.get("diff")
+            if isinstance(diff, str):
+                _append_patch(self._active_diffs, task.id, diff)
             updated = state
         else:
             updated = await self._snapshot(
@@ -231,7 +245,8 @@ class LedgerTaskVerificationService:
         if has_passing(current, RISK_VALIDATION_CRITERION):
             return None
         plan = self._planner.plan(
-            state.files_changed, phase=VerificationPhase.FINAL_GATE
+            state.files_changed, phase=VerificationPhase.FINAL_GATE,
+            diff="\n".join(self._task_diffs.get(task.id, ()))
         )
         if plan.tier is RiskTier.LOW and planner_attestation_allowed(
             state.files_changed
@@ -320,3 +335,15 @@ def _changed_paths(
         path for path in output.get("paths", ())
         if isinstance(path, str) and path
     )
+
+
+def _append_patch(store: dict[str, list[str]], task_id: str, diff: str) -> None:
+    """Bound task-local patch retention; truncation escalates conservatively."""
+    parts = store.setdefault(task_id, [])
+    size = sum(map(len, parts))
+    if size > 262144:
+        return
+    available = 262144 - size
+    parts.append(diff[:available])
+    if len(diff) > available:
+        parts.append("\n+ # PATCH_BODY_TRUNCATED\n")

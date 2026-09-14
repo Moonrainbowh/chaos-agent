@@ -26,3 +26,5 @@
 - `PlannedCallRegistry`: 将 Host 生成的不可伪造 call id 绑定 phase/risk/step 和 completion criterion | 维护进程内一次性映射 | 模型自选 targeted test 只能产生 integrity evidence，不能直接满足完成条件
 - `validation_contract(...)`、`planner_attestation_allowed(...)`、`record_planner_attestation(...)`、`verifier_outcome(...)`: 建立风险适配完成条件、明确文档路径的低风险规划证明与标准结果 | 追加 evidence ledger | 没有工作区文件变化时不调度项目验证，由 Core 区分只读完成与修改未实现；模糊 `.txt` 和实际可执行文件改动不能免测，高/关键风险仍必须运行 verifier
 - `LedgerTaskVerificationService`: 支持 Logical Change 验证事务（解耦单个 Tool Call 与 Generation 递增，批次提交时单调递增一次）并结合 guarded subject snapshot 和 evidence ledger | 事务内多编辑共享 generation、逐写 L0 fail-fast、提交时产生 milestone 计划；完成仍由 sessions 原子复核 | 该事务管理 generation/evidence，不宣称回滚已写文件；文件恢复属于 Workspace edit batch
+
+- 定向验证同时纳入同名测试及 `test_<module>_*.py` 行为分组，避免命中单个同名测试后漏掉相邻既有行为；不读取外部隐藏验收答案。

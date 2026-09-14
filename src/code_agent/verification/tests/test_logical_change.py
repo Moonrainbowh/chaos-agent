@@ -97,6 +97,28 @@ class LogicalChangeTransactionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(plan.changed_files, ("models.py", "service.py", "test_service.py"))
         self.assertEqual(plan.phase, VerificationPhase.LOCAL_MILESTONE)
 
+    async def test_edit_metadata_patch_survives_commit_and_drives_final_gate(self) -> None:
+        from dataclasses import replace
+        from code_agent.verification.planner import RiskTier
+        self.service.begin_logical_change(self.task.id)
+        result = ActionResult("edit-patch", "write_file", {"path": "service.py"},
+                              metadata={"diff": "@@ -1 +1 @@ def service():\n-return 1\n+return flags & mask"})
+        updated = await self.service.record_action(self.task,
+            ActionRequest("edit-patch", "write_file", {"path": "service.py"}),
+            result, replace(self.state, files_changed=("service.py",)))
+        updated, plan = await self.service.commit_logical_change(self.task, updated)
+        self.assertEqual(plan.tier, RiskTier.HIGH)
+        captured = []
+        original = self.service.planner.plan
+        def spy(*args, **kwargs):
+            value = original(*args, **kwargs)
+            captured.append(value)
+            return value
+        self.service.planner.plan = spy
+        await self.service.suggest_verification(self.task, updated)
+        self.assertEqual(captured[-1].tier, RiskTier.HIGH)
+        self.assertTrue(captured[-1].require_full_gate)
+
     async def test_logical_change_rollback_discards_pending(self) -> None:
         initial_generation = self.state.code_generation
         self.service.begin_logical_change(self.task.id)

@@ -5,7 +5,7 @@ from enum import Enum
 from pathlib import Path, PurePosixPath
 from typing import Sequence
 
-from .risk import RiskTier, classify_risk
+from .risk import RiskTier, classify_risk, classify_patch_risk
 from .syntax_check import SyntaxCheckResult, check_syntax
 
 
@@ -26,6 +26,9 @@ class VerificationPlan:
     skip_tests: bool
     reason: str
     semantic_generation: int | None = None
+    changed_symbols: tuple[str, ...] = ()
+    risk_reasons: tuple[str, ...] = ()
+    additional_checks: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -38,6 +41,11 @@ class VerificationPlan:
             "skip_tests": self.skip_tests,
             "reason": self.reason,
             "semantic_generation": self.semantic_generation,
+            "risk_level": self.tier.value,
+            "changed_symbols": list(self.changed_symbols),
+            "risk_reasons": list(self.risk_reasons),
+            "selected_tests": list(self.targeted_tests),
+            "additional_checks": list(self.additional_checks),
         }
 
 
@@ -80,6 +88,7 @@ class VerificationPlanner:
         self,
         changed_files: Sequence[str],
         phase: VerificationPhase = VerificationPhase.LOCAL_MILESTONE,
+        diff: str = "",
     ) -> VerificationPlan:
         if self._semantic_graph is not None and hasattr(
             self._semantic_graph, "evaluate_risk"
@@ -89,29 +98,39 @@ class VerificationPlanner:
         else:
             tier, reason = classify_risk(changed_files)
         changed = tuple(changed_files)
+        patch_tier, symbols, reasons, checks = classify_patch_risk(changed_files, diff)
+        if diff and patch_tier is RiskTier.LOW and tier is RiskTier.MEDIUM:
+            tier = patch_tier
+        if patch_tier.value != tier.value:
+            order = [RiskTier.LOW, RiskTier.MEDIUM, RiskTier.HIGH, RiskTier.CRITICAL]
+            if order.index(patch_tier) > order.index(tier):
+                tier = patch_tier
+        if self._semantic_graph is not None and reason not in reasons:
+            reasons = (*reasons, reason)
+        reason = "; ".join(reasons)
         syntax_targets = tuple(
             f for f in changed_files
             if f.endswith((".py", ".json", ".toml"))
         )
         if tier is RiskTier.LOW:
             return self._make_plan(
-                tier, phase, changed, syntax_targets, (), False, True, reason
+                tier, phase, changed, syntax_targets, (), False, True, reason, symbols, tuple(reasons), checks
             )
         if phase is VerificationPhase.IN_FLIGHT:
             return self._make_plan(
                 tier, phase, changed, syntax_targets, (), False, True,
-                "In-flight phase performs fast syntax checking only (< 5ms)",
+                "In-flight phase performs fast syntax checking only (< 5ms)", symbols, tuple(reasons), checks,
             )
         impacted = self.find_impacted_tests(changed_files)
         if phase is VerificationPhase.LOCAL_MILESTONE:
             return self._make_plan(
                 tier, phase, changed, syntax_targets, impacted, False,
-                not impacted, reason,
+                not impacted, reason, symbols, tuple(reasons), checks,
             )
         require_full = tier in {RiskTier.CRITICAL, RiskTier.HIGH}
         return self._make_plan(
             tier, phase, changed, syntax_targets, impacted, require_full,
-            False if require_full else not impacted, reason,
+            False if require_full else not impacted, reason, symbols, tuple(reasons), checks,
         )
 
     def _make_plan(
@@ -124,10 +143,13 @@ class VerificationPlanner:
         require_full_gate: bool,
         skip_tests: bool,
         reason: str,
+        changed_symbols: tuple[str, ...] = (),
+        risk_reasons: tuple[str, ...] = (),
+        additional_checks: tuple[str, ...] = (),
     ) -> VerificationPlan:
         return VerificationPlan(
             tier, phase, changed, syntax_targets, targeted_tests,
-            require_full_gate, skip_tests, reason, self._semantic_generation,
+            require_full_gate, skip_tests, reason, self._semantic_generation, changed_symbols, risk_reasons, additional_checks,
         )
 
     def find_impacted_tests(self, changed_files: Sequence[str]) -> tuple[str, ...]:
@@ -163,6 +185,11 @@ class VerificationPlanner:
                 if specific.is_file():
                     rel = specific.relative_to(self._root).as_posix()
                     discovered.add(rel)
+                    discovered.update(
+                        candidate.relative_to(self._root).as_posix()
+                        for candidate in candidate_tests_dir.glob(f"test_{stem}_*.py")
+                        if candidate.is_file()
+                    )
                 else:
                     rel_dir = candidate_tests_dir.relative_to(self._root).as_posix()
                     discovered.add(rel_dir)
@@ -174,6 +201,11 @@ class VerificationPlanner:
                 if specific_root.is_file():
                     rel = specific_root.relative_to(self._root).as_posix()
                     discovered.add(rel)
+                discovered.update(
+                    candidate.relative_to(self._root).as_posix()
+                    for candidate in root_tests_dir.glob(f"test_{stem}_*.py")
+                    if candidate.is_file()
+                )
 
         return tuple(sorted(discovered))
 
