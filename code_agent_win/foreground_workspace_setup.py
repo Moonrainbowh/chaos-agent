@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import os
 
 from code_agent.workspace.errors import WorkspaceError
 
@@ -10,12 +11,19 @@ async def prepare_workspace(runtime: object | None, root: Path):
         return None
     from code_agent_win.tool_support import discover_git_workspace
 
-    if discover_git_workspace(root) is None:
+    mode = os.environ.get("CHAOS_WORKSPACE_MODE", "auto").strip().lower()
+    if mode not in {"auto", "managed", "direct"}:
+        raise ValueError(
+            "CHAOS_WORKSPACE_MODE must be one of: auto, managed, direct"
+        )
+    if mode == "direct" or discover_git_workspace(root) is None:
         return None
     try:
         return await runtime.prepare_task(root, "pending")
     except WorkspaceError as error:
-        raise RuntimeError("managed task worktree could not be prepared") from error
+        raise RuntimeError(
+            f"managed task worktree could not be prepared: {error}"
+        ) from error
 
 
 async def bind_workspace(

@@ -239,6 +239,8 @@ chaos-agent resume <thread-id> "continue the previous task"
 chaos-agent run --json "list the relevant files"
 ```
 
+`resume <thread-id> "..."` 会先查找该 thread 关联的持久任务，并恢复任务创建时冻结的 profile、model、topology 和 reasoning effort；如果任务已进入终态，应只打开历史或创建新任务，不会静默用当前运行时重放旧任务。项目行为规范使用工作区根目录及当前目录链上的 `AGENTS.md`（以及根目录 `AGENTS.*.md`）在每次上下文构建时加载；`agent.md` 不是另一套并行规范文件。
+
 ### ACP editor adapter
 
 Editors that support Agent Client Protocol v1 can launch Chaos Agent as a
@@ -364,6 +366,16 @@ python -m code_agent.interfaces.theme_preview --html docs/ui-preview/index.html
 [Interactive state preview](docs/ui-preview/index.html).
 
 ### Same-machine session messaging
+
+### 分层网络获取
+
+统一入口 `web_retrieve` 按固定顺序编排：`web_search`/`web_fetch`（通用检索与正文获取）→
+`site_api`（当前支持 GitHub、arXiv）→ 已批准的 MCP 工具 → 可选
+`browser_fetch`（Playwright，未安装时失败闭合）→ `run_process_v1`/
+`run_command` 作为 PowerShell/curl 兜底。所有新增网络工具都标记为
+`network` 高风险并经过同一 ActionPolicy；HTTP 层不自动跟随重定向，返回
+`layer`、URL、状态、标题、截断标记和正文，搜索候选必须再次 fetch 或通过
+站点 API 验证。MCP 的启用、批准和风险映射仍由现有 `/mcp` 配置负责。
 
 Open TUI instances for the same Windows user can exchange bounded plain text
 through the shared local session database:

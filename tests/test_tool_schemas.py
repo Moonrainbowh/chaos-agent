@@ -29,6 +29,12 @@ from code_agent.workspace.paths import WorkspacePathGuard  # noqa: E402
 
 
 class ToolSchemaTests(unittest.TestCase):
+    def test_web_tools_are_opt_in(self) -> None:
+        names = {tool.name for tool in tool_definitions()}
+        web = {"web_retrieve", "web_search", "web_fetch", "site_api", "browser_fetch"}
+        self.assertTrue(web.isdisjoint(names))
+        self.assertTrue(web.issubset({tool.name for tool in tool_definitions(include_web=True)}))
+
     def test_public_tools_have_strict_provider_compatible_object_schemas(self) -> None:
         definitions = {
             tool.name: tool.to_dict()["parameters"] for tool in tool_definitions()
