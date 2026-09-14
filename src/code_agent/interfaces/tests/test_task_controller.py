@@ -22,7 +22,48 @@ class _IdleRunner:
         return events()
 
 
+async def _record_async(target: list[object], value: object) -> None:
+    target.append(value)
+
+
 class ForegroundTaskControllerTests(unittest.IsolatedAsyncioTestCase):
+    async def test_resume_thread_restores_task_contract_before_running(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = SQLiteSessionRepository(root / "sessions.sqlite3")
+            resolved: list[object] = []
+            controller = ForegroundTaskController(
+                AgentController(_IdleRunner()),
+                repository,
+                root,
+                runtime_resolver=lambda contract: _record_async(resolved, contract),
+                profile_supplier=lambda: (
+                    "gpt56_terra", "gpt-5.6-terra", "chat_completions", "gateway",
+                    "team", "high", "medium", "c" * 64,
+                ),
+            )
+            task = await controller.start("resume me")
+            await repository.transition_task(task.id, TaskStatus.PAUSED)
+
+            events = [event async for event in controller.resume_thread(task.thread_id, "continue")]
+
+            self.assertEqual(resolved, [task.contract])
+            self.assertEqual(events[0].payload["status"], TaskStatus.RUNNING.value)
+            self.assertEqual((await repository.load_task(task.id)).status, TaskStatus.RUNNING)
+
+    async def test_resume_thread_rejects_terminal_task_instead_of_using_current_runtime(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = SQLiteSessionRepository(root / "sessions.sqlite3")
+            controller = ForegroundTaskController(AgentController(_IdleRunner()), repository, root)
+            task = await controller.start("done")
+            await repository.transition_task(task.id, TaskStatus.RUNNING)
+            await repository.transition_task(task.id, TaskStatus.VERIFYING)
+            await repository.transition_task(task.id, TaskStatus.COMPLETED)
+
+            with self.assertRaisesRegex(RuntimeError, "terminal"):
+                _ = [event async for event in controller.resume_thread(task.thread_id, "again")]
+
     async def test_read_only_task_modes_freeze_restricted_authorization(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -206,6 +247,17 @@ class ForegroundTaskControllerTests(unittest.IsolatedAsyncioTestCase):
             await controller.pause(task.id)
             self.assertEqual((await repository.load_task(task.id)).status, TaskStatus.PAUSED)
             self.assertEqual(len(await repository.list_checkpoints(task.thread_id)), 2)
+
+    async def test_recovery_checklist_is_delegated_read_only(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = SQLiteSessionRepository(root / "sessions.sqlite3")
+            controller = ForegroundTaskController(AgentController(_IdleRunner()), repository, root)
+            task = await controller.start("recover me")
+            checklist = await controller.recovery_checklist(task.id)
+            self.assertEqual(checklist["task_id"], task.id)
+            self.assertEqual(checklist["thread_id"], task.thread_id)
+            self.assertEqual(checklist["status"], TaskStatus.CREATED.value)
 
     async def test_explicit_partial_acceptance_is_not_completed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

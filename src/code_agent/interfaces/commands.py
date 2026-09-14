@@ -100,15 +100,23 @@ async def execute_command(
         ):
             write(line + "\n")
         return 0
-    events = (
-        controller.resume(
-            command.thread_id or "",
-            _required_prompt(command),
-            attachments=attachments,
+    if command.kind is CommandKind.RESUME:
+        resume_thread = getattr(tasks, "resume_thread", None) if tasks else None
+        events = (
+            resume_thread(
+                command.thread_id or "",
+                _required_prompt(command),
+                attachments=attachments,
+            )
+            if callable(resume_thread)
+            else controller.resume(
+                command.thread_id or "",
+                _required_prompt(command),
+                attachments=attachments,
+            )
         )
-        if command.kind is CommandKind.RESUME
-        else controller.ask(_required_prompt(command), attachments=attachments)
-    )
+    else:
+        events = controller.ask(_required_prompt(command), attachments=attachments)
     await _write_rendered_events(events, write)
     return 0
 

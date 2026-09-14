@@ -217,6 +217,10 @@ def _advanced_specs() -> tuple[CommandSpec, ...]:
             requires=("evidence",), visibility=advanced,
         ),
         CommandSpec(
+            "recovery", ("恢复清单",), "Tasks", "Show durable facts for resuming the current task", "[task-id]",
+            requires=("tasks",), visibility=advanced,
+        ),
+        CommandSpec(
             "checkpoint", ("检查点",), "Workspace", "List or create checkpoints", "<action>",
             requires=("checkpoints",), actions=(
                 CommandAction("list", ("列表",), "List checkpoints"),

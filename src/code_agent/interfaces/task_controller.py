@@ -52,6 +52,13 @@ class ForegroundTaskController:
     async def list(self, *, include_terminal: bool = False) -> tuple[TaskRecord, ...]:
         return await self._sessions.list_tasks(include_terminal=include_terminal)
 
+    async def recovery_checklist(self, task_id: str) -> dict[str, object]:
+        """Read the durable recovery facts without invoking the model or tools."""
+        checklist = getattr(self._sessions, "recovery_checklist", None)
+        if not callable(checklist):
+            raise RuntimeError("recovery checklist is unavailable")
+        return await checklist(task_id)
+
     async def restore_runtime_settings(self, task_id: str) -> None:
         """Select a saved task's frozen runtime before displaying its conversation."""
         task = await self._sessions.load_task(task_id)
@@ -85,6 +92,16 @@ class ForegroundTaskController:
             interrupt_runs = getattr(self._sessions, "interrupt_open_verification_runs", None)
             if callable(interrupt_runs):
                 await interrupt_runs(task.id)
+        checklist = getattr(self._sessions, "recovery_checklist", None)
+        if task.status in {TaskStatus.PAUSED, TaskStatus.INTERRUPTED} and callable(checklist):
+            facts = await checklist(task.id)
+            unknown = facts.get("unresolved_tool_calls", ())
+            if unknown:
+                waiting = await self._sessions.transition_task(task.id, TaskStatus.WAITING_DECISION, "an interrupted tool operation has unknown outcome")
+                event = AgentEvent(EventKind.TASK_DECISION_REQUIRED, {"task_id": waiting.id, "status": waiting.status.value, "reason": "an interrupted tool operation has unknown outcome", "unknown_tool_calls": unknown})
+                await self._sessions.append_event(waiting.thread_id, event)
+                yield event
+                return
         if task.status is not TaskStatus.RUNNING:
             task = await self._sessions.transition_task(task.id, TaskStatus.RUNNING)
         register = getattr(self._sessions, "register_task_execution", None)
@@ -108,10 +125,12 @@ class ForegroundTaskController:
                 yield event
         except CancellationError:
             return
-        except Exception:
+        except Exception as error:
             current = await self._sessions.load_task(task.id)
             if current.status is TaskStatus.RUNNING:
-                await self._sessions.transition_task(task.id, TaskStatus.FAILED, "task execution failed")
+                status = TaskStatus.INTERRUPTED if _is_recoverable_model_failure(error) else TaskStatus.FAILED
+                reason = "model request interrupted; resume to continue" if status is TaskStatus.INTERRUPTED else "task execution failed"
+                await self._sessions.transition_task(task.id, status, reason)
             raise
         finally:
             self._tokens.pop(task.id, None)
@@ -170,6 +189,42 @@ class ForegroundTaskController:
         async for event in self.events(task_id, instruction, attachments=attachments):
             yield event
 
+    async def resume_thread(
+        self,
+        thread_id: str,
+        instruction: str = "continue safely",
+        *,
+        attachments: Sequence[AttachmentRef] = (),
+    ) -> AsyncIterator[AgentEvent]:
+        """Resume a thread through its task contract when one exists.
+
+        The plain thread CLI used to call ``AgentController.resume`` directly,
+        which reused whatever runtime happened to be selected in the current
+        process.  Task-owned threads must instead go through ``events`` so the
+        persisted model/profile/topology contract is restored before the next
+        turn.  Non-task threads keep the legacy conversation semantics.
+        """
+        task = await self._sessions.load_task_for_thread(thread_id)
+        if task is None:
+            async for event in self._controller.resume(
+                thread_id, instruction, attachments=attachments
+            ):
+                yield event
+            return
+        if task.status in {
+            TaskStatus.COMPLETED,
+            TaskStatus.ACCEPTED_PARTIAL,
+            TaskStatus.FAILED,
+            TaskStatus.SUPERSEDED,
+        }:
+            raise RuntimeError(
+                f"task {task.id} is terminal ({task.status.value}); open it without a prompt or use a new task"
+            )
+        async for event in self.events(
+            task.id, instruction, attachments=attachments
+        ):
+            yield event
+
     async def steer(
         self,
         task_id: str,
@@ -224,6 +279,24 @@ def _owner_is_alive(owner_pid: int, owner_create_time: float) -> bool:
         return abs(psutil.Process(owner_pid).create_time() - owner_create_time) < 0.01
     except (psutil.Error, OSError):
         return False
+
+
+def _is_recoverable_model_failure(error: BaseException) -> bool:
+    """Recognize provider timeouts/stream interruptions that can resume history."""
+    seen: set[int] = set()
+    current: BaseException | None = error
+    while current is not None and id(current) not in seen and len(seen) < 8:
+        seen.add(id(current))
+        if isinstance(current, TimeoutError):
+            return True
+        if type(current).__name__ == "ModelStreamError":
+            cause = current.__cause__
+            if cause is None or isinstance(cause, TimeoutError):
+                return True
+        if bool(getattr(current, "retryable", False)):
+            return True
+        current = current.__cause__
+    return False
 
 
 def freeze_task_contract(

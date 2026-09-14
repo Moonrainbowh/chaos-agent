@@ -105,7 +105,7 @@ class TuiCommandTests(unittest.TestCase):
                 "diff", "map", "review", "test", "rewind", "attach", "login", "logswitch", "model", "mode",
                 "effort", "permission", "mcp", "plugin", "tasks", "help",
                 "sessions", "new", "restore", "accept",
-                "evidence", "checkpoint", "flow", "skill",
+                "evidence", "recovery", "checkpoint", "flow", "skill",
             ),
         )
 
