@@ -16,6 +16,7 @@
 - 不负责：渲染原始 reasoning、把不完整 Markdown 直接写入滚动区，或通过高频 delta 重写历史输出。
 - 负责：追加式终端转录、底部输入和状态尾部、带可信语义样式的显示项、斜杠命令调色板、审批提示、Diff 预览、状态显示、会话选择和 JSON 输出。
 - 负责：`agent`、`agent ask`、`agent resume` 与 `agent run --json` 的一致用户语义。
+- 负责：`resume <thread-id>` 在 thread 属于持久任务时先恢复该任务冻结的运行时契约，再继续回合；终态任务只允许无提示打开历史，不能被误当作可恢复任务继续执行。
 - 负责：以 Windows Terminal 和 PowerShell 的原生文本选择、复制、滚轮回滚、键盘输入、Unicode、颜色及窗口调整为首版交互验收基线。
 - 负责：将完成的消息、工具和任务结果追加到普通终端缓冲区；仅重绘可变高度的圆角实线输入区和其下方的一行紧凑状态。
 - 负责：输入区以 `Enter` 提交、`Shift+Enter` 或 `Ctrl+J` 插入换行，并在多行内容中提供符合行结构的光标移动。
@@ -80,6 +81,10 @@
 - 2026-09-05 的配置、验证与实验边界见根目录 `docs/context-boundary-experiment.md` 和 `docs/context-boundary-results.md`；具体候选值可配置，实验结果不自动推广为默认策略。
 
 ## Units
+- `ExperienceSnapshot`, `build_experience_snapshot`, `format_experience_summary`: 将现有 TerminalState、DiffView、EvidenceRecord 和 artifact locator 投影为简洁的用户事实摘要；有修改但无验证时强制显示“验证中”，错误保留副作用与下一步；不读取模型自述、不暴露大日志正文。
+- `explain_runtime_error`: 将受信宿主事实与有界错误摘要组合为状态、副作用、恢复点和下一步；未确认的修改或 checkpoint 不得被错误文本推断。
+- `terminal_size`: 在 Windows/ConPTY 下直接读取当前 console window，避免 `shutil.get_terminal_size()` 的固定 buffer/fallback；其他平台保留标准库回退。
+- `TerminalState.plan_text`：保留当前运行中最近一次完整 assistant plan/replan，工具调用和模型换轮不清除；完整工具调用伴随正文追加到转录；新任务清空计划，原 task 超时重试保留计划并按工具进度显示当前/已完成步骤。TUI 在输入区上方持续显示计划，交互 Picker 优先，超出窗口的步骤提示查看转录。
 - `tui_auth_prompt`：独立隐藏输入槽读取密钥/授权码，Enter 显式确认、Esc/Ctrl+C 取消、关闭释放等待 | 只渲染掩码，不进入普通输入历史、附件或会话转录 | 登录期间阻止普通任务提交，粘贴控制字符不得变成提交事件。
 - `tui_auth_commands`：从注入认证控制器提供登录/临时切换选择器，异步登录或加载账号模型并委托已有模型切换边界 | 保存登录由控制器负责 | WorkBuddy 加载入口在无离线模型时仍可选，加载失败/取消保留登录和当前模型；错误不回显凭据。
 - `render_ac_rows`：默认主题的流式和最终回答共用 AC 章节布局；章节标题按回答内顺序添加“一、二、三、”编号，已有中文顿号编号不重复添加；先解析强调再折行，保留列表缩进与悬挂折行，标题固定左列并在栏内换行，只有窄宽度统一回退上下布局 | 无副作用 | 不修改消息内容、用户蓝底或输入框几何。
@@ -102,7 +107,7 @@
 - `format_evidence_summary(records)`: 渲染有界 evidence 摘要 | 无副作用 | 不将 UI 文本升级为完成裁决
 - `ForegroundTaskController.accept_partial(...)`: 持久化用户明确接受的未完整验证交付 | 写入 task/checkpoint | 仅 `VERIFYING` 或 `WAITING_DECISION` 可进入该终态
 - `AgentController`、`ForegroundTaskController`: 向交互和非交互调用暴露同一核心事件与前台任务控制 | 调用内核 | steering 的用户消息与 task control 必须委托 Session 原子写入；仅实际 created/running 执行阻止并发启动
-- `ForegroundTaskController.interrupt(task_id, reason)`: 取消活动 token 并持久化 `INTERRUPTED` checkpoint | SQLite I/O | 不在 runner 返回时兜底完成任务
+- `ForegroundTaskController.interrupt(task_id, reason)`: 取消活动 token 并持久化 `INTERRUPTED` checkpoint；可恢复的模型超时/流中断沿原 task/thread 标记为 `INTERRUPTED` 供继续 | SQLite I/O | 不在 runner 返回时兜底完成任务
 - `parse_command`、`execute_command`: 解析并委托稳定 CLI 语义，文本命令复用可信 Markdown 终端渲染 | 写入调用方输出 | 不直接输出模型 Markdown 控制标记，不直接退出或组合依赖
 - `parse_tui_command(text)`、`filter_palette(input)`: 解析 `:` 主命令和 `/` 兼容命令，并只从 `primary` 筛选默认候选 | 无副作用 | 精确命令名和别名优先于描述匹配，完整参数原样提交，Diff 与其他 advanced 命令不进入默认面板
 - `handle_tui_command(app, outcome)`：把已解析命令委托给有界的控制面处理器 | 调用注入服务 | 不直接执行工具或绕过策略，分支函数不超过 Unit 粒度上限
@@ -113,14 +118,14 @@
 - `CommandAction`、`CommandRegistry.resolve(...)`：声明并解析复合命令的二级动作 | 无副作用 | 只列举真实接通动作，需要自由文本参数时保留输入边界
 - `InputEvent`、`ExitGuard`: 归一键盘/粘贴/控制信号并实施双击退出状态机 | 进程内状态 | 粘贴不提交，状态机可注入时钟
 - `InputBuffer`: 编辑原始 Windows 键盘输入、多行光标、历史与清空快捷键 | 进程内状态 | `Enter` 提交、`Shift+Enter`/`Ctrl+J` 换行，不接管终端选择和回滚
-- `DisplayEntry`、`DisplaySpan`、`TerminalState`: 将事件投影为最终回答、带目标/数量/耗时及有界文件预览的工具完成行和每轮独立的执行摘要，并把 reasoning、正文与工具准备事件投影为可动画的真实生命周期状态 | 无副作用 | 完整 assistant 消息可在任务验证状态前落屏，不保留或渲染原始 reasoning
+- `DisplayEntry`、`DisplaySpan`、`TerminalState`: 将事件投影为最终回答、带目标/数量/耗时及有界文件预览的工具完成行和每轮独立的执行摘要，并把 reasoning、正文与工具准备事件投影为可动画的真实生命周期状态；等待决定仅保留状态，不追加冗长黄色提示块 | 无副作用 | 完整 assistant 消息可在任务验证状态前落屏，不保留或渲染原始 reasoning
 - `TerminalState.draft_answer`、`has_draft`、`draft_revision`：安全投影当前模型回合的临时正文及可见 revision | 进程内状态 | 新 `MODEL_STARTED` 建立草稿边界，不进入会话消息、Evidence 或完成判定
 - `DisplayKind.PARTIAL_AGENT`：标识取消、错误或关闭后固化的有界未完成回答，并以本地生成的警示与截断标签渲染 | 无副作用 | 正文保持 Agent 可读样式，不得按最终 assistant 消息或动态尾部处理，成功 final 不截断
-- `render_entry`、`render_entries`、`render_live_tail_frame`、`status_presentation`、`read_key`: 生成可信 ANSI 转录、Unicode/ASCII 回退、emoji presentation/grapheme 安全列宽、候选命令和有界临时 assistant 尾部；所有活动阶段持续刷新 spinner 与总耗时 | 无副作用（除读取按键） | resize 时旧尾清理受当前终端高度约束，极小高度可把草稿预算降为零
+- `render_entry`、`render_entries`、`render_live_tail_frame`、`status_presentation`、`read_key`: 生成可信 ANSI 转录、Unicode/ASCII 回退、emoji presentation/grapheme 安全列宽、候选命令和有界临时 assistant 尾部；运行中保留工具明细，完成态可将连续工具调用折叠为摘要，Windows 路径以 OSC 8 提供 Ctrl+Click 打开且代码行去除尾随空格 | 无副作用（除读取按键） | resize 检测到尺寸变化时从持久转录全屏重绘，避免终端 reflow 残留输入框；极小高度可把草稿预算降为零
 - `render_streaming_markdown_rows(...)`、`style_inline_markdown(...)`：将增量/最终正文中的结构标记转换为本地可信语义样式，并按终端列宽安全折行 | 无副作用 | 增量允许未闭合粗体和代码标记，自动强调仅限短标签；任何输入 ANSI 均先清洗
 - `handle_semantic_insight_command(...)`、`format_semantic_insight(...)`：解析 `:map` 二级动作并把 generation、分区、分数、置信类型和静态限制渲染到终端 | 只委托注入的只读控制器 | 保留带空格的引号路径与动作别名；支持 `--limit=1..50`、`--offset=0..100000` 和 `--` 后的字面参数，分页明示 total；异常只显示有界错误，不回退成 Agent 自述
 - `TokenRateTracker`: 从首个文本增量开始统计当前模型回合的平均输出速度，并在 usage 到达后以真实 `output_tokens` 校准 | 读取可注入单调时钟 | 不把首字等待时间或输入 token 计入速度
-- `WindowsTerminalApp`: 追加完成条目、继续当前未终结前台任务并维护输入/状态尾部 | 终端 I/O | 模型增量以 dirty/revision 合并重绘，其他事件立即刷新；可恢复的任务启动竞争显示为带内错误
+- `WindowsTerminalApp`: 追加完成条目、继续当前未终结前台任务并维护输入/状态尾部 | 终端 I/O | 模型增量以 dirty/revision 合并重绘；完成后仅在存在工具明细时重绘折叠转录；可恢复的任务启动竞争显示为带内错误
 - `tui_lifecycle`：以确定性帧判定管理最高 30fps 动画、审批/交互监听与关闭清理 | 异步任务/终端重绘 | 关闭先请求 token 取消并完整等待持久 interrupt/checkpoint，再有界等待 runner，把残留草稿本地固化一次
 - `EditPlanApprovalView`、`ApprovalBroker`、`load_thread_history`: 提供严格有界且不可变的本地计划摘要/Diff、可取消审批和已保存会话读取 | 异步/SQLite 读取 | 计划预览只能作为 Host 构造的 typed field 注入，模型参数不能伪造；不伪造会话摘要
 - `approval_card_rows(request, selected)`: 渲染动作、风险、真实命令/路径目标、原因和一次性选择 | 无副作用 | 所有不可信字段单行化并有界截断，默认拒绝
@@ -132,7 +137,7 @@
 - `PluginInteractionAdapter.notify`、`interact`：把 generation-bound PluginProposal 分流为直接 Host 显示或共享 InteractionBroker 请求 | 显示/异步等待 | notify 不等待答案，其余交互可取消且默认不自答
 - `DiffController.load(...)`、`DiffView`：优先从注入的只读 Git 服务读取真实 unified diff，并提供文件导航、路径过滤和评论 | 只读服务调用/进程内状态 | 不直接 stage、unstage 或执行 Git。
 - `DiffInteraction`、`format_diff_feedback(...)`：持有 point-in-time Diff modal，消费导航/编辑/刷新/放弃键并生成带 scope、路径和行锚点的有界反馈 | 进程内状态 | 只有显式 `s` 才经调用方 `submit` 发送，刷新失败保留旧快照；计划审批使用 `rows(..., read_only=True)` 隐藏评论/发送/刷新提示
-- `AttachmentDraft.add_clipboard_items(...)`、`has_submission_input(...)`、`handle_attachment_command(...)`、`apply_clipboard_images(...)`、`dropped_file_paths(...)`：批量摄取并维护有界附件引用、在 UI 边界把无文本无附件提交静默判为空操作，并把 Windows Terminal 的空 bracketed paste 识别为 `Ctrl+V` 图片手势，同时提供显式命令和完整文件拖放识别 | 调用注入摄取器/进程内状态 | 把草稿剩余数量/字节预算下推至批量摄取器，拒绝批次不得发布孤儿 blob；旧 `add_clipboard()` 单图 API 保持可调用，但不具备预算协议的旧摄取器不得进入新版批量 UI；仅 durable `MESSAGE_ADDED` 确认后按本次 digest 移除草稿，后续新增与失败提交必须保留；非空文本粘贴不得误摄取剪贴板图片
+- `AttachmentDraft.add_clipboard_items(...)`、`has_submission_input(...)`、`handle_attachment_command(...)`、`apply_clipboard_images(...)`、`dropped_file_paths(...)`：批量摄取并维护有界附件引用、在 UI 边界把无文本无附件提交静默判为空操作，并把 Windows Terminal 的空 bracketed paste 识别为 `Ctrl+V` 图片手势，同时提供显式命令和完整文件拖放识别 | 调用注入摄取器/进程内状态 | 把草稿剩余数量/字节预算下推至批量摄取器，重复剪贴板事件按 digest 幂等处理且不重复追加提示；拒绝批次不得发布孤儿 blob；旧 `add_clipboard()` 单图 API 保持可调用，但不具备预算协议的旧摄取器不得进入新版批量 UI；仅 durable `MESSAGE_ADDED` 确认后按本次 digest 移除草稿，后续新增与失败提交必须保留；非空文本粘贴不得误摄取剪贴板图片
 - `ModePermissionView`：分开展示模式实际模型、topology、Oracle、有效推理强度、有效主工具数量、生效边界与访问权限 | 无副作用 | Anthropic 默认 effort 明示为 prompt-only/structured unsupported；single 不计入被隐藏的 `delegate_agent`，模式信息绝不解释为授权。
 - `ModeControl.list()`、`use(name, idle)`：列出冻结的四档 mode 并在空闲边界委托运行时切换 | 调用注入的异步重建回调 | 回调成功后才更新当前 mode，活动任务和未知 mode 失败闭合。
 - `_set_mode(app, instruction, action)`：优先把 topology、profile、reasoning effort 独立委托给 `runtime_selection`，缺少该控件时保留旧 `ModeControl` 兼容 | 调用注入控件/追加显示 | profile 短名必须唯一，失败不得改变当前运行时
@@ -147,7 +152,7 @@
 
 - `ContextBudgetDisplay`、`TerminalPresentation`: 展示当前输入/有效工作窗与独立任务用量；手动换窗仅显示排队状态 | 终端 I/O | 不把累计消耗当成上下文占用，保留旧模式显示兼容
 
-- `capture_ctrl_c_as_input`、`Win32Input`、`read_character`、`read_key`：TUI 存活时启用 Windows VT input 保留右键/Ctrl+V 粘贴边界，并开启 Win32 input reporting 保留物理键修饰信息、关闭 Ctrl+C 默认信号处理；先解码 Win32 封装再解析粘贴边界，原生 Enter/Shift+Enter/Alt+V 修饰键不参与文本 burst，framed paste 内换行只进入草稿 | 控制台读取/模式恢复 | 退出必恢复原模式；兼容 CSI/SS3 导航键、CSI u、modifyOtherKeys 与 Windows VT input 的普通 Enter、Shift+Enter。
+- `capture_ctrl_c_as_input`、`Win32Input`、`read_character`、`read_key`：TUI 存活时启用 Windows VT input 保留右键/Ctrl+V 粘贴边界，并开启 Win32 input reporting 保留物理键修饰信息、关闭 Ctrl+C 默认信号处理；先解码 Win32 封装再解析粘贴边界，原生 Enter/Shift+Enter/Alt+V 修饰键不参与文本 burst，framed paste 内换行只进入草稿 | 控制台读取/模式恢复 | 退出必恢复原模式；兼容 CSI/SS3 导航键、CSI u、modifyOtherKeys 与 Windows VT input 的普通 Enter、Shift+Enter；legacy burst 单元测试以虚拟时钟驱动轮询间隔，避免操作系统调度延迟改变假输入的分组。
 - `runtime_error_summary`：将异常因果链中的 HTTP 状态显示为短提示，其余诊断单行有界 | 无副作用 | 错误仅经受管转录渲染，不直接打印 traceback 或 HTML。
 
 - FOLLOW-UP 采用方案 A：固定青色 `›`、静态边框与细竖线光标，等待动效仅在底部固定三字符宽度的点阵中变化；退出恢复终端默认光标样式，关闭动效时点阵静止。

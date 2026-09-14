@@ -20,6 +20,7 @@ from .models import (
 from .attachments import AttachmentRef, freeze_attachments
 from .task import TaskRecord, TaskStatus
 from .task_supervisor import TaskSupervisor
+from .exploration_repeat import ExplorationRepeatObserver
 
 
 @dataclass(slots=True)
@@ -37,6 +38,7 @@ class _RunState:
     allowed_tool_names: frozenset[str] | None = None
     disclosed_tool_digests: dict[str, str] = field(default_factory=dict)
     action_history: list[str] = field(default_factory=list)
+    exploration_repeat: ExplorationRepeatObserver = field(default_factory=ExplorationRepeatObserver)
 
 
 @dataclass(slots=True)
@@ -176,6 +178,7 @@ class AgentEngineRunMixin:
                 mode_snapshot=mode_snapshot,
                 permission_snapshot=self._context_permission_snapshot,
                 budget_lease=budget_lease(state.budget),
+                task_facts={**mode_snapshot, **self._context_permission_snapshot},
             )
             bundle = await _invoke_context_builder(self._context, request)
             if not isinstance(bundle, ContextBundle):
@@ -183,8 +186,11 @@ class AgentEngineRunMixin:
             return bundle
         except (CancellationError, EngineLimitError):
             raise
-        except Exception:
-            raise ContextBuildError("context build failed") from None
+        except Exception as error:
+            # Preserve the causal chain for trusted diagnostics.  The public
+            # event still carries only the bounded ContextBuildError label;
+            # terminal rendering decides whether/how to summarize the cause.
+            raise ContextBuildError("context build failed") from error
 
     async def _stream_model_events(
         self, state: _RunState, turn: _TurnState, bundle: ContextBundle

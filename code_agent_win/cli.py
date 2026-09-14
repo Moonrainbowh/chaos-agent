@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import sys
+import os
+import traceback
 from collections.abc import Sequence
 from importlib.metadata import PackageNotFoundError, version as package_version
 
@@ -148,7 +150,12 @@ async def run(arguments: Sequence[str], *, splash=None) -> int:
         )
         return 2
     except Exception as error:
+        # Exception text may contain provider responses, paths, or user data.
+        # The CLI contract exposes only the safe error category; diagnostics
+        # remain available through the opt-in debug traceback below.
         print(f"agent error: {type(error).__name__}", file=sys.stderr)
+        if os.environ.get("CHAOS_DEBUG_ERRORS") == "1":
+            traceback.print_exc(file=sys.stderr)
         return 1
     finally:
         if application is not None:

@@ -1,5 +1,6 @@
 import unittest
 from collections import deque
+from types import SimpleNamespace
 from unittest.mock import patch, AsyncMock
 from code_agent.interfaces.input_buffer import InputBuffer
 from code_agent.interfaces.input_events import MAX_PASTE_BYTES, paste_event
@@ -59,7 +60,17 @@ class PasteTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(paste_event("😀" * (MAX_PASTE_BYTES // 4)).value.encode()), MAX_PASTE_BYTES)
 
     def test_legacy_multiline_burst_is_paste(self):
-        with patch.dict("sys.modules", {"msvcrt": Console("one\r\ntwo\r")}):
+        # The fake console delivers every third poll. Advance a virtual clock
+        # by the requested sleep, independent of Windows scheduler overshoot.
+        elapsed = [0.0]
+
+        def sleep(seconds):
+            elapsed[0] += seconds
+
+        clock = SimpleNamespace(monotonic=lambda: elapsed[0], sleep=sleep)
+        with patch.dict("sys.modules", {"msvcrt": Console("one\r\ntwo\r")}), patch(
+            "code_agent.interfaces.terminal_io.time", clock
+        ):
             self.assertEqual(read_key(), "\x1b[200~one\r\ntwo\r\x1b[201~")
 
     def test_legacy_overflow_never_accepts_a_truncated_normalized_prefix(self):
