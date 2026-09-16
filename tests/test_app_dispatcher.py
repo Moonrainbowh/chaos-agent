@@ -72,7 +72,7 @@ class RootActionDispatcherTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.output["text"], "before\n")
 
     async def test_list_files_is_bounded_and_reports_display_metadata(self) -> None:
-        discovered = tuple(f"src/file-{index}.py" for index in range(201))
+        discovered = tuple(f"src/file-{index}.py" for index in range(51))
         with patch.object(
             self.dispatcher.files,
             "list_files",
@@ -85,13 +85,15 @@ class RootActionDispatcherTests(unittest.IsolatedAsyncioTestCase):
 
         listing.assert_called_once_with(
             ".",
-            max_entries=201,
+            max_entries=26,
             max_scanned_entries=200_000,
+            start_after=None,
         )
         self.assertFalse(result.is_error)
-        self.assertEqual(len(result.output["files"]), 200)
+        self.assertEqual(len(result.output["files"]), 25)
         self.assertTrue(result.output["truncated"])
-        self.assertEqual(result.metadata["count"], 200)
+        self.assertEqual(result.output["next_cursor"], "src/file-24.py")
+        self.assertEqual(result.metadata["count"], 25)
         self.assertTrue(result.metadata["truncated"])
         self.assertIn("duration_ms", result.metadata)
 

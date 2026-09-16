@@ -12,18 +12,20 @@ _GREETINGS = frozenset({
 })
 _READ_PREFIXES = (
     "explain ", "why ", "what is ", "how does ", "analyze ", "read ",
-    "解释", "分析", "为什么", "什么是", "这是什么", "这个是什么",
-    "描述", "识别", "总结", "概括",
+    "what ", "where ", "which ", "can ", "解释", "分析", "为什么",
+    "什么是", "这是什么", "这个是什么", "有没有", "是否有", "能否找到",
+    "请问", "哪里有", "描述", "识别", "总结", "概括",
 )
 _READ_PHRASES = (
     "什么意思", "是什么意思", "是什么内容", "包含什么", "有什么内容",
-    "图里有什么", "图中有什么",
+    "图里有什么", "图中有什么", "相关的项目", "相关项目",
 )
 _WRITE_WORDS = (
     "fix", "refactor", "implement", "add", "remove", "update", "modify",
     "rewrite", "change", "delete", "create", "build", "commit", "patch",
     "edit", "repair", "test", "verify", "run", "修复", "修改", "重构",
     "实现", "增加", "添加", "删除", "编写", "改写", "替换",
+    "运行", "执行", "安装",
 )
 
 
@@ -39,9 +41,11 @@ def infer_task_intent(prompt: str, interaction_mode: str) -> TaskIntent:
     """Freeze a new task's intent without weakening a resumed task's contract."""
     text = prompt.strip().casefold()
     requests_write = any(word in text for word in _WRITE_WORDS)
+    question = text.endswith(("?", "？"))
     read_only = (
         text.startswith(_READ_PREFIXES)
         or any(phrase in text for phrase in _READ_PHRASES)
+        or question
     ) and not requests_write
     if interaction_mode in {"ask", "plan"} or read_only or is_small_talk(prompt):
         return TaskIntent.ANALYZE

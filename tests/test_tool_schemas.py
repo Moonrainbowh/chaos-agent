@@ -29,6 +29,12 @@ from code_agent.workspace.paths import WorkspacePathGuard  # noqa: E402
 
 
 class ToolSchemaTests(unittest.TestCase):
+    def test_web_tools_are_opt_in(self) -> None:
+        names = {tool.name for tool in tool_definitions()}
+        web = {"web_retrieve", "web_search", "web_fetch", "site_api", "browser_fetch"}
+        self.assertTrue(web.isdisjoint(names))
+        self.assertTrue(web.issubset({tool.name for tool in tool_definitions(include_web=True)}))
+
     def test_public_tools_have_strict_provider_compatible_object_schemas(self) -> None:
         definitions = {
             tool.name: tool.to_dict()["parameters"] for tool in tool_definitions()
@@ -95,6 +101,9 @@ class ToolSchemaTests(unittest.TestCase):
         self.assertEqual(definitions["git_diff"]["properties"]["paths"]["type"], "array")
         self.assertEqual(definitions["git_diff"]["properties"]["paths"]["items"]["type"], "string")
         self.assertEqual(definitions["git_diff"]["properties"]["paths"]["items"]["minLength"], 1)
+        self.assertEqual(definitions["list_files"]["properties"]["limit"]["minimum"], 1)
+        self.assertEqual(definitions["list_files"]["properties"]["limit"]["maximum"], 50)
+        self.assertEqual(definitions["list_files"]["properties"]["cursor"]["minLength"], 1)
 
 
 class DispatcherValidationTests(unittest.IsolatedAsyncioTestCase):
@@ -125,6 +134,16 @@ class DispatcherValidationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.output["error"], "invalid tool arguments")
         self.policy.evaluate.assert_not_called()
         self.assertEqual((self.root / "note.txt").read_text(encoding="utf-8"), "before\n")
+
+    async def test_invalid_list_page_limit_is_rejected_before_policy(self) -> None:
+        result = await self.dispatcher.dispatch(
+            ActionRequest("list-invalid", "list_files", {"limit": 51}),
+            CancellationToken(),
+        )
+
+        self.assertTrue(result.is_error)
+        self.assertEqual(result.output["error"], "invalid tool arguments")
+        self.policy.evaluate.assert_not_called()
 
     async def test_unknown_property_is_rejected_before_runtime_side_effect(self) -> None:
         runtime = Mock()

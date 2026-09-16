@@ -21,7 +21,7 @@ from .tui_auth_commands import handle_auth_command
 async def handle_tui_command(app: object, outcome: ParseOutcome) -> bool:
     command = outcome.command
     assert command is not None
-    if command.kind in {TuiCommandKind.LOGIN, TuiCommandKind.LOGSWITCH}:
+    if command.kind is TuiCommandKind.LOGIN:
         return await handle_auth_command(app, command.kind.value, command.instruction)
     if (builtin := await handle_builtin_command(app, command)) is not None:
         return builtin
@@ -53,6 +53,8 @@ async def handle_tui_command(app: object, outcome: ParseOutcome) -> bool:
         )
     elif command.kind is TuiCommandKind.EVIDENCE:
         return await _show_evidence(app, command.instruction)
+    elif command.kind is TuiCommandKind.RECOVERY:
+        return await _show_recovery(app, command.instruction)
     elif app.tasks and command.kind is TuiCommandKind.TASKS:
         await _show_tasks(app)
     elif app.tasks and command.kind is TuiCommandKind.ACCEPT:
@@ -259,6 +261,29 @@ async def _show_evidence(app: object, instruction: str | None) -> bool:
         return False
     records = await app.evidence.list_verification_evidence(task_id)
     app._append(DisplayKind.METADATA, format_evidence_summary(records))
+    return True
+
+
+async def _show_recovery(app: object, instruction: str | None) -> bool:
+    tasks = getattr(app, "tasks", None)
+    task_id = instruction or getattr(app, "active_task_id", None) or getattr(app.state, "task_id", None)
+    if tasks is None or not task_id or not callable(getattr(tasks, "recovery_checklist", None)):
+        app._append(DisplayKind.ERROR, "recovery checklist is unavailable")
+        return False
+    try:
+        facts = await tasks.recovery_checklist(task_id)
+    except (RuntimeError, TypeError, ValueError) as error:
+        app._append(DisplayKind.ERROR, str(error))
+        return False
+    checkpoint = facts.get("latest_checkpoint") or {}
+    app._append(DisplayKind.METADATA, " | ".join((
+        f"task {facts['task_id']}", f"status {facts['status']}",
+        f"messages {facts['message_count']}", f"events {facts['event_count']}",
+        f"checkpoint {checkpoint.get('label', 'none')}",
+        f"notes {len(facts['notes'])}", f"followups {facts['pending_followups']}",
+        f"unknown_tools {len(facts.get('unresolved_tool_calls', ())) }",
+        f"evidence {facts['verification_evidence_count']}",
+    )))
     return True
 
 

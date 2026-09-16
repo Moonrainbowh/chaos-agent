@@ -102,10 +102,10 @@ class TuiCommandTests(unittest.TestCase):
             (
                 "theme",
                 "clear", "compact", "cost", "status", "doctor", "exit",
-                "diff", "map", "review", "test", "rewind", "attach", "login", "logswitch", "model", "mode",
+                "diff", "map", "review", "test", "rewind", "attach", "login", "model", "mode",
                 "effort", "permission", "mcp", "plugin", "tasks", "help",
-                "sessions", "new", "restore", "accept",
-                "evidence", "checkpoint", "flow", "skill",
+                "sessions", "new", "resume", "accept",
+                "evidence", "recovery", "checkpoint", "flow", "skill",
             ),
         )
 
@@ -114,7 +114,7 @@ class TuiCommandTests(unittest.TestCase):
             tuple(spec.name for spec in REGISTRY.primary()),
             (
                 "clear", "compact", "cost", "status", "doctor", "exit",
-                "diff", "map", "review", "test", "rewind", "attach", "login", "logswitch", "model", "mode",
+                "diff", "map", "review", "test", "rewind", "attach", "login", "model", "mode",
                 "effort", "permission", "mcp", "plugin", "tasks",
             ),
         )
@@ -129,7 +129,11 @@ class TuiCommandTests(unittest.TestCase):
     def test_advanced_commands_remain_directly_parseable_but_not_filter_candidates(self) -> None:
         self.assertEqual(parse_tui_command("/new").command.kind, TuiCommandKind.NEW)
         self.assertEqual(parse_tui_command("/evidence T-042").command.kind, TuiCommandKind.EVIDENCE)
-        self.assertEqual(REGISTRY.filter("/restore", {"history"}), ())
+        self.assertEqual(REGISTRY.filter("/resume", {"history"}), ())
+        self.assertEqual(
+            parse_tui_command("/restore", {"history"}).error,
+            "unknown or unavailable slash command",
+        )
 
     def test_colon_is_the_primary_prefix_and_slash_remains_compatible(self) -> None:
         self.assertEqual(parse_tui_command(":status").command.kind, TuiCommandKind.STATUS)
@@ -218,6 +222,10 @@ class TuiCommandTests(unittest.TestCase):
 
     def test_session_action_availability_keeps_history_without_peers(self) -> None:
         self.assertIsNone(parse_tui_command("/sessions history", {"sessions"}).error)
+        self.assertEqual(
+            parse_tui_command("/resume", {"history"}).command.kind,
+            TuiCommandKind.RESUME,
+        )
         self.assertEqual(
             parse_tui_command("/sessions online", {"sessions"}).error,
             "unknown or unavailable slash command action",

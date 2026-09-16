@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import argparse
+import faulthandler
+import json
 import os
 import re
 import sys
@@ -51,6 +53,9 @@ class StructuredTextResult(unittest.TextTestResult):
 
     def startTest(self, test: object) -> None:
         self._active_ids[id(test)] = strict_test_id(test)
+        progress = getattr(self, "progress_path", None)
+        if progress:
+            Path(progress).write_text(json.dumps({"last_test": self._active_ids[id(test)]}), encoding="utf-8")
         super().startTest(test)
 
     def stopTest(self, test: object) -> None:
@@ -95,6 +100,11 @@ class StructuredTextResult(unittest.TextTestResult):
 
 class StructuredRunner(unittest.TextTestRunner):
     resultclass = StructuredTextResult
+
+    def _makeResult(self):
+        result = super()._makeResult()
+        result.progress_path = os.environ.get("CHAOS_TEST_PROGRESS")
+        return result
 
 
 def run_suite(root: Path, start_dir: str, pattern: str) -> int:
@@ -151,12 +161,22 @@ def main(arguments: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run one unittest suite with safe CI diagnostics.")
     parser.add_argument("--start-dir", required=True)
     parser.add_argument("--pattern", default="test_*.py")
+    parser.add_argument("--supervised", action="store_true")
+    parser.add_argument("--timeout", type=float, default=300)
     options = parser.parse_args(arguments)
+    if options.supervised:
+        if sys.stdin.buffer.read(1) != b"1":
+            return 2
+        faulthandler.dump_traceback_later(options.timeout)
+
     try:
         return run_suite(repository_root(), options.start_dir, options.pattern)
     except (RuntimeError, ValueError) as error:
         print(f"test suite runner error: {error}", file=sys.stderr)
         return 2
+    finally:
+        if options.supervised:
+            faulthandler.cancel_dump_traceback_later()
 
 
 if __name__ == "__main__":

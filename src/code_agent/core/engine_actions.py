@@ -16,6 +16,7 @@ from .task_state import TaskState
 from .task_supervisor import SupervisionKind, TaskSupervisor
 from .task_verification import InFlightValidationError
 from .limits import TaskBudget
+from .runtime_timing import phase_duration_ms, phase_started_at
 from .validation_feedback import validation_fingerprint as _validation_fingerprint
 class AgentEngineActionMixin:
     """Internal action dispatch helpers separated from the model turn loop."""
@@ -47,9 +48,20 @@ class AgentEngineActionMixin:
             execution_context = self._action_execution_context(
                 thread_id, call.id, task
             )
+            action_started_at = phase_started_at()
             result = await self._invoke_action(
                 request, call, token, task, execution_context
             )
+            timing = AgentEvent(
+                EventKind.PHASE_COMPLETED,
+                {
+                    "phase": "action",
+                    "duration_ms": phase_duration_ms(action_started_at),
+                    "action": call.name,
+                },
+            )
+            await self._journal.append_event(thread_id, timing)
+            yield timing
         if task is not None and _requires_decision(result):
             waiting = await self._journal.transition_task(task.id, TaskStatus.WAITING_DECISION, "approval required")
             event = AgentEvent(EventKind.TASK_DECISION_REQUIRED, {"task_id": waiting.id, "status": waiting.status.value})
@@ -69,6 +81,12 @@ class AgentEngineActionMixin:
         added = self._journal.message_added(message)
         await self._journal.append_event(thread_id, added)
         yield added
+        # Honour a cancellation only after the action, its result, and its tool
+        # message are durable. An action that observed the cancellation still
+        # has an outcome worth recording -- a partially applied workspace must
+        # expire earlier verification evidence -- so the run stops on the next
+        # step instead of discarding that outcome.
+        token.raise_if_cancelled()
     async def _supervise_action(
         self,
         thread_id: str,

@@ -6,14 +6,18 @@ from collections.abc import Mapping
 from ._tool_feedback import tool_failure
 from .events import AgentEvent, EventKind
 from .models import ActionResult, ToolCall
+from .exploration_repeat import READ_ONLY_TOOLS
+from ._json import plain
 
 
 def circuit_breaker_result(
     action_history: list[str], call: ToolCall
 ) -> ActionResult | None:
     signature = (
-        f"{call.name}:{json.dumps(dict(call.arguments), sort_keys=True)}"
+        f"{call.name}:{json.dumps(plain(call.arguments), sort_keys=True)}"
     )
+    if call.name in READ_ONLY_TOOLS:
+        return None
     action_history.append(signature)
     count = action_history.count(signature)
     if count < 3:
@@ -23,6 +27,7 @@ def circuit_breaker_result(
         f"Action circuit breaker triggered: {call.name} with identical "
         f"arguments was called {count} times. Do not repeat this action; "
         "proceed with your analysis or response.",
+        error_code="repeated_action_blocked",
     )
 
 

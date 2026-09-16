@@ -16,6 +16,11 @@ from code_agent.providers.config import InputModality, ModelProfile
 
 from .auth_cli import _key_metadata
 from .auth_profile_setup import _endpoint
+from .model_selection_preference import ModelSelectionPreference
+
+
+class SavedModelUnavailable(AuthError):
+    """A persisted login selection cannot be reconstructed from local state."""
 
 
 class AuthenticationRuntimeControl:
@@ -82,10 +87,7 @@ class AuthenticationRuntimeControl:
             except asyncio.CancelledError:
                 continue
         commit.result()
-        result = f"Signed in to {platform.id} ({credential.kind}); use /logswitch to select a model."
-        if platform.id == "workbuddy":
-            result += " WorkBuddy models load when you select its entry in /logswitch."
-        return result
+        return f"Signed in to {platform.id} ({credential.kind}); select a model with /model."
 
     def _commit(self, provider: str, credential: Credential) -> None:
         self._store.set(provider, credential)
@@ -97,11 +99,10 @@ class AuthenticationRuntimeControl:
             # Catalog corruption must not turn a committed login into a failure.
             self._saved_choices = None
 
-    def switch_choices(self) -> tuple[tuple[str, str], ...]:
-        choices = [(name, f"Configured · {profile.provider.model}") for name, profile in self._profiles.items()]
+    def model_choices(self) -> tuple[tuple[str, str], ...]:
         if self._saved_choices is None:
             self._reload_choices()
-        return tuple(choices) + (self._saved_choices or ())
+        return self._saved_choices or ()
 
     def _reload_choices(self) -> None:
         choices = []
@@ -109,6 +110,8 @@ class AuthenticationRuntimeControl:
         for provider, kind, _ in self._store.status():
             if provider == "workbuddy":
                 models = self._workbuddy_models.get(kind, ())
+            elif provider == "antigravity":
+                models = ()
             else:
                 models = catalog.models(provider)
             choices.extend((f"{provider}:{kind} {model.id}",
@@ -116,10 +119,65 @@ class AuthenticationRuntimeControl:
                            for model in models)
             if provider == "workbuddy":
                 choices.append((f"workbuddy:{kind}", "Load/refresh WorkBuddy account models · Enter"))
+            if provider == "antigravity":
+                choices.append(("antigravity:oauth", "Browse Antigravity models · Enter"))
         self._saved_choices = tuple(choices)
 
     def is_refresh_choice(self, instruction: str) -> bool:
         return instruction.strip() in {"workbuddy:oauth", "workbuddy:api_key"}
+
+    def is_antigravity_catalog_choice(self, instruction: str) -> bool:
+        return (
+            instruction.strip() == "antigravity:oauth"
+            and self._store.get("antigravity", "oauth") is not None
+        )
+
+    def model_choices_for(self, instruction: str) -> tuple[tuple[str, str], ...] | None:
+        """Return the local second-level Antigravity catalog for a model query."""
+        parts = _parts(instruction)
+        if not parts or parts[0] != "antigravity:oauth":
+            return None
+        if self._store.get("antigravity", "oauth") is None:
+            return None
+        catalog = ModelCatalog(self._store.path.with_name("models-catalog.json"))
+        return tuple(
+            (
+                f"antigravity:oauth {model.id}",
+                f"Signed in · {model.protocol} · {model.context_window} context",
+            )
+            for model in catalog.models("antigravity")
+        )
+
+    def is_saved_model_choice(self, instruction: str) -> bool:
+        parts = _parts(instruction)
+        if len(parts) != 2 or ":" not in parts[0]:
+            return False
+        provider, kind = parts[0].rsplit(":", 1)
+        if kind not in {"oauth", "api_key"}:
+            return False
+        try:
+            get_provider(provider)
+        except ValueError:
+            return False
+        return True
+
+    def workbuddy_refresh_choice(self, instruction: str) -> str | None:
+        parts = _parts(instruction)
+        if not parts or parts[0] != "workbuddy":
+            return None
+        return "workbuddy:api_key" if len(parts) > 1 and parts[1] == "api_key" else "workbuddy:oauth"
+
+    def preference_for_profile(self, name: str) -> ModelSelectionPreference:
+        if not name.startswith("login/"):
+            return ModelSelectionPreference.configured(name)
+        parts = name.split("/", 3)
+        if len(parts) != 4 or parts[2] not in {"oauth", "api_key"}:
+            raise AuthError("Invalid saved login profile")
+        return ModelSelectionPreference.saved_login(parts[1], parts[2], parts[3])
+
+    @staticmethod
+    def is_unavailable_saved_model(error: BaseException) -> bool:
+        return isinstance(error, SavedModelUnavailable)
 
     async def refresh_models(self, instruction: str) -> int:
         """Discover only the explicitly selected WorkBuddy credential slot."""
@@ -141,29 +199,33 @@ class AuthenticationRuntimeControl:
         parts = name.split("/", 3)
         if len(parts) != 4:
             raise AuthError("Invalid saved login profile")
-        await self.switch(f"{parts[1]}:{parts[2]} {shlex.quote(parts[3])}")
+        await self.select_model(f"{parts[1]}:{parts[2]} {shlex.quote(parts[3])}")
 
-    async def switch(self, instruction: str) -> str:
+    async def select_model(self, instruction: str) -> str:
         selected = instruction.strip()
         if selected in self._profiles:
             return selected
         parts = _parts(selected)
         if len(parts) != 2 or ":" not in parts[0]:
-            raise AuthError("Usage: /logswitch profile or /logswitch provider:oauth|api_key model")
+            raise AuthError("Usage: /model provider:oauth|api_key model")
         provider, kind = parts[0].rsplit(":", 1)
         if kind not in {"oauth", "api_key"}:
             raise AuthError("Authentication must be oauth or api_key")
         platform = get_provider(provider)
         credential = await asyncio.to_thread(self._store.get, provider, kind)
         if credential is None:
-            raise AuthError("No saved credentials for this method; use /login first")
+            raise SavedModelUnavailable(
+                "No saved credentials for this method; use /login first"
+            )
         catalog = await asyncio.to_thread(ModelCatalog, self._store.path.with_name("models-catalog.json"))
         if provider == "workbuddy" and kind not in self._workbuddy_models:
             await self.refresh_models(f"workbuddy:{kind}")
         models = self._workbuddy_models.get(kind, ()) if provider == "workbuddy" else catalog.models(provider)
         model = next((m for m in models if m.id == parts[1]), None)
         if model is None:
-            raise AuthError("Model is absent from the catalog; first use auth configure with explicit limits")
+            raise SavedModelUnavailable(
+                "Model is absent from the catalog; first use auth configure with explicit limits"
+            )
         name = f"login/{provider}/{kind}/{model.id}"
         fields = {"provider_id": platform.id, "auth": kind, "api": model.protocol,
                   "base_url": _endpoint(provider, model.base_url, credential), "model": model.id}

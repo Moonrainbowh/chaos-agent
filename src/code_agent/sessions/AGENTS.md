@@ -49,12 +49,17 @@
 - `WorkflowRepositoryMixin`、`SkillActivationRepositoryMixin`: 保存已校验 DAG 与 thread-scoped Skill 身份 | SQLite I/O | Workflow thread 限于两级树；Skill 不保存正文且 upsert 不重复
 - `WorkspaceSnapshotRepositoryMixin`: 创建/读取 lineage，并在一个写事务中发布 snapshot entries、checkpoint 与 cursor | SQLite I/O | blob 仅作摘要元数据；任一写入失败完全回滚，available/unavailable 关联必须一致
 - `RewindRepositoryMixin`: 以 CAS 开始、完成或失败 Rewind，并按 lineage/时间查询待恢复操作 | SQLite I/O | 状态机幂等；跨 lineage checkpoint、非法 completion 与 recovery-required 后续写入失败闭合
-- `EditBatchRepositoryMixin`: 准备、查询、迁移、记录操作进度并闭合多文件编辑批次 | SQLite I/O | 同 workspace 最多一个 unresolved；计划漂移、逆序进度、相反终态与冲突码漂移均失败闭合
+- `EditBatchRepositoryMixin`、`record_edit_batch_post_identities(...)`: 准备、查询、迁移、记录操作进度与 POST 所有权证明并闭合多文件编辑批次 | SQLite I/O | 同 workspace 最多一个 unresolved；计划漂移、逆序进度、相反终态与冲突码漂移均失败闭合；`target_post_device/inode`（v22）只能在 APPLYING 阶段写入，因为原子替换后的文件索引在 journal 落库时还不存在，且该证明从 `EditBatchPath` 的相等性中排除，否则重放原始 prepare 请求会被误判为计划漂移
 - `CheckpointForkRepositoryMixin`、`AtomicSessionRewindRepositoryMixin`: 从 checkpoint 非破坏性分叉游标前事实与累计预算；以单事务创建 paused replacement、转交 owner、SUPERSEDE 旧任务并完成 operation | SQLite I/O | session/combined 禁止 generic completion；任一写入故障整体回滚为 pending，completed 幂等重试复核 source/replacement/owner/lineage/status 事实
 - `save_task_contract_revision`、`begin_verification_run`、`append_verification_evidence`、`finalize_task`: 保存 append-only 验证账本并原子完成 | SQLite I/O | 必须复核最新 generation、revision 与全部 required evidence
-- `SessionDatabase`、`migrate_legacy_session_database`、稳定 JSON codecs: 执行 v1-v20 migration、schema/index/FK 校验、旧库复制及含附件引用的 Message 编解码 | SQLite/JSON I/O | v20 新增任务 follow-up 队列；未来版本、缺表/索引、损坏数据失败闭合，旧库始终保留
+- `SessionDatabase`、`migrate_legacy_session_database`、稳定 JSON codecs: 执行 v1-v22 migration、schema/index/FK 校验、旧库复制及含附件引用的 Message 编解码 | SQLite/JSON I/O | v20 follow-up 队列、v21 记忆条目表、v22 编辑批次 POST 所有权证明列；未来版本、缺表/索引、损坏数据失败闭合，旧库始终保留
 - `PeerSessionRepositoryMixin`、`PeerMessageRepositoryMixin`、`PeerInboxRepositoryMixin`: 原子注册/心跳/rename 本机实例并保存、领取/续租/查询显式 `peer` origin 纯文本 | SQLite I/O | v18；同名允许但 ref 唯一；held 与 claim lease 分离，过期 lease可恢复，closed 与消息终态不可回退
 - `ContextJournalRepositoryMixin`: 原子追加窗口/笔记/换窗请求与请求预算预留、用量结算 | SQLite I/O | CAS、幂等、未知请求保留预留；不覆盖原始消息
+- `MemoryRepositoryMixin`、`MemoryRecord`: 以 scope + revision 保存 task/project/user 记忆，支持幂等新增、CAS 修订、生命周期撤回/归档和显式删除 | SQLite I/O | 默认只检索 active 且严格按 scope 过滤；历史需显式 include_history，记忆正文不改变任务状态或权限
+- `MemoryRepositoryMixin.search_memory_diagnostics(...)`: 输出允许作用域、候选/选中与排除计数、查询词元估计 | SQLite 只读 | 不泄露未选中正文或受限来源
+- `assess_memory_applicability(record, context)`: 相对于当前任务事实计算适用性，不改变记忆 lifecycle | 无副作用 | 条件缺失为 needs_check，已撤回/替代/归档为 not_applicable
+- `MemoryRepositoryMixin.promote_memory(...)`: 在显式 user-scope 授权下，以调用方提供的去项目化正文创建独立 user 条目并保留 derived_from | SQLite I/O | 不复制原项目正文，不开放原始来源权限
+- `RecoveryRepositoryMixin.recovery_checklist(task_id)`: 从任务、消息/事件、最新 checkpoint 游标、Notes revision、排队 follow-up、owner、未配对工具调用和验证账本生成有界事实清单 | SQLite 只读 | 未配对调用标为 unknown，禁止恢复时直接重放；工作区漂移仍由 workspace/verification 服务核对
 
 - `context:` 为内部日志保留标签；普通检查点创建拒绝该命名空间，列表隐藏内部窗口/笔记/用量，防止工作区恢复误选。
 

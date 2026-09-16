@@ -63,6 +63,21 @@ class FixedGitWorktreeCommands:
         self._git._require_success("branch_tip", result)
         return decode_git_text(result.stdout, "branch_tip", result.argv).strip()
 
+    def is_ancestor(self, commit: str, descendant: str) -> bool:
+        """Return whether ``commit`` is reachable from ``descendant``.
+
+        Used to prove a task branch carries no commit of its own: every commit
+        it holds must already be in the branch it was created from.
+        """
+        result = self._git._invoke(
+            "is_ancestor",
+            ("merge-base", "--is-ancestor", commit, descendant),
+        )
+        if result.returncode == 1:
+            return False
+        self._git._require_success("is_ancestor", result)
+        return True
+
     def add(self, branch: str, target: Path, head: str) -> None:
         self._run("worktree_add", ("worktree", "add", "-b", branch, str(target), head))
 

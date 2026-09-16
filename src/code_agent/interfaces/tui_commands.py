@@ -28,9 +28,8 @@ _DEFAULT_SERVICES = {
 
 class TuiCommandKind(str, Enum):
     LOGIN = "login"
-    LOGSWITCH = "logswitch"
     THEME = "theme"
-    HELP = "help"; STATUS = "status"; CLEAR = "clear"; COMPACT = "compact"; EXIT = "exit"; NEW = "new"; SESSIONS = "sessions"; RESTORE = "restore"; TASKS = "tasks"; ACCEPT = "accept"; DIFF = "diff"; MAP = "map"; ATTACHMENT = "attachment"; EVIDENCE = "evidence"; CHECKPOINT = "checkpoint"; REWIND = "rewind"; MODEL = "model"; MODE = "mode"; EFFORT = "effort"; PERMISSION = "permission"; WORKFLOW = "workflow"; SKILL = "skill"; MCP = "mcp"; PLUGIN_CONTROL = "plugin_control"; PLUGIN = "plugin"; COST = "cost"; DOCTOR = "doctor"; REVIEW = "review"; TEST = "test"
+    HELP = "help"; STATUS = "status"; CLEAR = "clear"; COMPACT = "compact"; EXIT = "exit"; NEW = "new"; SESSIONS = "sessions"; RESUME = "resume"; TASKS = "tasks"; ACCEPT = "accept"; DIFF = "diff"; MAP = "map"; ATTACHMENT = "attachment"; EVIDENCE = "evidence"; RECOVERY = "recovery"; CHECKPOINT = "checkpoint"; REWIND = "rewind"; MODEL = "model"; MODE = "mode"; EFFORT = "effort"; PERMISSION = "permission"; WORKFLOW = "workflow"; SKILL = "skill"; MCP = "mcp"; PLUGIN_CONTROL = "plugin_control"; PLUGIN = "plugin"; COST = "cost"; DOCTOR = "doctor"; REVIEW = "review"; TEST = "test"
 
 
 @dataclass(frozen=True)
@@ -94,18 +93,18 @@ def parse_tui_command(
 
 def _parsed_command(spec: object, arguments: tuple[str, ...], normalized_action: str | None) -> ParseOutcome:
     kinds = {
-        "login": "login", "logswitch": "logswitch",
+        "login": "login",
         "theme": "theme", "help": "help", "status": "status", "clear": "clear", "compact": "compact",
-        "exit": "exit", "new": "new", "sessions": "sessions", "restore": "restore",
+        "exit": "exit", "new": "new", "sessions": "sessions", "resume": "resume",
         "tasks": "tasks", "accept": "accept", "diff": "diff", "map": "map", "attach": "attachment",
-        "evidence": "evidence", "checkpoint": "checkpoint", "rewind": "rewind",
+        "evidence": "evidence", "recovery": "recovery", "checkpoint": "checkpoint", "rewind": "rewind",
         "model": "model", "mode": "mode", "effort": "effort",
         "permission": "permission", "workflow": "workflow", "flow": "workflow",
         "skill": "skill", "mcp": "mcp", "plugin": "plugin_control",
         "cost": "cost", "doctor": "doctor", "review": "review", "test": "test",
         # Legacy/Chinese aliases
-        "帮助": "help", "状态": "status", "清屏": "clear", "退出": "exit",
-        "新建": "new", "会话": "sessions", "恢复": "restore", "任务": "tasks",
+        "帮助": "help", "状态": "status", "清屏": "clear", "退出": "exit", "恢复清单": "recovery",
+        "新建": "new", "会话": "sessions", "恢复": "resume", "任务": "tasks",
         "接受": "accept", "差异": "diff", "附件": "attachment", "证据": "evidence",
         "检查点": "checkpoint", "回退": "rewind", "图谱": "map", "模式": "mode", "权限": "permission",
         "流程": "workflow", "技能": "skill", "插件": "plugin_control",
@@ -113,9 +112,9 @@ def _parsed_command(spec: object, arguments: tuple[str, ...], normalized_action:
     kind = TuiCommandKind.PLUGIN if spec.source == "plugin" else TuiCommandKind(kinds[spec.name])
     value = " ".join(arguments) or None
     instructions = {
-        TuiCommandKind.LOGIN, TuiCommandKind.LOGSWITCH,
-        TuiCommandKind.HELP, TuiCommandKind.SESSIONS, TuiCommandKind.RESTORE,
-        TuiCommandKind.ATTACHMENT, TuiCommandKind.EVIDENCE,
+        TuiCommandKind.LOGIN,
+        TuiCommandKind.HELP, TuiCommandKind.SESSIONS, TuiCommandKind.RESUME,
+        TuiCommandKind.ATTACHMENT, TuiCommandKind.EVIDENCE, TuiCommandKind.RECOVERY,
         TuiCommandKind.CHECKPOINT, TuiCommandKind.REWIND,
         TuiCommandKind.MODEL, TuiCommandKind.MODE, TuiCommandKind.EFFORT,
         TuiCommandKind.PERMISSION, TuiCommandKind.WORKFLOW,

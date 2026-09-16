@@ -1,0 +1,1112 @@
+{
+  "fixture_version": "csv-continuity-v1",
+  "selfcheck_passed": true,
+  "mode": "offline-scripted-reference",
+  "real_api_status": "NOT_RUN",
+  "plans": [
+    {
+      "fixture_version": "csv-continuity-v1",
+      "variant": "A",
+      "mode": "controlled-boundary",
+      "work_slice_rounds": [
+        4,
+        4,
+        4,
+        8
+      ],
+      "events": [
+        {
+          "identifier": "work-1",
+          "action": "work",
+          "message": "Read TASK.md, investigate and begin the repair."
+        },
+        {
+          "identifier": "boundary-1",
+          "action": "barrier",
+          "message": ""
+        },
+        {
+          "identifier": "work-2",
+          "action": "work",
+          "message": "Continue the repair and tests."
+        },
+        {
+          "identifier": "boundary-2",
+          "action": "barrier",
+          "message": ""
+        },
+        {
+          "identifier": "work-3",
+          "action": "work",
+          "message": "Continue the original task and check remaining work."
+        },
+        {
+          "identifier": "boundary-3",
+          "action": "barrier",
+          "message": ""
+        },
+        {
+          "identifier": "work-4",
+          "action": "work",
+          "message": "Finish the task and validate the current code."
+        },
+        {
+          "identifier": "final",
+          "action": "verify",
+          "message": ""
+        }
+      ],
+      "early_completion": "hold at barrier; deliver later events; never invent turns",
+      "switch_receipt": "require committed window id change after complete tool group",
+      "pause_receipt": "persist same task; confirm process exit before patch",
+      "resume_receipt": "new process instance, same task id and persistent store",
+      "memory_policy": "existing History/Notes only; no authored memory injected",
+      "real_api_status": "NOT_RUN"
+    },
+    {
+      "fixture_version": "csv-continuity-v1",
+      "variant": "B",
+      "mode": "controlled-boundary",
+      "work_slice_rounds": [
+        4,
+        4,
+        4,
+        8
+      ],
+      "events": [
+        {
+          "identifier": "work-1",
+          "action": "work",
+          "message": "Read TASK.md, investigate and begin the repair."
+        },
+        {
+          "identifier": "boundary-1",
+          "action": "switch",
+          "message": ""
+        },
+        {
+          "identifier": "work-2",
+          "action": "work",
+          "message": "Continue the repair and tests."
+        },
+        {
+          "identifier": "boundary-2",
+          "action": "switch",
+          "message": ""
+        },
+        {
+          "identifier": "work-3",
+          "action": "work",
+          "message": "Continue the original task and check remaining work."
+        },
+        {
+          "identifier": "boundary-3",
+          "action": "switch",
+          "message": ""
+        },
+        {
+          "identifier": "work-4",
+          "action": "work",
+          "message": "Finish the task and validate the current code."
+        },
+        {
+          "identifier": "final",
+          "action": "verify",
+          "message": ""
+        }
+      ],
+      "early_completion": "hold at barrier; deliver later events; never invent turns",
+      "switch_receipt": "require committed window id change after complete tool group",
+      "pause_receipt": "persist same task; confirm process exit before patch",
+      "resume_receipt": "new process instance, same task id and persistent store",
+      "memory_policy": "existing History/Notes only; no authored memory injected",
+      "real_api_status": "NOT_RUN"
+    },
+    {
+      "fixture_version": "csv-continuity-v1",
+      "variant": "C",
+      "mode": "controlled-boundary",
+      "work_slice_rounds": [
+        4,
+        4,
+        4,
+        8
+      ],
+      "events": [
+        {
+          "identifier": "work-1",
+          "action": "work",
+          "message": "Read TASK.md, investigate and begin the repair."
+        },
+        {
+          "identifier": "boundary-1",
+          "action": "switch",
+          "message": ""
+        },
+        {
+          "identifier": "work-2",
+          "action": "work",
+          "message": "Continue the repair and tests."
+        },
+        {
+          "identifier": "boundary-2",
+          "action": "switch",
+          "message": ""
+        },
+        {
+          "identifier": "reader-v2",
+          "action": "patch",
+          "message": ""
+        },
+        {
+          "identifier": "work-3",
+          "action": "work",
+          "message": "The reader was updated between work stages. Continue the original task."
+        },
+        {
+          "identifier": "boundary-3",
+          "action": "switch",
+          "message": ""
+        },
+        {
+          "identifier": "work-4",
+          "action": "work",
+          "message": "Finish the task and validate the current code."
+        },
+        {
+          "identifier": "final",
+          "action": "verify",
+          "message": ""
+        }
+      ],
+      "early_completion": "hold at barrier; deliver later events; never invent turns",
+      "switch_receipt": "require committed window id change after complete tool group",
+      "pause_receipt": "persist same task; confirm process exit before patch",
+      "resume_receipt": "new process instance, same task id and persistent store",
+      "memory_policy": "existing History/Notes only; no authored memory injected",
+      "real_api_status": "NOT_RUN"
+    },
+    {
+      "fixture_version": "csv-continuity-v1",
+      "variant": "D",
+      "mode": "controlled-boundary",
+      "work_slice_rounds": [
+        4,
+        4,
+        4,
+        8
+      ],
+      "events": [
+        {
+          "identifier": "work-1",
+          "action": "work",
+          "message": "Read TASK.md, investigate and begin the repair."
+        },
+        {
+          "identifier": "boundary-1",
+          "action": "switch",
+          "message": ""
+        },
+        {
+          "identifier": "work-2",
+          "action": "work",
+          "message": "Continue the repair and tests."
+        },
+        {
+          "identifier": "boundary-2",
+          "action": "switch",
+          "message": ""
+        },
+        {
+          "identifier": "pause",
+          "action": "pause",
+          "message": ""
+        },
+        {
+          "identifier": "reader-v2",
+          "action": "patch",
+          "message": ""
+        },
+        {
+          "identifier": "resume",
+          "action": "resume",
+          "message": ""
+        },
+        {
+          "identifier": "work-3",
+          "action": "work",
+          "message": "The reader was updated between work stages. Continue the original task."
+        },
+        {
+          "identifier": "boundary-3",
+          "action": "switch",
+          "message": ""
+        },
+        {
+          "identifier": "work-4",
+          "action": "work",
+          "message": "Finish the task and validate the current code."
+        },
+        {
+          "identifier": "final",
+          "action": "verify",
+          "message": ""
+        }
+      ],
+      "early_completion": "hold at barrier; deliver later events; never invent turns",
+      "switch_receipt": "require committed window id change after complete tool group",
+      "pause_receipt": "persist same task; confirm process exit before patch",
+      "resume_receipt": "new process instance, same task id and persistent store",
+      "memory_policy": "existing History/Notes only; no authored memory injected",
+      "real_api_status": "NOT_RUN"
+    }
+  ],
+  "reference": [
+    {
+      "variant": "A",
+      "passed": true,
+      "behavior_and_workspace_passed": true,
+      "fresh_scripted_verification": true,
+      "failures": [],
+      "verifiers": [
+        {
+          "name": "public",
+          "baseline_exit_code": 1,
+          "final_exit_code": 0,
+          "baseline_timed_out": false,
+          "final_timed_out": false,
+          "workspace_digest": "33be466171cdbaeefcfd8c5b6404bbf0ff4fb01df60e13af60c16c4d3b77a3eb",
+          "baseline_infrastructure_failure": null,
+          "final_infrastructure_failure": null
+        },
+        {
+          "name": "hidden",
+          "baseline_exit_code": 1,
+          "final_exit_code": 0,
+          "baseline_timed_out": false,
+          "final_timed_out": false,
+          "workspace_digest": "33be466171cdbaeefcfd8c5b6404bbf0ff4fb01df60e13af60c16c4d3b77a3eb",
+          "baseline_infrastructure_failure": null,
+          "final_infrastructure_failure": null
+        }
+      ],
+      "events": [
+        {
+          "event": "work-1",
+          "action": "work",
+          "workspace_digest": "33be466171cdbaeefcfd8c5b6404bbf0ff4fb01df60e13af60c16c4d3b77a3eb"
+        },
+        {
+          "event": "boundary-1",
+          "action": "barrier",
+          "workspace_digest": "33be466171cdbaeefcfd8c5b6404bbf0ff4fb01df60e13af60c16c4d3b77a3eb"
+        },
+        {
+          "event": "work-2",
+          "action": "work",
+          "workspace_digest": "33be466171cdbaeefcfd8c5b6404bbf0ff4fb01df60e13af60c16c4d3b77a3eb"
+        },
+        {
+          "event": "boundary-2",
+          "action": "barrier",
+          "workspace_digest": "33be466171cdbaeefcfd8c5b6404bbf0ff4fb01df60e13af60c16c4d3b77a3eb"
+        },
+        {
+          "event": "work-3",
+          "action": "work",
+          "workspace_digest": "33be466171cdbaeefcfd8c5b6404bbf0ff4fb01df60e13af60c16c4d3b77a3eb"
+        },
+        {
+          "event": "boundary-3",
+          "action": "barrier",
+          "workspace_digest": "33be466171cdbaeefcfd8c5b6404bbf0ff4fb01df60e13af60c16c4d3b77a3eb"
+        },
+        {
+          "event": "work-4",
+          "action": "work",
+          "workspace_digest": "33be466171cdbaeefcfd8c5b6404bbf0ff4fb01df60e13af60c16c4d3b77a3eb"
+        },
+        {
+          "event": "final",
+          "action": "verify",
+          "workspace_digest": "33be466171cdbaeefcfd8c5b6404bbf0ff4fb01df60e13af60c16c4d3b77a3eb"
+        }
+      ],
+      "cleanup": true,
+      "mode": "offline-scripted-reference",
+      "real_api_status": "NOT_RUN",
+      "model": null,
+      "reasoning_effort": null,
+      "api_tokens": null,
+      "history_calls": null,
+      "notes_calls": null
+    },
+    {
+      "variant": "B",
+      "passed": true,
+      "behavior_and_workspace_passed": true,
+      "fresh_scripted_verification": true,
+      "failures": [],
+      "verifiers": [
+        {
+          "name": "public",
+          "baseline_exit_code": 1,
+          "final_exit_code": 0,
+          "baseline_timed_out": false,
+          "final_timed_out": false,
+          "workspace_digest": "33be466171cdbaeefcfd8c5b6404bbf0ff4fb01df60e13af60c16c4d3b77a3eb",
+          "baseline_infrastructure_failure": null,
+          "final_infrastructure_failure": null
+        },
+        {
+          "name": "hidden",
+          "baseline_exit_code": 1,
+          "final_exit_code": 0,
+          "baseline_timed_out": false,
+          "final_timed_out": false,
+          "workspace_digest": "33be466171cdbaeefcfd8c5b6404bbf0ff4fb01df60e13af60c16c4d3b77a3eb",
+          "baseline_infrastructure_failure": null,
+          "final_infrastructure_failure": null
+        }
+      ],
+      "events": [
+        {
+          "event": "work-1",
+          "action": "work",
+          "workspace_digest": "33be466171cdbaeefcfd8c5b6404bbf0ff4fb01df60e13af60c16c4d3b77a3eb"
+        },
+        {
+          "event": "boundary-1",
+          "action": "switch",
+          "workspace_digest": "33be466171cdbaeefcfd8c5b6404bbf0ff4fb01df60e13af60c16c4d3b77a3eb"
+        },
+        {
+          "event": "work-2",
+          "action": "work",
+          "workspace_digest": "33be466171cdbaeefcfd8c5b6404bbf0ff4fb01df60e13af60c16c4d3b77a3eb"
+        },
+        {
+          "event": "boundary-2",
+          "action": "switch",
+          "workspace_digest": "33be466171cdbaeefcfd8c5b6404bbf0ff4fb01df60e13af60c16c4d3b77a3eb"
+        },
+        {
+          "event": "work-3",
+          "action": "work",
+          "workspace_digest": "33be466171cdbaeefcfd8c5b6404bbf0ff4fb01df60e13af60c16c4d3b77a3eb"
+        },
+        {
+          "event": "boundary-3",
+          "action": "switch",
+          "workspace_digest": "33be466171cdbaeefcfd8c5b6404bbf0ff4fb01df60e13af60c16c4d3b77a3eb"
+        },
+        {
+          "event": "work-4",
+          "action": "work",
+          "workspace_digest": "33be466171cdbaeefcfd8c5b6404bbf0ff4fb01df60e13af60c16c4d3b77a3eb"
+        },
+        {
+          "event": "final",
+          "action": "verify",
+          "workspace_digest": "33be466171cdbaeefcfd8c5b6404bbf0ff4fb01df60e13af60c16c4d3b77a3eb"
+        }
+      ],
+      "cleanup": true,
+      "mode": "offline-scripted-reference",
+      "real_api_status": "NOT_RUN",
+      "model": null,
+      "reasoning_effort": null,
+      "api_tokens": null,
+      "history_calls": null,
+      "notes_calls": null
+    },
+    {
+      "variant": "C",
+      "passed": true,
+      "behavior_and_workspace_passed": true,
+      "fresh_scripted_verification": true,
+      "failures": [],
+      "verifiers": [
+        {
+          "name": "public",
+          "baseline_exit_code": 1,
+          "final_exit_code": 0,
+          "baseline_timed_out": false,
+          "final_timed_out": false,
+          "workspace_digest": "96eae6233d0ca22bd3d9813de6dcff489b1ef92e392622c2a67f8ec4dd4e0d65",
+          "baseline_infrastructure_failure": null,
+          "final_infrastructure_failure": null
+        },
+        {
+          "name": "hidden",
+          "baseline_exit_code": 1,
+          "final_exit_code": 0,
+          "baseline_timed_out": false,
+          "final_timed_out": false,
+          "workspace_digest": "96eae6233d0ca22bd3d9813de6dcff489b1ef92e392622c2a67f8ec4dd4e0d65",
+          "baseline_infrastructure_failure": null,
+          "final_infrastructure_failure": null
+        }
+      ],
+      "events": [
+        {
+          "event": "work-1",
+          "action": "work",
+          "workspace_digest": "33be466171cdbaeefcfd8c5b6404bbf0ff4fb01df60e13af60c16c4d3b77a3eb"
+        },
+        {
+          "event": "boundary-1",
+          "action": "switch",
+          "workspace_digest": "33be466171cdbaeefcfd8c5b6404bbf0ff4fb01df60e13af60c16c4d3b77a3eb"
+        },
+        {
+          "event": "work-2",
+          "action": "work",
+          "workspace_digest": "33be466171cdbaeefcfd8c5b6404bbf0ff4fb01df60e13af60c16c4d3b77a3eb"
+        },
+        {
+          "event": "boundary-2",
+          "action": "switch",
+          "workspace_digest": "33be466171cdbaeefcfd8c5b6404bbf0ff4fb01df60e13af60c16c4d3b77a3eb"
+        },
+        {
+          "event": "reader-v2",
+          "action": "patch",
+          "workspace_digest": "96eae6233d0ca22bd3d9813de6dcff489b1ef92e392622c2a67f8ec4dd4e0d65"
+        },
+        {
+          "event": "work-3",
+          "action": "work",
+          "workspace_digest": "96eae6233d0ca22bd3d9813de6dcff489b1ef92e392622c2a67f8ec4dd4e0d65"
+        },
+        {
+          "event": "boundary-3",
+          "action": "switch",
+          "workspace_digest": "96eae6233d0ca22bd3d9813de6dcff489b1ef92e392622c2a67f8ec4dd4e0d65"
+        },
+        {
+          "event": "work-4",
+          "action": "work",
+          "workspace_digest": "96eae6233d0ca22bd3d9813de6dcff489b1ef92e392622c2a67f8ec4dd4e0d65"
+        },
+        {
+          "event": "final",
+          "action": "verify",
+          "workspace_digest": "96eae6233d0ca22bd3d9813de6dcff489b1ef92e392622c2a67f8ec4dd4e0d65"
+        }
+      ],
+      "cleanup": true,
+      "mode": "offline-scripted-reference",
+      "real_api_status": "NOT_RUN",
+      "model": null,
+      "reasoning_effort": null,
+      "api_tokens": null,
+      "history_calls": null,
+      "notes_calls": null
+    },
+    {
+      "variant": "D",
+      "passed": true,
+      "behavior_and_workspace_passed": true,
+      "fresh_scripted_verification": true,
+      "failures": [],
+      "verifiers": [
+        {
+          "name": "public",
+          "baseline_exit_code": 1,
+          "final_exit_code": 0,
+          "baseline_timed_out": false,
+          "final_timed_out": false,
+          "workspace_digest": "96eae6233d0ca22bd3d9813de6dcff489b1ef92e392622c2a67f8ec4dd4e0d65",
+          "baseline_infrastructure_failure": null,
+          "final_infrastructure_failure": null
+        },
+        {
+          "name": "hidden",
+          "baseline_exit_code": 1,
+          "final_exit_code": 0,
+          "baseline_timed_out": false,
+          "final_timed_out": false,
+          "workspace_digest": "96eae6233d0ca22bd3d9813de6dcff489b1ef92e392622c2a67f8ec4dd4e0d65",
+          "baseline_infrastructure_failure": null,
+          "final_infrastructure_failure": null
+        }
+      ],
+      "events": [
+        {
+          "event": "work-1",
+          "action": "work",
+          "workspace_digest": "33be466171cdbaeefcfd8c5b6404bbf0ff4fb01df60e13af60c16c4d3b77a3eb"
+        },
+        {
+          "event": "boundary-1",
+          "action": "switch",
+          "workspace_digest": "33be466171cdbaeefcfd8c5b6404bbf0ff4fb01df60e13af60c16c4d3b77a3eb"
+        },
+        {
+          "event": "work-2",
+          "action": "work",
+          "workspace_digest": "33be466171cdbaeefcfd8c5b6404bbf0ff4fb01df60e13af60c16c4d3b77a3eb"
+        },
+        {
+          "event": "boundary-2",
+          "action": "switch",
+          "workspace_digest": "33be466171cdbaeefcfd8c5b6404bbf0ff4fb01df60e13af60c16c4d3b77a3eb"
+        },
+        {
+          "event": "pause",
+          "action": "pause",
+          "workspace_digest": "33be466171cdbaeefcfd8c5b6404bbf0ff4fb01df60e13af60c16c4d3b77a3eb"
+        },
+        {
+          "event": "reader-v2",
+          "action": "patch",
+          "workspace_digest": "96eae6233d0ca22bd3d9813de6dcff489b1ef92e392622c2a67f8ec4dd4e0d65"
+        },
+        {
+          "event": "resume",
+          "action": "resume",
+          "workspace_digest": "96eae6233d0ca22bd3d9813de6dcff489b1ef92e392622c2a67f8ec4dd4e0d65"
+        },
+        {
+          "event": "work-3",
+          "action": "work",
+          "workspace_digest": "96eae6233d0ca22bd3d9813de6dcff489b1ef92e392622c2a67f8ec4dd4e0d65"
+        },
+        {
+          "event": "boundary-3",
+          "action": "switch",
+          "workspace_digest": "96eae6233d0ca22bd3d9813de6dcff489b1ef92e392622c2a67f8ec4dd4e0d65"
+        },
+        {
+          "event": "work-4",
+          "action": "work",
+          "workspace_digest": "96eae6233d0ca22bd3d9813de6dcff489b1ef92e392622c2a67f8ec4dd4e0d65"
+        },
+        {
+          "event": "final",
+          "action": "verify",
+          "workspace_digest": "96eae6233d0ca22bd3d9813de6dcff489b1ef92e392622c2a67f8ec4dd4e0d65"
+        }
+      ],
+      "cleanup": true,
+      "mode": "offline-scripted-reference",
+      "real_api_status": "NOT_RUN",
+      "model": null,
+      "reasoning_effort": null,
+      "api_tokens": null,
+      "history_calls": null,
+      "notes_calls": null
+    }
+  ],
+  "negative_controls": [
+    {
+      "mutation": "unrepaired",
+      "variant": "A",
+      "passed": false,
+      "behavior_and_workspace_passed": false,
+      "fresh_scripted_verification": false,
+      "failures": [
+        "required workspace change missing: batch.py",
+        "trusted verifier failed: public",
+        "trusted verifier failed: hidden",
+        "missing successful agent verification for final workspace"
+      ],
+      "verifiers": [
+        {
+          "name": "public",
+          "baseline_exit_code": 1,
+          "final_exit_code": 1,
+          "baseline_timed_out": false,
+          "final_timed_out": false,
+          "workspace_digest": "3e93b554d1c41bb043db4c1b2819c458e26b83da5e2df8f9cfa64219faa4782c",
+          "baseline_infrastructure_failure": null,
+          "final_infrastructure_failure": null
+        },
+        {
+          "name": "hidden",
+          "baseline_exit_code": 1,
+          "final_exit_code": 1,
+          "baseline_timed_out": false,
+          "final_timed_out": false,
+          "workspace_digest": "3e93b554d1c41bb043db4c1b2819c458e26b83da5e2df8f9cfa64219faa4782c",
+          "baseline_infrastructure_failure": null,
+          "final_infrastructure_failure": null
+        }
+      ],
+      "events": [
+        {
+          "event": "work-1",
+          "action": "work",
+          "workspace_digest": "3e93b554d1c41bb043db4c1b2819c458e26b83da5e2df8f9cfa64219faa4782c"
+        },
+        {
+          "event": "boundary-1",
+          "action": "barrier",
+          "workspace_digest": "3e93b554d1c41bb043db4c1b2819c458e26b83da5e2df8f9cfa64219faa4782c"
+        },
+        {
+          "event": "work-2",
+          "action": "work",
+          "workspace_digest": "3e93b554d1c41bb043db4c1b2819c458e26b83da5e2df8f9cfa64219faa4782c"
+        },
+        {
+          "event": "boundary-2",
+          "action": "barrier",
+          "workspace_digest": "3e93b554d1c41bb043db4c1b2819c458e26b83da5e2df8f9cfa64219faa4782c"
+        },
+        {
+          "event": "work-3",
+          "action": "work",
+          "workspace_digest": "3e93b554d1c41bb043db4c1b2819c458e26b83da5e2df8f9cfa64219faa4782c"
+        },
+        {
+          "event": "boundary-3",
+          "action": "barrier",
+          "workspace_digest": "3e93b554d1c41bb043db4c1b2819c458e26b83da5e2df8f9cfa64219faa4782c"
+        },
+        {
+          "event": "work-4",
+          "action": "work",
+          "workspace_digest": "3e93b554d1c41bb043db4c1b2819c458e26b83da5e2df8f9cfa64219faa4782c"
+        },
+        {
+          "event": "final",
+          "action": "verify",
+          "workspace_digest": "3e93b554d1c41bb043db4c1b2819c458e26b83da5e2df8f9cfa64219faa4782c"
+        }
+      ],
+      "cleanup": true,
+      "mode": "offline-scripted-reference",
+      "real_api_status": "NOT_RUN",
+      "model": null,
+      "reasoning_effort": null,
+      "api_tokens": null,
+      "history_calls": null,
+      "notes_calls": null
+    },
+    {
+      "mutation": "ordinal-stale-assumption",
+      "variant": "C",
+      "passed": false,
+      "behavior_and_workspace_passed": false,
+      "fresh_scripted_verification": true,
+      "failures": [
+        "trusted verifier failed: hidden"
+      ],
+      "verifiers": [
+        {
+          "name": "public",
+          "baseline_exit_code": 1,
+          "final_exit_code": 0,
+          "baseline_timed_out": false,
+          "final_timed_out": false,
+          "workspace_digest": "403eb8138c29d77da788533f844ba1099ca98b6b4064a6c19c0189d1180b3a95",
+          "baseline_infrastructure_failure": null,
+          "final_infrastructure_failure": null
+        },
+        {
+          "name": "hidden",
+          "baseline_exit_code": 1,
+          "final_exit_code": 1,
+          "baseline_timed_out": false,
+          "final_timed_out": false,
+          "workspace_digest": "403eb8138c29d77da788533f844ba1099ca98b6b4064a6c19c0189d1180b3a95",
+          "baseline_infrastructure_failure": null,
+          "final_infrastructure_failure": null
+        }
+      ],
+      "events": [
+        {
+          "event": "work-1",
+          "action": "work",
+          "workspace_digest": "4fad1fe2368275eb333bfcc879e4275e911988d8289235212708a7efe8bca427"
+        },
+        {
+          "event": "boundary-1",
+          "action": "switch",
+          "workspace_digest": "4fad1fe2368275eb333bfcc879e4275e911988d8289235212708a7efe8bca427"
+        },
+        {
+          "event": "work-2",
+          "action": "work",
+          "workspace_digest": "4fad1fe2368275eb333bfcc879e4275e911988d8289235212708a7efe8bca427"
+        },
+        {
+          "event": "boundary-2",
+          "action": "switch",
+          "workspace_digest": "4fad1fe2368275eb333bfcc879e4275e911988d8289235212708a7efe8bca427"
+        },
+        {
+          "event": "reader-v2",
+          "action": "patch",
+          "workspace_digest": "403eb8138c29d77da788533f844ba1099ca98b6b4064a6c19c0189d1180b3a95"
+        },
+        {
+          "event": "work-3",
+          "action": "work",
+          "workspace_digest": "403eb8138c29d77da788533f844ba1099ca98b6b4064a6c19c0189d1180b3a95"
+        },
+        {
+          "event": "boundary-3",
+          "action": "switch",
+          "workspace_digest": "403eb8138c29d77da788533f844ba1099ca98b6b4064a6c19c0189d1180b3a95"
+        },
+        {
+          "event": "work-4",
+          "action": "work",
+          "workspace_digest": "403eb8138c29d77da788533f844ba1099ca98b6b4064a6c19c0189d1180b3a95"
+        },
+        {
+          "event": "final",
+          "action": "verify",
+          "workspace_digest": "403eb8138c29d77da788533f844ba1099ca98b6b4064a6c19c0189d1180b3a95"
+        }
+      ],
+      "cleanup": true,
+      "mode": "offline-scripted-reference",
+      "real_api_status": "NOT_RUN",
+      "model": null,
+      "reasoning_effort": null,
+      "api_tokens": null,
+      "history_calls": null,
+      "notes_calls": null
+    },
+    {
+      "mutation": "rewrite-output",
+      "variant": "A",
+      "passed": false,
+      "behavior_and_workspace_passed": false,
+      "fresh_scripted_verification": true,
+      "failures": [
+        "trusted verifier failed: hidden"
+      ],
+      "verifiers": [
+        {
+          "name": "public",
+          "baseline_exit_code": 1,
+          "final_exit_code": 0,
+          "baseline_timed_out": false,
+          "final_timed_out": false,
+          "workspace_digest": "cb8e036256fbe6cbaaf05bbc78786d89dcd5f130544a7adf0005c56bd33427d7",
+          "baseline_infrastructure_failure": null,
+          "final_infrastructure_failure": null
+        },
+        {
+          "name": "hidden",
+          "baseline_exit_code": 1,
+          "final_exit_code": 1,
+          "baseline_timed_out": false,
+          "final_timed_out": false,
+          "workspace_digest": "cb8e036256fbe6cbaaf05bbc78786d89dcd5f130544a7adf0005c56bd33427d7",
+          "baseline_infrastructure_failure": null,
+          "final_infrastructure_failure": null
+        }
+      ],
+      "events": [
+        {
+          "event": "work-1",
+          "action": "work",
+          "workspace_digest": "cb8e036256fbe6cbaaf05bbc78786d89dcd5f130544a7adf0005c56bd33427d7"
+        },
+        {
+          "event": "boundary-1",
+          "action": "barrier",
+          "workspace_digest": "cb8e036256fbe6cbaaf05bbc78786d89dcd5f130544a7adf0005c56bd33427d7"
+        },
+        {
+          "event": "work-2",
+          "action": "work",
+          "workspace_digest": "cb8e036256fbe6cbaaf05bbc78786d89dcd5f130544a7adf0005c56bd33427d7"
+        },
+        {
+          "event": "boundary-2",
+          "action": "barrier",
+          "workspace_digest": "cb8e036256fbe6cbaaf05bbc78786d89dcd5f130544a7adf0005c56bd33427d7"
+        },
+        {
+          "event": "work-3",
+          "action": "work",
+          "workspace_digest": "cb8e036256fbe6cbaaf05bbc78786d89dcd5f130544a7adf0005c56bd33427d7"
+        },
+        {
+          "event": "boundary-3",
+          "action": "barrier",
+          "workspace_digest": "cb8e036256fbe6cbaaf05bbc78786d89dcd5f130544a7adf0005c56bd33427d7"
+        },
+        {
+          "event": "work-4",
+          "action": "work",
+          "workspace_digest": "cb8e036256fbe6cbaaf05bbc78786d89dcd5f130544a7adf0005c56bd33427d7"
+        },
+        {
+          "event": "final",
+          "action": "verify",
+          "workspace_digest": "cb8e036256fbe6cbaaf05bbc78786d89dcd5f130544a7adf0005c56bd33427d7"
+        }
+      ],
+      "cleanup": true,
+      "mode": "offline-scripted-reference",
+      "real_api_status": "NOT_RUN",
+      "model": null,
+      "reasoning_effort": null,
+      "api_tokens": null,
+      "history_calls": null,
+      "notes_calls": null
+    },
+    {
+      "mutation": "revert-external-change",
+      "variant": "C",
+      "passed": false,
+      "behavior_and_workspace_passed": false,
+      "fresh_scripted_verification": true,
+      "failures": [
+        "unexpected file content: reader.py",
+        "trusted verifier failed: hidden"
+      ],
+      "verifiers": [
+        {
+          "name": "public",
+          "baseline_exit_code": 1,
+          "final_exit_code": 0,
+          "baseline_timed_out": false,
+          "final_timed_out": false,
+          "workspace_digest": "33be466171cdbaeefcfd8c5b6404bbf0ff4fb01df60e13af60c16c4d3b77a3eb",
+          "baseline_infrastructure_failure": null,
+          "final_infrastructure_failure": null
+        },
+        {
+          "name": "hidden",
+          "baseline_exit_code": 1,
+          "final_exit_code": 1,
+          "baseline_timed_out": false,
+          "final_timed_out": false,
+          "workspace_digest": "33be466171cdbaeefcfd8c5b6404bbf0ff4fb01df60e13af60c16c4d3b77a3eb",
+          "baseline_infrastructure_failure": null,
+          "final_infrastructure_failure": null
+        }
+      ],
+      "events": [
+        {
+          "event": "work-1",
+          "action": "work",
+          "workspace_digest": "33be466171cdbaeefcfd8c5b6404bbf0ff4fb01df60e13af60c16c4d3b77a3eb"
+        },
+        {
+          "event": "boundary-1",
+          "action": "switch",
+          "workspace_digest": "33be466171cdbaeefcfd8c5b6404bbf0ff4fb01df60e13af60c16c4d3b77a3eb"
+        },
+        {
+          "event": "work-2",
+          "action": "work",
+          "workspace_digest": "33be466171cdbaeefcfd8c5b6404bbf0ff4fb01df60e13af60c16c4d3b77a3eb"
+        },
+        {
+          "event": "boundary-2",
+          "action": "switch",
+          "workspace_digest": "33be466171cdbaeefcfd8c5b6404bbf0ff4fb01df60e13af60c16c4d3b77a3eb"
+        },
+        {
+          "event": "reader-v2",
+          "action": "patch",
+          "workspace_digest": "96eae6233d0ca22bd3d9813de6dcff489b1ef92e392622c2a67f8ec4dd4e0d65"
+        },
+        {
+          "event": "work-3",
+          "action": "work",
+          "workspace_digest": "33be466171cdbaeefcfd8c5b6404bbf0ff4fb01df60e13af60c16c4d3b77a3eb"
+        },
+        {
+          "event": "boundary-3",
+          "action": "switch",
+          "workspace_digest": "33be466171cdbaeefcfd8c5b6404bbf0ff4fb01df60e13af60c16c4d3b77a3eb"
+        },
+        {
+          "event": "work-4",
+          "action": "work",
+          "workspace_digest": "33be466171cdbaeefcfd8c5b6404bbf0ff4fb01df60e13af60c16c4d3b77a3eb"
+        },
+        {
+          "event": "final",
+          "action": "verify",
+          "workspace_digest": "33be466171cdbaeefcfd8c5b6404bbf0ff4fb01df60e13af60c16c4d3b77a3eb"
+        }
+      ],
+      "cleanup": true,
+      "mode": "offline-scripted-reference",
+      "real_api_status": "NOT_RUN",
+      "model": null,
+      "reasoning_effort": null,
+      "api_tokens": null,
+      "history_calls": null,
+      "notes_calls": null
+    },
+    {
+      "mutation": "stale-validation",
+      "variant": "C",
+      "passed": false,
+      "behavior_and_workspace_passed": true,
+      "fresh_scripted_verification": false,
+      "failures": [
+        "missing successful agent verification for final workspace"
+      ],
+      "verifiers": [
+        {
+          "name": "public",
+          "baseline_exit_code": 1,
+          "final_exit_code": 0,
+          "baseline_timed_out": false,
+          "final_timed_out": false,
+          "workspace_digest": "96eae6233d0ca22bd3d9813de6dcff489b1ef92e392622c2a67f8ec4dd4e0d65",
+          "baseline_infrastructure_failure": null,
+          "final_infrastructure_failure": null
+        },
+        {
+          "name": "hidden",
+          "baseline_exit_code": 1,
+          "final_exit_code": 0,
+          "baseline_timed_out": false,
+          "final_timed_out": false,
+          "workspace_digest": "96eae6233d0ca22bd3d9813de6dcff489b1ef92e392622c2a67f8ec4dd4e0d65",
+          "baseline_infrastructure_failure": null,
+          "final_infrastructure_failure": null
+        }
+      ],
+      "events": [
+        {
+          "event": "work-1",
+          "action": "work",
+          "workspace_digest": "33be466171cdbaeefcfd8c5b6404bbf0ff4fb01df60e13af60c16c4d3b77a3eb"
+        },
+        {
+          "event": "boundary-1",
+          "action": "switch",
+          "workspace_digest": "33be466171cdbaeefcfd8c5b6404bbf0ff4fb01df60e13af60c16c4d3b77a3eb"
+        },
+        {
+          "event": "work-2",
+          "action": "work",
+          "workspace_digest": "33be466171cdbaeefcfd8c5b6404bbf0ff4fb01df60e13af60c16c4d3b77a3eb"
+        },
+        {
+          "event": "boundary-2",
+          "action": "switch",
+          "workspace_digest": "33be466171cdbaeefcfd8c5b6404bbf0ff4fb01df60e13af60c16c4d3b77a3eb"
+        },
+        {
+          "event": "reader-v2",
+          "action": "patch",
+          "workspace_digest": "96eae6233d0ca22bd3d9813de6dcff489b1ef92e392622c2a67f8ec4dd4e0d65"
+        },
+        {
+          "event": "work-3",
+          "action": "work",
+          "workspace_digest": "96eae6233d0ca22bd3d9813de6dcff489b1ef92e392622c2a67f8ec4dd4e0d65"
+        },
+        {
+          "event": "boundary-3",
+          "action": "switch",
+          "workspace_digest": "96eae6233d0ca22bd3d9813de6dcff489b1ef92e392622c2a67f8ec4dd4e0d65"
+        },
+        {
+          "event": "work-4",
+          "action": "work",
+          "workspace_digest": "96eae6233d0ca22bd3d9813de6dcff489b1ef92e392622c2a67f8ec4dd4e0d65"
+        },
+        {
+          "event": "final",
+          "action": "verify",
+          "workspace_digest": "96eae6233d0ca22bd3d9813de6dcff489b1ef92e392622c2a67f8ec4dd4e0d65"
+        }
+      ],
+      "cleanup": true,
+      "mode": "offline-scripted-reference",
+      "real_api_status": "NOT_RUN",
+      "model": null,
+      "reasoning_effort": null,
+      "api_tokens": null,
+      "history_calls": null,
+      "notes_calls": null
+    }
+  ],
+  "ordinal_before_evolution": {
+    "variant": "B",
+    "passed": true,
+    "behavior_and_workspace_passed": true,
+    "fresh_scripted_verification": true,
+    "failures": [],
+    "verifiers": [
+      {
+        "name": "public",
+        "baseline_exit_code": 1,
+        "final_exit_code": 0,
+        "baseline_timed_out": false,
+        "final_timed_out": false,
+        "workspace_digest": "4fad1fe2368275eb333bfcc879e4275e911988d8289235212708a7efe8bca427",
+        "baseline_infrastructure_failure": null,
+        "final_infrastructure_failure": null
+      },
+      {
+        "name": "hidden",
+        "baseline_exit_code": 1,
+        "final_exit_code": 0,
+        "baseline_timed_out": false,
+        "final_timed_out": false,
+        "workspace_digest": "4fad1fe2368275eb333bfcc879e4275e911988d8289235212708a7efe8bca427",
+        "baseline_infrastructure_failure": null,
+        "final_infrastructure_failure": null
+      }
+    ],
+    "events": [
+      {
+        "event": "work-1",
+        "action": "work",
+        "workspace_digest": "4fad1fe2368275eb333bfcc879e4275e911988d8289235212708a7efe8bca427"
+      },
+      {
+        "event": "boundary-1",
+        "action": "switch",
+        "workspace_digest": "4fad1fe2368275eb333bfcc879e4275e911988d8289235212708a7efe8bca427"
+      },
+      {
+        "event": "work-2",
+        "action": "work",
+        "workspace_digest": "4fad1fe2368275eb333bfcc879e4275e911988d8289235212708a7efe8bca427"
+      },
+      {
+        "event": "boundary-2",
+        "action": "switch",
+        "workspace_digest": "4fad1fe2368275eb333bfcc879e4275e911988d8289235212708a7efe8bca427"
+      },
+      {
+        "event": "work-3",
+        "action": "work",
+        "workspace_digest": "4fad1fe2368275eb333bfcc879e4275e911988d8289235212708a7efe8bca427"
+      },
+      {
+        "event": "boundary-3",
+        "action": "switch",
+        "workspace_digest": "4fad1fe2368275eb333bfcc879e4275e911988d8289235212708a7efe8bca427"
+      },
+      {
+        "event": "work-4",
+        "action": "work",
+        "workspace_digest": "4fad1fe2368275eb333bfcc879e4275e911988d8289235212708a7efe8bca427"
+      },
+      {
+        "event": "final",
+        "action": "verify",
+        "workspace_digest": "4fad1fe2368275eb333bfcc879e4275e911988d8289235212708a7efe8bca427"
+      }
+    ],
+    "cleanup": true,
+    "mode": "offline-scripted-reference",
+    "real_api_status": "NOT_RUN",
+    "model": null,
+    "reasoning_effort": null,
+    "api_tokens": null,
+    "history_calls": null,
+    "notes_calls": null
+  }
+}

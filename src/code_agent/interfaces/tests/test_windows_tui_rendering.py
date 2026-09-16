@@ -152,6 +152,19 @@ class TerminalFirstRendererTests(unittest.TestCase):
 
         self.assertEqual(context, "gpt-5 · 12.3 token/s · 00:18")
 
+    def test_budget_warning_remains_visible_while_the_task_replans(self) -> None:
+        output: list[str] = []
+        app = WindowsTerminalApp(
+            AgentController(FakeEngine(())), ApprovalBroker(), write=output.append
+        )
+        app.state.status = "running"
+        app.state.task_budget_line = "summarize instead of continuing exploration"
+        app.redraw()
+
+        rendered = _plain(output[-1])
+
+        self.assertIn("summarize instead of continuing", rendered)
+
     def test_compatibility_renderer_is_append_only(self) -> None:
         app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker())
         app.state.entries.append(text_entry(DisplayKind.AGENT, "done"))

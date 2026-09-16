@@ -1,0 +1,50 @@
+[
+  {
+    "trial": 0,
+    "elapsed_s": 0.898,
+    "budget_s": 10.0,
+    "max_results": 100,
+    "complete": false,
+    "reason": "result_limit",
+    "is_error": false,
+    "match_count": 100,
+    "target_found": false,
+    "environment_match_count": 0
+  },
+  {
+    "trial": 1,
+    "elapsed_s": 3.647,
+    "budget_s": 10.0,
+    "max_results": 1000,
+    "complete": true,
+    "reason": null,
+    "is_error": false,
+    "match_count": 218,
+    "target_found": true,
+    "environment_match_count": 0
+  },
+  {
+    "trial": 2,
+    "elapsed_s": 4.056,
+    "budget_s": 10.0,
+    "max_results": 1000,
+    "complete": true,
+    "reason": null,
+    "is_error": false,
+    "match_count": 218,
+    "target_found": true,
+    "environment_match_count": 0
+  },
+  {
+    "trial": 3,
+    "elapsed_s": 3.451,
+    "budget_s": 10.0,
+    "max_results": 1000,
+    "complete": true,
+    "reason": null,
+    "is_error": false,
+    "match_count": 218,
+    "target_found": true,
+    "environment_match_count": 0
+  }
+]

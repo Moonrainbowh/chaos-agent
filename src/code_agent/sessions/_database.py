@@ -7,7 +7,11 @@ from pathlib import Path
 from typing import TypeVar
 
 from . import _database_cancellation as _dbc
-from ._edit_batch_schema import EDIT_BATCH_MIGRATION, EDIT_BATCH_REQUIRED_COLUMNS
+from ._edit_batch_schema import (
+    EDIT_BATCH_IDENTITY_MIGRATION,
+    EDIT_BATCH_MIGRATION,
+    EDIT_BATCH_REQUIRED_COLUMNS,
+)
 from ._rewind_schema import REWIND_MIGRATION, REWIND_REQUIRED_COLUMNS
 from .errors import (
     SessionCorruptionError,
@@ -18,7 +22,7 @@ from .errors import (
 from ._schema_structure import validate_schema_structure
 from ._schema_validation import FOLLOWUP_MIGRATION, REQUIRED_COLUMNS
 
-SCHEMA_VERSION = 20
+SCHEMA_VERSION = 22
 _BUSY_TIMEOUT_MS = 5_000
 _SQLITE_CORRUPT = 11
 _SQLITE_NOTADB = 26
@@ -131,6 +135,13 @@ _MIGRATIONS: dict[int, tuple[str, ...]] = {
     ),
     19: EDIT_BATCH_MIGRATION,
     20: FOLLOWUP_MIGRATION,
+    21: (
+        "CREATE TABLE memories (memory_id TEXT NOT NULL, revision INTEGER NOT NULL, scope_type TEXT NOT NULL CHECK(scope_type IN ('task', 'project', 'user')), scope_id TEXT NOT NULL, kind TEXT NOT NULL, content TEXT NOT NULL, source_refs TEXT NOT NULL, origin TEXT NOT NULL, conditions TEXT NOT NULL, lifecycle TEXT NOT NULL CHECK(lifecycle IN ('candidate', 'active', 'superseded', 'withdrawn', 'archived')), supersedes TEXT, derived_from TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, idempotency_key TEXT, PRIMARY KEY(memory_id, revision))",
+        "CREATE UNIQUE INDEX memories_idempotency ON memories(scope_type, scope_id, idempotency_key) WHERE idempotency_key IS NOT NULL",
+        "CREATE INDEX memories_scope_lifecycle ON memories(scope_type, scope_id, lifecycle, updated_at DESC)",
+        "CREATE TABLE memory_forget (scope_type TEXT NOT NULL, scope_id TEXT NOT NULL, content_sha256 TEXT NOT NULL, deleted_at TEXT NOT NULL, PRIMARY KEY(scope_type, scope_id, content_sha256))",
+    ),
+    22: EDIT_BATCH_IDENTITY_MIGRATION,
 }
 
 class SessionDatabase:
@@ -146,6 +157,10 @@ class SessionDatabase:
         if not self.path.parent.exists() or not self.path.parent.is_dir():
             raise ValueError("database parent must be an existing directory")
         self._initialize()
+
+    def close(self) -> None:
+        """Compatibility lifecycle hook; connections are scoped per operation."""
+        return None
 
     async def read(
         self, operation: Callable[[sqlite3.Connection], _Result]

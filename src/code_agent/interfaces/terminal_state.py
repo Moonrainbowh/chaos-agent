@@ -3,6 +3,7 @@ from .terminal_history_summary import _summary_lines
 from .terminal_context_budget import ContextBudgetDisplay
 
 from typing import Mapping, Optional
+import re
 
 from code_agent.core.events import AgentEvent, EventKind
 from code_agent.core.models import ActionResult, Message, ModelEvent, ModelEventKind
@@ -26,6 +27,8 @@ class TerminalState:
         self.transcript: list[str] = []
         self.entries: list[DisplayEntry] = []
         self._draft = DraftBuffer()
+        self.plan_text = ""
+        self.plan_completed_steps = 0
         self._actions: list[str] = []
         self._failed_actions: list[str] = []
         self._action_requests: dict[str, Mapping[str, object]] = {}
@@ -35,7 +38,9 @@ class TerminalState:
         self.diff: Optional[str] = None
         self.task_id: Optional[str] = None
         self.task_status: Optional[str] = None
+        self.task_stop_reason: Optional[str] = None
         self.task_budget_line: Optional[str] = None
+        self.phase_durations: dict[str, int] = {}
         self.pending_decision: Optional[str] = None
         self.token_rate = TokenRateTracker()
         self.total_tokens: int = 0
@@ -58,6 +63,8 @@ class TerminalState:
         """Project persisted thread records into a terminal-safe view model."""
         self.context_budget = ContextBudgetDisplay()
         self.thread_id = history.thread_id
+        self.plan_text = ""
+        self.plan_completed_steps = 0
         self.transcript = _transcript_lines(history.messages)
         self.entries = [text_entry(DisplayKind.USER if line.startswith("user:") else DisplayKind.AGENT, line.split(": ", 1)[-1]) for line in self.transcript]
         self._draft.clear()
@@ -74,10 +81,13 @@ class TerminalState:
             self._update_status(event)
         self.summary = _summary_lines(history, self.status)
 
-    def begin_run(self) -> None:
+    def begin_run(self, *, preserve_plan: bool = False) -> None:
         """Reset transient progress so a new prompt cannot inherit the prior result."""
         self.status = "running"
         self.pending_decision = None
+        if not preserve_plan:
+            self.plan_text = ""
+            self.plan_completed_steps = 0
         self._draft.clear()
         self._actions = []
         self._failed_actions = []
@@ -85,6 +95,7 @@ class TerminalState:
         self.active_action = None
         self.execution_summary = ""
         self.token_rate.reset()
+        self.phase_durations = {}
 
     def apply(self, event: AgentEvent) -> None:
         self.timeline.append(_timeline_line(event))
@@ -92,9 +103,10 @@ class TerminalState:
             self._freeze_partial_answer()
         if event.kind is EventKind.RUN_STARTED:
             thread_id = event.payload.get("thread_id")
+            preserve_plan = bool(self.plan_text and thread_id == self.thread_id)
             if isinstance(thread_id, str):
                 self.thread_id = thread_id
-            self.begin_run()
+            self.begin_run(preserve_plan=preserve_plan)
         elif event.kind in {
             EventKind.TURN_STARTED,
             EventKind.CONTEXT_BUILT,
@@ -108,10 +120,17 @@ class TerminalState:
             status = event.payload.get("status")
             if isinstance(task_id, str): self.task_id = task_id
             if isinstance(status, str): self.task_status = status
+            reason = event.payload.get("reason")
+            if isinstance(reason, str):
+                self.task_stop_reason = reason
+            elif event.kind is EventKind.TASK_CREATED or self.task_status != "paused":
+                self.task_stop_reason = None
             self.status = status if isinstance(status, str) else "task"
         elif event.kind is EventKind.TASK_BUDGET_WARNING:
             reason = event.payload.get("reason")
             self.task_budget_line = reason if isinstance(reason, str) else "budget warning"
+        elif event.kind is EventKind.PHASE_COMPLETED:
+            self._apply_phase_timing(event)
         elif event.kind is EventKind.TASK_DECISION_REQUIRED:
             self._apply_decision(event)
         elif event.kind is EventKind.MODEL_EVENT:
@@ -125,6 +144,10 @@ class TerminalState:
             name = _action_name(event)
             result = _action_result(event)
             self._actions.append(name)
+            self.plan_completed_steps = min(
+                self.plan_completed_steps + 1,
+                max(0, len(self._plan_steps()) - 1),
+            )
             if line.startswith("failed "):
                 self._failed_actions.append(name)
                 self.entries.append(text_entry(DisplayKind.ERROR, action_summary(name, self._action_requests.pop(result.request_id, None) if result else None, result) if result else name + " failed"))
@@ -140,7 +163,9 @@ class TerminalState:
         reason = event.payload.get("reason")
         self.pending_decision = reason if isinstance(reason, str) else "decision required"
         self.status = "waiting_decision"
-        self.entries.append(text_entry(DisplayKind.WARNING, self.pending_decision + " · Continue with instructions, inspect /evidence, or use /accept for partial delivery."))
+        # Keep the durable waiting-decision state, but do not add a verbose
+        # yellow transcript block. The compact status line remains available
+        # so the task can still be resumed or accepted explicitly.
 
     def _apply_action_request(self, event: AgentEvent) -> None:
         self._capture_diff(event)
@@ -152,11 +177,32 @@ class TerminalState:
         if isinstance(request, Mapping) and isinstance(request.get("id"), str):
             self._action_requests[request["id"]] = request
 
+    def _apply_phase_timing(self, event: AgentEvent) -> None:
+        phase = event.payload.get("phase")
+        duration_ms = event.payload.get("duration_ms")
+        if (
+            phase not in {"context", "model", "action"}
+            or isinstance(duration_ms, bool)
+            or not isinstance(duration_ms, int)
+            or duration_ms < 0
+        ):
+            return
+        current = self.phase_durations.get(phase, 0)
+        self.phase_durations[phase] = min(86_400_000, current + duration_ms)
+
+    def _plan_steps(self) -> list[str]:
+        return [line.strip() for line in self.plan_text.splitlines() if line.strip()]
+
     def _update_status(self, event: AgentEvent) -> None:
         self.context_budget.apply(event)
         if event.kind in {EventKind.TASK_CREATED, EventKind.TASK_STATUS_CHANGED, EventKind.TASK_PAUSED}:
             self.task_id = event.payload.get("task_id", self.task_id)
             self.task_status = event.payload.get("status", self.task_status)
+            reason = event.payload.get("reason")
+            if isinstance(reason, str):
+                self.task_stop_reason = reason
+            elif event.kind is EventKind.TASK_CREATED or self.task_status != "paused":
+                self.task_stop_reason = None
             if self.task_status:
                 self.status = self.task_status
             return
@@ -210,7 +256,13 @@ class TerminalState:
             message = Message.from_dict(raw)
         except (KeyError, TypeError, ValueError):
             return
-        if message.role == "assistant" and message.content and not message.tool_calls:
+        if message.role == "assistant" and message.content:
+            plans = list(re.finditer(r"<(plan|replan)>(.*?)</\1>", message.content, re.DOTALL))
+            if plans:
+                new_plan = plans[-1].group(2).strip()
+                if new_plan != self.plan_text:
+                    self.plan_text = new_plan
+                    self.plan_completed_steps = 0
             self._finish_display(message.content)
 
     def _finish_display(self, completed_text: str | None = None) -> None:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+import re
 
 from code_agent.core.models import ActionResult
 
@@ -31,12 +32,22 @@ def action_summary(name: str, request: Mapping[str, object] | None, result: Acti
     arguments = request.get("arguments") if request else None
     title = action_activity(name, arguments)
     facts = _result_facts(name, result)
+    facts.extend(_error_facts(result))
     if result.is_error:
         facts.append("failed")
     detail = " · ".join(dict.fromkeys(facts))
     lines = [title + (f"  {detail}" if detail else "")]
     lines.extend(_result_preview(name, result))
     return "\n".join(lines)
+
+
+def _error_facts(result: ActionResult) -> list[str]:
+    if not result.is_error or not isinstance(result.output, Mapping):
+        return []
+    code = result.output.get("error_code")
+    if code == "repeated_action_blocked":
+        return ["blocked by policy"]
+    return []
 
 
 def action_activity(name: str, arguments: object) -> str:
@@ -134,4 +145,6 @@ def _duration(value: object) -> str | None:
 def _bounded_scalar(value: object, *, maximum: int = 160) -> str | None:
     if not isinstance(value, str):
         return None
-    return value.replace("\r", " ").replace("\n", " ")[:maximum]
+    value = re.sub(r"\x1b(?:\[[0-?]*[ -/]*[@-~]|.)", "", value)
+    value = re.sub(r"[\x00-\x1f\x7f]", " ", value)
+    return value[:maximum]

@@ -1,0 +1,746 @@
+{
+  "fixture_version": "csv-continuity-v2",
+  "mode": "offline-scripted-reference",
+  "real_api_status": "NOT_RUN",
+  "reference": [
+    {
+      "variant": "A",
+      "mutation": null,
+      "final_passed": true,
+      "coverage_passed": true,
+      "grade_failures": [],
+      "events": [
+        {
+          "event": "work-1",
+          "action": "work",
+          "workspace_digest": "c6680618109c610d622ed3cdf5c4003d0fb925ebbb77e676b3d667b1b531e568"
+        },
+        {
+          "event": "boundary-1",
+          "action": "barrier",
+          "workspace_digest": "c6680618109c610d622ed3cdf5c4003d0fb925ebbb77e676b3d667b1b531e568"
+        },
+        {
+          "event": "work-2",
+          "action": "work",
+          "workspace_digest": "52e06f16020d9e3863a2d90f55a4af42e0b2283ea34be275057461dd3ccb8cf8"
+        },
+        {
+          "event": "boundary-2",
+          "action": "barrier",
+          "workspace_digest": "52e06f16020d9e3863a2d90f55a4af42e0b2283ea34be275057461dd3ccb8cf8"
+        },
+        {
+          "event": "reader-v2",
+          "action": "patch",
+          "workspace_digest": "2575e3837e6afada650565ce9d2e658e4958bebda3212f2563dbc362026744fa"
+        },
+        {
+          "event": "work-3",
+          "action": "work",
+          "workspace_digest": "2575e3837e6afada650565ce9d2e658e4958bebda3212f2563dbc362026744fa"
+        },
+        {
+          "event": "boundary-3",
+          "action": "barrier",
+          "workspace_digest": "2575e3837e6afada650565ce9d2e658e4958bebda3212f2563dbc362026744fa"
+        },
+        {
+          "event": "work-4",
+          "action": "work",
+          "workspace_digest": "071da18a53c2c75d233bd7a67d695c58e05b8931592206fafc7d6100ae0242d2"
+        }
+      ],
+      "observations": [
+        {
+          "label": "after-diagnosis-1",
+          "workspace_digest": "c6680618109c610d622ed3cdf5c4003d0fb925ebbb77e676b3d667b1b531e568",
+          "exit_code": 1,
+          "timed_out": false,
+          "infrastructure_failure": null,
+          "passed": false
+        },
+        {
+          "label": "before-patch",
+          "workspace_digest": "52e06f16020d9e3863a2d90f55a4af42e0b2283ea34be275057461dd3ccb8cf8",
+          "exit_code": 0,
+          "timed_out": false,
+          "infrastructure_failure": null,
+          "passed": true
+        },
+        {
+          "label": "after-patch",
+          "workspace_digest": "2575e3837e6afada650565ce9d2e658e4958bebda3212f2563dbc362026744fa",
+          "exit_code": 1,
+          "timed_out": false,
+          "infrastructure_failure": null,
+          "passed": false
+        },
+        {
+          "label": "after-diagnosis-3",
+          "workspace_digest": "2575e3837e6afada650565ce9d2e658e4958bebda3212f2563dbc362026744fa",
+          "exit_code": 1,
+          "timed_out": false,
+          "infrastructure_failure": null,
+          "passed": false
+        },
+        {
+          "label": "final",
+          "workspace_digest": "071da18a53c2c75d233bd7a67d695c58e05b8931592206fafc7d6100ae0242d2",
+          "exit_code": 0,
+          "timed_out": false,
+          "infrastructure_failure": null,
+          "passed": true
+        }
+      ],
+      "coverage": {
+        "status": "covered",
+        "old_solution_invalidated": true,
+        "unfinished_across_boundaries": true,
+        "final_behavior_passed": true
+      },
+      "fresh_agent_verification": true,
+      "final_digest": "071da18a53c2c75d233bd7a67d695c58e05b8931592206fafc7d6100ae0242d2"
+    },
+    {
+      "variant": "B",
+      "mutation": null,
+      "final_passed": true,
+      "coverage_passed": true,
+      "grade_failures": [],
+      "events": [
+        {
+          "event": "work-1",
+          "action": "work",
+          "workspace_digest": "c6680618109c610d622ed3cdf5c4003d0fb925ebbb77e676b3d667b1b531e568"
+        },
+        {
+          "event": "boundary-1",
+          "action": "switch",
+          "workspace_digest": "c6680618109c610d622ed3cdf5c4003d0fb925ebbb77e676b3d667b1b531e568"
+        },
+        {
+          "event": "work-2",
+          "action": "work",
+          "workspace_digest": "52e06f16020d9e3863a2d90f55a4af42e0b2283ea34be275057461dd3ccb8cf8"
+        },
+        {
+          "event": "boundary-2",
+          "action": "switch",
+          "workspace_digest": "52e06f16020d9e3863a2d90f55a4af42e0b2283ea34be275057461dd3ccb8cf8"
+        },
+        {
+          "event": "reader-v2",
+          "action": "patch",
+          "workspace_digest": "2575e3837e6afada650565ce9d2e658e4958bebda3212f2563dbc362026744fa"
+        },
+        {
+          "event": "work-3",
+          "action": "work",
+          "workspace_digest": "2575e3837e6afada650565ce9d2e658e4958bebda3212f2563dbc362026744fa"
+        },
+        {
+          "event": "boundary-3",
+          "action": "switch",
+          "workspace_digest": "2575e3837e6afada650565ce9d2e658e4958bebda3212f2563dbc362026744fa"
+        },
+        {
+          "event": "work-4",
+          "action": "work",
+          "workspace_digest": "071da18a53c2c75d233bd7a67d695c58e05b8931592206fafc7d6100ae0242d2"
+        }
+      ],
+      "observations": [
+        {
+          "label": "after-diagnosis-1",
+          "workspace_digest": "c6680618109c610d622ed3cdf5c4003d0fb925ebbb77e676b3d667b1b531e568",
+          "exit_code": 1,
+          "timed_out": false,
+          "infrastructure_failure": null,
+          "passed": false
+        },
+        {
+          "label": "before-patch",
+          "workspace_digest": "52e06f16020d9e3863a2d90f55a4af42e0b2283ea34be275057461dd3ccb8cf8",
+          "exit_code": 0,
+          "timed_out": false,
+          "infrastructure_failure": null,
+          "passed": true
+        },
+        {
+          "label": "after-patch",
+          "workspace_digest": "2575e3837e6afada650565ce9d2e658e4958bebda3212f2563dbc362026744fa",
+          "exit_code": 1,
+          "timed_out": false,
+          "infrastructure_failure": null,
+          "passed": false
+        },
+        {
+          "label": "after-diagnosis-3",
+          "workspace_digest": "2575e3837e6afada650565ce9d2e658e4958bebda3212f2563dbc362026744fa",
+          "exit_code": 1,
+          "timed_out": false,
+          "infrastructure_failure": null,
+          "passed": false
+        },
+        {
+          "label": "final",
+          "workspace_digest": "071da18a53c2c75d233bd7a67d695c58e05b8931592206fafc7d6100ae0242d2",
+          "exit_code": 0,
+          "timed_out": false,
+          "infrastructure_failure": null,
+          "passed": true
+        }
+      ],
+      "coverage": {
+        "status": "covered",
+        "old_solution_invalidated": true,
+        "unfinished_across_boundaries": true,
+        "final_behavior_passed": true
+      },
+      "fresh_agent_verification": true,
+      "final_digest": "071da18a53c2c75d233bd7a67d695c58e05b8931592206fafc7d6100ae0242d2"
+    },
+    {
+      "variant": "C",
+      "mutation": null,
+      "final_passed": true,
+      "coverage_passed": true,
+      "grade_failures": [],
+      "events": [
+        {
+          "event": "work-1",
+          "action": "work",
+          "workspace_digest": "c6680618109c610d622ed3cdf5c4003d0fb925ebbb77e676b3d667b1b531e568"
+        },
+        {
+          "event": "boundary-1",
+          "action": "switch",
+          "workspace_digest": "c6680618109c610d622ed3cdf5c4003d0fb925ebbb77e676b3d667b1b531e568"
+        },
+        {
+          "event": "work-2",
+          "action": "work",
+          "workspace_digest": "52e06f16020d9e3863a2d90f55a4af42e0b2283ea34be275057461dd3ccb8cf8"
+        },
+        {
+          "event": "boundary-2",
+          "action": "switch",
+          "workspace_digest": "52e06f16020d9e3863a2d90f55a4af42e0b2283ea34be275057461dd3ccb8cf8"
+        },
+        {
+          "event": "reader-v2",
+          "action": "patch",
+          "workspace_digest": "2575e3837e6afada650565ce9d2e658e4958bebda3212f2563dbc362026744fa"
+        },
+        {
+          "event": "work-3",
+          "action": "work",
+          "workspace_digest": "2575e3837e6afada650565ce9d2e658e4958bebda3212f2563dbc362026744fa"
+        },
+        {
+          "event": "boundary-3",
+          "action": "switch",
+          "workspace_digest": "2575e3837e6afada650565ce9d2e658e4958bebda3212f2563dbc362026744fa"
+        },
+        {
+          "event": "work-4",
+          "action": "work",
+          "workspace_digest": "071da18a53c2c75d233bd7a67d695c58e05b8931592206fafc7d6100ae0242d2"
+        }
+      ],
+      "observations": [
+        {
+          "label": "after-diagnosis-1",
+          "workspace_digest": "c6680618109c610d622ed3cdf5c4003d0fb925ebbb77e676b3d667b1b531e568",
+          "exit_code": 1,
+          "timed_out": false,
+          "infrastructure_failure": null,
+          "passed": false
+        },
+        {
+          "label": "before-patch",
+          "workspace_digest": "52e06f16020d9e3863a2d90f55a4af42e0b2283ea34be275057461dd3ccb8cf8",
+          "exit_code": 0,
+          "timed_out": false,
+          "infrastructure_failure": null,
+          "passed": true
+        },
+        {
+          "label": "after-patch",
+          "workspace_digest": "2575e3837e6afada650565ce9d2e658e4958bebda3212f2563dbc362026744fa",
+          "exit_code": 1,
+          "timed_out": false,
+          "infrastructure_failure": null,
+          "passed": false
+        },
+        {
+          "label": "after-diagnosis-3",
+          "workspace_digest": "2575e3837e6afada650565ce9d2e658e4958bebda3212f2563dbc362026744fa",
+          "exit_code": 1,
+          "timed_out": false,
+          "infrastructure_failure": null,
+          "passed": false
+        },
+        {
+          "label": "final",
+          "workspace_digest": "071da18a53c2c75d233bd7a67d695c58e05b8931592206fafc7d6100ae0242d2",
+          "exit_code": 0,
+          "timed_out": false,
+          "infrastructure_failure": null,
+          "passed": true
+        }
+      ],
+      "coverage": {
+        "status": "covered",
+        "old_solution_invalidated": true,
+        "unfinished_across_boundaries": true,
+        "final_behavior_passed": true
+      },
+      "fresh_agent_verification": true,
+      "final_digest": "071da18a53c2c75d233bd7a67d695c58e05b8931592206fafc7d6100ae0242d2"
+    },
+    {
+      "variant": "D",
+      "mutation": null,
+      "final_passed": true,
+      "coverage_passed": true,
+      "grade_failures": [],
+      "events": [
+        {
+          "event": "work-1",
+          "action": "work",
+          "workspace_digest": "c6680618109c610d622ed3cdf5c4003d0fb925ebbb77e676b3d667b1b531e568"
+        },
+        {
+          "event": "boundary-1",
+          "action": "switch",
+          "workspace_digest": "c6680618109c610d622ed3cdf5c4003d0fb925ebbb77e676b3d667b1b531e568"
+        },
+        {
+          "event": "work-2",
+          "action": "work",
+          "workspace_digest": "52e06f16020d9e3863a2d90f55a4af42e0b2283ea34be275057461dd3ccb8cf8"
+        },
+        {
+          "event": "boundary-2",
+          "action": "switch",
+          "workspace_digest": "52e06f16020d9e3863a2d90f55a4af42e0b2283ea34be275057461dd3ccb8cf8"
+        },
+        {
+          "event": "pause",
+          "action": "pause",
+          "workspace_digest": "52e06f16020d9e3863a2d90f55a4af42e0b2283ea34be275057461dd3ccb8cf8"
+        },
+        {
+          "event": "reader-v2",
+          "action": "patch",
+          "workspace_digest": "2575e3837e6afada650565ce9d2e658e4958bebda3212f2563dbc362026744fa"
+        },
+        {
+          "event": "resume",
+          "action": "resume",
+          "workspace_digest": "2575e3837e6afada650565ce9d2e658e4958bebda3212f2563dbc362026744fa"
+        },
+        {
+          "event": "work-3",
+          "action": "work",
+          "workspace_digest": "2575e3837e6afada650565ce9d2e658e4958bebda3212f2563dbc362026744fa"
+        },
+        {
+          "event": "boundary-3",
+          "action": "switch",
+          "workspace_digest": "2575e3837e6afada650565ce9d2e658e4958bebda3212f2563dbc362026744fa"
+        },
+        {
+          "event": "work-4",
+          "action": "work",
+          "workspace_digest": "071da18a53c2c75d233bd7a67d695c58e05b8931592206fafc7d6100ae0242d2"
+        }
+      ],
+      "observations": [
+        {
+          "label": "after-diagnosis-1",
+          "workspace_digest": "c6680618109c610d622ed3cdf5c4003d0fb925ebbb77e676b3d667b1b531e568",
+          "exit_code": 1,
+          "timed_out": false,
+          "infrastructure_failure": null,
+          "passed": false
+        },
+        {
+          "label": "before-patch",
+          "workspace_digest": "52e06f16020d9e3863a2d90f55a4af42e0b2283ea34be275057461dd3ccb8cf8",
+          "exit_code": 0,
+          "timed_out": false,
+          "infrastructure_failure": null,
+          "passed": true
+        },
+        {
+          "label": "after-patch",
+          "workspace_digest": "2575e3837e6afada650565ce9d2e658e4958bebda3212f2563dbc362026744fa",
+          "exit_code": 1,
+          "timed_out": false,
+          "infrastructure_failure": null,
+          "passed": false
+        },
+        {
+          "label": "after-diagnosis-3",
+          "workspace_digest": "2575e3837e6afada650565ce9d2e658e4958bebda3212f2563dbc362026744fa",
+          "exit_code": 1,
+          "timed_out": false,
+          "infrastructure_failure": null,
+          "passed": false
+        },
+        {
+          "label": "final",
+          "workspace_digest": "071da18a53c2c75d233bd7a67d695c58e05b8931592206fafc7d6100ae0242d2",
+          "exit_code": 0,
+          "timed_out": false,
+          "infrastructure_failure": null,
+          "passed": true
+        }
+      ],
+      "coverage": {
+        "status": "covered",
+        "old_solution_invalidated": true,
+        "unfinished_across_boundaries": true,
+        "final_behavior_passed": true
+      },
+      "fresh_agent_verification": true,
+      "final_digest": "071da18a53c2c75d233bd7a67d695c58e05b8931592206fafc7d6100ae0242d2"
+    }
+  ],
+  "negative_controls": [
+    {
+      "variant": "D",
+      "mutation": "never-migrate",
+      "final_passed": false,
+      "coverage_passed": false,
+      "grade_failures": [
+        "trusted verifier failed: public",
+        "trusted verifier failed: hidden"
+      ],
+      "events": [
+        {
+          "event": "work-1",
+          "action": "work",
+          "workspace_digest": "c6680618109c610d622ed3cdf5c4003d0fb925ebbb77e676b3d667b1b531e568"
+        },
+        {
+          "event": "boundary-1",
+          "action": "switch",
+          "workspace_digest": "c6680618109c610d622ed3cdf5c4003d0fb925ebbb77e676b3d667b1b531e568"
+        },
+        {
+          "event": "work-2",
+          "action": "work",
+          "workspace_digest": "52e06f16020d9e3863a2d90f55a4af42e0b2283ea34be275057461dd3ccb8cf8"
+        },
+        {
+          "event": "boundary-2",
+          "action": "switch",
+          "workspace_digest": "52e06f16020d9e3863a2d90f55a4af42e0b2283ea34be275057461dd3ccb8cf8"
+        },
+        {
+          "event": "pause",
+          "action": "pause",
+          "workspace_digest": "52e06f16020d9e3863a2d90f55a4af42e0b2283ea34be275057461dd3ccb8cf8"
+        },
+        {
+          "event": "reader-v2",
+          "action": "patch",
+          "workspace_digest": "2575e3837e6afada650565ce9d2e658e4958bebda3212f2563dbc362026744fa"
+        },
+        {
+          "event": "resume",
+          "action": "resume",
+          "workspace_digest": "2575e3837e6afada650565ce9d2e658e4958bebda3212f2563dbc362026744fa"
+        },
+        {
+          "event": "work-3",
+          "action": "work",
+          "workspace_digest": "2575e3837e6afada650565ce9d2e658e4958bebda3212f2563dbc362026744fa"
+        },
+        {
+          "event": "boundary-3",
+          "action": "switch",
+          "workspace_digest": "2575e3837e6afada650565ce9d2e658e4958bebda3212f2563dbc362026744fa"
+        },
+        {
+          "event": "work-4",
+          "action": "work",
+          "workspace_digest": "2575e3837e6afada650565ce9d2e658e4958bebda3212f2563dbc362026744fa"
+        }
+      ],
+      "observations": [
+        {
+          "label": "after-diagnosis-1",
+          "workspace_digest": "c6680618109c610d622ed3cdf5c4003d0fb925ebbb77e676b3d667b1b531e568",
+          "exit_code": 1,
+          "timed_out": false,
+          "infrastructure_failure": null,
+          "passed": false
+        },
+        {
+          "label": "before-patch",
+          "workspace_digest": "52e06f16020d9e3863a2d90f55a4af42e0b2283ea34be275057461dd3ccb8cf8",
+          "exit_code": 0,
+          "timed_out": false,
+          "infrastructure_failure": null,
+          "passed": true
+        },
+        {
+          "label": "after-patch",
+          "workspace_digest": "2575e3837e6afada650565ce9d2e658e4958bebda3212f2563dbc362026744fa",
+          "exit_code": 1,
+          "timed_out": false,
+          "infrastructure_failure": null,
+          "passed": false
+        },
+        {
+          "label": "after-diagnosis-3",
+          "workspace_digest": "2575e3837e6afada650565ce9d2e658e4958bebda3212f2563dbc362026744fa",
+          "exit_code": 1,
+          "timed_out": false,
+          "infrastructure_failure": null,
+          "passed": false
+        },
+        {
+          "label": "final",
+          "workspace_digest": "2575e3837e6afada650565ce9d2e658e4958bebda3212f2563dbc362026744fa",
+          "exit_code": 1,
+          "timed_out": false,
+          "infrastructure_failure": null,
+          "passed": false
+        }
+      ],
+      "coverage": {
+        "status": "not-covered",
+        "old_solution_invalidated": true,
+        "unfinished_across_boundaries": true,
+        "final_behavior_passed": false
+      },
+      "fresh_agent_verification": false,
+      "final_digest": "2575e3837e6afada650565ce9d2e658e4958bebda3212f2563dbc362026744fa"
+    },
+    {
+      "variant": "D",
+      "mutation": "already-compatible",
+      "final_passed": true,
+      "coverage_passed": false,
+      "grade_failures": [],
+      "events": [
+        {
+          "event": "work-1",
+          "action": "work",
+          "workspace_digest": "c6680618109c610d622ed3cdf5c4003d0fb925ebbb77e676b3d667b1b531e568"
+        },
+        {
+          "event": "boundary-1",
+          "action": "switch",
+          "workspace_digest": "c6680618109c610d622ed3cdf5c4003d0fb925ebbb77e676b3d667b1b531e568"
+        },
+        {
+          "event": "work-2",
+          "action": "work",
+          "workspace_digest": "07ef496808f2b084c58c94925db23b806290819aa3b77357e05477eb00adf728"
+        },
+        {
+          "event": "boundary-2",
+          "action": "switch",
+          "workspace_digest": "07ef496808f2b084c58c94925db23b806290819aa3b77357e05477eb00adf728"
+        },
+        {
+          "event": "pause",
+          "action": "pause",
+          "workspace_digest": "07ef496808f2b084c58c94925db23b806290819aa3b77357e05477eb00adf728"
+        },
+        {
+          "event": "reader-v2",
+          "action": "patch",
+          "workspace_digest": "3624c43b52145e1706403d54c9dded0e279d81a7790b66ae0c611d6f78b965f8"
+        },
+        {
+          "event": "resume",
+          "action": "resume",
+          "workspace_digest": "3624c43b52145e1706403d54c9dded0e279d81a7790b66ae0c611d6f78b965f8"
+        },
+        {
+          "event": "work-3",
+          "action": "work",
+          "workspace_digest": "3624c43b52145e1706403d54c9dded0e279d81a7790b66ae0c611d6f78b965f8"
+        },
+        {
+          "event": "boundary-3",
+          "action": "switch",
+          "workspace_digest": "3624c43b52145e1706403d54c9dded0e279d81a7790b66ae0c611d6f78b965f8"
+        },
+        {
+          "event": "work-4",
+          "action": "work",
+          "workspace_digest": "3624c43b52145e1706403d54c9dded0e279d81a7790b66ae0c611d6f78b965f8"
+        }
+      ],
+      "observations": [
+        {
+          "label": "after-diagnosis-1",
+          "workspace_digest": "c6680618109c610d622ed3cdf5c4003d0fb925ebbb77e676b3d667b1b531e568",
+          "exit_code": 1,
+          "timed_out": false,
+          "infrastructure_failure": null,
+          "passed": false
+        },
+        {
+          "label": "before-patch",
+          "workspace_digest": "07ef496808f2b084c58c94925db23b806290819aa3b77357e05477eb00adf728",
+          "exit_code": 0,
+          "timed_out": false,
+          "infrastructure_failure": null,
+          "passed": true
+        },
+        {
+          "label": "after-patch",
+          "workspace_digest": "3624c43b52145e1706403d54c9dded0e279d81a7790b66ae0c611d6f78b965f8",
+          "exit_code": 0,
+          "timed_out": false,
+          "infrastructure_failure": null,
+          "passed": true
+        },
+        {
+          "label": "after-diagnosis-3",
+          "workspace_digest": "3624c43b52145e1706403d54c9dded0e279d81a7790b66ae0c611d6f78b965f8",
+          "exit_code": 0,
+          "timed_out": false,
+          "infrastructure_failure": null,
+          "passed": true
+        },
+        {
+          "label": "final",
+          "workspace_digest": "3624c43b52145e1706403d54c9dded0e279d81a7790b66ae0c611d6f78b965f8",
+          "exit_code": 0,
+          "timed_out": false,
+          "infrastructure_failure": null,
+          "passed": true
+        }
+      ],
+      "coverage": {
+        "status": "not-covered",
+        "old_solution_invalidated": false,
+        "unfinished_across_boundaries": false,
+        "final_behavior_passed": true
+      },
+      "fresh_agent_verification": true,
+      "final_digest": "3624c43b52145e1706403d54c9dded0e279d81a7790b66ae0c611d6f78b965f8"
+    },
+    {
+      "variant": "D",
+      "mutation": "stale-verification",
+      "final_passed": false,
+      "coverage_passed": false,
+      "grade_failures": [],
+      "events": [
+        {
+          "event": "work-1",
+          "action": "work",
+          "workspace_digest": "c6680618109c610d622ed3cdf5c4003d0fb925ebbb77e676b3d667b1b531e568"
+        },
+        {
+          "event": "boundary-1",
+          "action": "switch",
+          "workspace_digest": "c6680618109c610d622ed3cdf5c4003d0fb925ebbb77e676b3d667b1b531e568"
+        },
+        {
+          "event": "work-2",
+          "action": "work",
+          "workspace_digest": "52e06f16020d9e3863a2d90f55a4af42e0b2283ea34be275057461dd3ccb8cf8"
+        },
+        {
+          "event": "boundary-2",
+          "action": "switch",
+          "workspace_digest": "52e06f16020d9e3863a2d90f55a4af42e0b2283ea34be275057461dd3ccb8cf8"
+        },
+        {
+          "event": "pause",
+          "action": "pause",
+          "workspace_digest": "52e06f16020d9e3863a2d90f55a4af42e0b2283ea34be275057461dd3ccb8cf8"
+        },
+        {
+          "event": "reader-v2",
+          "action": "patch",
+          "workspace_digest": "2575e3837e6afada650565ce9d2e658e4958bebda3212f2563dbc362026744fa"
+        },
+        {
+          "event": "resume",
+          "action": "resume",
+          "workspace_digest": "2575e3837e6afada650565ce9d2e658e4958bebda3212f2563dbc362026744fa"
+        },
+        {
+          "event": "work-3",
+          "action": "work",
+          "workspace_digest": "2575e3837e6afada650565ce9d2e658e4958bebda3212f2563dbc362026744fa"
+        },
+        {
+          "event": "boundary-3",
+          "action": "switch",
+          "workspace_digest": "2575e3837e6afada650565ce9d2e658e4958bebda3212f2563dbc362026744fa"
+        },
+        {
+          "event": "work-4",
+          "action": "work",
+          "workspace_digest": "071da18a53c2c75d233bd7a67d695c58e05b8931592206fafc7d6100ae0242d2"
+        }
+      ],
+      "observations": [
+        {
+          "label": "after-diagnosis-1",
+          "workspace_digest": "c6680618109c610d622ed3cdf5c4003d0fb925ebbb77e676b3d667b1b531e568",
+          "exit_code": 1,
+          "timed_out": false,
+          "infrastructure_failure": null,
+          "passed": false
+        },
+        {
+          "label": "before-patch",
+          "workspace_digest": "52e06f16020d9e3863a2d90f55a4af42e0b2283ea34be275057461dd3ccb8cf8",
+          "exit_code": 0,
+          "timed_out": false,
+          "infrastructure_failure": null,
+          "passed": true
+        },
+        {
+          "label": "after-patch",
+          "workspace_digest": "2575e3837e6afada650565ce9d2e658e4958bebda3212f2563dbc362026744fa",
+          "exit_code": 1,
+          "timed_out": false,
+          "infrastructure_failure": null,
+          "passed": false
+        },
+        {
+          "label": "after-diagnosis-3",
+          "workspace_digest": "2575e3837e6afada650565ce9d2e658e4958bebda3212f2563dbc362026744fa",
+          "exit_code": 1,
+          "timed_out": false,
+          "infrastructure_failure": null,
+          "passed": false
+        },
+        {
+          "label": "final",
+          "workspace_digest": "071da18a53c2c75d233bd7a67d695c58e05b8931592206fafc7d6100ae0242d2",
+          "exit_code": 0,
+          "timed_out": false,
+          "infrastructure_failure": null,
+          "passed": true
+        }
+      ],
+      "coverage": {
+        "status": "covered",
+        "old_solution_invalidated": true,
+        "unfinished_across_boundaries": true,
+        "final_behavior_passed": true
+      },
+      "fresh_agent_verification": false,
+      "final_digest": "071da18a53c2c75d233bd7a67d695c58e05b8931592206fafc7d6100ae0242d2"
+    }
+  ],
+  "selfcheck_passed": true
+}

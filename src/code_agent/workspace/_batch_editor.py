@@ -11,6 +11,7 @@ from ._batch_models import (
     RecoveryOperation,
 )
 from ._batch_plan import plan_batch, plan_delete, plan_move
+from ._secure_io import PathIdentity
 from .paths import PathInput
 
 if TYPE_CHECKING:
@@ -71,6 +72,19 @@ class BatchWorkspaceEditorMixin:
         from ._batch_recovery import recovery_operations_from_prepared
 
         return recovery_operations_from_prepared(prepared)
+
+    def post_identities(
+        self, prepared: PreparedBatchEdit
+    ) -> dict[str, PathIdentity | None]:
+        """Observe the durable identity of every path a prepared batch touched.
+
+        Must be called after the batch was applied: an atomic replace installs a
+        new file index and a created file does not exist beforehand, so this is
+        the earliest moment the ownership proof exists.
+        """
+        from ._batch_recovery_prepare import post_identities
+
+        return post_identities(self, prepared)
 
     def recover_batch(
         self,

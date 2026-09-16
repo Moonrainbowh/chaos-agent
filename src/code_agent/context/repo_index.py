@@ -176,6 +176,12 @@ class RepoIndexService:
         with self._update_lock:
             self._search_index.close()
 
+    def __del__(self) -> None:
+        try:
+            self.close()
+        except Exception:
+            pass
+
     def _scan_all(self) -> dict[str, RepoFileFacts]:
         try:
             paths = self.files.list_files(

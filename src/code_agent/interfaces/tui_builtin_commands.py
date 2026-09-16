@@ -18,7 +18,7 @@ async def handle_builtin_command(app: Any, command: TuiCommand) -> bool | None:
     handled = await handle_general_command(app, command)
     if handled is not None:
         return handled
-    if command.kind in {TuiCommandKind.NEW, TuiCommandKind.RESTORE} and app._run_task and not app._run_task.done():
+    if command.kind in {TuiCommandKind.NEW, TuiCommandKind.RESUME} and app._run_task and not app._run_task.done():
         app._append(DisplayKind.ERROR, "Pause the running task before opening a different session.")
         return False
     if command.kind is TuiCommandKind.NEW:
@@ -27,10 +27,9 @@ async def handle_builtin_command(app: Any, command: TuiCommand) -> bool | None:
         return await handle_session_command(
             app, command.action, command.instruction
         )
-    elif command.kind is TuiCommandKind.RESTORE:
+    elif command.kind is TuiCommandKind.RESUME:
         if not command.instruction:
-            app._append(DisplayKind.ERROR, "thread id is required")
-            return False
+            return await handle_session_command(app, "history", None)
         return await app.restore_thread(command.instruction)
     elif command.kind is TuiCommandKind.SKILL:
         return await handle_skill_command(app, command.instruction)

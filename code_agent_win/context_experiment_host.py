@@ -68,7 +68,17 @@ class ExperimentDispatcher:
 
     async def dispatch(self, request, cancellation, *args, **kwargs):
         if request.name in {"write_file", "replace_text"} and request.arguments.get("path") != "solution.py":
-            result = ActionResult(request.id, request.name, "Only solution.py is writable in this experiment.", True)
+            result = ActionResult(
+                request.id,
+                request.name,
+                {
+                    "error_code": "PATH_OUT_OF_SCOPE",
+                    "message": "Only solution.py is writable in this experiment.",
+                    "allowed_paths": ["solution.py"],
+                    "requested_path": request.arguments.get("path"),
+                },
+                True,
+            )
         elif request.name == "run_verification":
             outcome = await asyncio.to_thread(verify_source, self.root, self.public_cases)
             result = ActionResult(request.id, request.name, outcome, not outcome["passed"])

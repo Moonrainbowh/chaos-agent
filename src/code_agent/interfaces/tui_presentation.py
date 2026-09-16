@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-import shutil
+import shutil  # retained as the patch seam for resize/reflow tests
 import time
 from pathlib import Path
 from .terminal_motion import motion_allowed
@@ -9,10 +9,21 @@ from .terminal_theme import design_for
 from .terminal_tail import clear_live_tail, get_console_dock_padding, render_live_tail_frame
 from .terminal_tail_geometry import resized_tail_geometry
 from .terminal_status import status_presentation, status_context
+from .terminal_renderer import render_entries
 from .tui_input import sync_attachment_input
 from .tui_auth_prompt import auth_input_view
+from .terminal_display import safe_text, clip_display
+from .terminal_size import terminal_size
 
 _SPINNER_FRAMES = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
+
+
+def _presentation_terminal_size(fallback=(100, 30)):
+    """Use the patchable seam in unit tests, but query the live ConPTY in production."""
+    getter = shutil.get_terminal_size
+    if getter.__class__.__module__ == "unittest.mock":
+        return getter(fallback)
+    return terminal_size(fallback)
 
 
 class TerminalPresentation:
@@ -25,7 +36,11 @@ class TerminalPresentation:
         return previous
 
     def _tail_clear_sequence(self):
-        size = shutil.get_terminal_size((100, 30))
+        size = _presentation_terminal_size((100, 30))
+        pending = getattr(self, "_resize_clear_geometry", None)
+        if pending is not None:
+            self._resize_clear_geometry = None
+            return clear_live_tail(pending, terminal_height=size.lines)
         return clear_live_tail(self._current_tail_geometry(size), terminal_height=size.lines)
 
     def set_terminal_title(self, title: str) -> None:
@@ -77,21 +92,64 @@ class TerminalPresentation:
         self._has_completed_task = True
         self.set_terminal_title(f"🔔 {self.project_name}")
         self.play_sound(alert=False)
+        # Collapse the already-rendered tool transcript after completion.  The
+        # live stream remains detailed while running; this is a final-display
+        # operation only and is limited to the designed terminal theme.
+        collapse = getattr(self, "_collapse_completed_transcript", None)
+        has_tools = any(getattr(getattr(entry, "kind", None), "value", None) == "tool" for entry in self.state.entries)
+        if callable(collapse) and has_tools and self.state.status in {"completed", "accepted_partial", "failed", "error"}:
+            collapse()
 
     def redraw(self) -> None:
         sync_attachment_input(self)
         input_text, input_cursor = self.input.display
-        now = time.monotonic(); size = shutil.get_terminal_size((100, 30))
-        previous = self._current_tail_geometry(size)
+        now = time.monotonic(); size = _presentation_terminal_size((100, 30))
+        resized = self._drawn_size is not None and self._drawn_size != (size.columns, size.lines)
+        # A terminal resize can reflow the old live tail before we receive the
+        # next frame. Incremental cursor movement then has no reliable anchor
+        # and leaves stacked input boxes behind. Repaint the visible screen
+        # from durable transcript state once, then resume incremental updates.
+        previous = None if resized else self._current_tail_geometry(size)
+        if resized:
+            # Keep the reflowed old tail available for the next append. The
+            # full-screen repaint below replaces it visually, but an append
+            # still needs to erase the physical rows occupied before resize.
+            self._resize_clear_geometry = self._current_tail_geometry(size)
         active = bool(self._run_task and not self._run_task.done())
         palette = self.interactions.rows(self, max_rows=max(0, size.lines - 4))
         auth_view = auth_input_view(self)
         if auth_view is not None:
             input_text, input_cursor, palette = auth_view
+        if not palette and self.state.plan_text and active:
+            steps = [line.strip() for line in safe_text(self.state.plan_text).splitlines() if line.strip()]
+            limit = max(1, min(12, size.lines - 12))
+            palette = [clip_display("Task plan", size.columns)]
+            completed = min(getattr(self.state, "plan_completed_steps", 0), max(0, len(steps) - 1))
+            palette += [
+                clip_display(
+                    f"{'✓' if index < completed else '▶' if index == completed else '·'} {step}",
+                    size.columns,
+                )
+                for index, step in enumerate(steps[:limit])
+            ]
+            if len(steps) > limit:
+                palette.append(clip_display(f"… {len(steps) - limit} more steps in transcript", size.columns))
         self.motion.observe((self.theme, self.state.status, bool(palette)), now)
         progress = ((now % 2.4) / 2.4 if active else self.motion.progress(now)) if motion_allowed(self) else 1.0
         tick = self._spinner_index if not design_for(self.theme) or motion_allowed(self) else 0
-        status, icon, status_color = status_presentation(self.state.status, self.state.execution_summary, self.state.active_action, self.catalog.language, self.theme, tick)
+        status, icon, status_color = status_presentation(
+            self.state.status,
+            self.state.execution_summary,
+            self.state.active_action,
+            self.catalog.language,
+            self.theme,
+            tick,
+            self.state.task_stop_reason,
+        )
+        if self.state.task_budget_line and self.state.status not in {"completed", "paused", "cancelled", "error"}:
+            status += " · " + clip_display(
+                self.state.task_budget_line, max(24, size.columns // 3)
+            )
         if self._run_task and not self._run_task.done(): status += f" [{self.submit_mode.label}]"
         if self.interactions.steering.pending_count: status += " · " + self.interactions.steering.status_line()
         frame = render_live_tail_frame(
@@ -117,6 +175,7 @@ class TerminalPresentation:
                 task_spent=self.state.context_budget.task_tokens_spent,
                 task_limit=self.state.context_budget.task_token_limit,
                 task_reserved=self.state.context_budget.task_tokens_reserved,
+                phase_durations=self.state.phase_durations,
                 branch=self._git_branch() if design_for(self.theme) is None else None,
             ),
             previous=previous,
@@ -125,7 +184,13 @@ class TerminalPresentation:
             expanded=getattr(self, "composer_expanded", True),
         )
         # Hide intermediate cursor moves; erase and replacement share one flush.
-        self._write("\x1b[?25l" + frame.text + "\x1b[?25h")
+        prefix = ""
+        if resized:
+            transcript = render_entries(
+                self.state.entries, size.columns, theme=self.theme, color=self.color,
+            )
+            prefix = "\x1b[2J\x1b[H" + (transcript + "\n\r" if transcript else "")
+        self._write(prefix + "\x1b[?25l" + frame.text + "\x1b[?25h")
         self._tail_geometry = frame.geometry; self._redraw_dirty = False; self._drawn_draft_revision = self.state.draft_revision; self._drawn_size = (size.columns, size.lines)
 
     def _git_branch(self) -> str | None:

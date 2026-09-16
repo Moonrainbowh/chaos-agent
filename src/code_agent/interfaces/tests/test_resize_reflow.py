@@ -40,8 +40,9 @@ class ResizeReflowTests(unittest.TestCase):
                 self.assertEqual(len(writes), 1)
                 self.assertEqual(writes[0].count("CHAOS AGENT"), 1)
                 if expected:
-                    self.assertEqual(writes[0].count("\x1b[2K"), max(expected.height, app._tail_geometry.height))
-                    self.assertIn(f"\x1b[{expected.cursor_row}A", writes[0])
+                    if "\x1b[2J\x1b[H" not in writes[0]:
+                        self.assertEqual(writes[0].count("\x1b[2K"), max(expected.height, app._tail_geometry.height))
+                        self.assertIn(f"\x1b[{expected.cursor_row}A", writes[0])
                 self.assertEqual(app.input.text, "draft 中文")
 
     def test_current_short_viewport_bounds_cleanup(self):

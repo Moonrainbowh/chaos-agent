@@ -53,9 +53,9 @@ so a save cannot return a handle that is already unreadable.
 ## Configure A Provider
 
 Inside the TUI, `/login` opens provider/method choices and hidden credential input.
-`/logswitch` temporarily selects a saved OAuth/API login and model or an existing
-API profile without changing the configured startup default. A changed selection
-opens a new conversation; pause a running task first.
+`/model` selects configured profiles and models from saved OAuth/API logins. A
+changed selection opens a new conversation; pause a running task first. The last
+successful model selection is restored when the interactive TUI next starts.
 
 Use the authentication CLI before opening a workspace:
 
@@ -239,6 +239,8 @@ chaos-agent resume <thread-id> "continue the previous task"
 chaos-agent run --json "list the relevant files"
 ```
 
+`resume <thread-id> "..."` 会先查找该 thread 关联的持久任务，并恢复任务创建时冻结的 profile、model、topology 和 reasoning effort；如果任务已进入终态，应只打开历史或创建新任务，不会静默用当前运行时重放旧任务。项目行为规范使用工作区根目录及当前目录链上的 `AGENTS.md`（以及根目录 `AGENTS.*.md`）在每次上下文构建时加载；`agent.md` 不是另一套并行规范文件。
+
 ### ACP editor adapter
 
 Editors that support Agent Client Protocol v1 can launch Chaos Agent as a
@@ -364,6 +366,16 @@ python -m code_agent.interfaces.theme_preview --html docs/ui-preview/index.html
 [Interactive state preview](docs/ui-preview/index.html).
 
 ### Same-machine session messaging
+
+### 分层网络获取
+
+统一入口 `web_retrieve` 按固定顺序编排：`web_search`/`web_fetch`（通用检索与正文获取）→
+`site_api`（当前支持 GitHub、arXiv）→ 已批准的 MCP 工具 → 可选
+`browser_fetch`（Playwright，未安装时失败闭合）→ `run_process_v1`/
+`run_command` 作为 PowerShell/curl 兜底。所有新增网络工具都标记为
+`network` 高风险并经过同一 ActionPolicy；HTTP 层不自动跟随重定向，返回
+`layer`、URL、状态、标题、截断标记和正文，搜索候选必须再次 fetch 或通过
+站点 API 验证。MCP 的启用、批准和风险映射仍由现有 `/mcp` 配置负责。
 
 Open TUI instances for the same Windows user can exchange bounded plain text
 through the shared local session database:
@@ -526,13 +538,69 @@ metadata-only path remain stored but are omitted from this executable picker.
 Tasks persist lifecycle state, checkpoints, and cumulative budgets. Closing the
 terminal, sleep, hibernate, shutdown, or reboot does not keep work running;
 the next foreground session resumes from a checkpoint and never replays an
-in-flight command. Foreground coding tasks run in managed Git worktrees.
+in-flight command. A foreground task runs **directly in the source workspace**
+by default; a managed Git worktree is used only when isolation is requested.
 Durable checkpoints can restore tracked and eligible untracked code,
 session/task state, or both. Ignored files, secrets, build outputs, Git
 metadata, links/reparse targets, and in-flight commands are never captured or
 replayed. Rewind keeps the original task history and requires an explicit
 preview confirmation. This release deliberately has no daemon, remote observer,
 background continuation, OS sandbox, automatic commit, or push.
+
+## Workspace Modes
+
+`CHAOS_WORKSPACE_MODE` selects where a task reads and writes. The local
+workspace is the default execution environment; a managed Git worktree is an
+isolation mechanism for parallel or explicitly isolated tasks, not a
+prerequisite for starting a task.
+
+| Mode | Behavior |
+| --- | --- |
+| `auto` (default) | Uses the local workspace for normal tasks and an isolated worktree when the task is parallel (another task is already writing this root) or declares a background or explicit isolation reason. |
+| `direct` | Always operates directly in the current workspace. |
+| `managed` | Always runs the task inside an isolated managed Git worktree. |
+
+Isolation can also be asked for per invocation instead of process-wide:
+
+```
+chaos-agent --isolated ask "refactor this module"
+```
+
+`--isolated` asks for a managed worktree for that invocation. If the mode or
+the root cannot provide one — `direct`, or a workspace that is not a Git
+repository — the task is refused with the reason, never silently downgraded to
+the source workspace.
+
+An unknown value fails before the task starts. `managed` on a non-Git workspace
+reports that isolation needs a repository and stays local; `managed`
+initialization failures are reported and never fall back to the source root.
+
+A second task on a root that already has an active writer is isolated in its own
+worktree under `auto`; `direct`, and any root that cannot host a worktree, refuses
+it with `a foreground task is already active` so one root keeps one local writer.
+
+Ordinary tasks (`auto` or `direct`) do not probe Git, enumerate changed or
+untracked paths, snapshot them, or copy them, so a workspace holding large
+datasets, artifacts, logs, caches, or tens of thousands of untracked files
+starts at the same cost as an empty one. Only a managed worktree pays the
+dirty-state seed cost, and it keeps its bounded Git output/timeout protection:
+exceeding that budget is a clear error, not a silent partial copy.
+
+Every task owns a workspace lineage, including one that runs locally: a local
+lineage points its worktree root at the source root and creates no branch,
+directory, or copy. Local lifecycle boundaries stay metadata-only so task
+creation never snapshots the whole source workspace, while `/checkpoint` and
+`/rewind` still work on demand and restore the source workspace itself. Isolated
+tasks keep snapshotting every automatic boundary.
+
+Managed worktrees do not accumulate indefinitely. Each startup retires the ones
+that provably hold nothing: a worktree with no persisted lineage (creation was
+interrupted between `git worktree add` and the lineage write), or one whose task
+reached a terminal state, whose checkout is clean, whose branch carries no commit
+of its own, and whose lineage has no rewindable checkpoint. Anything else is kept
+and reported. `chaos-agent --reclaim-workspaces` runs the same pass while also
+accepting worktrees whose lineage still has checkpoints, and prints what it kept
+and why.
 
 ## Context Budgets And Local Diagnostics
 

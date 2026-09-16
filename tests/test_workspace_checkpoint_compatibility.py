@@ -7,7 +7,11 @@ import unittest
 from pathlib import Path
 
 from code_agent.sessions.workspace_models import RewindOperationStatus
-from tests.agent_app_test_support import _configured_application, _init_git_source
+from tests.agent_app_test_support import (
+    _configured_application,
+    _init_git_source,
+    workspace_mode_scope,
+)
 
 
 def _tree_digest(root: Path) -> str:
@@ -22,6 +26,12 @@ def _tree_digest(root: Path) -> str:
 
 
 class WorkspaceCheckpointCompatibilityTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self) -> None:
+        # Pending rewind recovery resolves a persisted worktree lineage.
+        scope = workspace_mode_scope("managed")
+        scope.__enter__()
+        self.addCleanup(scope.__exit__, None, None, None)
+
     async def test_startup_recovers_pending_rewind_from_read_only_legacy_blobs(
         self,
     ) -> None:

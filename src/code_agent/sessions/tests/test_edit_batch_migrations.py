@@ -42,8 +42,8 @@ class EditBatchMigrationTests(unittest.TestCase):
                         "PRAGMA table_info(workspace_edit_batch_operations)"
                     )
                 }
-            self.assertEqual(SCHEMA_VERSION, 20)
-            self.assertEqual(version, 20)
+            self.assertEqual(SCHEMA_VERSION, 22)
+            self.assertEqual(version, 22)
             self.assertEqual(counts, (0, 0))
             self.assertIn("workspace_edit_batches_one_unresolved", indexes)
             self.assertTrue(
@@ -52,6 +52,8 @@ class EditBatchMigrationTests(unittest.TestCase):
                     "source_post_size",
                     "target_pre_size",
                     "target_post_size",
+                    "target_post_device",
+                    "target_post_inode",
                 }.issubset(operation_columns)
             )
 
@@ -101,6 +103,39 @@ class EditBatchMigrationTests(unittest.TestCase):
                                 target_post_size,
                             ),
                         )
+
+
+    def test_post_identity_columns_accept_only_paired_values(self) -> None:
+        statement = (
+            "INSERT INTO workspace_edit_batch_operations("
+            "mutation_sequence, ordinal, kind, target_path, target_pre_existed, "
+            "target_pre_sha256, target_pre_size, target_post_existed, "
+            "target_post_sha256, target_post_size, target_post_device, "
+            "target_post_inode, case_only, progress, committed_at"
+            ") VALUES (1, ?, 'write', 'a.txt', 1, ?, 3, 1, ?, 3, ?, ?, 0, "
+            "'pending', NULL)"
+        )
+        digest = "a" * 64
+        cases = (
+            ((None, None), True),
+            ((7, 11), True),
+            ((7, None), False),
+            ((None, 11), False),
+            ((-1, 11), False),
+            ((7, -1), False),
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            database = Path(temporary) / "sessions.sqlite3"
+            SQLiteSessionRepository(database)
+            with closing(sqlite3.connect(database)) as connection, connection:
+                for ordinal, ((device, inode), allowed) in enumerate(cases):
+                    with self.subTest(device=device, inode=inode):
+                        args = (ordinal, digest, digest, device, inode)
+                        if allowed:
+                            connection.execute(statement, args)
+                            continue
+                        with self.assertRaises(sqlite3.IntegrityError):
+                            connection.execute(statement, args)
 
 
 if __name__ == "__main__":

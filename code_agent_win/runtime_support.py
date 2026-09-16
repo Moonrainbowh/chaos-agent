@@ -54,21 +54,14 @@ def profile_model_factory(
     attachment_resolver: AttachmentResolver | None,
 ) -> Callable[..., object]:
     """Bind profile capabilities while preserving one-argument test factories."""
-    by_provider: dict[int, ModelProfile] = {}
-    for profile in profiles.values():
-        identity = id(profile.provider)
-        previous = by_provider.setdefault(identity, profile)
-        if previous.input_modalities != profile.input_modalities:
-            raise ValueError(
-                "shared provider configuration has conflicting input modalities"
-            )
+    _profiles_by_provider(profiles)
 
     def create(
         provider: object, *, reasoning_effort: str | None = None
     ) -> object:
         if factory is not model_client:
             return factory(provider)
-        profile = by_provider.get(id(provider))
+        profile = _profiles_by_provider(profiles).get(id(provider))
         if profile is None:
             raise ValueError("provider configuration is not bound to a profile")
         return model_client(
@@ -80,6 +73,20 @@ def profile_model_factory(
         )
 
     return create
+
+
+def _profiles_by_provider(
+    profiles: Mapping[str, ModelProfile],
+) -> dict[int, ModelProfile]:
+    by_provider: dict[int, ModelProfile] = {}
+    for profile in profiles.values():
+        identity = id(profile.provider)
+        previous = by_provider.setdefault(identity, profile)
+        if previous.input_modalities != profile.input_modalities:
+            raise ValueError(
+                "shared provider configuration has conflicting input modalities"
+            )
+    return by_provider
 
 
 def replace_model(profile: ModelProfile, model: str) -> ModelProfile:

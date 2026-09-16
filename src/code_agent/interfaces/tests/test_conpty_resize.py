@@ -11,7 +11,8 @@ if os.name == "nt":
 class ConPtyResizeTests(unittest.TestCase):
     def test_resize_and_append_leave_one_composer(self):
         body = r'''
-import shutil, time
+import time
+from code_agent.interfaces.terminal_size import terminal_size
 from code_agent.interfaces.tests._support import FakeEngine
 from code_agent.interfaces.controller import AgentController
 from code_agent.interfaces.terminal_state import ApprovalBroker
@@ -39,8 +40,8 @@ for step in range(5):
     write(f'\x1b]0;READY_{step}\x07')
     expected = (160, 60, 140, 70, 100)[step]
     deadline = time.monotonic() + 5
-    while shutil.get_terminal_size().columns != expected:
-        assert time.monotonic() < deadline, shutil.get_terminal_size()
+    while terminal_size().columns != expected:
+        assert time.monotonic() < deadline, terminal_size()
         time.sleep(.01)
     if step % 2:
         app._append(DisplayKind.METADATA, 'clipboard images staged')

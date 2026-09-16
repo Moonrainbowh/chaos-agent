@@ -33,7 +33,7 @@ class _CliIngestor:
 
 
 class _CliApplication:
-    def __init__(self) -> None:
+    def __init__(self, **_options: object) -> None:
         self.attachment_ingestor = _CliIngestor()
         self.tui = SimpleNamespace(
             attachment_draft=SimpleNamespace(validate=lambda _: None)
@@ -163,6 +163,18 @@ class CliFailureTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(status, 2)
         create.assert_not_called()
         self.assertIn("not supported", stderr.getvalue())
+
+    async def test_interactive_startup_restores_only_without_explicit_model_override(self) -> None:
+        execute = AsyncMock(return_value=0)
+        with patch("code_agent_win.cli.create_application", side_effect=_CliApplication) as create, patch(
+            "code_agent_win.cli.execute_command", execute
+        ):
+            self.assertEqual(await run(()), 0)
+            self.assertTrue(create.call_args.kwargs["restore_model_selection"])
+            self.assertEqual(await run(("--profile", "company")), 0)
+            self.assertFalse(create.call_args.kwargs["restore_model_selection"])
+            self.assertEqual(await run(("--model", "fast")), 0)
+            self.assertFalse(create.call_args.kwargs["restore_model_selection"])
 
 if __name__ == "__main__":
     unittest.main()

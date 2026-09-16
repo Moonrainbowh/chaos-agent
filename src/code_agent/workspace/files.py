@@ -16,6 +16,7 @@ from .errors import (
 )
 from code_agent.repo_paths import canonical_path_key, canonical_repo_path
 from ._file_walk import iter_workspace_files
+from ._search_inventory import iter_search_inventory
 from ._known_files import known_workspace_files
 from ._text_search import (
     MAX_SEARCH_PATTERN_LENGTH,
@@ -94,7 +95,7 @@ class WorkspaceFiles:
         guard: WorkspacePathGuard,
         ignore: IgnoreRules,
         *,
-        search_timeout_s: float = 2.0,
+        search_timeout_s: float = 10.0,
         inventory_ttl_s: float = DEFAULT_INVENTORY_TTL_S,
     ) -> None:
         if isinstance(search_timeout_s, bool) or not isinstance(
@@ -114,7 +115,7 @@ class WorkspaceFiles:
         self.search_timeout_s = float(search_timeout_s)
         self.inventory_ttl_s = float(inventory_ttl_s)
         self._inventory_cache: OrderedDict[
-            tuple[int, int], tuple[float, int | None, tuple[str, ...]]
+            tuple[int, int, str | None], tuple[float, int | None, tuple[str, ...]]
         ] = OrderedDict()
         self._inventory_lock = RLock()
         self._inventory_invalidation_requested = False
@@ -125,6 +126,7 @@ class WorkspaceFiles:
         sorted: bool = True,
         max_entries: int = DEFAULT_MAX_ENTRIES,
         max_scanned_entries: int | None = None,
+        start_after: str | None = None,
     ) -> tuple[str, ...]:
         """List contained, non-ignored files as POSIX relative paths."""
         if not isinstance(sorted, bool):
@@ -133,12 +135,16 @@ class WorkspaceFiles:
             raise TypeError("max_entries must be an integer")
         if max_entries <= 0:
             raise ValueError("max_entries must be positive")
+        if start_after is not None and (
+            not isinstance(start_after, str) or not start_after
+        ):
+            raise ValueError("start_after must be non-empty text or None")
         scan_limit = _scan_limit(max_entries, max_scanned_entries)
 
         del sorted  # The underlying iterator is ordered for both modes.
         if root is not None and self.guard.resolve(root) != self.guard.root:
-            return tuple(islice(self._iter_external_files(root, scan_limit), max_entries))
-        key = (max_entries, scan_limit)
+            return tuple(islice(_after(self._iter_external_files(root, scan_limit), start_after), max_entries))
+        key = (max_entries, scan_limit, start_after)
         with self._inventory_lock:
             if self._inventory_invalidation_requested:
                 self._inventory_cache.clear()
@@ -160,7 +166,7 @@ class WorkspaceFiles:
             ):
                 self._inventory_cache.move_to_end(key)
                 return cached[2]
-            listed = tuple(islice(self._iter_files(scan_limit), max_entries))
+            listed = tuple(islice(_after(self._iter_files(scan_limit), start_after), max_entries))
             if self._inventory_invalidation_requested:
                 self._inventory_cache.clear()
                 self._inventory_invalidation_requested = False
@@ -188,10 +194,11 @@ class WorkspaceFiles:
 
     def list_known_files(
         self, candidates: Sequence[str], *, max_entries: int, max_scanned_entries: int,
+        start_after: str | None = None,
     ) -> tuple[str, ...]:
         return known_workspace_files(
             candidates, self.guard, self.ignore, max_entries=max_entries,
-            max_scanned_entries=max_scanned_entries,
+            max_scanned_entries=max_scanned_entries, start_after=start_after,
         )
     def read_text(
         self,
@@ -330,10 +337,21 @@ class WorkspaceFiles:
         case_sensitive: bool = False,
         include_globs: Sequence[str] = (),
         max_results: int = 100,
+        max_match_chars: int = 4_000,
+        max_total_chars: int = 64_000,
+        *,
+        root: str | None = None,
+        inventory: Callable[..., Sequence[str]] | None = None,
     ) -> tuple[SearchMatch, ...]:
         """Search visible text files and return bounded, deterministic matches."""
         return search_text(
-            self._iter_files,
+            lambda limit, check: (
+                iter_search_inventory(self.guard, self.ignore, inventory, root, limit, check)
+                if inventory is not None else (
+                    self._iter_files(limit, check) if root is None else
+                    iter_workspace_files(self.guard, self.ignore, limit, check, root=root)
+                )
+            ),
             self.read_text,
             self.search_timeout_s,
             pattern,
@@ -341,6 +359,8 @@ class WorkspaceFiles:
             case_sensitive,
             include_globs,
             max_results,
+            max_match_chars,
+            max_total_chars,
         )
 
     def _iter_files(
@@ -351,6 +371,13 @@ class WorkspaceFiles:
         yield from iter_workspace_files(
             self.guard, self.ignore, max_scanned_entries, check
         )
+
+
+def _after(paths: Iterator[str], start_after: str | None) -> Iterator[str]:
+    if start_after is None:
+        yield from paths
+        return
+    yield from (path for path in paths if path > start_after)
 
 
 def _read_limited(path: Path, max_bytes: int) -> bytes:

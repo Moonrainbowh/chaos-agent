@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import sys
+import os
+import traceback
 from collections.abc import Sequence
 from importlib.metadata import PackageNotFoundError, version as package_version
 
@@ -9,7 +11,18 @@ from code_agent.config.loader import LocalConfigError, default_config_path, reso
 from code_agent.interfaces.attachment_input import DEFAULT_ATTACHMENT_PROMPT
 from code_agent.interfaces.commands import CommandKind, execute_command, parse_command
 from code_agent.runtime.errors import RuntimeUnavailable
+from .cli_options import (
+    _split_attachment_options,
+    _split_global_options,
+    _split_isolation_option,
+    _split_mode_option,
+    _split_reclaim_option,
+)
 from .stdio import configure_windows_utf8_stdio
+from .workspace_policy import (
+    request_task_isolation,
+    reset_task_isolation,
+)
 
 
 _ATTACHMENT_COMMANDS = frozenset(
@@ -38,6 +51,8 @@ Global options:
   --model <name>               Override the selected model
   --mode <low|medium|high|ultra>
   --attach <path>              Attach a supported local file
+  --isolated                   Run this invocation in an isolated Git worktree
+  --reclaim-workspaces         Retire managed worktrees that hold no work, then exit
   -h, --help                   Show this help
   -V, --version                Show the installed version
 
@@ -67,10 +82,15 @@ async def run(arguments: Sequence[str], *, splash=None) -> int:
             splash.stop()
         from .auth_cli import run_auth
         return await run_auth(arguments[1:])
+    isolated = reclaim = False
     try:
         attachment_paths, without_attachments = _split_attachment_options(arguments)
-        mode_name, remaining = _split_mode_option(without_attachments)
+        mode_name, without_mode = _split_mode_option(without_attachments)
+        isolated, without_isolation = _split_isolation_option(without_mode)
+        reclaim, remaining = _split_reclaim_option(without_isolation)
         profile_name, model_name, command_arguments = _split_global_options(remaining)
+        if reclaim and command_arguments:
+            raise ValueError("--reclaim-workspaces must be used on its own")
         meta_output = _meta_command_output(command_arguments)
         if meta_output is not None:
             if attachment_paths:
@@ -99,16 +119,27 @@ async def run(arguments: Sequence[str], *, splash=None) -> int:
             splash.stop()
         print(f"usage error: {error}", file=sys.stderr)
         return 2
+    isolation_token = request_task_isolation("explicit") if isolated else None
     application = None
     try:
         try:
             application = create_application(
-                model_name=model_name, profile_name=profile_name, mode_name=mode_name
+                model_name=model_name,
+                profile_name=profile_name,
+                mode_name=mode_name,
+                restore_model_selection=(
+                    command is not None
+                    and command.kind is CommandKind.TUI
+                    and profile_name is None
+                    and model_name is None
+                ),
             )
             await application.startup()
         finally:
             if splash is not None:
                 splash.stop()
+        if reclaim:
+            return await _report_reclamation(application)
         if command is None:
             await serve_acp(application)
             return 0
@@ -148,9 +179,16 @@ async def run(arguments: Sequence[str], *, splash=None) -> int:
         )
         return 2
     except Exception as error:
+        # Exception text may contain provider responses, paths, or user data.
+        # The CLI contract exposes only the safe error category; diagnostics
+        # remain available through the opt-in debug traceback below.
         print(f"agent error: {type(error).__name__}", file=sys.stderr)
+        if os.environ.get("CHAOS_DEBUG_ERRORS") == "1":
+            traceback.print_exc(file=sys.stderr)
         return 1
     finally:
+        if isolation_token is not None:
+            reset_task_isolation(isolation_token)
         if application is not None:
             await application.aclose()
 
@@ -170,6 +208,18 @@ def main(*, splash=None) -> int:
     finally:
         if splash is not None:
             splash.stop()
+
+
+async def _report_reclamation(application) -> int:
+    """Print what the explicit worktree reclamation kept and retired."""
+    report = await application.workspace_runtime.reclaim_workspaces(
+        rewindable=True
+    )
+    for item in report.reclaimed:
+        print(f"reclaimed {item.root}: {item.reason}")
+    for item in report.retained:
+        print(f"kept {item.root}: {item.reason}")
+    return 0
 
 
 def _meta_command_output(arguments: Sequence[str]) -> str | None:
@@ -197,62 +247,6 @@ def _configuration_path() -> str:
         return str(resolve_config_path())
     except LocalConfigError:
         return str(default_config_path())
-
-
-def _split_global_options(arguments: Sequence[str]) -> tuple[str | None, str | None, tuple[str, ...]]:
-    """Extract order-independent global profile options before command grammar."""
-    values = tuple(arguments)
-    if not all(isinstance(value, str) for value in values):
-        raise TypeError("command arguments must be text")
-    result: dict[str, str] = {}; command: list[str] = []; index = 0
-    while index < len(values):
-        item = values[index]
-        if item not in {"--model", "--profile"}:
-            command.append(item); index += 1; continue
-        if item in result or index + 1 >= len(values) or not values[index + 1].strip():
-            raise ValueError(f"{item} requires one non-blank value and may be specified once")
-        result[item] = values[index + 1]; index += 2
-    return result.get("--profile"), result.get("--model"), tuple(command)
-
-
-def _split_mode_option(arguments: Sequence[str]) -> tuple[str | None, tuple[str, ...]]:
-    values = tuple(arguments)
-    result: list[str] = []
-    selected: str | None = None
-    index = 0
-    while index < len(values):
-        if values[index] != "--mode":
-            result.append(values[index])
-            index += 1
-            continue
-        if selected is not None or index + 1 >= len(values):
-            raise ValueError("--mode requires one value and may be specified once")
-        selected = values[index + 1]
-        if selected not in {"low", "medium", "high", "ultra"}:
-            raise ValueError("--mode must be low, medium, high, or ultra")
-        index += 2
-    return selected, tuple(result)
-
-
-def _split_attachment_options(
-    arguments: Sequence[str],
-) -> tuple[tuple[str, ...], tuple[str, ...]]:
-    values = tuple(arguments)
-    if not all(isinstance(value, str) for value in values):
-        raise TypeError("command arguments must be text")
-    paths: list[str] = []
-    remaining: list[str] = []
-    index = 0
-    while index < len(values):
-        if values[index] != "--attach":
-            remaining.append(values[index])
-            index += 1
-            continue
-        if index + 1 >= len(values) or not values[index + 1].strip():
-            raise ValueError("--attach requires one non-blank path")
-        paths.append(values[index + 1])
-        index += 2
-    return tuple(paths), tuple(remaining)
 
 
 def _default_attachment_prompt(

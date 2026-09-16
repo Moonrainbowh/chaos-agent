@@ -97,6 +97,19 @@ class TerminalStateTests(unittest.TestCase):
         state.apply(_text_delta("first token"))
         self.assertEqual(state.status, "streaming_response")
 
+    def test_phase_timing_accumulates_only_known_non_negative_durations(self) -> None:
+        state = TerminalState()
+        state.apply(AgentEvent(EventKind.RUN_STARTED, {}))
+        state.apply(AgentEvent(EventKind.PHASE_COMPLETED, {"phase": "context", "duration_ms": 125}))
+        state.apply(AgentEvent(EventKind.PHASE_COMPLETED, {"phase": "action", "duration_ms": 750}))
+        state.apply(AgentEvent(EventKind.PHASE_COMPLETED, {"phase": "context", "duration_ms": 75}))
+        state.apply(AgentEvent(EventKind.PHASE_COMPLETED, {"phase": "unknown", "duration_ms": 999}))
+        state.apply(AgentEvent(EventKind.PHASE_COMPLETED, {"phase": "model", "duration_ms": -1}))
+
+        self.assertEqual(state.phase_durations, {"context": 200, "action": 750})
+        state.apply(AgentEvent(EventKind.RUN_STARTED, {}))
+        self.assertEqual(state.phase_durations, {})
+
     def test_action_request_takes_precedence_over_waiting_for_model(self) -> None:
         state = TerminalState()
         state.apply(AgentEvent(EventKind.MODEL_STARTED, {}))
@@ -125,6 +138,25 @@ class TerminalStateTests(unittest.TestCase):
         state.begin_run()
         state.apply(AgentEvent(EventKind.CANCELLED, {"reason": "user requested pause"}))
         self.assertEqual(state.status, "paused")
+
+    def test_paused_task_keeps_the_stop_reason_for_the_status_line(self) -> None:
+        state = TerminalState()
+
+        state.apply(AgentEvent(EventKind.TASK_PAUSED, {
+            "task_id": "task-1",
+            "status": "paused",
+            "reason": "active time budget exceeded",
+        }))
+
+        self.assertEqual(state.status, "paused")
+        self.assertEqual(state.task_stop_reason, "active time budget exceeded")
+
+        state.apply(AgentEvent(EventKind.TASK_STATUS_CHANGED, {
+            "task_id": "task-1",
+            "status": "paused",
+        }))
+
+        self.assertEqual(state.task_stop_reason, "active time budget exceeded")
 
     def test_state_tracks_transcript_timeline_status_and_diff(self) -> None:
         state = TerminalState()

@@ -19,6 +19,7 @@ from code_agent.workspace.edits import (
     RecoveryOperation,
     RecoveryOperationKind,
     RecoveryPathState,
+    durable_identity,
 )
 from code_agent.workspace.snapshot_store import SnapshotHandle
 
@@ -137,6 +138,7 @@ def _mutation_path(
 
 
 def _transition(endpoint: EditBatchPath) -> PathTransition:
+    proof = endpoint.after_identity
     return PathTransition(
         RecoveryPathState(
             endpoint.path,
@@ -149,6 +151,7 @@ def _transition(endpoint: EditBatchPath) -> PathTransition:
             endpoint.after_existed,
             endpoint.after_sha256,
             endpoint.after_size,
+            None if proof is None else durable_identity(*proof),
         ),
     )
 

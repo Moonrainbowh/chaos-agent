@@ -26,11 +26,11 @@
 - `IgnoreRules.from_workspace(root): IgnoreRules`：严格以 UTF-8/UTF-8 BOM 加载内置忽略项和根 `.gitignore` 的常用规则子集 | 读取根 `.gitignore` | 只有文件缺失才返回纯内置规则；读取或解码失败显式中止，不能静默扩大可见范围；支持顺序反选，不是完整 Git parser
 - `windows_path_support()`、`windows_path_units(...)`、`require_supported_windows_path(...)`: 缓存当前进程看到的 `LongPathsEnabled`、按 UTF-16 code unit 计量并给出 240/32000 安全预算 | 只读 HKLM 策略 | 不修改注册表；关闭策略时错误必须给出启用 Win32 long paths 和重启提示
 - `TextFileFormat`、`decode_text_bytes(...)`、`encode_existing_text(...)`：严格识别 BOM UTF-8/16/32 或无 BOM UTF-8，并按显式 Windows ANSI/OEM code page 无损往返 | 不猜测其他编码、不使用 replacement character；一致 CRLF/LF/CR 可继承，mixed 保持原样
-- `WorkspaceFiles.list_files/list_known_files/read_text/search(...)`、`invalidate_inventory()`：有界枚举、过滤已知候选、读取和搜索可访问文件，`read_text` 同时返回编码、BOM、code page 与换行元数据，并将省略 root、`.` 和工作区绝对根统一复用短期根 inventory | 读取工作区文件 | 候选仍逐项经过 guard、存在性和 ignore 校验；扫描、大小、结果与全局 deadline 超限显式失败，不返回伪完整结果
+- `WorkspaceFiles.list_files/list_known_files/read_text/search(...)`、`invalidate_inventory()`：有界枚举、过滤已知候选、读取和搜索可访问文件，`list_files` 可按返回的规范化路径 continuation boundary 继续，`read_text` 同时返回编码、BOM、code page 与换行元数据，并将省略 root、`.` 和工作区绝对根统一复用短期根 inventory | 读取工作区文件 | 候选仍逐项经过 guard、存在性和 ignore 校验；扫描、大小、结果与全局 deadline 超限显式失败，不返回伪完整结果
 - `CodeSliceRequest`、`WorkspaceFiles.read_code_slices(...)`: 原子读取 1–16 个 workspace-relative POSIX canonical ranges | 读取前完整校验、读取后复核全部 FileSignature | 单段最多 400 行、总计 128 KiB；范围冲突、stale、解码失败或 junction/symlink/reparse 边界使整批无源码失败；返回 encoding/BOM/newline/code page 元数据
 - `WorkspaceEditor`: 有界读取现有文件，生成携带精确输出 bytes/格式的写入或单次替换 Diff，保留既有编码、BOM 与一致换行风格，并校验哈希后原子应用 | 单文件同目录临时写入与替换；新文件默认 UTF-8 无 BOM
 - `BatchEditPlan`、`DeletePlan`、`MovePlan`、`WorkspaceEditor.plan_batch/apply_batch(...)`: 生成不可变 create/update/delete/move 批次并记录所有源/目标的精确存在、SHA-256 与大小 | 全量 preflight、每步 CAS、Windows no-replace 同卷 move 与逆序 owned-only 回滚 | 拒绝重叠路径、rename 链/swap、异卷 move 和静默覆盖；仅大小写 move 是唯一同 canonical path 例外
-- `PreparedBatchEdit`、`RecoveryOperation`、`PathTransition`、`snapshot_from_prepared/recover_batch(...)`: 将 durable journal 所需的纯 PRE/POST 转换和恢复入口留在 Workspace | 初始任一 FOREIGN 零写入，之后只逆序恢复 POST 并逐步复核 | case-only move snapshot 只保存 source preimage；中途 foreign 内容保留并返回 partial conflict
+- `PreparedBatchEdit`、`RecoveryOperation`、`PathTransition`、`RecoveryPathState`、`durable_identity(...)`、`snapshot_from_prepared/recovery_operations_from_prepared/post_identities/recover_batch(...)`: 将 durable journal 所需的纯 PRE/POST 转换和恢复入口留在 Workspace | 初始任一 FOREIGN 零写入，之后只逆序恢复 POST 并逐步复核 | POST 归因必须携带持久化所有权证明——`post_identities` 在 `apply_batch` 之后捕获 `PathIdentity` 的 device/inode（这是它唯一存在的时刻：原子替换会换掉文件索引，新建路径此前不存在）；PRE 只按内容匹配，因为该分支不写任何东西；证明缺失或不匹配一律判为 FOREIGN 并零写入，绝不用"内容相同"去猜所有权；case-only move snapshot 只保存 source preimage；中途 foreign 内容保留并返回 partial conflict
 - `WorkspaceSnapshot`、`build_restore_snapshot(...)`: 复制字节、补充 tombstone 并按依赖恢复文件/目录拓扑 | 首次写前以共享 entry/deadline 预算迭代扫描路径、blob、容量、权限和冲突内容，深度优先删除并安全重建父目录，替换后复验稳定身份、大小与内容 hash；失败清理仅删除可由 fd/entry 身份共同证明的 owned temp，且不遮蔽 primary error | 不删除 ignored、敏感或未纳入 tombstone 的目录内容；不承诺多文件事务原子性
 - `BlobRef`、`SnapshotManifestEntry`、`SnapshotManifest`、`MaterializedSnapshot`: 表达排序且可确定摘要的持久快照清单、tombstone、blob 引用与 mode 映射 | 无副作用 | store 只落 blob，不写会被用户工作区 snapshot 捕获的旁路 manifest
 - `ContentAddressedSnapshotStore.put/materialize/delete_orphans(...)`: 原子发布并去重内容寻址 blob，完整校验后物化快照，并有界回收旧 orphan；可接受 Host 固定注入且构造时逐组件验证的只读 fallback roots | temp 创建成功即在函数内持有并以稳定 identity 清理，cleanup failure 仅附加而不遮蔽 primary；POSIX 以 verified directory fd 执行同 shard 临时写、flush/fsync、digest 复验、replace、scan 与 unlink；Windows 在路径副作用前后复验 root/shard 身份；GC 的 referenced 与 store scan 共享 deadline/entry 预算 | put/temp/GC 只操作 primary；仅 root/shard/blob 初始确实缺失时逐 digest 回退，损坏、权限、链接/reparse、identity 变化、misplaced digest、异常拓扑及超限均立即失败闭合；fallback 不存在时不动态启用，也不创建、回填、扫描或删除
@@ -41,3 +41,9 @@
 ## 环境依赖
 - 运行：Python 3.10+ 与 PyPI `regex`（为用户正则提供单次匹配 timeout）。
 - 测试：`uv run --with regex python -m unittest discover -s src/code_agent/workspace/tests -v`
+
+- 搜索范围：`search(..., root=...)` 在枚举前限定目录或单文件，返回路径仍相对工作区；`include_globs` 在范围内过滤。全局 deadline 不延长，`SearchTimeoutError.matches` 保留已发现命中，调用方必须标记不完整；文件数量上限显式失败。
+
+- `search(..., inventory=...)` 可接 Host 注入的 Git 候选清单回调，枚举使用搜索剩余 deadline；候选仍经 guard、范围与可见性复核，不因 Git 失败退回扩大扫描。Git 子目录忽略/反选规则由既有 `snapshot_paths` 执行，普通目录保留受保护的文件遍历。
+
+- 搜索默认全局预算为 10 秒（包括 Git inventory）；依据 2026-09-10 排除安装环境后的全仓库约 4–5 秒实测设置，调用方仍可显式传较短/较长预算，超时不冒充完整结果。

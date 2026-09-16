@@ -6,7 +6,7 @@ import asyncio
 from .picker import PickerItem, PickerSource
 from .runtime_picker import selection_blocked_reason
 from .terminal_display import DisplayKind
-from .tui_runtime_commands import set_model
+from .tui_runtime_commands import refresh_workbuddy_models
 from .tui_new_conversation import reset_conversation
 
 
@@ -15,13 +15,13 @@ def auth_picker_items(app: object) -> tuple[tuple[PickerItem, ...], str] | None:
     if not text.startswith(("/", ":")) or " " not in text:
         return None
     name, query = text[1:].split(" ", 1)
-    if name not in {"login", "logswitch"}:
+    if name != "login":
         return None
     controller = getattr(app, "authentication", None)
     if controller is None:
         return (), query
     try:
-        choices = controller.login_choices() if name == "login" else controller.switch_choices()
+        choices = controller.login_choices()
     except Exception:
         return (PickerItem("unavailable", "Login choices unavailable", PickerSource.MODE,
                            "Check the saved credentials/model catalog and retry.", enabled=False,
@@ -50,37 +50,9 @@ async def handle_auth_command(app: object, name: str, instruction: str | None) -
     if not instruction:
         app.input.replace("/" + name + " ")
         return True
-    if name == "login":
-        app._auth_task = asyncio.create_task(_login(app, controller, instruction))
-        await asyncio.sleep(0)
-        return True
-    if getattr(controller, "is_refresh_choice", lambda _: False)(instruction):
-        app._auth_task = asyncio.create_task(_refresh_models(app, controller, instruction))
-        await asyncio.sleep(0)
-        return True
-    try:
-        profile = await controller.switch(instruction)
-    except Exception:
-        app._append(DisplayKind.ERROR, "Login/model selection failed; check saved credentials and model choice.")
-        return False
-    return await set_model(app, profile)
-
-
-async def _refresh_models(app, controller, instruction):
-    app._append(DisplayKind.METADATA, "Loading WorkBuddy account models · Esc cancels")
-    try:
-        count = await controller.refresh_models(instruction)
-        app._append(DisplayKind.METADATA, f"Loaded {count} WorkBuddy models; choose one below.")
-        app.input.replace("/logswitch " + instruction.strip() + " ")
-    except asyncio.CancelledError:
-        app._append(DisplayKind.METADATA, "Model loading cancelled; login is retained.")
-    except Exception:
-        app._append(DisplayKind.ERROR, "WorkBuddy model discovery failed or returned no runnable models. Login is retained; select its load/refresh entry to retry.")
-        app.input.replace("/logswitch " + instruction.strip())
-    finally:
-        if getattr(app, "_auth_task", None) is asyncio.current_task():
-            app._auth_task = None
-        app.redraw()
+    app._auth_task = asyncio.create_task(_login(app, controller, instruction))
+    await asyncio.sleep(0)
+    return True
 
 
 async def _login(app: object, controller: object, instruction: str) -> None:
@@ -101,11 +73,15 @@ async def _login(app: object, controller: object, instruction: str) -> None:
             reset_conversation(app)
             display("Active login updated; a new conversation has been opened.")
         display(result)
-        app.input.replace("/logswitch ")
+        refresh_choice = getattr(controller, "workbuddy_refresh_choice", lambda _: None)(instruction)
+        if refresh_choice is not None:
+            await refresh_workbuddy_models(app, controller, refresh_choice)
+        else:
+            app.input.replace("/model ")
     except asyncio.CancelledError:
         display("Login cancelled.")
     except Exception:
-        display("Login did not complete. Retry /login or check /logswitch for saved credentials.")
+        display("Login did not complete. Retry /login and select a model after it succeeds.")
     finally:
         if getattr(app, "_auth_task", None) is asyncio.current_task():
             app._auth_task = None

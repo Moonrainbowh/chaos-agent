@@ -11,16 +11,15 @@ from code_agent.runtime._powershell_runtime import PowerShellRuntimeResolver
 from code_agent.runtime.models import PowerShellRuntimeInfo
 from code_agent.sessions.workspace_models import RewindOperationStatus
 from code_agent.sessions.errors import SessionNotFound
-from code_agent.workspace.edits import WorkspaceEditor
-from code_agent.workspace.git import GitWorkspace
-from code_agent.workspace.paths import WorkspacePathGuard
 from code_agent.workspace._worktree_leases import UnclaimedWorktreeLease
 from code_agent.workspace.worktrees import WorktreeManager
 
 from code_agent_win.windows_storage_paths import resolve_managed_storage_root
 from code_agent_win.workspace_preparation import PreparedWorkspaceCoordinator
+from code_agent_win.workspace_reclamation import reclaim_worktrees
+from code_agent_win.workspace_seeding import seed_source_changes
 from code_agent_win.workspace_service_factory import build_workspace_services
-from code_agent_win.workspace_models import TaskWorkspace, WorkspaceServices
+from code_agent_win.workspace_models import TaskWorkspace, WorkspaceServices, task_branch_name
 from code_agent_win.workspace_checkpoint_runtime import (
     CheckpointRouter,
     StableQuiescer,
@@ -76,7 +75,7 @@ class ManagedWorkspaceRuntime:
     async def prepare_task(self, source_root: Path, task_id: str) -> TaskWorkspace:
         source = source_root.resolve()
         lineage_id = uuid.uuid4().hex
-        branch_name = f"codex/task-{lineage_id}"
+        branch_name = task_branch_name(lineage_id)
         worker = asyncio.create_task(
             asyncio.to_thread(
                 self._prepare_task_sync, source, lineage_id, branch_name
@@ -116,8 +115,18 @@ class ManagedWorkspaceRuntime:
             batches = await self.recover_edit_batches()
             rewinds = await self.recover_pending()
             await self.hydrate_bindings()
+            await self.reclaim_workspaces()
             self._startup_complete = True
             return batches + rewinds
+
+    async def reclaim_workspaces(self, *, rewindable: bool = False):
+        """Retire managed worktrees that hold no task work; see workspace_reclamation."""
+        return await reclaim_worktrees(
+            self._worktrees,
+            self._sessions,
+            live_lineage_ids=tuple(self._prepared),
+            rewindable=rewindable,
+        )
 
     def configure_mutations(self, mutations: object, source_root: Path) -> None:
         if self._startup_complete:
@@ -189,9 +198,17 @@ class ManagedWorkspaceRuntime:
         await self._quiescer(task_id)
 
     async def checkpoint_available(self, task_id: str) -> bool:
+        """Return whether automatic lifecycle boundaries snapshot this task.
+
+        Only an isolated lineage snapshots at every boundary; a local task
+        keeps boundaries metadata-only so task creation never captures the
+        whole source workspace. Its durable checkpoints are made on demand.
+        """
         try:
             lineage = await self._sessions.load_lineage_for_task(task_id)
         except SessionNotFound:
+            return False
+        if Path(lineage.worktree_root) == Path(lineage.source_root):
             return False
         return self.services_for_root(Path(lineage.worktree_root)).checkpoints is not None
 
@@ -206,7 +223,10 @@ class ManagedWorkspaceRuntime:
         )
         managed = lease.worktree
         try:
-            self._seed_source_changes(source, managed.root)
+            seed_source_changes(
+                source, managed.root,
+                allow_sensitive_paths=self.allow_sensitive_paths,
+            )
         except BaseException as error:
             try:
                 self._worktrees.discard_unclaimed(lease)
@@ -254,21 +274,6 @@ class ManagedWorkspaceRuntime:
             except asyncio.CancelledError:
                 if worker.done():
                     return worker.result()
-
-    def _seed_source_changes(self, source_root: Path, target_root: Path) -> None:
-        paths = GitWorkspace(source_root).changed_snapshot_paths()
-        editor = WorkspaceEditor(
-            WorkspacePathGuard(
-                source_root, allow_sensitive=self.allow_sensitive_paths
-            )
-        )
-        snapshot = editor.snapshot(paths)
-        target = WorkspaceEditor(
-            WorkspacePathGuard(
-                target_root, allow_sensitive=self.allow_sensitive_paths
-            )
-        )
-        target.restore(snapshot)
 
     def _build_services(self, root: Path) -> WorkspaceServices:
         service = build_workspace_services(

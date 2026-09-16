@@ -44,7 +44,7 @@ def sse(data: object) -> bytes:
 
 
 class OpenAIChatClientTests(unittest.IsolatedAsyncioTestCase):
-    def make_config(self) -> ProviderConfig:
+    def make_config(self, provider_id: str | None = None) -> ProviderConfig:
         return ProviderConfig(
             base_url="https://api.example.test",
             model="chat-model",
@@ -52,6 +52,7 @@ class OpenAIChatClientTests(unittest.IsolatedAsyncioTestCase):
             api_key_env="CHAT_KEY",
             max_retries=0,
             max_event_bytes=4096,
+            provider_id=provider_id,
         )
 
     async def test_stream_serializes_request_and_aggregates_multiple_tools(self) -> None:
@@ -265,6 +266,71 @@ class OpenAIChatClientTests(unittest.IsolatedAsyncioTestCase):
                     any(item.kind is ModelEventKind.COMPLETED for item in received)
                 )
                 await http_client.aclose()
+
+    async def test_workbuddy_text_tail_after_finish_is_accepted_until_done(self) -> None:
+        content = b"".join((
+            sse({"choices": [
+                {"delta": {"content": "你"}, "finish_reason": "stop"},
+                {"delta": {"content": "好"}, "finish_reason": None},
+            ]}),
+            sse({"choices": [], "usage": {
+                "prompt_tokens": 2,
+                "completion_tokens": 2,
+            }}),
+            sse("[DONE]"),
+        ))
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, content=content)
+
+        http_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        client = OpenAIChatClient(
+            self.make_config(provider_id="workbuddy"), http_client=http_client
+        )
+        with patch.dict("os.environ", {"CHAT_KEY": "key"}, clear=True):
+            events = [event async for event in client.stream("", (), ())]
+
+        self.assertEqual(events, [
+            ModelEvent(kind=ModelEventKind.TEXT_DELTA, text="你"),
+            ModelEvent(kind=ModelEventKind.TEXT_DELTA, text="好"),
+            ModelEvent(kind=ModelEventKind.USAGE, usage=Usage(
+                input_tokens=2, output_tokens=2, cached_input_tokens=0,
+            )),
+            ModelEvent(kind=ModelEventKind.COMPLETED),
+        ])
+        await client.aclose()
+        await http_client.aclose()
+
+    async def test_workbuddy_tool_call_tail_after_finish_is_completed_at_done(self) -> None:
+        content = b"".join((
+            sse({"choices": [{"delta": {}, "finish_reason": "stop"}]}),
+            sse({"choices": [{"delta": {"tool_calls": [{
+                "index": 0,
+                "id": "call-1",
+                "function": {"name": "read_file", "arguments": "{}"},
+            }]}, "finish_reason": None}]}),
+            sse("[DONE]"),
+        ))
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, content=content)
+
+        http_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        client = OpenAIChatClient(
+            self.make_config(provider_id="workbuddy"), http_client=http_client
+        )
+        with patch.dict("os.environ", {"CHAT_KEY": "key"}, clear=True):
+            events = [event async for event in client.stream("", (), ())]
+
+        self.assertEqual(events, [
+            ModelEvent(kind=ModelEventKind.TOOL_CALL, tool_call=ToolCall(
+                id="call-1", name="read_file", arguments={},
+            )),
+            ModelEvent(kind=ModelEventKind.COMPLETED),
+        ])
+
+        await client.aclose()
+        await http_client.aclose()
 
 
 if __name__ == "__main__":

@@ -31,6 +31,7 @@ _WRITE_TOOLS = frozenset(
         "context_note", "new_context", *NOTE_WRITE_TOOLS,
     }
 )
+_NETWORK_TOOLS = frozenset({"web_retrieve", "web_search", "web_fetch", "site_api", "browser_fetch"})
 EDIT_PLAN_RISK_FLAGS = frozenset(
     {
         "dirty",
@@ -168,6 +169,8 @@ def _classify_named_action(
         return ActionClassification(frozenset({Capability.READ}), RiskLevel.LOW, "recognized read-only tool")
     if name in _WRITE_TOOLS:
         return ActionClassification(frozenset({Capability.WRITE}), RiskLevel.MEDIUM, "recognized workspace write tool")
+    if name in _NETWORK_TOOLS:
+        return ActionClassification(frozenset({Capability.NETWORK}), RiskLevel.HIGH, "recognized bounded web access tool")
     if name == "run_command":
         return _classify_command(request.arguments, workspace_root)
     if name == "run_process_v1":

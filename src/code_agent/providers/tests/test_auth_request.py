@@ -25,11 +25,15 @@ class AuthRequestTests(unittest.IsolatedAsyncioTestCase):
                                  base_url="https://ignored.invalid", model="auto")
         credential = Credential("oauth", "secret", extra={"workbuddyEndpoint": "https://copilot.tencent.com"})
         original = {"model": "auto", "max_completion_tokens": 16000}
-        url, body, _ = authenticated_request(config, credential, "/ignored", original, {})
+        url, body, headers = authenticated_request(config, credential, "/ignored", original, {})
         self.assertEqual(url, "https://copilot.tencent.com/v2/chat/completions")
         self.assertEqual(body["max_tokens"], 16000)
         self.assertNotIn("max_completion_tokens", body)
         self.assertIn("max_completion_tokens", original)
+        self.assertEqual(
+            headers["user-agent"],
+            "WorkBuddy/5.5.6 WorkBuddy/5.5.6 CLI/2.137.1",
+        )
 
     async def wire(self, provider, api, base, credential, content):
         config = ProviderConfig(base_url=base, model="test-model", api=api,

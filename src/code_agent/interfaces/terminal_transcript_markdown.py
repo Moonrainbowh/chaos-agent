@@ -16,15 +16,22 @@ def _format_plan_card(plan_text: str, width: int, theme: Theme) -> list[_RenderL
     raw_lines = [line.strip() for line in plan_text.strip().splitlines() if line.strip()]
     if not raw_lines:
         return []
-    box_w = min(width, 76)
-    rule = "─" * max(10, box_w - 18)
-    lines: list[_RenderLine] = [
-        _RenderLine(f"┌── Task plan {rule}┐", "table_border")
-    ]
+    # Keep both borders and every body row at one exact display width. The
+    # previous implementation used independent minimum rules, so long CJK
+    # steps pushed the bottom edge past the top edge after wrapping.
+    box_w = max(20, min(width, 76))
+    inner_w = box_w - 2
+    title = "─ Task plan "
+    title = title + "─" * max(1, inner_w - display_width(title))
+    lines: list[_RenderLine] = [_RenderLine("┌" + title[:inner_w] + "┐", "table_border")]
+    body_w = max(1, inner_w - 6)
     for raw in raw_lines:
         item = re.sub(r"^\d+\.\s*", "", raw)
-        lines.append(_RenderLine(f"│ [ ] {item}", "plan_step"))
-    lines.append(_RenderLine(f"└{'─' * max(10, box_w - 2)}┘", "table_border"))
+        for chunk in _wrap_display(item, body_w):
+            content = "│ [ ] " + chunk
+            content += " " * max(0, box_w - display_width(content) - 1) + "│"
+            lines.append(_RenderLine(content, "plan_step"))
+    lines.append(_RenderLine("└" + "─" * inner_w + "┘", "table_border"))
     return lines
 
 
@@ -55,11 +62,11 @@ def _markdown_lines(value: str, width: int, theme: Theme) -> list[_RenderLine]:
             continue
         if stripped.startswith("```"):
             in_code = not in_code
-            if stripped[3:].strip(): lines.append(_RenderLine("  " + stripped[3:].strip(), "code"))
+            if stripped[3:].strip(): lines.append(_RenderLine(stripped[3:].strip(), "code_language"))
             index += 1
             continue
         if in_code:
-            lines.append(_RenderLine("  " + raw.rstrip(), "code")); index += 1; continue
+            lines.append(_RenderLine(raw.rstrip(), "code")); index += 1; continue
         if not stripped:
             if lines and lines[-1].text: lines.append(_RenderLine(""))
             index += 1

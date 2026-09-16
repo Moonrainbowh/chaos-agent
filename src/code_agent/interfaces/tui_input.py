@@ -11,6 +11,11 @@ from .tui_submission import request_pause_active_task
 async def handle_interrupt(app: Any) -> None:
     if await _handle_modal_interrupt(app):
         return
+    if app.state.status == "paused":
+        app.running = False
+        if app._token:
+            app._token.cancel("TUI closed")
+        return
     if app.exit_guard.interrupt():
         app.running = False
         if app._token:
@@ -87,6 +92,11 @@ async def apply_clipboard_images(app: Any) -> bool:
     except (RuntimeError, ValueError) as error:
         app._append(DisplayKind.ERROR, str(error))
         return False
+    if not added:
+        # A replayed clipboard event did not change the draft; keep the
+        # transcript quiet and let the existing attachment marker stand.
+        app.exit_guard.input_received()
+        return True
     app._append(
         DisplayKind.METADATA,
         f"clipboard images staged · {len(added)} · total {len(draft.items)}",

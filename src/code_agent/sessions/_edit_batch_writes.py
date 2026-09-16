@@ -87,6 +87,29 @@ def insert_edit_batch_operation(
     )
 
 
+def record_post_identity(
+    connection: sqlite3.Connection,
+    sequence: int,
+    ordinal: int,
+    identity: tuple[int, int] | None,
+) -> None:
+    """Persist the durable ownership proof of the file an operation left behind.
+
+    Called once the batch has actually been applied, which is the earliest
+    moment the value exists. Passing ``None`` clears the proof, which is the
+    correct result for an operation whose endpoint stayed absent.
+    """
+    device, inode = (None, None) if identity is None else identity
+    changed = connection.execute(
+        "UPDATE workspace_edit_batch_operations "
+        "SET target_post_device = ?, target_post_inode = ? "
+        "WHERE mutation_sequence = ? AND ordinal = ?",
+        (device, inode, sequence, ordinal),
+    )
+    if changed.rowcount != 1:
+        raise SessionStorageError("edit batch operation identity moved")
+
+
 def batch_matches(record: EditBatchRecord, request: EditBatchPrepare) -> bool:
     return (
         record.plan_id == request.plan_id

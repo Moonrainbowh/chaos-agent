@@ -172,3 +172,7 @@ class LoginTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.extra["workbuddyAuthMethod"], "wechat")
         self.assertNotIn("accessToken", result.extra["workbuddyAuth"])
         self.assertEqual(requests[0].headers["X-Product"], "SaaS")
+        self.assertEqual(
+            requests[0].headers["User-Agent"],
+            "WorkBuddy/5.5.6 WorkBuddy/5.5.6 CLI/2.137.1",
+        )

@@ -75,6 +75,26 @@ EDIT_BATCH_MIGRATION = (
 )
 
 
+# Ownership proof for crash recovery. ``target_post_*`` records the durable
+# file index of the file an operation left behind, observed immediately after
+# the batch was applied: an atomic replace installs a new file object and a
+# created file does not exist beforehand, so the value cannot be derived when
+# the journal row is first written. It stays NULL for operations that leave the
+# endpoint absent (delete, move source), and recovery refuses to classify a
+# POST state whose proof is missing instead of trusting content alone.
+#
+# Only the target endpoint needs proof. ``source`` exists solely for moves, and
+# a move source endpoint is absent once the move completes, so its POST state
+# carries no file that recovery could act on.
+EDIT_BATCH_IDENTITY_MIGRATION = (
+    "ALTER TABLE workspace_edit_batch_operations ADD COLUMN target_post_device "
+    "INTEGER CHECK(target_post_device IS NULL OR target_post_device >= 0)",
+    "ALTER TABLE workspace_edit_batch_operations ADD COLUMN target_post_inode "
+    "INTEGER CHECK((target_post_inode IS NULL) = (target_post_device IS NULL) "
+    "AND (target_post_inode IS NULL OR target_post_inode >= 0))",
+)
+
+
 EDIT_BATCH_REQUIRED_COLUMNS = {
     "workspace_edit_batches": {
         "mutation_sequence",
@@ -106,6 +126,8 @@ EDIT_BATCH_REQUIRED_COLUMNS = {
         "target_post_existed",
         "target_post_sha256",
         "target_post_size",
+        "target_post_device",
+        "target_post_inode",
         "case_only",
         "progress",
         "committed_at",

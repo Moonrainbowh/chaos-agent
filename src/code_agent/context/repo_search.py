@@ -181,6 +181,14 @@ class SQLiteRepoSearch:
         with self._lock:
             self._disable_locked()
 
+    def __del__(self) -> None:
+        # Best-effort safety net for callers that abandon an index without
+        # reaching their normal application shutdown path.
+        try:
+            self.close()
+        except Exception:
+            pass
+
     def _initialize(self) -> None:
         with self._lock:
             try:

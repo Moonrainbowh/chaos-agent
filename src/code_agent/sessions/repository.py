@@ -16,6 +16,8 @@ from ._task_runtime_records import TaskRuntimeRepositoryMixin
 from ._thread_content import ThreadContentRepositoryMixin
 from ._workflows import WorkflowRepositoryMixin
 from ._workspace_snapshots import WorkspaceSnapshotRepositoryMixin
+from ._memory import MemoryRepositoryMixin
+from ._recovery import RecoveryRepositoryMixin
 
 
 class SQLiteSessionRepository(
@@ -34,8 +36,22 @@ class SQLiteSessionRepository(
     WorkflowRepositoryMixin,
     SemanticRepositoryMixin,
     RecordRepositoryMixin,
+    MemoryRepositoryMixin,
+    RecoveryRepositoryMixin,
 ):
     """Persist core sessions with one SQLite transaction per async operation."""
 
     def __init__(self, database_path: str | object) -> None:
         self._database = SessionDatabase(database_path)  # type: ignore[arg-type]
+
+    def close(self) -> None:
+        """Release repository resources; operations use short-lived connections."""
+        close = getattr(self._database, "close", None)
+        if callable(close):
+            close()
+
+    def __enter__(self) -> "SQLiteSessionRepository":
+        return self
+
+    def __exit__(self, *_exc_info: object) -> None:
+        self.close()

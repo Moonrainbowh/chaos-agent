@@ -125,16 +125,22 @@ class AttachmentDraft:
         remaining_bytes = MAX_MESSAGE_ATTACHMENT_BYTES - sum(
             item.size_bytes for item in self._items
         )
-        added = tuple(
+        loaded = tuple(
             await asyncio.to_thread(
                 loader,
                 max_attachments=remaining_count,
                 max_total_bytes=remaining_bytes,
             )
         )
-        if not added:
+        if not loaded:
             raise ValueError("clipboard does not contain images")
-        self._replace((*self._items, *added))
+        # Clipboard providers may replay the same image when a modifier key
+        # is held or when ConPTY emits both Alt+V and Ctrl+V. Make ingestion
+        # idempotent so a replay cannot produce a second staged notification.
+        present = {item.sha256 for item in self._items}
+        added = tuple(item for item in loaded if item.sha256 not in present)
+        if added:
+            self._replace((*self._items, *added))
         return added
 
     def remove(self, selector: str) -> AttachmentRef:

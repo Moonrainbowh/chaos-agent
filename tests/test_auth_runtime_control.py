@@ -28,15 +28,15 @@ class AuthRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.store.get("openai", "api_key").access, "private-api-key")
         self.assertNotIn("private-api-key", result + repr(display))
         self.assertEqual(read.await_count, 1)
-        self.assertTrue(any(v.startswith("openai:api_key ") for v, _ in self.control.switch_choices()))
+        self.assertTrue(any(v.startswith("openai:api_key ") for v, _ in self.control.model_choices()))
 
     async def test_oauth_and_key_create_distinct_rebuildable_profiles(self):
         self.store.set("xai", Credential("oauth", "oauth-secret"))
         self.store.set("xai", Credential("api_key", "key-secret"))
         from code_agent.authentication.catalog import ModelCatalog
         model = ModelCatalog().models("xai")[0].id
-        first = await self.control.switch(f"xai:oauth {model}")
-        second = await self.control.switch(f"xai:api_key {model}")
+        first = await self.control.select_model(f"xai:oauth {model}")
+        second = await self.control.select_model(f"xai:api_key {model}")
         self.assertNotEqual(first, second)
         self.assertEqual(self.profiles[first].provider.auth_source.kind, "oauth")
         self.assertEqual(self.profiles[second].provider.auth_source.kind, "api_key")
@@ -45,11 +45,25 @@ class AuthRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(self.control.affects_profile("xai api_key", first))
         self.assertTrue(self.control.affects_profile("xai api_key", second))
         self.assertFalse(self.control.affects_profile("anthropic oauth", first))
-        self.assertEqual(await self.control.switch(first), first)
+        self.assertEqual(await self.control.select_model(first), first)
         self.profiles.clear()
         await self.control.restore_profile(first)
         self.assertEqual(self.profiles[first].provider.auth_source.kind, "oauth")
         self.assertFalse((Path(self.temporary.name) / "config.toml").exists())
+
+    async def test_antigravity_is_compact_until_its_local_catalog_is_opened(self):
+        self.store.set("antigravity", Credential("oauth", "oauth-secret"))
+
+        self.assertEqual(
+            [value for value, _ in self.control.model_choices()],
+            ["antigravity:oauth"],
+        )
+        choices = self.control.model_choices_for("antigravity:oauth gemini")
+
+        self.assertIsNotNone(choices)
+        self.assertGreater(len(choices), 1)
+        self.assertTrue(all(value.startswith("antigravity:oauth ") for value, _ in choices))
+        self.assertIsNone(self.control.model_choices_for("openai:api_key"))
 
     async def test_oauth_callback_forwarding_and_choices_cached(self):
         read = AsyncMock(return_value="code")
@@ -59,13 +73,13 @@ class AuthRuntimeTests(unittest.IsolatedAsyncioTestCase):
             await self.control.login("openai-codex device_code", display.append, read)
         self.assertIs(login.call_args.kwargs["read_input"], read)
         with patch.object(self.store, "status", side_effect=AssertionError("repeated DPAPI")):
-            self.control.switch_choices()
-            self.control.switch_choices()
+            self.control.model_choices()
+            self.control.model_choices()
 
     async def test_missing_auth_does_not_register_or_fall_back(self):
         self.store.set("xai", Credential("api_key", "key"))
         with self.assertRaises(AuthError):
-            await self.control.switch("xai:oauth grok-any")
+            await self.control.select_model("xai:oauth grok-any")
         self.assertEqual(self.profiles, {})
         with self.assertRaises(AuthError):
             await self.control.login("openai api_key secret-inline", print, AsyncMock())
@@ -75,8 +89,8 @@ class AuthRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.store.set("openrouter", Credential("oauth", "browser-key"))
         self.store.set("openrouter", Credential("api_key", "manual-key"))
         model = ModelCatalog().models("openrouter")[0].id
-        oauth = await self.control.switch(f"openrouter:oauth {model}")
-        api = await self.control.switch(f"openrouter:api_key {model}")
+        oauth = await self.control.select_model(f"openrouter:oauth {model}")
+        api = await self.control.select_model(f"openrouter:api_key {model}")
         self.assertTrue(self.control.affects_profile("openrouter oauth", oauth))
         self.assertFalse(self.control.affects_profile("openrouter oauth", api))
         self.assertFalse(self.control.affects_profile("openrouter api_key", oauth))
@@ -119,7 +133,7 @@ class AuthRuntimeTests(unittest.IsolatedAsyncioTestCase):
             ProviderRuntime(original, client, object()), build, lambda runner: None)
         self.control = AuthenticationRuntimeControl(self.profiles, manager.register_profile, self.store)
         self.store.set("openai", Credential("api_key", "key"))
-        name = await self.control.switch("openai:api_key gpt-4.1")
+        name = await self.control.select_model("openai:api_key gpt-4.1")
         self.assertEqual(built, [])
         self.assertEqual(manager.current.profile.name, "original")
         await manager.switch(name, idle=True)

@@ -18,6 +18,7 @@ from code_agent.verification.local_adapter import LocalVerificationAdapter
 from code_agent.workspace.edits import WorkspaceEditor
 from code_agent.workspace.files import WorkspaceFiles
 from code_agent.workspace.git import GitCommandError, GitWorkspace
+from code_agent.web_access import WebAccessService
 
 from code_agent_win.edit_plan_dispatch import WorkspaceEditPlanActions
 from code_agent_win.edit_plan_preview import default_workspace_fingerprint
@@ -79,6 +80,7 @@ class RootActionDispatcher:
         permission_source: str | None = None,
         permission_workspace_root: Path | None = None,
         permission_workspace_fingerprint: str | None = None,
+        web_access: WebAccessService | None = None,
     ) -> None:
         self.files, self.editor, self.policy, self.approvals = files, editor, policy, approvals
         self.git, self.runtime, self.verification = git, runtime, verification
@@ -86,6 +88,8 @@ class RootActionDispatcher:
         self.threads, self.peers, self.caller_thread = threads, peers, caller_thread
         self.capture = capture
         self.repo_index = repo_index
+        self._web_access_enabled = web_access is not None
+        self.web_access = web_access or WebAccessService()
         self.process_rules = process_rules
         self.permission_source = permission_source
         self.invalidate_cache = invalidate_cache
@@ -114,7 +118,9 @@ class RootActionDispatcher:
     def tools(self) -> Sequence[ToolDefinition]:
         powershell = self.runtime.powershell_info() if isinstance(self.runtime, WindowsLocalRuntime) else None
         builtins = tool_definitions(
-            include_git=self.git is not None, powershell=powershell
+            include_git=self.git is not None,
+            powershell=powershell,
+            include_web=self._web_access_enabled,
         )
         mcp = self.mcp.definitions() if self.mcp is not None else ()
         plugins = self.plugins.definitions() if self.plugins is not None else ()
@@ -254,6 +260,21 @@ class RootActionDispatcher:
             ):
                 await record_unknown_gap(self.capture, context, request, cancellation)
             return _ok(request, {"result": await self.mcp.call(request.name, arguments)})
+        if request.name in {"web_retrieve", "web_search", "web_fetch", "site_api", "browser_fetch"}:
+            if request.name == "web_retrieve":
+                return _ok(request, await self.web_access.retrieve(
+                    query=arguments.get("query"), url=arguments.get("url"),
+                    site=arguments.get("site"), identifier=arguments.get("identifier"),
+                    verify_results=arguments.get("verify_results", 1),
+                ))
+            if request.name == "web_search":
+                result = await self.web_access.search(arguments["query"], max_results=arguments.get("max_results", 5))
+                return _ok(request, {"layer": "web_search", "results": result})
+            if request.name == "web_fetch":
+                return _ok(request, (await self.web_access.fetch(arguments["url"])).as_dict())
+            if request.name == "site_api":
+                return _ok(request, (await self.web_access.query_site(arguments["site"], arguments["identifier"])).as_dict())
+            return _ok(request, (await self.web_access.browser_fetch(arguments["url"], wait_ms=arguments.get("wait_ms", 1000))).as_dict())
         workspace = await execute_workspace_action(
             self, request, cancellation, context
         )

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from .i18n import Language
 from .terminal_theme import Theme, design_for, ACTIVE_GOLD
 from .terminal_style import (
@@ -12,7 +14,8 @@ from .terminal_style import (
 
 
 def status_presentation(
-    status: str, summary: str, action: str | None, language: Language, theme: Theme, spinner_index: int
+    status: str, summary: str, action: str | None, language: Language, theme: Theme, spinner_index: int,
+    stop_reason: str | None = None,
 ) -> tuple[str, str, str | None]:
     design = design_for(theme)
     symbols = theme in {Theme.SYMBOL, Theme.MODERN} or design is not None
@@ -40,7 +43,10 @@ def status_presentation(
     if status in labels:
         zh, en, symbol, color = labels[status]
         ascii_symbol = {"◆": "*", "✦": "*", "×": "x", "·": "."}.get(symbol, symbol)
-        return (zh if language is Language.ZH_CN else en), symbol if symbols else ascii_symbol, color
+        label = zh if language is Language.ZH_CN else en
+        if status == "paused" and isinstance(stop_reason, str) and stop_reason.strip():
+            label = f"{label} · {stop_reason.strip()[:96]}"
+        return label, symbol if symbols else ascii_symbol, color
     if design:
         return ("就绪" if language is Language.ZH_CN else "ready"), "○", design.accent
     ready_icon = "●" if modern else ("·" if symbols else ".")
@@ -105,6 +111,7 @@ def status_context(
     task_spent: int | None = None,
     task_limit: int | None = None,
     task_reserved: int = 0,
+    phase_durations: Mapping[str, int] | None = None,
 ) -> str:
     parts = [model] if model else []
     if branch:
@@ -123,10 +130,26 @@ def status_context(
             parts.append(f"{task_reserved:,} reserved")
     if token_rate is not None:
         parts.append(f"{token_rate:.1f} token/s")
+    timing = _phase_timing_context(phase_durations)
+    if timing:
+        parts.append(timing)
     if started_at is not None:
         elapsed = int(now - started_at)
         parts.append(f"{elapsed // 60:02d}:{elapsed % 60:02d}")
     return " · ".join(parts)
+
+
+def _phase_timing_context(phase_durations: Mapping[str, int] | None) -> str:
+    if phase_durations is None:
+        return ""
+    labels = (("context", "ctx"), ("model", "model"), ("action", "tools"))
+    parts = []
+    for phase, label in labels:
+        duration_ms = phase_durations.get(phase)
+        if isinstance(duration_ms, bool) or not isinstance(duration_ms, int) or duration_ms <= 0:
+            continue
+        parts.append(f"{label} {duration_ms / 1_000:.1f}s")
+    return " ".join(parts)
 
 
 def status_snapshot(

@@ -30,6 +30,39 @@ def _text_encoding_schema() -> dict[str, object]:
 
 TOOL_DEFINITIONS: tuple[ToolDefinition, ...] = (
     ToolDefinition(
+        "web_retrieve",
+        "Layer orchestrator: choose exactly one query, url, or site API input; search first, verify candidates, and return provenance.",
+        _object_schema(
+            {
+                "query": _nonempty_text_schema(),
+                "url": _nonempty_text_schema(),
+                "site": {"type": "string", "enum": ["github", "arxiv"]},
+                "identifier": _nonempty_text_schema(),
+                "verify_results": _integer_schema(0, 3),
+            }
+        ),
+    ),
+    ToolDefinition(
+        "web_search",
+        "Layer 1 web search. Returns bounded candidate URLs; candidates require fetch or site API verification.",
+        _object_schema({"query": _nonempty_text_schema(), "max_results": _integer_schema(1, 20)}, ("query",)),
+    ),
+    ToolDefinition(
+        "web_fetch",
+        "Layer 1 bounded public-page fetch. Redirects require an explicit follow-up URL.",
+        _object_schema({"url": _nonempty_text_schema()}, ("url",)),
+    ),
+    ToolDefinition(
+        "site_api",
+        "Layer 2 dedicated GitHub or arXiv API query; do not scrape site HTML.",
+        _object_schema({"site": {"type": "string", "enum": ["github", "arxiv"]}, "identifier": _nonempty_text_schema()}, ("site", "identifier")),
+    ),
+    ToolDefinition(
+        "browser_fetch",
+        "Layer 4 optional Playwright browser fetch for JavaScript pages; no credential persistence.",
+        _object_schema({"url": _nonempty_text_schema(), "wait_ms": _integer_schema(0, 10000)}, ("url",)),
+    ),
+    ToolDefinition(
         "load_tool_contract",
         "Make one capability available next turn; returns name, digest, and "
         "availability only.",
@@ -45,18 +78,28 @@ TOOL_DEFINITIONS: tuple[ToolDefinition, ...] = (
     ),
     ToolDefinition(
         "list_files",
-        "List up to 200 visible files. Omit root for the workspace root; do not "
-        "repeat the same listing when its prior result is already available.",
-        _object_schema({"root": _nonempty_text_schema()}),
+        "List one page of visible files (25 by default, at most 50). Omit root "
+        "for the workspace root; use next_cursor from a truncated result to continue.",
+        _object_schema({
+            "root": _nonempty_text_schema(),
+            "limit": _integer_schema(1, 50),
+            "cursor": _nonempty_text_schema(),
+        }),
     ),
     ToolDefinition(
         "search_text",
-        "Search visible workspace text.",
+        "Search visible text. Use root to scan a feature directory or one file, "
+        "and include_globs to filter files. Incomplete results require narrower follow-up.",
         _object_schema(
             {
                 "pattern": _nonempty_text_schema(),
                 "regex": {"type": "boolean"},
                 "case_sensitive": {"type": "boolean"},
+                "root": _nonempty_text_schema(),
+                "include_globs": {"type": "array", "items": _nonempty_text_schema(), "maxItems": 32},
+                "max_results": _integer_schema(1, 1000),
+                "max_match_chars": _integer_schema(128, 16000),
+                "max_total_chars": _integer_schema(1024, 256000),
             },
             ("pattern",),
         ),
@@ -204,9 +247,15 @@ def tool_definitions(
     *,
     include_git: bool = True,
     powershell: PowerShellRuntimeInfo | None = None,
+    include_web: bool = False,
 ) -> tuple[ToolDefinition, ...]:
-    """Return the provider-facing definitions used by the action dispatcher."""
+    """Return provider-facing definitions for explicitly available capabilities."""
     definitions = TOOL_DEFINITIONS
+    if not include_web:
+        definitions = tuple(
+            tool for tool in definitions
+            if tool.name not in {"web_retrieve", "web_search", "web_fetch", "site_api", "browser_fetch"}
+        )
     if powershell is not None:
         definitions = tuple(
             _powershell_tool(tool, powershell) for tool in definitions

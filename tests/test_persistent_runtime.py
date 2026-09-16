@@ -96,7 +96,9 @@ class PersistentRuntimeTests(unittest.IsolatedAsyncioTestCase):
             config = ContextConfig(root, root, "BASE_RULES", repo_map_enabled=False)
             binding, raw = ThreadRuntimeBinding(), ScriptedModel()
             context = build_managed_context(config, RuleLoader(guard, files, config), RepoMapBuilder(files, config),
-                                            Skills(), repo, binding, raw, profile)
+                                            Skills(), repo, binding, raw, profile,
+                                            memory_project_id="host-verified-project")
+            self.assertEqual(context.memory_project_id, "host-verified-project")
             dispatcher = RootActionDispatcher(files, WorkspaceEditor(guard),
                 ActionPolicy(PolicyConfig(approval_mode=ApprovalMode.FULL_LOCAL, workspace_root=root)), ApprovalBroker())
             model = wire_managed_engine(raw, context, dispatcher)

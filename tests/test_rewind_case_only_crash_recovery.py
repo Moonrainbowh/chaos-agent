@@ -13,6 +13,7 @@ from code_agent.workspace.edits import BatchApplyStatus, WorkspaceEditor
 from code_agent.workspace.paths import WorkspacePathGuard
 from code_agent.workspace.snapshot_store import WorkspaceSnapshotStore
 from code_agent_win.rewind_capture import RewindCaptureCoordinator
+from code_agent_win.rewind_edit_batch import _persist_post_identities
 from code_agent_win.rewind_edit_batch_models import prepare_request
 
 
@@ -72,6 +73,9 @@ class CaseOnlyCrashRecoveryTests(unittest.IsolatedAsyncioTestCase):
                 editor.apply_batch(plan).status, BatchApplyStatus.APPLIED
             )
             self.assertEqual(os.listdir(root), ["MIXEDCASE.txt"])
+            # The rename is durable and its ownership proof is on record, so the
+            # restart must roll the case-only move back instead of refusing it.
+            await _persist_post_identities(capture, prepared, record)
 
             reopened = RewindSessionRepository(base / "sessions.sqlite3")
             recovered_editor = WorkspaceEditor(WorkspacePathGuard(root))

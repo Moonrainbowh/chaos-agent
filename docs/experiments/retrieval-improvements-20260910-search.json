@@ -1,0 +1,111 @@
+{
+  "pattern": "def _literal_columns",
+  "search_timeout_s": 2.0,
+  "rows": [
+    {
+      "repeat": 1,
+      "root": null,
+      "seconds": 2.031,
+      "complete": false,
+      "matches": []
+    },
+    {
+      "repeat": 1,
+      "root": "src/code_agent/workspace",
+      "seconds": 0.579,
+      "complete": true,
+      "matches": [
+        {
+          "path": "src/code_agent/workspace/_text_search.py",
+          "line": 201,
+          "column": 1,
+          "text": "def _literal_columns("
+        }
+      ]
+    },
+    {
+      "repeat": 1,
+      "root": "src/code_agent/workspace/_text_search.py",
+      "seconds": 0.0,
+      "complete": true,
+      "matches": [
+        {
+          "path": "src/code_agent/workspace/_text_search.py",
+          "line": 201,
+          "column": 1,
+          "text": "def _literal_columns("
+        }
+      ]
+    },
+    {
+      "repeat": 2,
+      "root": null,
+      "seconds": 2.015,
+      "complete": false,
+      "matches": []
+    },
+    {
+      "repeat": 2,
+      "root": "src/code_agent/workspace",
+      "seconds": 0.406,
+      "complete": true,
+      "matches": [
+        {
+          "path": "src/code_agent/workspace/_text_search.py",
+          "line": 201,
+          "column": 1,
+          "text": "def _literal_columns("
+        }
+      ]
+    },
+    {
+      "repeat": 2,
+      "root": "src/code_agent/workspace/_text_search.py",
+      "seconds": 0.0,
+      "complete": true,
+      "matches": [
+        {
+          "path": "src/code_agent/workspace/_text_search.py",
+          "line": 201,
+          "column": 1,
+          "text": "def _literal_columns("
+        }
+      ]
+    },
+    {
+      "repeat": 3,
+      "root": null,
+      "seconds": 2.016,
+      "complete": false,
+      "matches": []
+    },
+    {
+      "repeat": 3,
+      "root": "src/code_agent/workspace",
+      "seconds": 0.453,
+      "complete": true,
+      "matches": [
+        {
+          "path": "src/code_agent/workspace/_text_search.py",
+          "line": 201,
+          "column": 1,
+          "text": "def _literal_columns("
+        }
+      ]
+    },
+    {
+      "repeat": 3,
+      "root": "src/code_agent/workspace/_text_search.py",
+      "seconds": 0.016,
+      "complete": true,
+      "matches": [
+        {
+          "path": "src/code_agent/workspace/_text_search.py",
+          "line": 201,
+          "column": 1,
+          "text": "def _literal_columns("
+        }
+      ]
+    }
+  ]
+}

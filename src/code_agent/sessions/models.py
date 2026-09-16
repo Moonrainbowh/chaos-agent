@@ -215,3 +215,48 @@ class CheckpointRecord:
             "event_sequence",
             _optional_sequence(self.event_sequence, "event_sequence"),
         )
+
+
+class MemoryLifecycle(str, Enum):
+    CANDIDATE = "candidate"
+    ACTIVE = "active"
+    SUPERSEDED = "superseded"
+    WITHDRAWN = "withdrawn"
+    ARCHIVED = "archived"
+
+
+@dataclass(frozen=True)
+class MemoryRecord:
+    memory_id: str
+    revision: int
+    scope_type: str
+    scope_id: str
+    kind: str
+    content: str
+    source_refs: Mapping[str, JSONValue] = field(default_factory=dict)
+    origin: str = "unknown"
+    conditions: Mapping[str, JSONValue] = field(default_factory=dict)
+    lifecycle: MemoryLifecycle = MemoryLifecycle.CANDIDATE
+    supersedes: str | None = None
+    derived_from: str | None = None
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+
+    def __post_init__(self) -> None:
+        for name in ("memory_id", "scope_type", "scope_id", "kind", "content", "origin"):
+            object.__setattr__(self, name, _required_text(getattr(self, name), name))
+        if self.scope_type not in {"task", "project", "user"}:
+            raise ValueError("scope_type must be task, project, or user")
+        if isinstance(self.revision, bool) or not isinstance(self.revision, int) or self.revision < 1:
+            raise ValueError("revision must be a positive integer")
+        object.__setattr__(self, "source_refs", _metadata(self.source_refs))
+        object.__setattr__(self, "conditions", _metadata(self.conditions))
+        if not isinstance(self.lifecycle, MemoryLifecycle):
+            raise TypeError("lifecycle must be a MemoryLifecycle")
+        for name in ("supersedes", "derived_from"):
+            object.__setattr__(self, name, _optional_text(getattr(self, name), name))
+        created, updated = _utc(self.created_at, "created_at"), _utc(self.updated_at, "updated_at")
+        if updated < created:
+            raise ValueError("updated_at must not precede created_at")
+        object.__setattr__(self, "created_at", created)
+        object.__setattr__(self, "updated_at", updated)

@@ -127,6 +127,9 @@ def _source_path(row: sqlite3.Row) -> EditBatchPath | None:
 
 
 def _target_path(row: sqlite3.Row) -> EditBatchPath:
+    # ``target`` doubles as the move destination and as the sole endpoint of a
+    # single-path operation, so it is the only endpoint that owns an ownership
+    # proof: it is the file an operation leaves behind.
     return EditBatchPath(
         row["target_path"],
         _flag(row["target_pre_existed"], "target_pre_existed"),
@@ -135,6 +138,8 @@ def _target_path(row: sqlite3.Row) -> EditBatchPath:
         _flag(row["target_post_existed"], "target_post_existed"),
         row["target_post_sha256"],
         row["target_post_size"],
+        row["target_post_device"],
+        row["target_post_inode"],
     )
 
 

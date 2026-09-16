@@ -81,7 +81,7 @@ class TestSuiteDiagnosticsTests(unittest.TestCase):
         with (
             mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}),
             mock.patch(
-                "scripts.run_tests.subprocess.run",
+                "scripts.suite_process.run_supervised_suite",
                 return_value=SimpleNamespace(returncode=1),
             ),
             contextlib.redirect_stdout(stdout),
@@ -104,7 +104,7 @@ class TestSuiteDiagnosticsTests(unittest.TestCase):
         with (
             mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "false"}),
             mock.patch(
-                "scripts.run_tests.subprocess.run",
+                "scripts.suite_process.run_supervised_suite",
                 return_value=SimpleNamespace(returncode=7),
             ),
             contextlib.redirect_stdout(stdout),

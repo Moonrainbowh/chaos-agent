@@ -19,11 +19,16 @@ class CompletionIdleTests(unittest.IsolatedAsyncioTestCase):
         for text in (
             "这个是什么意思", "[image1]这个是什么意思", "这张图片是什么内容",
             "请描述图中有什么", "总结这份内容",
+            "有没有讲workbuddy里面的模型的套餐反代出来的操作？或者相关的项目？？",
+            "有没有相关项目？",
+            "请检查代码有什么问题？",
         ):
             self.assertEqual(infer_task_intent(text, "code"), TaskIntent.ANALYZE)
         for text in (
             "你好，帮我修改代码", "hello fix tests", "谢谢，继续执行",
             "write a hello function", "分析图片并修改代码", "解释后删除文件",
+            "有没有办法修改现有代理配置？",
+            "你能运行测试吗？", "请执行检查？", "可以安装这个项目吗？",
         ):
             self.assertFalse(is_small_talk(text))
             self.assertEqual(infer_task_intent(text, "code"), TaskIntent.MODIFY)

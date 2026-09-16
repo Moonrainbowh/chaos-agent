@@ -182,6 +182,23 @@ class WorkspaceSnapshotRepositoryMixin:
 
         return await self._database.read(read)  # type: ignore[attr-defined]
 
+    async def lineage_has_workspace_snapshots(self, lineage_id: str) -> bool:
+        """Return whether any checkpoint snapshot exists for ``lineage_id``.
+
+        A lineage with no snapshot has nothing an executable rewind could
+        restore, which is what lets worktree reclamation retire it safely.
+        """
+        lineage_id = require_uuid(lineage_id, "lineage_id")
+
+        def read(connection: sqlite3.Connection) -> bool:
+            row = connection.execute(
+                "SELECT 1 FROM workspace_snapshots WHERE lineage_id = ? LIMIT 1",
+                (lineage_id,),
+            ).fetchone()
+            return row is not None
+
+        return await self._database.read(read)  # type: ignore[attr-defined]
+
     async def latest_event_sequence(self, thread_id: str) -> int:
         thread_id = _text(thread_id, "thread_id")
 

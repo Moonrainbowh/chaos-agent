@@ -18,6 +18,7 @@ from .input_buffer import InputBuffer
 from .input_events import ExitGuard
 from .terminal_display import DisplayKind, text_entry
 from .terminal_renderer import ColorMode, Theme, render_entries
+from .terminal_size import terminal_size
 from .terminal_win32_input import WIN32_INPUT_ENABLE, WIN32_INPUT_DISABLE
 from .terminal_io import BRACKETED_PASTE_DISABLE, BRACKETED_PASTE_ENABLE, capture_ctrl_c_as_input, read_key, render_terminal as render_terminal, stdout_write
 from .terminal_tail import LiveTailGeometry, clear_live_tail
@@ -87,6 +88,7 @@ class WindowsTerminalApp(TerminalPresentation):
         self._tail_geometry: LiveTailGeometry | None = None
         self.composer_expanded: bool = True
         self._run_started_at: float | None = None; self._drawn_draft_revision = -1; self._drawn_size: tuple[int, int] | None = None; self._next_spinner_at = time.monotonic() + 0.1
+        self._last_alt_v_failure_at = 0.0
         self.theme, self.color = Theme.SLATE, ColorMode.AUTO
         self.motion = TailMotion()
         self._visual_task = None
@@ -152,7 +154,19 @@ class WindowsTerminalApp(TerminalPresentation):
         elif key.startswith("\x1b[200~") and key.endswith("\x1b[201~"):
             self.composer_expanded = True
             await apply_paste(self, key[6:-6])
-        elif key in {"\x16", "alt+v"}:
+        elif key == "alt+v":
+            # Some Windows Terminal/ConPTY configurations repeat the Alt
+            # chord while the modifier is held. Treat that burst as one paste
+            # gesture so an empty clipboard cannot spam identical errors.
+            now = time.monotonic()
+            if now - self._last_alt_v_failure_at < 0.45:
+                return
+            self.composer_expanded = True
+            if not await apply_clipboard_images(self):
+                self._last_alt_v_failure_at = now
+            else:
+                self._last_alt_v_failure_at = 0.0
+        elif key == "\x16":
             self.composer_expanded = True
             await apply_clipboard_images(self)
         elif key == "\x15": clear_input(self)
@@ -229,9 +243,17 @@ class WindowsTerminalApp(TerminalPresentation):
         except CancellationError:
             self.state.status = "paused"
         except Exception as error:
-            self.state.status = "error"
-            from .runtime_errors import runtime_error_summary
-            self._append(DisplayKind.ERROR, runtime_error_summary(error))
+            recoverable = type(error).__name__ == "ModelStreamError" or isinstance(error, TimeoutError) or bool(getattr(error, "retryable", False))
+            self.state.status = "interrupted" if recoverable else "error"
+            from .runtime_errors import explain_runtime_error
+            self._append(
+                DisplayKind.ERROR,
+                explain_runtime_error(
+                    error,
+                    status=self.state.status,
+                    changed=bool(self.state.diff),
+                ),
+            )
         finally:
             self.on_task_finished()
             self._request_redraw(immediate=True)
@@ -267,10 +289,16 @@ class WindowsTerminalApp(TerminalPresentation):
             self.state.status = "paused"
             self._append(DisplayKind.METADATA, "task paused")
         except Exception as error:
-            self.active_task_id = None
             self.state.status = "error"
-            from .runtime_errors import runtime_error_summary
-            self._append(DisplayKind.ERROR, runtime_error_summary(error))
+            from .runtime_errors import explain_runtime_error
+            self._append(
+                DisplayKind.ERROR,
+                explain_runtime_error(
+                    error,
+                    status=self.state.status,
+                    changed=bool(self.state.diff),
+                ),
+            )
         finally:
             self.on_task_finished()
             if (terminal or self.state.status in {"failed", "error"}) and self.active_task_id == task_id:
@@ -295,8 +323,25 @@ class WindowsTerminalApp(TerminalPresentation):
             self._tail_geometry = None
             self._flushed_entries = len(self.state.entries)
 
+    def _collapse_completed_transcript(self) -> None:
+        """Rewrite the finished transcript with consecutive tool calls folded."""
+        if not design_for(self.theme) or not self.state.entries:
+            return
+        rendered = render_entries(
+            self.state.entries,
+            self._columns(),
+            theme=self.theme,
+            color=self.color,
+            fold_tools=True,
+        )
+        # A completed run is the one intentional full-transcript rewrite; it
+        # removes the detailed streamed rows so the user keeps a compact result.
+        self._write(self._tail_clear_sequence() + "\x1b[2J\x1b[H" + rendered + "\n\r")
+        self._tail_geometry = None
+        self._flushed_entries = len(self.state.entries)
+
     def _columns(self) -> int:
-        columns = shutil.get_terminal_size((100, 30)).columns
+        columns = terminal_size((100, 30)).columns
         return max(20, columns - 2) if design_for(self.theme) else columns
     def _request_redraw(self, *, immediate: bool = False) -> None:
         self._redraw_dirty = True

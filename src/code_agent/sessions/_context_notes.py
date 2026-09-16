@@ -41,9 +41,17 @@ class ContextNotesRepositoryMixin:
             content = current + text if append else text
             if len(content.encode("utf-8")) > 1_000_000:
                 raise ValueError("note exceeds 1000000 UTF-8 bytes")
+            coverage = {
+                "message_sequence": int(connection.execute(
+                    "SELECT COALESCE(MAX(sequence), 0) FROM messages WHERE thread_id=?", (thread_id,)
+                ).fetchone()[0]),
+                "event_sequence": int(connection.execute(
+                    "SELECT COALESCE(MAX(sequence), 0) FROM events WHERE thread_id=?", (thread_id,)
+                ).fetchone()[0]),
+            }
             _insert(connection, thread_id, "note_file", identifier,
                     {"path": path, "content": content, "revision": revision + 1,
-                     "operation": operation})
+                     "operation": operation, "coverage": coverage})
             return {"path": path, "revision": revision + 1, "id": identifier}
         return await self._database.write(write)
 
@@ -55,5 +63,7 @@ class ContextNotesRepositoryMixin:
             for row in _rows(connection, thread_id, "note_file"):
                 note = json.loads(row["metadata"])
                 latest[note["path"]] = {key: note[key] for key in ("path", "content", "revision")}
+                if "coverage" in note:
+                    latest[note["path"]]["coverage"] = note["coverage"]
             return tuple(latest[path] for path in sorted(latest))
         return await self._database.read(read)

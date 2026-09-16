@@ -23,6 +23,14 @@ class TaskStatus(str, Enum):
     INTERRUPTED = "interrupted"
     SUPERSEDED = "superseded"
 
+    @property
+    def is_terminal(self) -> bool:
+        """Return whether no further work can follow this status.
+
+        An interrupted or paused task is resumable, so it is not terminal.
+        """
+        return self in _TERMINAL
+
 
 _TERMINAL = {
     TaskStatus.COMPLETED,
@@ -34,8 +42,8 @@ _ALLOWED = {
     TaskStatus.CREATED: {TaskStatus.RUNNING, TaskStatus.PAUSED, TaskStatus.FAILED, TaskStatus.INTERRUPTED},
     TaskStatus.RUNNING: {TaskStatus.VERIFYING, TaskStatus.PAUSED, TaskStatus.WAITING_DECISION, TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.INTERRUPTED, TaskStatus.SUPERSEDED},
     TaskStatus.VERIFYING: {TaskStatus.RUNNING, TaskStatus.PAUSED, TaskStatus.WAITING_DECISION, TaskStatus.ACCEPTED_PARTIAL, TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.INTERRUPTED, TaskStatus.SUPERSEDED},
-    TaskStatus.PAUSED: {TaskStatus.RUNNING, TaskStatus.SUPERSEDED},
-    TaskStatus.INTERRUPTED: {TaskStatus.RUNNING, TaskStatus.SUPERSEDED},
+    TaskStatus.PAUSED: {TaskStatus.RUNNING, TaskStatus.WAITING_DECISION, TaskStatus.SUPERSEDED},
+    TaskStatus.INTERRUPTED: {TaskStatus.RUNNING, TaskStatus.WAITING_DECISION, TaskStatus.SUPERSEDED},
     TaskStatus.WAITING_DECISION: {TaskStatus.RUNNING, TaskStatus.ACCEPTED_PARTIAL, TaskStatus.FAILED, TaskStatus.SUPERSEDED},
 }
 

@@ -7,7 +7,11 @@ from pathlib import Path
 
 from code_agent.core.cancellation import CancellationError
 from code_agent.core.task import TaskStatus
-from tests.agent_app_test_support import _configured_application, _init_git_source
+from tests.agent_app_test_support import (
+    _configured_application,
+    _init_git_source,
+    workspace_mode_scope,
+)
 
 
 class _BlockingRunner:
@@ -54,6 +58,15 @@ async def _start_blocked_rewind(application, task_id: str, preview: object):
 
 
 class WorkspaceCheckpointApplicationTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self) -> None:
+        # These tests cover the isolated workspace: automatic lifecycle
+        # boundaries publish executable snapshots there. A local task keeps
+        # boundaries metadata-only and snapshots only on demand, which
+        # tests/test_workspace_mode_lifecycle.py covers.
+        scope = workspace_mode_scope("managed")
+        scope.__enter__()
+        self.addCleanup(scope.__exit__, None, None, None)
+
     async def test_lifecycle_boundaries_publish_real_workspace_snapshots(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()

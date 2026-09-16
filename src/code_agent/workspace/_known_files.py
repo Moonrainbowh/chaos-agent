@@ -18,6 +18,7 @@ def known_workspace_files(
     *,
     max_entries: int,
     max_scanned_entries: int,
+    start_after: str | None = None,
 ) -> tuple[str, ...]:
     """Filter a trusted candidate inventory through workspace visibility rules."""
     if not isinstance(max_entries, int) or isinstance(max_entries, bool) or max_entries <= 0:
@@ -28,6 +29,10 @@ def known_workspace_files(
         or max_scanned_entries <= 0
     ):
         raise ValueError("max_scanned_entries must be a positive integer")
+    if start_after is not None and (
+        not isinstance(start_after, str) or not start_after
+    ):
+        raise ValueError("start_after must be non-empty text or None")
     visible: list[str] = []
     for scanned, candidate in enumerate(candidates, start=1):
         if scanned > max_scanned_entries:
@@ -40,6 +45,8 @@ def known_workspace_files(
             resolved = guard.resolve(candidate)
             relative = guard.relative(resolved).as_posix()
             if resolved.is_file() and not ignore.is_ignored(relative):
+                if start_after is not None and relative <= start_after:
+                    continue
                 visible.append(relative)
         except WindowsLongPathError:
             raise

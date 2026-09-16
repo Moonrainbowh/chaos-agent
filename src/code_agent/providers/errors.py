@@ -85,7 +85,9 @@ class ProviderError(RuntimeError):
         message: object = "Provider operation failed",
         *,
         sensitive_values: Iterable[str] = (),
+        effect_unknown: bool = False,
     ) -> None:
+        self.effect_unknown = bool(effect_unknown)
         super().__init__(_redact(message, sensitive_values))
 
 
@@ -107,11 +109,23 @@ class ProviderHTTPError(ProviderError):
         super().__init__(
             message if message is not None else f"Provider HTTP status {status}",
             sensitive_values=sensitive_values,
+            effect_unknown=500 <= status <= 599,
         )
 
 
 class ProviderProtocolError(ProviderError):
-    pass
+    def __init__(
+        self,
+        message: object = "Provider protocol error",
+        *,
+        sensitive_values: Iterable[str] = (),
+        effect_unknown: bool = True,
+    ) -> None:
+        super().__init__(
+            message,
+            sensitive_values=sensitive_values,
+            effect_unknown=effect_unknown,
+        )
 
 
 class ProviderResponseLimitError(ProviderError):

@@ -93,7 +93,7 @@ def _select_anchor(
     # Exact identifiers can locate symbols even outside the file retrieval list.
     for entry in dict.fromkeys((*entries, *by_key.values())):
         for symbol in sorted(entry.symbols, key=lambda s: (s.line, s.name)):
-            if re.search(r"(?<![\w])" + re.escape(symbol.name) + r"(?![\w])", symbol_query, re.I):
+            if _explicit_symbol(symbol, symbol_query, entry in [e for e, _ in mentions]):
                 explicit.append(_node(entry, symbol, "symbol", ("explicit symbol",), 0))
     selected = _independent_anchors(explicit)
     terms = set(contract_query_terms(plan_repo_query(symbol_query))) - _ANCHOR_STOP_TERMS
@@ -101,7 +101,7 @@ def _select_anchor(
         ((-_symbol_score(symbol, terms), 0 if canonical_path_key(entry.path) in touched else 1,
           rank, symbol.line, symbol.name, entry.path, entry, symbol)
          for rank, entry in enumerate(entries) for symbol in entry.symbols),
-        key=lambda item: item[:6],
+        key=lambda item: (-_symbol_coverage(item[7], terms), *item[:6]),
     )
     # An explicitly named file gets its own anchor before unrelated retrieved files.
     for entry, _ in mentions:
@@ -128,6 +128,19 @@ _ANCHOR_STOP_TERMS = frozenset({
     "def", "class", "self", "return", "none", "true", "false", "py", "function",
     "file", "fix", "repair", "please", "the", "a", "an", "in", "of", "to", "and",
 })
+
+
+def _explicit_symbol(symbol: Symbol, query: str, file_named: bool) -> bool:
+    """Require code syntax or a named file for ambiguous prose identifiers."""
+    name = symbol.name
+    escaped = re.escape(name)
+    if not re.search(r"(?<![\w])" + escaped + r"(?![\w])", query):
+        return False
+    return bool(
+        file_named or symbol.kind == "function" or query.strip() == name
+        or "_" in name or re.search(r"[a-z][A-Z]", name)
+        or re.search(r"`" + escaped + r"`|(?<![\w])" + escaped + r"\s*\(", query)
+    )
 
 
 def _anchor_mentions(
@@ -158,6 +171,12 @@ def _symbol_score(symbol: Symbol, terms: set[str]) -> int:
     return (4 * len(terms & words(symbol.name))
             + 2 * len(terms & words(symbol.signature))
             + 2 * len(terms & words(symbol.docstring)))
+
+
+def _symbol_coverage(symbol: Symbol, terms: set[str]) -> int:
+    """Count distinct query terms before repeated name/signature evidence."""
+    text = " ".join((symbol.name, symbol.signature, symbol.docstring))
+    return len(terms & set(re.findall(r"\w+", expand_search_terms(text))))
 
 
 def _module_anchor(entry: RepoEntry, line: int | None = None) -> TierNode:

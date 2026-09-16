@@ -6,7 +6,7 @@ from itertools import zip_longest
 
 from .terminal_display import display_width
 from .terminal_markdown import _Span, _inline_spans, _render_rows
-from .terminal_style import BODY_WHITE, BRAND_CYAN, BRIGHT_CYAN, DIM_GRAY, ColorMode, colorize
+from .terminal_style import BODY_WHITE, BRAND_CYAN, BRIGHT_CYAN, DIM_GRAY, ColorMode, colorize, color_enabled
 from .terminal_theme import Theme
 from .terminal_transcript_markdown import _markdown_lines
 
@@ -85,11 +85,24 @@ def _section_rows(label, lines, width, gutter, color, incomplete):
 
 def _body_rows(line, width, color, incomplete):
     if not line.text:
+        if line.role in {"code", "code_language"} and not color_enabled(color):
+            return ["  "]
         return [""]
-    if line.role in {"code", "table_border", "table_header", "plan_step"}:
+    if line.role in {"code", "code_language", "table_border", "table_header", "plan_step"}:
+        if line.role == "code":
+            line = type(line)(line.text.rstrip(), line.role)
+        # Code blocks use a two-column inset inside the shared body column,
+        # matching the visual gutter used by nested list content.
+        if line.role in {"code", "code_language"} and not color_enabled(color):
+            line = type(line)("  " + line.text, line.role)
         code = {"code": BRAND_CYAN, "table_border": DIM_GRAY,
-                "table_header": BRIGHT_CYAN, "plan_step": BRAND_CYAN}[line.role]
-        return _render_rows((_Span(line.text, code),), width, color)
+                "code_language": BRIGHT_CYAN, "table_header": BRIGHT_CYAN,
+                "plan_step": BRAND_CYAN}[line.role]
+        rows = _render_rows((_Span(line.text, code),), width, color)
+        if line.role in {"code", "code_language"} and color_enabled(color):
+            background = "\x1b[48;2;34;52;76m" if line.role == "code_language" else "\x1b[48;2;24;40;62m"
+            rows = [background + row + (" " * max(0, width - display_width(row))) + "\x1b[0m" for row in rows]
+        return rows
     prefix = "│ " if line.role == "quote" else ""
     value = line.text
     if line.role != "quote":
