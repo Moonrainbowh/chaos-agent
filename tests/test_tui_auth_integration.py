@@ -54,7 +54,7 @@ class TuiAuthIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("private-integration-key", "".join(output))
         self.assertEqual(CredentialStore(state / "credentials.dat").get("openai", "api_key").access,
                          "private-integration-key")
-        self.assertTrue(await tui.submit("/logswitch openai:api_key gpt-4.1"))
+        self.assertTrue(await tui.submit("/model openai:api_key gpt-4.1"))
         name = "login/openai/api_key/gpt-4.1"
         self.assertEqual(application.model.current.profile.name, name)
         self.assertEqual(application.model.current.profile.provider.auth_source.kind, "api_key")
@@ -71,7 +71,7 @@ class TuiAuthIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(tui.current_thread_id)
         self.assertIsNone(tui.active_task_id)
         self.assertNotIn("replacement-private-key", "".join(output))
-        self.assertTrue(await tui.submit("/logswitch sol"))
+        self.assertTrue(await tui.submit("/model sol"))
         self.assertEqual(application.model.current.profile.name, "sol")
         await application.foreground_tasks._runtime_resolver(task.contract)
         self.assertEqual(application.model.current.profile.name, name)

@@ -10,7 +10,8 @@ from .flows_common import request, required, response_json, safe_url, show
 from .models import AuthError, Credential
 
 ENDPOINT = "https://copilot.tencent.com"
-USER_AGENT = "WorkBuddy/5.5.3 WorkBuddy/5.5.3 CLI/2.137.1"
+CLIENT_VERSION = "5.5.6"
+USER_AGENT = f"WorkBuddy/{CLIENT_VERSION} WorkBuddy/{CLIENT_VERSION} CLI/2.137.1"
 
 
 def headers(endpoint, access=None, domain=None):
@@ -97,7 +98,7 @@ async def login_workbuddy(client, display):
                                   headers=headers(ENDPOINT), json={}))
     state = required(setup, "state")
     url = safe_url(required(setup, "authUrl"))
-    url += ("&" if "?" in url else "?") + urlencode({"version": "5.5.3", "loginSessionId": str(uuid.uuid4())})
+    url += ("&" if "?" in url else "?") + urlencode({"version": CLIENT_VERSION, "loginSessionId": str(uuid.uuid4())})
     await show(url, display)
     query = "?" + urlencode({"state": state})
     auth = await poll_stage(client, ENDPOINT, "/v2/plugin/auth/token" + query, headers(ENDPOINT), "accessToken", (11217,))

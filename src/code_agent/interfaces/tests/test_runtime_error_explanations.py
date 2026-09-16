@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import unittest
 
-from code_agent.interfaces.runtime_errors import explain_runtime_error
+from code_agent.core.errors import ModelStreamError
+from code_agent.interfaces.runtime_errors import (
+    explain_runtime_error,
+    runtime_error_summary,
+)
+from code_agent.providers.errors import ProviderProtocolError
 
 
 class RuntimeErrorExplanationTests(unittest.TestCase):
@@ -22,3 +27,14 @@ class RuntimeErrorExplanationTests(unittest.TestCase):
         self.assertIn("No workspace change has been confirmed", text)
         self.assertNotIn("already exist", text)
 
+    def test_summary_exposes_safe_provider_protocol_cause(self) -> None:
+        try:
+            raise ProviderProtocolError("Chat stream ended without a completion marker")
+        except ProviderProtocolError as cause:
+            error = ModelStreamError("model stream failed")
+            error.__cause__ = cause
+
+        self.assertEqual(
+            runtime_error_summary(error),
+            "ProviderProtocolError: Chat stream ended without a completion marker",
+        )

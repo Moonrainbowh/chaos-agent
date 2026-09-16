@@ -37,6 +37,7 @@ class TaskSupervisor:
             raise TypeError("budget must be a TaskBudget or None")
         self._started_at = started_at or datetime.now(timezone.utc)
         self._active_seconds = 0 if budget is None else budget.active_seconds
+        self._run_active_seconds = 0
         self._token_usage = 0 if budget is None else budget.input_tokens + budget.output_tokens
         self._token_limit = None if budget is None else budget.limits.max_total_tokens
         self._last_failure = None if budget is None else budget.last_failure_signature
@@ -44,9 +45,10 @@ class TaskSupervisor:
         self._repair_cycles = 0 if budget is None else budget.repair_cycles
 
     def checkpoint_active_seconds(self) -> int:
-        """Return cumulative active time and reset the in-memory interval."""
+        """Persist cumulative telemetry while retaining this run's time budget."""
         elapsed = max(0, int((datetime.now(timezone.utc) - self._started_at).total_seconds()))
         self._active_seconds += elapsed
+        self._run_active_seconds += elapsed
         self._started_at = datetime.now(timezone.utc)
         return self._active_seconds
 
@@ -54,7 +56,7 @@ class TaskSupervisor:
         if self._token_limit is not None and self._token_usage >= self._token_limit:
             return SupervisionDecision(SupervisionKind.PAUSE, "token budget exceeded")
         elapsed = max(0, int((datetime.now(timezone.utc) - self._started_at).total_seconds()))
-        if self._active_seconds + elapsed >= self._contract.max_active_seconds:
+        if self._run_active_seconds + elapsed >= self._contract.max_active_seconds:
             return SupervisionDecision(SupervisionKind.PAUSE, "active time budget exceeded")
         return SupervisionDecision(SupervisionKind.CONTINUE)
 

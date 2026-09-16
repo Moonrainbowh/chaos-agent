@@ -11,6 +11,14 @@ def runtime_error_summary(error: BaseException) -> str:
         status = getattr(cause, "status", None)
         if type(status) is int and 100 <= status <= 599:
             return f"Model request failed (HTTP {status}). Retry the request."
+        if type(cause).__name__ in {
+            "ProviderError",
+            "ProviderConfigError",
+            "ProviderProtocolError",
+            "ProviderResponseLimitError",
+        }:
+            message = " ".join(str(cause).split())
+            return f"{type(cause).__name__}: {message[:240]}"
         cause = cause.__cause__
     message = " ".join(str(error).split())
     if "<html" in message.lower() or "<!doctype" in message.lower():

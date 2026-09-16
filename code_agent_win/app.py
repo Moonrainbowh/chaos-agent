@@ -56,12 +56,14 @@ def create_application(
     model_name: str | None = None,
     profile_name: str | None = None,
     mode_name: str | None = None,
+    restore_model_selection: bool = False,
 ) -> Application:
     return _ApplicationComposer(
         workspace_root,
         model_name=model_name,
         profile_name=profile_name,
         mode_name=mode_name,
+        restore_model_selection=restore_model_selection,
     ).build()
 
 
@@ -73,6 +75,7 @@ class _ApplicationComposer:
         model_name: str | None,
         profile_name: str | None,
         mode_name: str | None,
+        restore_model_selection: bool,
     ) -> None:
         if profile_name is not None and (not isinstance(profile_name, str) or not profile_name.strip()):
             raise ValueError("profile_name must be non-blank text")
@@ -82,6 +85,7 @@ class _ApplicationComposer:
         require_supported_windows_path(self.root, operation="workspace root")
         self.product_state_root = _product_state_root()
         self.product_state_root.mkdir(parents=True, exist_ok=True)
+        self.restore_model_selection = restore_model_selection
         self.workspace_storage_root = _workspace_storage_path()
         self.runtime_config = load_runtime_config(cli_profile=profile_name)
         self.powershell = resolved_powershell_runtime(self.runtime_config.powershell_dialect)
@@ -254,6 +258,9 @@ class _ApplicationComposer:
             peers=self.peers,
             sessions=self.sessions,
             workspace_root=self.root,
+            authentication=self.authentication,
+            model_preferences=self.model_preferences,
+            restore_model_selection=self.restore_model_selection,
         )
         self.application_ref.append(application)
         return application

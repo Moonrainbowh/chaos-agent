@@ -179,10 +179,10 @@ class AgentEngineLimitTests(unittest.IsolatedAsyncioTestCase):
             actions=actions,
         )
 
-        with self.assertRaises(EngineLimitError):
-            _ = [event async for event in engine.run("inspect")]
+        events = [event async for event in engine.run("inspect")]
 
         self.assertEqual(actions.requests, [])
+        self.assertIn(EventKind.ERROR, [event.kind for event in events])
 
     async def test_missing_completed_event_is_a_protocol_error(self) -> None:
         sessions = MemorySessionRepository()
@@ -208,7 +208,6 @@ class AgentEngineLimitTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(events[-1].kind, EventKind.CANCELLED)
         self.assertEqual(events[-1].payload["reason"], "user stop")
         self.assertNotIn(EventKind.COMPLETED, [event.kind for event in events])
-
 
 if __name__ == "__main__":
     unittest.main()

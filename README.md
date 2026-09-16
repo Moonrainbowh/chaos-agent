@@ -53,9 +53,9 @@ so a save cannot return a handle that is already unreadable.
 ## Configure A Provider
 
 Inside the TUI, `/login` opens provider/method choices and hidden credential input.
-`/logswitch` temporarily selects a saved OAuth/API login and model or an existing
-API profile without changing the configured startup default. A changed selection
-opens a new conversation; pause a running task first.
+`/model` selects configured profiles and models from saved OAuth/API logins. A
+changed selection opens a new conversation; pause a running task first. The last
+successful model selection is restored when the interactive TUI next starts.
 
 Use the authentication CLI before opening a workspace:
 
@@ -538,13 +538,69 @@ metadata-only path remain stored but are omitted from this executable picker.
 Tasks persist lifecycle state, checkpoints, and cumulative budgets. Closing the
 terminal, sleep, hibernate, shutdown, or reboot does not keep work running;
 the next foreground session resumes from a checkpoint and never replays an
-in-flight command. Foreground coding tasks run in managed Git worktrees.
+in-flight command. A foreground task runs **directly in the source workspace**
+by default; a managed Git worktree is used only when isolation is requested.
 Durable checkpoints can restore tracked and eligible untracked code,
 session/task state, or both. Ignored files, secrets, build outputs, Git
 metadata, links/reparse targets, and in-flight commands are never captured or
 replayed. Rewind keeps the original task history and requires an explicit
 preview confirmation. This release deliberately has no daemon, remote observer,
 background continuation, OS sandbox, automatic commit, or push.
+
+## Workspace Modes
+
+`CHAOS_WORKSPACE_MODE` selects where a task reads and writes. The local
+workspace is the default execution environment; a managed Git worktree is an
+isolation mechanism for parallel or explicitly isolated tasks, not a
+prerequisite for starting a task.
+
+| Mode | Behavior |
+| --- | --- |
+| `auto` (default) | Uses the local workspace for normal tasks and an isolated worktree when the task is parallel (another task is already writing this root) or declares a background or explicit isolation reason. |
+| `direct` | Always operates directly in the current workspace. |
+| `managed` | Always runs the task inside an isolated managed Git worktree. |
+
+Isolation can also be asked for per invocation instead of process-wide:
+
+```
+chaos-agent --isolated ask "refactor this module"
+```
+
+`--isolated` asks for a managed worktree for that invocation. If the mode or
+the root cannot provide one — `direct`, or a workspace that is not a Git
+repository — the task is refused with the reason, never silently downgraded to
+the source workspace.
+
+An unknown value fails before the task starts. `managed` on a non-Git workspace
+reports that isolation needs a repository and stays local; `managed`
+initialization failures are reported and never fall back to the source root.
+
+A second task on a root that already has an active writer is isolated in its own
+worktree under `auto`; `direct`, and any root that cannot host a worktree, refuses
+it with `a foreground task is already active` so one root keeps one local writer.
+
+Ordinary tasks (`auto` or `direct`) do not probe Git, enumerate changed or
+untracked paths, snapshot them, or copy them, so a workspace holding large
+datasets, artifacts, logs, caches, or tens of thousands of untracked files
+starts at the same cost as an empty one. Only a managed worktree pays the
+dirty-state seed cost, and it keeps its bounded Git output/timeout protection:
+exceeding that budget is a clear error, not a silent partial copy.
+
+Every task owns a workspace lineage, including one that runs locally: a local
+lineage points its worktree root at the source root and creates no branch,
+directory, or copy. Local lifecycle boundaries stay metadata-only so task
+creation never snapshots the whole source workspace, while `/checkpoint` and
+`/rewind` still work on demand and restore the source workspace itself. Isolated
+tasks keep snapshotting every automatic boundary.
+
+Managed worktrees do not accumulate indefinitely. Each startup retires the ones
+that provably hold nothing: a worktree with no persisted lineage (creation was
+interrupted between `git worktree add` and the lineage write), or one whose task
+reached a terminal state, whose checkout is clean, whose branch carries no commit
+of its own, and whose lineage has no rewindable checkpoint. Anything else is kept
+and reported. `chaos-agent --reclaim-workspaces` runs the same pass while also
+accepting worktrees whose lineage still has checkpoints, and prints what it kept
+and why.
 
 ## Context Budgets And Local Diagnostics
 

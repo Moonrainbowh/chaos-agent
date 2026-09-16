@@ -131,7 +131,7 @@ def _workbuddy_headers(headers, credential):
     extra = credential.extra
     headers.update({"authorization": f"Bearer {credential.access}",
                     "x-requested-with": "XMLHttpRequest", "x-product": "SaaS",
-                    "user-agent": "WorkBuddy/5.5.3 WorkBuddy/5.5.3 CLI/2.137.1"})
+                    "user-agent": "WorkBuddy/5.5.6 WorkBuddy/5.5.6 CLI/2.137.1"})
     if credential.kind == "api_key":
         headers["x-api-key"] = credential.access
     account = extra.get("workbuddyAccount", {})

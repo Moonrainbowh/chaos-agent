@@ -38,7 +38,9 @@ class TerminalState:
         self.diff: Optional[str] = None
         self.task_id: Optional[str] = None
         self.task_status: Optional[str] = None
+        self.task_stop_reason: Optional[str] = None
         self.task_budget_line: Optional[str] = None
+        self.phase_durations: dict[str, int] = {}
         self.pending_decision: Optional[str] = None
         self.token_rate = TokenRateTracker()
         self.total_tokens: int = 0
@@ -93,6 +95,7 @@ class TerminalState:
         self.active_action = None
         self.execution_summary = ""
         self.token_rate.reset()
+        self.phase_durations = {}
 
     def apply(self, event: AgentEvent) -> None:
         self.timeline.append(_timeline_line(event))
@@ -117,10 +120,17 @@ class TerminalState:
             status = event.payload.get("status")
             if isinstance(task_id, str): self.task_id = task_id
             if isinstance(status, str): self.task_status = status
+            reason = event.payload.get("reason")
+            if isinstance(reason, str):
+                self.task_stop_reason = reason
+            elif event.kind is EventKind.TASK_CREATED or self.task_status != "paused":
+                self.task_stop_reason = None
             self.status = status if isinstance(status, str) else "task"
         elif event.kind is EventKind.TASK_BUDGET_WARNING:
             reason = event.payload.get("reason")
             self.task_budget_line = reason if isinstance(reason, str) else "budget warning"
+        elif event.kind is EventKind.PHASE_COMPLETED:
+            self._apply_phase_timing(event)
         elif event.kind is EventKind.TASK_DECISION_REQUIRED:
             self._apply_decision(event)
         elif event.kind is EventKind.MODEL_EVENT:
@@ -167,6 +177,19 @@ class TerminalState:
         if isinstance(request, Mapping) and isinstance(request.get("id"), str):
             self._action_requests[request["id"]] = request
 
+    def _apply_phase_timing(self, event: AgentEvent) -> None:
+        phase = event.payload.get("phase")
+        duration_ms = event.payload.get("duration_ms")
+        if (
+            phase not in {"context", "model", "action"}
+            or isinstance(duration_ms, bool)
+            or not isinstance(duration_ms, int)
+            or duration_ms < 0
+        ):
+            return
+        current = self.phase_durations.get(phase, 0)
+        self.phase_durations[phase] = min(86_400_000, current + duration_ms)
+
     def _plan_steps(self) -> list[str]:
         return [line.strip() for line in self.plan_text.splitlines() if line.strip()]
 
@@ -175,6 +198,11 @@ class TerminalState:
         if event.kind in {EventKind.TASK_CREATED, EventKind.TASK_STATUS_CHANGED, EventKind.TASK_PAUSED}:
             self.task_id = event.payload.get("task_id", self.task_id)
             self.task_status = event.payload.get("status", self.task_status)
+            reason = event.payload.get("reason")
+            if isinstance(reason, str):
+                self.task_stop_reason = reason
+            elif event.kind is EventKind.TASK_CREATED or self.task_status != "paused":
+                self.task_stop_reason = None
             if self.task_status:
                 self.status = self.task_status
             return

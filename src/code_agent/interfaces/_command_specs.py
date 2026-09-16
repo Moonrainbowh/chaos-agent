@@ -87,10 +87,9 @@ def _runtime_specs() -> tuple[CommandSpec, ...]:
     runtime = ("runtime_selection",)
     return (
         CommandSpec("login", (), "Configuration", "Sign in to a provider or save an API key", "[provider [method]]", requires=("authentication",)),
-        CommandSpec("logswitch", (), "Configuration", "Temporarily select a saved login and model; opens a new conversation", "[profile|provider:auth model]", requires=("authentication", "runtime_selection")),
         CommandSpec(
             "model", ("m",), "Configuration",
-            "Select a model; a changed selection opens a new conversation", "[profile]",
+            "Select a configured or saved-login model; a changed selection opens a new conversation", "[profile|provider:auth model]",
             requires=runtime,
         ),
         _mode_spec(),
@@ -199,7 +198,7 @@ def _session_specs() -> tuple[CommandSpec, ...]:
         ),
         CommandSpec("new", ("新建",), "Session", "Start a new session", visibility=advanced),
         CommandSpec(
-            "restore", ("恢复",), "Session", "Restore session from thread ID", "<thread-id>",
+            "resume", ("恢复",), "Session", "Resume a session or choose one from history", "[thread-id]",
             requires=("history",), visibility=advanced,
         ),
     )

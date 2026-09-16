@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from .terminal_display import DisplayKind
@@ -16,13 +17,90 @@ async def set_model(app: Any, instruction: str | None) -> bool:
         app.input.replace("/model ")
         return True
     try:
-        profile = _resolve_profile(instruction, runtime.profiles())
+        authentication = getattr(app, "authentication", None)
+        if authentication is not None and getattr(
+            authentication, "is_refresh_choice", lambda _: False
+        )(instruction):
+            return await _start_workbuddy_refresh(app, authentication, instruction)
+        if authentication is not None and getattr(
+            authentication, "is_antigravity_catalog_choice", lambda _: False
+        )(instruction):
+            _idle(app, new_conversation=True)
+            app.input.replace("/model antigravity:oauth ")
+            return True
+        if authentication is not None and getattr(
+            authentication, "is_saved_model_choice", lambda _: False
+        )(instruction):
+            profile = await authentication.select_model(instruction)
+        else:
+            profile = _resolve_profile(instruction, runtime.profiles())
         selected = await _select_for_new_conversation(app, profile=profile)
+        _remember_model_selection(app, profile)
     except (RuntimeError, TypeError, ValueError) as error:
         app._append(DisplayKind.ERROR, str(error))
         return False
     app._append(DisplayKind.METADATA, "model selected: " + _runtime_summary(selected) + _host_runtime_suffix(app))
     return True
+
+
+async def refresh_workbuddy_models(
+    app: Any, authentication: Any, instruction: str
+) -> bool:
+    app._append(DisplayKind.METADATA, "Loading WorkBuddy account models · Esc cancels")
+    try:
+        count = await authentication.refresh_models(instruction)
+    except asyncio.CancelledError:
+        app._append(DisplayKind.METADATA, "Model loading cancelled; login is retained.")
+        return False
+    except Exception:
+        app._append(
+            DisplayKind.ERROR,
+            "WorkBuddy model discovery failed or returned no runnable models. "
+            "Login is retained; select its load item in /model to retry.",
+        )
+        app.input.replace("/model " + instruction.strip())
+        return False
+    app._append(DisplayKind.METADATA, f"Loaded {count} WorkBuddy models; choose one below.")
+    app.input.replace("/model " + instruction.strip() + " ")
+    return True
+
+
+async def _start_workbuddy_refresh(
+    app: Any, authentication: Any, instruction: str
+) -> bool:
+    _idle(app, new_conversation=True)
+    pending = getattr(app, "_auth_task", None)
+    if pending is not None and not pending.done():
+        raise RuntimeError("Login is in progress; Esc cancels it.")
+
+    async def refresh() -> None:
+        try:
+            await refresh_workbuddy_models(app, authentication, instruction)
+        finally:
+            if getattr(app, "_auth_task", None) is asyncio.current_task():
+                app._auth_task = None
+            app.redraw()
+
+    app._auth_task = asyncio.create_task(refresh())
+    await asyncio.sleep(0)
+    return True
+
+
+def _remember_model_selection(app: Any, profile: str) -> None:
+    store = getattr(app, "model_preferences", None)
+    if store is None:
+        return
+    authentication = getattr(app, "authentication", None)
+    try:
+        preference_for_profile = getattr(authentication, "preference_for_profile", None)
+        preference = preference_for_profile(profile) if callable(preference_for_profile) else None
+        if preference is not None:
+            store.save(preference)
+    except (OSError, ValueError):
+        app._append(
+            DisplayKind.WARNING,
+            "Model selected, but it could not be remembered for the next startup.",
+        )
 
 
 async def set_effort(app: Any, instruction: str | None) -> bool:

@@ -31,7 +31,9 @@ def configure_product_controls(host: Any) -> None:
     )
     host.snapshot = host.controls.runtime_selection.snapshot
     from code_agent_win.auth_runtime_control import AuthenticationRuntimeControl
+    from code_agent_win.model_selection_preference import ModelSelectionPreferenceStore
     host.authentication = AuthenticationRuntimeControl(host.profiles, host.controls.register_profile)
+    host.model_preferences = ModelSelectionPreferenceStore(host.product_state_root)
     host.controls.set_profile_restorer(host.authentication.restore_profile)
     host.task_modes = TaskModeControl()
     host.costs = TaskCostControl(host.sessions, host.profiles)
@@ -86,3 +88,4 @@ def configure_product_ui(host: Any) -> None:
         semantic_graph=host.semantic_graph,
     )
     host.tui.authentication = host.authentication
+    host.tui.model_preferences = host.model_preferences

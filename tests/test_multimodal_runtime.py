@@ -107,6 +107,21 @@ class MultimodalRuntimeTests(unittest.TestCase):
         self.assertEqual(client._request_options.max_output_tokens, 777)
         asyncio.run(client.aclose())
 
+    def test_real_factory_uses_a_profile_registered_after_startup(self) -> None:
+        selected = profile()
+        profiles: dict[str, ModelProfile] = {}
+        factory = profile_model_factory(model_client, profiles, None)
+        profiles[selected.name] = selected
+
+        client = factory(selected.provider)
+
+        self.assertIsInstance(client, OpenAIResponsesClient)
+        self.assertEqual(
+            client._request_options.max_output_tokens,
+            selected.max_output_tokens,
+        )
+        asyncio.run(client.aclose())
+
     def test_shared_provider_with_conflicting_modalities_is_rejected(self) -> None:
         shared = profile().provider
         text = ModelProfile("text", shared, 8_000, 1_000)

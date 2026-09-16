@@ -107,7 +107,7 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn(f":{name}", help_text)
         self.assertNotIn(":sessions", help_text)
         self.assertNotIn(":new", help_text)
-        self.assertNotIn(":restore", help_text)
+        self.assertNotIn(":resume", help_text)
         self.assertNotIn(":evidence", help_text)
 
     async def test_map_command_renders_generation_and_passes_quoted_path(self) -> None:
@@ -149,7 +149,7 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
         help_text = app.state.entries[-1].text
         self.assertIn(":sessions", help_text)
         self.assertIn(":evidence", help_text)
-        self.assertIn(":restore", help_text)
+        self.assertIn(":resume", help_text)
 
     async def test_mode_prefix_enters_task_behavior_secondary_menu(self) -> None:
         class RuntimeSelection:
@@ -201,7 +201,7 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(app.state.entries, [])
         self.assertTrue(any("\x1b[2J\x1b[H" in item for item in output))
 
-    async def test_enter_submits_complete_restore_command_without_picker_replacement(self) -> None:
+    async def test_enter_submits_complete_resume_command_without_picker_replacement(self) -> None:
         app = WindowsTerminalApp(
             AgentController(FakeEngine(())), ApprovalBroker(), history=object(), write=lambda _: None,
         )
@@ -212,7 +212,7 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
             return True
 
         app.restore_thread = restore
-        app.input.replace("/restore T-042")
+        app.input.replace("/resume T-042")
 
         await app.handle_key("\r")
 

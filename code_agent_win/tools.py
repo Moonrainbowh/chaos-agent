@@ -78,9 +78,13 @@ TOOL_DEFINITIONS: tuple[ToolDefinition, ...] = (
     ),
     ToolDefinition(
         "list_files",
-        "List up to 200 visible files. Omit root for the workspace root; do not "
-        "repeat the same listing when its prior result is already available.",
-        _object_schema({"root": _nonempty_text_schema()}),
+        "List one page of visible files (25 by default, at most 50). Omit root "
+        "for the workspace root; use next_cursor from a truncated result to continue.",
+        _object_schema({
+            "root": _nonempty_text_schema(),
+            "limit": _integer_schema(1, 50),
+            "cursor": _nonempty_text_schema(),
+        }),
     ),
     ToolDefinition(
         "search_text",

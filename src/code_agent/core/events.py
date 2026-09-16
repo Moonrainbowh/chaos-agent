@@ -21,6 +21,7 @@ class EventKind(str, Enum):
     CONTEXT_BUILT = "context_built"
     MODEL_STARTED = "model_started"
     MODEL_EVENT = "model_event"
+    PHASE_COMPLETED = "phase_completed"
     ACTION_REQUESTED = "action_requested"
     ACTION_STARTED = "action_started"
     ACTION_COMPLETED = "action_completed"

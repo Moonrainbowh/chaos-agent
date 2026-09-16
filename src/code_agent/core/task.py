@@ -23,6 +23,14 @@ class TaskStatus(str, Enum):
     INTERRUPTED = "interrupted"
     SUPERSEDED = "superseded"
 
+    @property
+    def is_terminal(self) -> bool:
+        """Return whether no further work can follow this status.
+
+        An interrupted or paused task is resumable, so it is not terminal.
+        """
+        return self in _TERMINAL
+
 
 _TERMINAL = {
     TaskStatus.COMPLETED,

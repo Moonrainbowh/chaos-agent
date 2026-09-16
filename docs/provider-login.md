@@ -29,21 +29,23 @@ Antigravity 需要在启动进程的环境中配置 `ANTIGRAVITY_OAUTH_CLIENT_ID
 
 在交互式 TUI 中输入 `/login` 并按 Enter，选择平台和登录方式。OAuth 按浏览器/设备码提示完成；API Key 在隐藏输入框中输入，Enter 确认、Esc 取消。不要把密钥直接写在命令后面。
 
-登录后输入 `/logswitch` 选择已保存的登录及模型，也可以选择原有 API profile。方向键选择、键入过滤、Tab 补全、Enter 应用。直接输入示例：
+登录后输入 `/model` 统一选择已保存登录的模型或原有 API profile。方向键选择、键入过滤、Tab 补全、Enter 应用。直接输入示例：
 
 ```text
 /login openai-codex browser
 /login openai api_key
-/logswitch openai-codex:oauth gpt-5.3-codex
-/logswitch openai:api_key gpt-4.1
-/logswitch 原有profile名称
+/model openai-codex:oauth gpt-5.3-codex
+/model openai:api_key gpt-4.1
+/model 原有profile名称
 ```
 
-`/logswitch` 只改变当前进程的选择，不覆盖配置文件默认值；下次启动仍按原默认配置。切换不同选择成功后开启空白新会话，旧记录保留；同值或失败保留当前会话。运行中的任务须先暂停。临时登录 profile 可在恢复旧任务时按保存的登录和模型目录重新构建，并继续校验原任务的模型身份。
+`/model` 切换不同选择成功后开启空白新会话，旧记录保留；同值或失败保留当前会话。运行中的任务须先暂停。最后一次成功选择会保存在当前 Windows 用户的产品状态目录，并在下次交互式启动时恢复；`--profile` 或 `--model` 显式 CLI 选择会覆盖该恢复。临时登录 profile 可在恢复旧任务时按保存的登录和模型目录重新构建，并继续校验原任务的模型身份。
 
 不同平台的 OAuth 及 API Key 可以同时保留；同一平台每种认证方式目前保存一份凭据，再次登录该方式会替换它。重新登录当前使用的凭据会开启新会话；恢复旧记录时使用该凭据槽当前保存的账号，尚不保存多个同平台账号版本。Radius 等没有模型目录的平台仍需用下方 `auth configure` 明确模型和容量后重启加载 profile。
 
-WorkBuddy 登录后，在 `/logswitch work` 中选择 `workbuddy:oauth` 加载入口并按 Enter，会请求当前账号的 `/v3/config` 并展开可运行模型；再次选择模型并按 Enter 才切换运行时。模型采用云配置中的实际 ID、输入/输出容量及 Chat Completions 协议；加载失败保留登录与当前模型，显示错误并允许重试。加载只在明确选择时联网，可用 Esc 取消；重启后仍使用已保存登录，无需重新授权。
+WorkBuddy 登录后，`/model` 中会显示 `workbuddy:oauth` 加载入口；选中并按 Enter 会请求当前账号的 `/v3/config` 并展开可运行模型，再次选择模型并按 Enter 才切换运行时。模型采用云配置中的实际 ID、输入/输出容量及 Chat Completions 协议；加载失败保留登录与当前模型，显示错误并允许重试。保存的 WorkBuddy 模型会在交互式启动时进行一次目录请求以验证并恢复；其他模型选择不因此联网。
+
+Antigravity OAuth 登录后，`/model` 首层只显示 `Antigravity · OAuth · Browse models`。选中该入口后会在第二层显示本地目录中的全部 Antigravity 模型；键入模型名称可过滤，Tab 可补全，Enter 才实际切换。该目录展开不联网，也不会混入其他平台或配置 profile。
 
 以下命令在 PowerShell 中使用：
 
@@ -76,7 +78,7 @@ Radius 与 WorkBuddy 的模型可随账号权益变化，离线种子不编造�
 
 - WorkBuddy 空列表修复：从本机已保存 OAuth 登录只读请求云配置，实际返回 39 个工具调用聊天模型，并通过真实控制器注册 `login/workbuddy/oauth/auto`（Chat Completions，输入 168000、输出 32000）；未发送模型推理。相关 UI/集成 42 项、authentication 50 项、providers 80 项，共 172 项通过。
 
-- `/login`、`/logswitch` 增量：Interfaces 定向 62 项、CLI/运行时集成 20 项、authentication 46 项、providers 79 项、config 30 项，共 237 项通过；覆盖隐藏输入、取消保存、双认证槽、默认配置不变、切回原 profile、历史任务运行时恢复及当前凭据重登后的新会话。
+- 早期 `/login` 与已移除的登录切换命令的增量验证：Interfaces 定向 62 项、CLI/运行时集成 20 项、authentication 46 项、providers 79 项、config 30 项，共 237 项通过；覆盖隐藏输入、取消保存、双认证槽、默认配置不变、切回原 profile、历史任务运行时恢复及当前凭据重登后的新会话。
 - TUI 增量 wheel 经 `pip wheel . --no-deps --no-build-isolation` 构建通过。真实浏览器授权、原生终端人工操作与平台推理尚未验收；额外既有 interaction 测试的 `test_running_icon_changes_but_completion_icon_is_static` 图标断言失败，未在登录功能中改动该图标逻辑。
 
 - authentication 46 项、providers 79 项、config 30 项以及新增 CLI 集成 4 项通过。

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import os
 import time
 from collections.abc import Awaitable, Mapping
 
@@ -19,7 +18,8 @@ from code_agent_win.tools import (
 )
 
 
-LIST_FILES_RESULT_LIMIT = int(os.environ.get("CHAOS_LIST_FILES_RESULT_LIMIT", "200"))
+LIST_FILES_DEFAULT_LIMIT = 25
+LIST_FILES_MAX_LIMIT = 50
 LIST_FILES_SCAN_LIMIT = 200_000
 
 
@@ -174,29 +174,41 @@ async def list_action_result(
     files: WorkspaceFiles,
     git: GitWorkspace | None,
     root: str | None,
+    limit: int = LIST_FILES_DEFAULT_LIMIT,
+    cursor: str | None = None,
 ) -> ActionResult:
-    """Use Git's fast inventory for the workspace root, then bound model output."""
+    """Return one bounded page from the visible workspace inventory."""
+    if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= LIST_FILES_MAX_LIMIT:
+        raise ValueError(f"limit must be an integer from 1 to {LIST_FILES_MAX_LIMIT}")
+    if cursor is not None and (not isinstance(cursor, str) or not cursor):
+        raise ValueError("cursor must be non-empty text or None")
     is_workspace_root = root is None or files.guard.resolve(root) == files.guard.root
     if git is not None and is_workspace_root:
         candidates = await asyncio.to_thread(git.snapshot_paths)
         listed = await asyncio.to_thread(
             files.list_known_files,
             candidates,
-            max_entries=LIST_FILES_RESULT_LIMIT + 1,
+            max_entries=limit + 1,
             max_scanned_entries=LIST_FILES_SCAN_LIMIT,
+            start_after=cursor,
         )
     else:
         listed = await asyncio.to_thread(
             files.list_files,
             root,
-            max_entries=LIST_FILES_RESULT_LIMIT + 1,
+            max_entries=limit + 1,
             max_scanned_entries=LIST_FILES_SCAN_LIMIT,
+            start_after=cursor,
         )
-    truncated = len(listed) > LIST_FILES_RESULT_LIMIT
-    visible = listed[:LIST_FILES_RESULT_LIMIT]
+    truncated = len(listed) > limit
+    visible = listed[:limit]
     return ActionResult(
         request.id,
         request.name,
-        {"files": list(visible), "truncated": truncated},
+        {
+            "files": list(visible),
+            "truncated": truncated,
+            "next_cursor": visible[-1] if truncated else None,
+        },
         metadata={"count": len(visible), "truncated": truncated},
     )

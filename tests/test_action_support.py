@@ -56,6 +56,46 @@ class ActionSupportTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(result.output["files"], ("a.py",))
             self.assertFalse(result.output["truncated"])
 
+    async def test_file_listing_returns_small_pages_with_a_continuation_cursor(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            paths = tuple(f"src/file-{index:02d}.py" for index in range(30))
+            for path in paths:
+                target = root / path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text("x", encoding="utf-8")
+            files = WorkspaceFiles(
+                WorkspacePathGuard(root),
+                IgnoreRules.from_workspace(root),
+            )
+            git = _GitInventory(paths)
+
+            first = await list_action_result(
+                ActionRequest("list-1", "list_files", {"limit": 25}),
+                files,
+                git,  # type: ignore[arg-type]
+                None,
+                25,
+            )
+            second = await list_action_result(
+                ActionRequest("list-2", "list_files", {
+                    "limit": 25,
+                    "cursor": first.output["next_cursor"],
+                }),
+                files,
+                git,  # type: ignore[arg-type]
+                None,
+                25,
+                first.output["next_cursor"],  # type: ignore[arg-type]
+            )
+
+            self.assertEqual(first.output["files"], paths[:25])
+            self.assertTrue(first.output["truncated"])
+            self.assertEqual(first.output["next_cursor"], paths[24])
+            self.assertEqual(second.output["files"], paths[25:])
+            self.assertFalse(second.output["truncated"])
+            self.assertIsNone(second.output["next_cursor"])
+
 
 if __name__ == "__main__":
     unittest.main()

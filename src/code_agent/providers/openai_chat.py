@@ -215,10 +215,25 @@ class OpenAIChatClient:
             if not isinstance(choices, list):
                 raise ProviderProtocolError("Chat choices must be a JSON array")
             if finish_seen:
+                if self._config.provider_id == "workbuddy":
+                    for choice in choices:
+                        for event in self._consume_workbuddy_tail_delta(
+                            choice, calls, tool_budget
+                        ):
+                            yield event
+                    if "usage" in value and value["usage"] is not None:
+                        yield _usage_event(value["usage"])
+                    continue
                 yield _late_usage(value)
                 continue
             for choice in choices:
                 if finish_seen:
+                    if self._config.provider_id == "workbuddy":
+                        for event in self._consume_workbuddy_tail_delta(
+                            choice, calls, tool_budget
+                        ):
+                            yield event
+                        continue
                     raise ProviderProtocolError("Chat delta received after finish")
                 if not isinstance(choice, dict):
                     raise ProviderProtocolError("Chat choice must be a JSON object")
@@ -229,8 +244,9 @@ class OpenAIChatClient:
                     yield event
                 if choice.get("finish_reason") is not None:
                     finish_seen = True
-                    for event in self._finish_calls(calls, seen_call_ids):
-                        yield event
+                    if self._config.provider_id != "workbuddy":
+                        for event in self._finish_calls(calls, seen_call_ids):
+                            yield event
             if "usage" in value and value["usage"] is not None:
                 yield _usage_event(value["usage"])
         if finish_seen:
@@ -239,6 +255,25 @@ class OpenAIChatClient:
             yield ModelEvent(kind=ModelEventKind.COMPLETED)
             return
         raise ProviderProtocolError("Chat stream ended without a completion marker")
+
+    def _consume_workbuddy_tail_delta(
+        self,
+        choice: object,
+        calls: dict[int, _PendingCall],
+        tool_budget: ToolBudget,
+    ) -> list[ModelEvent]:
+        """Treat WorkBuddy's early finish marker as provisional until ``[DONE]``.
+
+        WorkBuddy can emit text and a complete tool call after its first finish
+        marker. Delaying tool-call finalization keeps that malformed ordering
+        from either dropping a valid call or dispatching a partial one.
+        """
+        if not isinstance(choice, dict):
+            raise ProviderProtocolError("Chat choice must be a JSON object")
+        delta = choice.get("delta", {})
+        if not isinstance(delta, dict):
+            raise ProviderProtocolError("Chat delta must be a JSON object")
+        return self._consume_delta(delta, calls, tool_budget)
 
     @staticmethod
     def _consume_delta(

@@ -101,6 +101,9 @@ class ToolSchemaTests(unittest.TestCase):
         self.assertEqual(definitions["git_diff"]["properties"]["paths"]["type"], "array")
         self.assertEqual(definitions["git_diff"]["properties"]["paths"]["items"]["type"], "string")
         self.assertEqual(definitions["git_diff"]["properties"]["paths"]["items"]["minLength"], 1)
+        self.assertEqual(definitions["list_files"]["properties"]["limit"]["minimum"], 1)
+        self.assertEqual(definitions["list_files"]["properties"]["limit"]["maximum"], 50)
+        self.assertEqual(definitions["list_files"]["properties"]["cursor"]["minLength"], 1)
 
 
 class DispatcherValidationTests(unittest.IsolatedAsyncioTestCase):
@@ -131,6 +134,16 @@ class DispatcherValidationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.output["error"], "invalid tool arguments")
         self.policy.evaluate.assert_not_called()
         self.assertEqual((self.root / "note.txt").read_text(encoding="utf-8"), "before\n")
+
+    async def test_invalid_list_page_limit_is_rejected_before_policy(self) -> None:
+        result = await self.dispatcher.dispatch(
+            ActionRequest("list-invalid", "list_files", {"limit": 51}),
+            CancellationToken(),
+        )
+
+        self.assertTrue(result.is_error)
+        self.assertEqual(result.output["error"], "invalid tool arguments")
+        self.policy.evaluate.assert_not_called()
 
     async def test_unknown_property_is_rejected_before_runtime_side_effect(self) -> None:
         runtime = Mock()

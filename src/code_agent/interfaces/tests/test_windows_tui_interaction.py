@@ -35,6 +35,18 @@ def _plain(value: str) -> str:
 
 
 class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
+    async def test_paused_task_exits_on_one_ctrl_c(self) -> None:
+        app = WindowsTerminalApp(
+            AgentController(FakeEngine(())), ApprovalBroker(), write=lambda _: None
+        )
+        app.running = True
+        app.state.status = "paused"
+
+        await app.handle_key("\x03")
+
+        self.assertFalse(app.running)
+        self.assertEqual(app.state.entries, [])
+
     async def test_second_ctrl_c_is_read_while_first_pause_is_still_settling(self) -> None:
         class BlockingTasks:
             def __init__(self) -> None:

@@ -137,7 +137,19 @@ class TerminalPresentation:
         self.motion.observe((self.theme, self.state.status, bool(palette)), now)
         progress = ((now % 2.4) / 2.4 if active else self.motion.progress(now)) if motion_allowed(self) else 1.0
         tick = self._spinner_index if not design_for(self.theme) or motion_allowed(self) else 0
-        status, icon, status_color = status_presentation(self.state.status, self.state.execution_summary, self.state.active_action, self.catalog.language, self.theme, tick)
+        status, icon, status_color = status_presentation(
+            self.state.status,
+            self.state.execution_summary,
+            self.state.active_action,
+            self.catalog.language,
+            self.theme,
+            tick,
+            self.state.task_stop_reason,
+        )
+        if self.state.task_budget_line and self.state.status not in {"completed", "paused", "cancelled", "error"}:
+            status += " · " + clip_display(
+                self.state.task_budget_line, max(24, size.columns // 3)
+            )
         if self._run_task and not self._run_task.done(): status += f" [{self.submit_mode.label}]"
         if self.interactions.steering.pending_count: status += " · " + self.interactions.steering.status_line()
         frame = render_live_tail_frame(
@@ -163,6 +175,7 @@ class TerminalPresentation:
                 task_spent=self.state.context_budget.task_tokens_spent,
                 task_limit=self.state.context_budget.task_token_limit,
                 task_reserved=self.state.context_budget.task_tokens_reserved,
+                phase_durations=self.state.phase_durations,
                 branch=self._git_branch() if design_for(self.theme) is None else None,
             ),
             previous=previous,

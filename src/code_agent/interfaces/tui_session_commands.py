@@ -66,21 +66,15 @@ async def _show_history(app: object) -> bool:
         return False
     app._append(
         DisplayKind.METADATA,
-        "Choose a session to restore." if records else "No saved sessions.",
+        "Choose a session to resume." if records else "No saved sessions.",
     )
     if records and getattr(app, "history", None) is not None:
-        app.interactions.resource_prefix = "/restore "
+        app.interactions.resource_prefix = "/resume "
         app.interactions.resource_back = "/sessions "
         app.interactions.resource_items = tuple(
-            PickerItem(
-                _field(item, "id", item),
-                _field(item, "title", _field(item, "id", item))[:256],
-                PickerSource.SESSION,
-                _field(item, "id", item),
-                completion="/restore " + _field(item, "id", item),
-            ) for item in records
+            _thread_picker_item(item) for item in records
         )
-        app.input.replace("/restore ")
+        app.input.replace("/resume ")
     elif records:
         app._append(DisplayKind.METADATA, " | ".join(_field(item, "id", item) for item in records))
     return True
@@ -101,6 +95,38 @@ async def _show_agents(app: object, peers: object) -> bool:
     )
     app._append(DisplayKind.METADATA, value or "no online agents")
     return True
+
+
+def _thread_picker_item(thread: object) -> PickerItem:
+    identifier = _field(thread, "id", thread)
+    title = _field(thread, "title", "")
+    label = title if title and title != "None" else identifier
+    return PickerItem(
+        identifier,
+        label[:256],
+        PickerSource.SESSION,
+        _thread_detail(thread),
+        keywords=(identifier,),
+        completion="/resume " + identifier,
+    )
+
+
+def _thread_detail(thread: object) -> str:
+    details = []
+    status = _field(thread, "status", "")
+    if status and status != "None":
+        details.append(status)
+    count = getattr(thread, "message_count", None)
+    if isinstance(count, int) and not isinstance(count, bool):
+        details.append(f"{count} message{'s' if count != 1 else ''}")
+    updated = getattr(thread, "updated_at", None)
+    formatter = getattr(updated, "strftime", None)
+    if callable(formatter):
+        details.append(formatter("%Y-%m-%d %H:%M"))
+    preview = _field(thread, "last_message_preview", "")
+    if preview and preview != "None":
+        details.append(preview)
+    return _bounded(" · ".join(details), 512)
 
 
 def _arguments(instruction: str | None) -> str:

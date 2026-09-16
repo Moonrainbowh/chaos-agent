@@ -7,10 +7,21 @@ from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 from code_agent.core.task import TaskStatus
-from tests.agent_app_test_support import _configured_application, _init_git_source
+from tests.agent_app_test_support import (
+    _configured_application,
+    _init_git_source,
+    workspace_mode_scope,
+)
 
 
 class ForegroundObserverFailureTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self) -> None:
+        # These tests assert durable worktree lifecycle behavior, so they opt
+        # into isolation instead of relying on the old `auto` default.
+        scope = workspace_mode_scope("managed")
+        scope.__enter__()
+        self.addCleanup(scope.__exit__, None, None, None)
+
     async def test_workflow_failure_interrupts_claimed_task(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()

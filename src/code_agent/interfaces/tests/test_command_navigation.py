@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 import unittest
 from types import SimpleNamespace
 
@@ -118,7 +119,16 @@ class CommandNavigationTests(unittest.IsolatedAsyncioTestCase):
     async def test_history_opens_a_searchable_session_picker_and_restores_selection(self):
         class Sessions:
             async def list_threads(self):
-                return (SimpleNamespace(id="thread-old", title="Previous investigation"),)
+                return (
+                    SimpleNamespace(
+                        id="thread-old",
+                        title="Previous investigation",
+                        status="active",
+                        message_count=3,
+                        updated_at=datetime(2026, 9, 16, 10, 30),
+                        last_message_preview="Check the failing test.",
+                    ),
+                )
 
         app = make_app(sessions=Sessions(), history=object())
         restored = []
@@ -128,9 +138,14 @@ class CommandNavigationTests(unittest.IsolatedAsyncioTestCase):
             return True
 
         app.restore_thread = restore
-        await app.submit("/sessions history")
-        self.assertEqual(app.input.text, "/restore ")
-        self.assertIn("Previous investigation", "\n".join(app.interactions.rows(app)))
+        await app.submit("/resume")
+        self.assertEqual(app.input.text, "/resume ")
+        picker = "\n".join(app.interactions.rows(app))
+        self.assertIn("Previous investigation", picker)
+        self.assertIn("active", picker)
+        self.assertIn("3 messages", picker)
+        self.assertIn("2026-09-16 10:30", picker)
+        self.assertIn("Check the failing test.", picker)
         await app.handle_key("\r")
         self.assertEqual(restored, ["thread-old"])
 

@@ -4,7 +4,10 @@ import unittest
 import asyncio
 from types import SimpleNamespace
 
-from code_agent.core.exploration_repeat import ExplorationRepeatObserver
+from code_agent.core.exploration_repeat import (
+    ExplorationRepeatObserver,
+    ToolOnlyConvergenceGuard,
+)
 from code_agent.core.models import ActionResult, ToolCall, Message
 from code_agent.core._engine_turn import AgentEngineTurnMixin
 from code_agent.core.events import AgentEvent, EventKind
@@ -95,6 +98,32 @@ class ExplorationRepeatObserverTests(unittest.TestCase):
             self.assertEqual(kinds.count(EventKind.TASK_BUDGET_WARNING), 2)
             self.assertEqual(kinds.count(EventKind.TASK_PAUSED if task is not None else EventKind.ERROR), 1)
             self.assertTrue(state.stop_requested)
+
+
+class ToolOnlyConvergenceGuardTests(unittest.TestCase):
+    def test_task_warns_then_requests_evidence_replan_for_tool_only_turns(self):
+        guard = ToolOnlyConvergenceGuard()
+        read = ToolCall("read", "read_file", {"path": "x.py"})
+        self.assertIsNone(guard.observe(has_text=False, calls=[read]))
+        self.assertIsNone(guard.observe(has_text=False, calls=[read]))
+        warning = guard.observe(has_text=False, calls=[read])
+        self.assertEqual(warning.kind, "warn")
+        self.assertIsNone(guard.observe(has_text=False, calls=[read]))
+        replan = guard.observe(has_text=False, calls=[read])
+        self.assertEqual(replan.kind, "replan")
+
+    def test_text_or_edit_or_verification_turn_resets_the_stagnation_counter(self):
+        guard = ToolOnlyConvergenceGuard()
+        read = ToolCall("read", "read_file", {"path": "x.py"})
+        write = ToolCall("write", "write_file", {"path": "x.py", "content": "x"})
+        verify = ToolCall("verify", "run_verification", {"recipe": "unit"})
+        guard.observe(has_text=False, calls=[read])
+        self.assertIsNone(guard.observe(has_text=True, calls=[read]))
+        self.assertIsNone(guard.observe(has_text=False, calls=[read]))
+        self.assertIsNone(guard.observe(has_text=False, calls=[write]))
+        self.assertIsNone(guard.observe(has_text=False, calls=[verify]))
+        guard.reset()
+        self.assertIsNone(guard.observe(has_text=False, calls=[read]))
 
 
 class _DispatchHost:

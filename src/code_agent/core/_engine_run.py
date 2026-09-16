@@ -20,7 +20,8 @@ from .models import (
 from .attachments import AttachmentRef, freeze_attachments
 from .task import TaskRecord, TaskStatus
 from .task_supervisor import TaskSupervisor
-from .exploration_repeat import ExplorationRepeatObserver
+from .exploration_repeat import ExplorationRepeatObserver, ToolOnlyConvergenceGuard
+from .runtime_timing import phase_duration_ms, phase_started_at
 
 
 @dataclass(slots=True)
@@ -39,6 +40,8 @@ class _RunState:
     disclosed_tool_digests: dict[str, str] = field(default_factory=dict)
     action_history: list[str] = field(default_factory=list)
     exploration_repeat: ExplorationRepeatObserver = field(default_factory=ExplorationRepeatObserver)
+    tool_only_guard: ToolOnlyConvergenceGuard = field(default_factory=ToolOnlyConvergenceGuard)
+    pending_runtime_notices: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -46,6 +49,7 @@ class _TurnState:
     number: int
     tools: tuple[ToolDefinition, ...]
     tool_names: set[str]
+    summary_only: bool = False
     text_parts: list[str] = field(default_factory=list)
     calls: list[ToolCall] = field(default_factory=list)
 
@@ -197,6 +201,7 @@ class AgentEngineRunMixin:
     ) -> AsyncIterator[AgentEvent]:
         completed = False
         context_accepted = False
+        model_started_at = phase_started_at()
         try:
             stream = self._model.stream(
                 bundle.system_prompt, bundle.messages, turn.tools
@@ -236,6 +241,16 @@ class AgentEngineRunMixin:
             raise ModelStreamError("model stream failed") from exc
         if not completed:
             raise ModelStreamError("model stream ended before completion")
+        timing = AgentEvent(
+            EventKind.PHASE_COMPLETED,
+            {
+                "phase": "model",
+                "duration_ms": phase_duration_ms(model_started_at),
+                "turn": turn.number,
+            },
+        )
+        await self._journal.append_event(state.thread_id, timing)
+        yield timing
 
     async def _record_model_usage(
         self, state: _RunState, usage: Usage
@@ -256,6 +271,11 @@ class AgentEngineRunMixin:
                     },
                 )
                 await self._journal.append_event(state.thread_id, warning)
+                state.pending_runtime_notices.append(
+                    f"Runtime control: {warning.payload['reason']}. "
+                    "Use the remaining turn to synthesize the answer; do not "
+                    "continue exploratory tool calls unless necessary."
+                )
                 yield warning
         if state.total_usage.total_tokens > self._limits.max_total_tokens:
             raise EngineLimitError("token budget exceeded")

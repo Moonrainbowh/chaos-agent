@@ -79,7 +79,7 @@ class PickerStateTests(unittest.TestCase):
             (
                 "/clear", "/compact", "/cost", "/status",
                 "/doctor", "/exit", "/diff", "/map", "/review", "/test",
-                "/rewind", "/attach", "/login", "/logswitch", "/model", "/mode", "/effort", "/permission",
+                "/rewind", "/attach", "/login", "/model", "/mode", "/effort", "/permission",
                 "/mcp", "/plugin", "/tasks",
             ),
         )
