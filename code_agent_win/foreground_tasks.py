@@ -32,6 +32,7 @@ from code_agent_win.foreground_workspace_setup import (
     abort_prepared_workspace,
     bind_workspace,
     prepare_workspace,
+    task_workspace_isolation,
 )
 
 
@@ -72,14 +73,15 @@ class IntegratedForegroundTaskController(ForegroundTaskController):
         return task
 
     async def _create_managed_task(self, prompt: str):
-        if await self._has_active_source_task():
-            raise RuntimeError("a foreground task is already active")
+        isolation = await task_workspace_isolation(
+            Path(self._root), self._has_active_source_task
+        )
         task = None
         workspace = None
         try:
             thread_id = await self._sessions.create_thread()
             workspace = await prepare_workspace(
-                self._workspace_runtime, Path(self._root)
+                self._workspace_runtime, Path(self._root), isolation=isolation
             )
             root = Path(workspace.worktree_root if workspace else self._root)
             task = await self._sessions.create_task(

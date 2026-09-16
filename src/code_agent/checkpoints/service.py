@@ -12,6 +12,7 @@ from code_agent.sessions.workspace_models import (
     WorkspaceSnapshotRecord,
     WorkspaceSnapshotStatus,
 )
+from code_agent.workspace._git_errors import GitOutputLimitError
 from code_agent.workspace.errors import (
     FileTooLargeError,
     SearchTimeoutError,
@@ -28,7 +29,12 @@ from .ports import (
 )
 
 
-_CAPTURE_LIMITS = (FileTooLargeError, SearchTimeoutError, WorkspaceScanLimitError)
+_CAPTURE_LIMITS = (
+    FileTooLargeError,
+    GitOutputLimitError,
+    SearchTimeoutError,
+    WorkspaceScanLimitError,
+)
 
 
 class CheckpointService:

@@ -115,7 +115,7 @@ class WorkspaceFiles:
         self.search_timeout_s = float(search_timeout_s)
         self.inventory_ttl_s = float(inventory_ttl_s)
         self._inventory_cache: OrderedDict[
-            tuple[int, int], tuple[float, int | None, tuple[str, ...]]
+            tuple[int, int, str | None], tuple[float, int | None, tuple[str, ...]]
         ] = OrderedDict()
         self._inventory_lock = RLock()
         self._inventory_invalidation_requested = False
@@ -126,6 +126,7 @@ class WorkspaceFiles:
         sorted: bool = True,
         max_entries: int = DEFAULT_MAX_ENTRIES,
         max_scanned_entries: int | None = None,
+        start_after: str | None = None,
     ) -> tuple[str, ...]:
         """List contained, non-ignored files as POSIX relative paths."""
         if not isinstance(sorted, bool):
@@ -134,12 +135,16 @@ class WorkspaceFiles:
             raise TypeError("max_entries must be an integer")
         if max_entries <= 0:
             raise ValueError("max_entries must be positive")
+        if start_after is not None and (
+            not isinstance(start_after, str) or not start_after
+        ):
+            raise ValueError("start_after must be non-empty text or None")
         scan_limit = _scan_limit(max_entries, max_scanned_entries)
 
         del sorted  # The underlying iterator is ordered for both modes.
         if root is not None and self.guard.resolve(root) != self.guard.root:
-            return tuple(islice(self._iter_external_files(root, scan_limit), max_entries))
-        key = (max_entries, scan_limit)
+            return tuple(islice(_after(self._iter_external_files(root, scan_limit), start_after), max_entries))
+        key = (max_entries, scan_limit, start_after)
         with self._inventory_lock:
             if self._inventory_invalidation_requested:
                 self._inventory_cache.clear()
@@ -161,7 +166,7 @@ class WorkspaceFiles:
             ):
                 self._inventory_cache.move_to_end(key)
                 return cached[2]
-            listed = tuple(islice(self._iter_files(scan_limit), max_entries))
+            listed = tuple(islice(_after(self._iter_files(scan_limit), start_after), max_entries))
             if self._inventory_invalidation_requested:
                 self._inventory_cache.clear()
                 self._inventory_invalidation_requested = False
@@ -189,10 +194,11 @@ class WorkspaceFiles:
 
     def list_known_files(
         self, candidates: Sequence[str], *, max_entries: int, max_scanned_entries: int,
+        start_after: str | None = None,
     ) -> tuple[str, ...]:
         return known_workspace_files(
             candidates, self.guard, self.ignore, max_entries=max_entries,
-            max_scanned_entries=max_scanned_entries,
+            max_scanned_entries=max_scanned_entries, start_after=start_after,
         )
     def read_text(
         self,
@@ -365,6 +371,13 @@ class WorkspaceFiles:
         yield from iter_workspace_files(
             self.guard, self.ignore, max_scanned_entries, check
         )
+
+
+def _after(paths: Iterator[str], start_after: str | None) -> Iterator[str]:
+    if start_after is None:
+        yield from paths
+        return
+    yield from (path for path in paths if path > start_after)
 
 
 def _read_limited(path: Path, max_bytes: int) -> bytes:

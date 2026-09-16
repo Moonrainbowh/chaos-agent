@@ -20,6 +20,18 @@ class TaskWorkspace:
     branch_name: str
 
 
+TASK_BRANCH_PREFIX = "codex/task-"
+
+
+def task_branch_name(lineage_id: str) -> str:
+    """Return the managed task branch that carries one lineage's work.
+
+    The name is derived from the lineage so that a worktree found on disk can
+    be matched back to its lineage without trusting anything but Git.
+    """
+    return f"{TASK_BRANCH_PREFIX}{lineage_id}"
+
+
 @dataclass
 class WorkspaceServices:
     root: Path

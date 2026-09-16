@@ -6,7 +6,8 @@ import hashlib
 import os
 import subprocess
 import sys
-from collections.abc import AsyncIterator
+import unittest
+from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 from unittest.mock import patch
 
@@ -30,6 +31,7 @@ from code_agent.runtime.models import CommandResult, TerminationReason  # noqa: 
 from code_agent.verification.python_adapter import PythonVerificationAdapter  # noqa: E402
 from code_agent.workspace.edits import WorkspaceEditor  # noqa: E402
 from code_agent.workspace.files import WorkspaceFiles  # noqa: E402
+from code_agent.workspace.git import GitWorkspace  # noqa: E402
 from code_agent.workspace.ignore import IgnoreRules  # noqa: E402
 from code_agent.workspace.paths import WorkspacePathGuard  # noqa: E402
 from code_agent_win import agent_modes  # noqa: E402
@@ -45,6 +47,18 @@ def _configured_application(
     return _workspace_application(
         root, workspace_storage_name=workspace_storage_name
     )
+
+
+@contextlib.contextmanager
+def workspace_mode_scope(value: str) -> Iterator[None]:
+    """Force `CHAOS_WORKSPACE_MODE` for one task lifecycle.
+
+    The mode is read when a task starts, not when the application is built,
+    so tests that need a managed worktree must keep this scope open across
+    both `_configured_application(...)` and `foreground_tasks.start(...)`.
+    """
+    with patch.dict("os.environ", {"CHAOS_WORKSPACE_MODE": value}):
+        yield
 
 
 def _isolated_application(
@@ -141,6 +155,28 @@ def _task_dispatcher(root: Path, runtime: object) -> RootActionDispatcher:
         runtime=runtime,  # type: ignore[arg-type]
         verification=PythonVerificationAdapter(root),
     )
+
+
+def _assert_no_worktree(
+    case: unittest.TestCase, application, source: Path
+) -> None:
+    """Assert that no managed worktree, branch, or lease exists for ``source``."""
+    runtime = application.workspace_runtime
+    identity = runtime._worktrees.identify(source)
+    repository_root = runtime._worktrees.storage_root / identity.repository_id
+    directories = (
+        tuple(path for path in repository_root.iterdir() if path.is_dir())
+        if repository_root.exists()
+        else ()
+    )
+    case.assertEqual(directories, ())
+    case.assertEqual(
+        GitWorkspace(source)._invoke(
+            "test_branch_list", ("branch", "--list", "codex/task-*")
+        ).stdout,
+        b"",
+    )
+    case.assertEqual(runtime._prepared, {})
 
 
 def _init_git_source(root: Path) -> None:

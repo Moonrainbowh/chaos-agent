@@ -51,6 +51,18 @@ class ListFilesTests(WorkspaceFilesTestCase):
         self.assertEqual(second, first)
         self.assertEqual(iter_files.call_count, 1)
 
+    def test_list_files_continues_after_a_returned_path(self) -> None:
+        for name in ("a.py", "b.py", "c.py"):
+            (self.root / name).write_text(name, encoding="utf-8")
+
+        listed = self.files().list_files(
+            max_entries=2,
+            max_scanned_entries=100,
+            start_after="a.py",
+        )
+
+        self.assertEqual(listed, ("b.py", "c.py"))
+
     def test_inventory_invalidation_refreshes_a_cached_root_listing(self) -> None:
         (self.root / "src").mkdir()
         (self.root / "src" / "a.py").write_text("a", encoding="utf-8")

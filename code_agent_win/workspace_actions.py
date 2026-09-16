@@ -39,7 +39,9 @@ async def execute_workspace_action(
         root = arguments.get("root")
         if root is not None and not isinstance(root, str):
             raise ValueError("root must be text")
-        return await list_action_result(request, host.files, host.git, root)
+        limit = arguments.get("limit", 25)
+        cursor = arguments.get("cursor")
+        return await list_action_result(request, host.files, host.git, root, limit, cursor)
     if request.name == "search_text":
         return await _search_workspace(host, request)
     if request.name in {"write_file", "replace_text"}:

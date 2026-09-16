@@ -25,6 +25,12 @@ async def recover_workspace_edit_batches(
         raise TypeError("workspace recovery dependencies are incomplete")
     results: list[BatchApplyResult] = []
     for root in _workspace_roots(runtime, source_root):
+        if not root.is_dir():
+            # A persisted lineage outlives its worktree: the directory is
+            # removed by reclamation, or by the user. A missing root cannot
+            # hold an unclosed batch, and the requested source root is
+            # validated before startup, so this is never the user's workspace.
+            continue
         probe = getattr(mutations, "needs_edit_batch_recovery", None)
         if callable(probe):
             required = await probe(root)
