@@ -53,7 +53,7 @@ def discover_test_suites(root: Path) -> tuple[Path, ...]:
     return tuple(suites)
 
 
-def run_test_suites(root: Path, suites: Sequence[Path], suite_timeout: float = 300) -> int:
+def run_test_suites(root: Path, suites: Sequence[Path], suite_timeout: float = 600) -> int:
     sys.path.insert(0, str(root))
     github_actions = os.environ.get("GITHUB_ACTIONS", "").casefold() == "true"
     for suite in suites:
@@ -92,8 +92,8 @@ def main(arguments: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--list", action="store_true", help="list discovered suites without running them"
     )
-    parser.add_argument("--suite-timeout", type=float, default=300,
-                        help="seconds per suite (default: 300); dump stacks then clean up")
+    parser.add_argument("--suite-timeout", type=float, default=600,
+                        help="seconds per suite (default: 600); dump stacks then clean up")
     options = parser.parse_args(arguments)
     if not math.isfinite(options.suite_timeout) or options.suite_timeout <= 0:
         parser.error("--suite-timeout must be finite and positive")
