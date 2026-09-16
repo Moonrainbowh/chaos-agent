@@ -210,7 +210,7 @@ def _path_position(
         current.existed,
         current.sha256,
         current.size,
-        observation.identity,
+        observation.identity if current.existed else None,
     )
     if not current.existed and current.lookup_existed and not allow_lookup_alias:
         return "foreign"
