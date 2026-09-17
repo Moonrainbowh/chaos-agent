@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$repo_root"
+
+run_step() {
+  local label="$1"
+  shift
+  local started_at
+  started_at="$(date +%s)"
+  printf '==> %s\n' "$label"
+  "$@"
+  printf '<== %s completed in %ss\n' "$label" "$(( $(date +%s) - started_at ))"
+}
+
+if ! command -v uv >/dev/null 2>&1; then
+  echo "uv is required by this repository's orb setup." >&2
+  exit 1
+fi
+
+if python3 -c 'import sys; raise SystemExit(sys.version_info < (3, 10))'; then
+  python_bin="$(command -v python3)"
+else
+  run_step "Installing a supported Python runtime" uv python install 3.11
+  python_bin="$(uv python find 3.11)"
+fi
+
+run_step "Synchronizing locked Python dependencies" \
+  uv sync --locked --all-groups --python "$python_bin"
+
+profile_marker="# chaos-agent orb virtual environment"
+if ! grep -Fqx "$profile_marker" "$HOME/.bash_profile" 2>/dev/null; then
+  cat >> "$HOME/.bash_profile" <<EOF
+
+$profile_marker
+if [[ "\${CHAOS_AGENT_ORB_VENV_ACTIVE:-}" != "1" && ( "\${PWD:-}" == "$repo_root" || "\${PWD:-}" == "$repo_root/"* ) && -x "$repo_root/.venv/bin/python" ]]; then
+  export CHAOS_AGENT_ORB_VENV_ACTIVE=1
+  export VIRTUAL_ENV="$repo_root/.venv"
+  export PATH="\$VIRTUAL_ENV/bin:\$PATH"
+fi
+EOF
+fi
+
+run_step "Verifying the synchronized environment" \
+  "$repo_root/.venv/bin/python" -c 'import code_agent, httpx, mcp'

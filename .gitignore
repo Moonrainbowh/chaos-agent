@@ -13,6 +13,7 @@ coverage.xml
 *.sqlite3-shm
 *.sqlite3-wal
 .env
+.amp/portals/
 
 # Local planning and brainstorming artifacts
 /.superpowers/
