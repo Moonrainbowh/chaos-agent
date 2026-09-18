@@ -110,7 +110,7 @@ class PickerStateTests(unittest.TestCase):
         self.assertFalse(any(item.label.startswith("/mode ") for item in items))
         self.assertEqual(
             tuple(item.label for item in modes),
-            ("/mode ask", "/mode code", "/mode plan"),
+            ("/mode auto", "/mode ask", "/mode code", "/mode plan"),
         )
         self.assertTrue(all(not item.enabled for item in modes))
         self.assertTrue(

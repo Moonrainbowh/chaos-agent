@@ -10,7 +10,7 @@
 - 负责：PowerShell 脚本默认使用 `ErrorActionPreference=Stop`，未恢复的错误返回非零；显式 catch、`Continue`、`SilentlyContinue` 或 `Ignore` 表示脚本主动恢复；不得把 native stdout/stderr 送入对象管道，任意原始字节、无换行和控制符必须原样保留；真实 native stderr+0 不得当作 PowerShell 失败，末次非零 native code 优先传播，包装逻辑不得把脚本文本暴露到 argv 或展示命令。
 - 负责：本机命令的 stdin 默认连接 `DEVNULL`，避免后台命令与 Windows TUI 争抢控制台输入；需要输入的数据必须由已批准脚本显式通过管道提供。
 - 负责：应用启动时真实探测并冻结一个共享 PowerShell Runtime；显式 `powershell_7`/`windows_powershell_5_1` 严格匹配且不回退，兼容期 `auto` 才按 `pwsh`、`powershell` 顺序选择。
-- 负责：为 Linux/macOS 保留 Runtime adapter 接口，但不把其端到端兼容性列入首版完成条件。
+- 负责：在 Linux/macOS 使用 POSIX process group 与 `/bin/sh` 执行本机 argv 和 `posix_sh` 脚本；超时、取消或输出超限须终止同一 process group。Windows 继续使用 Job Object；两者都不得把本机 Runtime 描述为 OS 级沙箱。
 - 不负责：自行批准动作、读取未授权路径、持久化 API key 或编排 Agent 回合。
 - 不负责：把本机 Runtime 描述为 OS 级沙箱或容器级隔离；它只提供受控的宿主进程执行。
 - 不负责：猜测或自动改写 Bash、cmd 等其他 Shell 方言为 PowerShell。
@@ -32,4 +32,5 @@
 - `WindowsJob.create()`、`assign(pid)`、`terminate()`、`close()`: 创建并独占一个不可继承的匿名 Job，设置 `KILL_ON_JOB_CLOSE`，用最小进程权限分配挂起根进程并统一终止后代 | 调用 Kernel32 Job API | Windows 10/11 可嵌套 Job；AccessDenied 或受限宿主 Job 不得静默回退，所有句柄显式关闭
 - `terminate_process_tree(process, process_wait, root_identity, job): None`: 运行中根进程先同步终止所属 Job；正常根退出则只在 Job 尚有后代时终止，并有界等待 `ActiveProcesses == 0`；Job API 失败或根进程逾期才使用身份绑定的 psutil 树做补充清理 | 终止宿主进程 | fallback 即使清净也必须报告原始 Job 控制面失败；最多跟踪 1024 个身份
 - `WindowsLocalRuntime.run(spec, cancellation, on_output): CommandResult`: 在净化环境中以 `DEVNULL` stdin 挂起启动、捕获身份、加入 Job 后恢复 Windows 进程，再处理流、deadline、取消、PowerShell/native 退出状态与进程树终止 | 启动和终止宿主进程 | Job 归零并关闭后，两个 pipe reader 还必须在有界时间内到达 EOF 才可返回成功；Windows-first；本机执行不是 OS 级沙箱
+- `PosixLocalRuntime.run(spec, cancellation, on_output)`、`build_local_runtime(...)`: 在 POSIX 中以独立 process group、净化环境、`DEVNULL` stdin 和 `/bin/sh -lc` 运行 argv 或 `posix_sh`；由平台工厂选择，不把 POSIX 伪装成 Windows Runtime | 启动和终止宿主进程 | 超时、取消与输出超限先发送 SIGTERM、再有界 SIGKILL；本机执行不是 OS 级沙箱
 - `DockerRuntime.run(spec, cancellation, on_output): CommandResult`: 以固定 bind mount、workdir、`--pull=never` 和默认禁网参数调用已有 Docker 镜像 | 启动 Docker CLI 和容器 | typed 脚本只接受 `posix_sh`；不检查或拉取镜像，环境值不进入 argv

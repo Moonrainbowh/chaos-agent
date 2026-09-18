@@ -55,7 +55,11 @@ from .terminal_theme import design_for
 
 
 class WindowsTerminalApp(TerminalPresentation):
-    """Append-only Windows Terminal interaction without alternate-screen control."""
+    """Append-only terminal interaction without alternate-screen control.
+
+    The public class name is retained for compatibility while Windows and POSIX
+    terminal input are selected by the terminal-I/O layer.
+    """
 
     def __init__(self, controller: AgentController, approvals: ApprovalBroker, *, sessions: Optional[SessionBrowser] = None, peers: object | None = None, evidence: Optional[EvidenceReader] = None, tasks: ForegroundTaskController | None = None, history: Optional[ThreadHistoryReader] = None, profiles: ProfileControl | None = None, modes: ModeControl | None = None, runtime_selection: object | None = None, task_modes: object | None = None, permissions: PermissionControl | None = None, costs: object | None = None, doctor: object | None = None, skills: SkillActivation | None = None, mcp: McpRegistry | None = None, workflows: object | None = None, plugins: object | None = None, checkpoints: CheckpointControl | None = None, interaction_broker: InteractionBroker | None = None, command_registry: CommandRegistry = REGISTRY, diff_source: GitDiffSource | None = None, attachment_draft: AttachmentDraft | None = None, write: Optional[Callable[[str], object]] = None, project_name: str | None = None, workspace_root: Path | None = None) -> None:
         self.controller, self.approvals = controller, approvals
@@ -95,7 +99,6 @@ class WindowsTerminalApp(TerminalPresentation):
         self.catalog = catalog_for(select_runtime_language())
 
     async def run(self, *, thread_id: str | None = None) -> None:
-        if os.name != "nt": raise RuntimeError("WindowsTerminalApp requires Windows")
         if self.tasks:
             await self.tasks.reconcile_stale_tasks()
         if thread_id: await self.restore_thread(thread_id)
@@ -104,8 +107,10 @@ class WindowsTerminalApp(TerminalPresentation):
             await start_peers()
         self.update_terminal_title()
         restore_ctrl_c = capture_ctrl_c_as_input()
+        platform_input_enable = WIN32_INPUT_ENABLE if os.name == "nt" else ""
+        platform_input_disable = WIN32_INPUT_DISABLE if os.name == "nt" else ""
         try:
-            self._write("\x1b[6 q" + WIN32_INPUT_ENABLE + BRACKETED_PASTE_ENABLE); self.running = True; self._approval_task = asyncio.create_task(listen_approvals(self))
+            self._write("\x1b[6 q" + platform_input_enable + BRACKETED_PASTE_ENABLE); self.running = True; self._approval_task = asyncio.create_task(listen_approvals(self))
             if self.interaction_broker is not None:
                 self._interaction_task = asyncio.create_task(listen_interactions(self))
             self.redraw()
@@ -116,7 +121,7 @@ class WindowsTerminalApp(TerminalPresentation):
         finally:
             try:
                 self.reset_terminal_title()
-                self._write(BRACKETED_PASTE_DISABLE + WIN32_INPUT_DISABLE + "\x1b[0 q"); await close_tasks(self)
+                self._write(BRACKETED_PASTE_DISABLE + platform_input_disable + "\x1b[0 q"); await close_tasks(self)
             finally:
                 restore_ctrl_c()
     async def submit(

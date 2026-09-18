@@ -5,7 +5,6 @@ from pathlib import Path
 
 from code_agent.context.repo_index import RepoIndexService
 from code_agent.interfaces.checkpoint_control import CheckpointControl
-from code_agent.runtime.local import WindowsLocalRuntime
 from code_agent.verification.local_adapter import LocalVerificationAdapter
 from code_agent.workspace.files import WorkspaceFiles
 from code_agent.workspace.git import GitWorkspace
@@ -39,6 +38,6 @@ class WorkspaceServices:
     files: WorkspaceFiles
     git: GitWorkspace | None
     repo_index: RepoIndexService
-    runtime: WindowsLocalRuntime
+    runtime: object
     verification: LocalVerificationAdapter
     checkpoints: CheckpointControl | None = None

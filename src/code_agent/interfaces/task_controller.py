@@ -12,6 +12,7 @@ from code_agent.core.attachments import AttachmentRef, freeze_attachments
 from code_agent.core.events import AgentEvent, EventKind
 from code_agent.core.task import TaskAuthorization, TaskContract, TaskRecord, TaskStatus
 from code_agent.core.models import Message
+from code_agent.core.task_intent import infer_task_intent
 
 from .controller import AgentController
 
@@ -38,7 +39,8 @@ class ForegroundTaskController:
             raise RuntimeError("a foreground task is already active")
         thread_id = await self._sessions.create_thread()
         profile = self._profile_supplier() if self._profile_supplier else None
-        interaction_mode = self._task_mode_supplier() if self._task_mode_supplier else "code"
+        selected_mode = self._task_mode_supplier() if self._task_mode_supplier else "code"
+        interaction_mode = resolved_task_mode(prompt, selected_mode)
         task = await self._sessions.create_task(
             thread_id,
             freeze_task_contract(
@@ -307,8 +309,6 @@ def freeze_task_contract(
     interaction_mode: str = "code",
 ) -> TaskContract:
     """Freeze provider facts and, when available, the full runtime selection."""
-    from code_agent.core.task_intent import infer_task_intent
-
     intent = infer_task_intent(prompt, interaction_mode)
 
     if profile is None:
@@ -334,6 +334,15 @@ def freeze_task_contract(
         runtime_selection_digest=runtime[3],
         interaction_mode=interaction_mode,
     )
+
+
+def resolved_task_mode(prompt: str, selected_mode: str) -> str:
+    """Resolve the UI-only auto policy before persisting a task contract."""
+    if selected_mode != "auto":
+        return selected_mode
+    if infer_task_intent(prompt, "code").value == "analyze":
+        return "ask"
+    return "code"
 
 
 def authorization_for_task_mode(

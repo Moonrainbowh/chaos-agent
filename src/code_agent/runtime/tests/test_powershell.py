@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 import tempfile
 import unittest
@@ -41,6 +42,7 @@ class CompletedProcess:
         self.returncode = -9
 
 
+@unittest.skipUnless(os.name == "nt", "PowerShell runtime tests require Windows")
 class PowerShellRuntimeTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()

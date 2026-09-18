@@ -101,7 +101,7 @@ class ExplorationRepeatObserverTests(unittest.TestCase):
 
 
 class ToolOnlyConvergenceGuardTests(unittest.TestCase):
-    def test_task_warns_then_requests_evidence_replan_for_tool_only_turns(self):
+    def test_task_warns_then_requests_evidence_finalization_for_tool_only_turns(self):
         guard = ToolOnlyConvergenceGuard()
         read = ToolCall("read", "read_file", {"path": "x.py"})
         self.assertIsNone(guard.observe(has_text=False, calls=[read]))
@@ -109,8 +109,8 @@ class ToolOnlyConvergenceGuardTests(unittest.TestCase):
         warning = guard.observe(has_text=False, calls=[read])
         self.assertEqual(warning.kind, "warn")
         self.assertIsNone(guard.observe(has_text=False, calls=[read]))
-        replan = guard.observe(has_text=False, calls=[read])
-        self.assertEqual(replan.kind, "replan")
+        finalization = guard.observe(has_text=False, calls=[read])
+        self.assertEqual(finalization.kind, "finalize")
 
     def test_text_or_edit_or_verification_turn_resets_the_stagnation_counter(self):
         guard = ToolOnlyConvergenceGuard()

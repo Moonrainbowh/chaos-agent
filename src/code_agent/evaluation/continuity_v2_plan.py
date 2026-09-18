@@ -4,7 +4,10 @@ from dataclasses import asdict
 from .continuity_plan import Event
 from .continuity_v2_fixture import VERSION
 
-ROUNDS = (3, 7, 3, 7)
+# Reserve a dedicated final turn for an agent-initiated verification after the
+# repair. Without it, a repair that consumes its final allowed turn can leave
+# an independently passing workspace without evidence that the agent checked it.
+ROUNDS = (3, 7, 3, 7, 2)
 
 
 def events(variant):
@@ -34,8 +37,10 @@ def events(variant):
     if probe:
         final += (" Update Notes file reader-contract.md to correct outdated conclusions, "
                   "identify the current reader interface and record remaining work and validation.")
+    verify = ("Verification stage: do not edit any files. Run the provided verification tool against the "
+              "current workspace and report the result. This verification must cover the final repair.")
     return tuple(result + [Event("work-3", "work", message), Event("boundary-3", boundary),
-                           Event("work-4", "work", final)])
+                           Event("work-4", "work", final), Event("work-5", "work", verify)])
 
 
 def manifest(variant):

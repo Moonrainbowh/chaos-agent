@@ -46,6 +46,7 @@ class _Gate:
         return _Lease()
 
 
+@unittest.skipUnless(os.name == "nt", "exact batch moves are Windows-only")
 class RewindBatchCaptureTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()

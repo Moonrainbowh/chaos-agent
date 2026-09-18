@@ -224,7 +224,7 @@ def has_submission_input(
 
 
 def dropped_file_paths(value: str) -> tuple[str, ...]:
-    """Recognize a complete Windows Terminal file-drop paste, never partial text."""
+    """Recognize a complete native-terminal file-drop paste, never partial text."""
     if not isinstance(value, str):
         raise TypeError("pasted value must be a string")
     compact = value.strip()
@@ -255,9 +255,10 @@ def attachment_path_arguments(value: str) -> tuple[str, ...]:
 def _drop_candidate(value: str) -> bool:
     path = Path(value)
     windows = PureWindowsPath(value)
+    suffix = windows.suffix if windows.is_absolute() else path.suffix
     return bool(
-        windows.is_absolute()
-        and path.suffix.casefold() in _SUPPORTED_SUFFIXES
+        (path.is_absolute() or windows.is_absolute())
+        and suffix.casefold() in _SUPPORTED_SUFFIXES
         and path.is_file()
     )
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import tempfile
 import unittest
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 from code_agent.core.attachments import (
     MAX_MESSAGE_ATTACHMENTS,
@@ -37,7 +37,7 @@ class _Ingestor:
     ) -> tuple[AttachmentRef, ...]:
         self.paths = tuple(paths)
         self.external = explicit_external
-        return tuple(_ref(Path(path).name, str(index + 1)) for index, path in enumerate(paths))
+        return tuple(_ref(_display_name(path), str(index + 1)) for index, path in enumerate(paths))
 
     def ingest_clipboard(self) -> AttachmentRef:
         return _ref("clipboard.png", "a", image=True)
@@ -163,6 +163,11 @@ class AttachmentDraftTests(unittest.IsolatedAsyncioTestCase):
             attachment_path_arguments(value),
             (r"C:\Screenshots\UI error.png",),
         )
+
+
+def _display_name(path: str) -> str:
+    windows = PureWindowsPath(path)
+    return windows.name if windows.is_absolute() else Path(path).name
 
 
 if __name__ == "__main__":

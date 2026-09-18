@@ -28,7 +28,7 @@
 ## Units
 - `ProviderError` 及子类：表达配置、HTTP、协议和响应上限失败 | 无副作用 | 对外消息执行脱敏
 - `ProviderConfig`、`ApiProtocol`: 校验并冻结端点、协议和传输限制 | 请求时读取 API key 环境变量
-- `InputModality`、`ModelProfile`、`ModelProfileResolver`: 显式校验单模型输入模态、提供方和 Agent 限制，并按 CLI 模型名选择 profile | 请求时读取 API key 环境变量 | 缺失模态声明默认仅 text
+- `InputModality`、`ModelProfile`、`ModelProfileResolver`: 显式校验单模型输入模态、提供方和 Agent 限制，并按 CLI 模型名选择 profile | 请求时读取 API key 环境变量 | 缺失模态声明默认仅 text；未显式配置时采用 50 回合、128 总工具调用、每回合 50 调用的硬安全上限，实际收敛由 Core 进展门控制
 - `AttachmentResolver`、`ProviderAttachmentEncoder`: 逐引用复核 blob 并生成三种协议的图片/不可信文本原生块 | 调用注入 resolver | 能力、缺失和完整性失败发生在网络请求前
 - `ProviderRuntimeManager`: 注册内存 profile、原子切换、异步 retirement、关闭重试和审计当前 profile/client/runner | 网络资源生命周期 | 注册不切换；构建/提交失败保留旧运行时；提交后旧 client 清理失败或取消不向调用方伪报切换失败，`aclose()` 汇合并重试 retirement
 - `ProviderRequestOptions`、`request_options(...)`: 校验 provider-facing effort 与正数输出上限 | 无副作用 | Anthropic reasoning 不猜测映射并失败闭合

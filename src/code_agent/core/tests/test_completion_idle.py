@@ -22,6 +22,8 @@ class CompletionIdleTests(unittest.IsolatedAsyncioTestCase):
             "有没有讲workbuddy里面的模型的套餐反代出来的操作？或者相关的项目？？",
             "有没有相关项目？",
             "请检查代码有什么问题？",
+            "请只回复：Linux TUI 正常",
+            "reply with: Linux TUI is ready",
         ):
             self.assertEqual(infer_task_intent(text, "code"), TaskIntent.ANALYZE)
         for text in (

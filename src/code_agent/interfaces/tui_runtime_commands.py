@@ -129,7 +129,7 @@ async def set_effort(app: Any, instruction: str | None) -> bool:
 async def set_task_mode(
     app: Any, instruction: str | None, action: str | None
 ) -> bool | None:
-    if action not in {"ask", "code", "plan"}:
+    if action not in {"auto", "ask", "code", "plan"}:
         return None
     control = getattr(app, "task_modes", None)
     if control is None:

@@ -44,6 +44,8 @@ class SystemDoctor:
         )
 
     def _powershell_check(self) -> DiagnosticCheck:
+        if os.name != "nt":
+            return DiagnosticCheck("pass", "Local shell", "posix_sh (/bin/sh)")
         info = self._powershell.resolve()
         status = "pass" if str(info.version).split(".")[0] == "7" else "warn"
         return DiagnosticCheck(status, "PowerShell", info.summary)

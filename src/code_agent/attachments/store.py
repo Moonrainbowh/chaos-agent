@@ -115,6 +115,7 @@ class AttachmentStore:
         data: bytes,
     ) -> _WriteResult:
         temporary_path: Path | None = None
+        cleanup_temporary: OwnedTemporary | None = None
         temporary: OwnedTemporary | None = None
         outcome: _WriteResult | None = None
         failure: BaseException | None = None
@@ -123,13 +124,15 @@ class AttachmentStore:
                 mode="xb", dir=directory, prefix=".pending-", delete=False
             ) as stream:
                 temporary_path = Path(stream.name)
-                temporary = OwnedTemporary.capture_cleanup_descriptor(
+                cleanup_temporary = OwnedTemporary.capture_cleanup_descriptor(
                     temporary_path, stream.fileno()
                 )
                 temporary = OwnedTemporary.capture_descriptor(
                     temporary_path,
                     stream.fileno(),
                 )
+                cleanup_temporary.close()
+                cleanup_temporary = None
                 stream.write(data)
                 stream.flush()
                 os.fsync(stream.fileno())
@@ -163,6 +166,11 @@ class AttachmentStore:
             failure = error
             raise
         finally:
+            if cleanup_temporary is not None:
+                try:
+                    cleanup_temporary.cleanup()
+                except OSError:
+                    pass
             if temporary is not None:
                 try:
                     temporary.cleanup()

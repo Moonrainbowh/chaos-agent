@@ -6,10 +6,10 @@ from pathlib import Path
 from code_agent.core.cancellation import CancellationToken
 from code_agent.core.models import ActionRequest, ActionResult
 from code_agent.runtime.errors import RuntimeErrorBase
-from code_agent.runtime.local import WindowsLocalRuntime
 from code_agent.runtime.models import (
     CommandSpec,
     PowerShellRuntimeInfo,
+    ShellDialect,
     ShellScript,
 )
 from code_agent.runtime.output_codec import OutputEncoding
@@ -23,7 +23,7 @@ CacheInvalidator = Callable[[Sequence[str]], None]
 
 async def run_powershell_action(
     request: ActionRequest,
-    runtime: WindowsLocalRuntime,
+    runtime: object,
     cancellation: CancellationToken,
     invalidate_cache: CacheInvalidator | None,
 ) -> ActionResult:
@@ -31,12 +31,16 @@ async def run_powershell_action(
     supplier = getattr(runtime, "powershell_info", None)
     candidate = supplier() if callable(supplier) else None
     info = candidate if isinstance(candidate, PowerShellRuntimeInfo) else None
+    dialect = getattr(runtime, "shell_dialect", None)
     spec = (
         CommandSpec(
             cwd=Path("."),
-            shell_script=ShellScript(command, info.dialect),
+            shell_script=ShellScript(
+                command,
+                info.dialect if info is not None else ShellDialect.POSIX_SH,
+            ),
         )
-        if info is not None
+        if info is not None or dialect is ShellDialect.POSIX_SH
         else CommandSpec(cwd=Path("."), powershell_script=command)
     )
     try:
@@ -61,7 +65,7 @@ async def run_powershell_action(
 
 async def run_process_action(
     request: ActionRequest,
-    runtime: WindowsLocalRuntime,
+    runtime: object,
     cancellation: CancellationToken,
     invalidate_cache: CacheInvalidator | None,
 ) -> ActionResult:

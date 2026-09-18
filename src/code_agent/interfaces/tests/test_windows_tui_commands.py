@@ -186,7 +186,7 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
         await app.handle_key("\r")
 
         self.assertFalse(hasattr(runtime, "seen"))
-        self.assertEqual(task_modes.current.name, "ask")
+        self.assertEqual(task_modes.current.name, "auto")
         self.assertEqual(app.input.text, "")
 
     async def test_clear_keeps_the_current_thread_identity(self) -> None:

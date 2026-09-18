@@ -31,7 +31,7 @@
 - 2026-09-05 的配置、验证与实验边界见根目录 `docs/context-boundary-experiment.md` 和 `docs/context-boundary-results.md`；具体候选值可配置，实验结果不自动推广为默认策略。
 
 ## Units
-- `infer_task_intent(...)`、`is_small_talk(...)`：对新任务确定问候、中文/英文只读问答或修改意图，并复用为上下文轻量路径 | 无副作用 | “什么意思/图片内容”等问答不触发修改门，任何明确写入要求仍优先；不修改已持久化任务的意图。
+- `infer_task_intent(...)`、`is_small_talk(...)`：对新任务确定问候、中文/英文只读问答或修改意图，并复用为上下文轻量路径 | 无副作用 | “什么意思/图片内容/请只回复”等问答不触发修改门，任何明确写入要求仍优先；不修改已持久化任务的意图。
 - `TaskIntent`、`AcceptanceCriterion`、`TaskContractRevision`: 表达不可降级的完成条件与 revision | 无副作用 | 不写入旧 `core/models.py`
 - `ActionEffect`、`CompletionCandidate`、`CompletionAssessment`、`assess_completion(...)`: 以 generation/subject/evidence 纯函数评估 verified、partial 或 unverified | 无副作用 | 模型文本不能生成通过证据
 - `VerificationService`: 约束 core 请求抽象验证与完成候选 | 具体副作用由实现负责 | core 不导入 verification 或 projects adapter
@@ -39,9 +39,9 @@
 - `TaskVerificationService.suggest_verification(...)`: 在没有当前测试 evidence 时返回一个受信的 typed verifier tool call | 具体 recipe 由实现选择 | 不能包含 shell、argv 或安装参数；系统调用仍须持久化配对的 assistant tool-call 消息
 - `TaskVerificationService.begin_logical_change(...)`、`commit_logical_change(...)`、`InFlightValidationError`: 以抽象协议把一组工具写入收敛为单次 generation，并把 Host 规划的 milestone verifier 返回给 engine | 具体语义图、快照和 evidence 副作用由 Verification 实现负责 | L0 失败必须携带已发生写入后的 TaskState，剩余同批工具不得继续执行
 - `validation_fingerprint(...)`、`circuit_breaker_result(...)`、`is_in_flight_failure(...)`: 将结构化失败归一为监督器可比较的有界身份，并识别重复动作/L0 阻断信号 | 无副作用 | 优先使用 Host 生成的失败摘要，不泄露任意长度输出
-- `ExplorationRepeatObserver`、`ToolOnlyConvergenceGuard`：分别检测精确只读重复与连续无正文、无写入/验证动作的工具回合 | 无副作用 | exact-repeat 保持窄范围；tool-only guard 先 warning，再请求带证据说明的定向重规划，不将多步只读调查误判为停滞
+- `ExplorationRepeatObserver`、`ToolOnlyConvergenceGuard`：分别检测精确只读重复与连续无正文、无写入/验证动作的工具回合 | 无副作用 | exact-repeat 保持窄范围；tool-only guard 先 warning，连续五回合仍无进展时直接按持久工作区/验证证据收敛，不把多步只读调查误判为停滞
 - `phase_started_at(...)`、`phase_duration_ms(...)`：生成单调、非负且有界的 context/model/action 计时 | 无副作用 | 仅用于 `PHASE_COMPLETED` durable 事件，不计入任务 active-time 预算
-- `AgentEngineConvergenceMixin`：在 assistant/tool 配对闭合后持久化 runtime developer notice，检测无正文且无写入/验证进展的有界 tool-only 收敛并请求证据重规划 | 写入消息/事件并更新暂停状态 | notice 只进入下一模型 payload 一次；仅预算的最终回合不调用 dispatcher
+- `AgentEngineConvergenceMixin`：在 assistant/tool 配对闭合后持久化 runtime developer notice；连续无正文、无写入/验证进展达到门限的持久任务直接按当前证据进入完成/验证门 | 写入消息/事件并更新暂停状态 | notice 只进入下一模型 payload 一次；分析任务的最终预算回合不调用 dispatcher，而修改任务保留一次工具执行机会后立即进入完成/验证门
 - `AgentEngineDispatchMixin`：执行模型工具调用、持久化成对 tool 结果并保留 exact-repeat 反馈 | 调用 dispatcher、写入动作消息与事件 | 仅作为回合协调器的工具执行支撑，不改变工具预算和验证顺序
 - `AgentEngine._run_verification_call(...)`: 持久化并执行 Host 规划的 milestone/final verifier tool call | 消耗任务 tool budget、追加成对 assistant/tool 消息和事件 | L0 失败后的同批调用必须被拒绝；关键风险 final gate 按 tests→build 顺序补齐
 - `AgentEngineCompletionMixin._resolve_task_completion(...)`: 将模型停调用后的 assessment 交给持久验证门，并在修改任务没有工作区文件变化时返回明确的未实现决定 | 调用抽象验证与 sessions 协议 | 无改动不运行项目测试也不伪装成功；只有 sessions 原子 finalize 可完成实际修改任务

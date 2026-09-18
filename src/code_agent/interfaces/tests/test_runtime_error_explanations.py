@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sqlite3
 import unittest
 
 from code_agent.core.errors import ModelStreamError
@@ -8,6 +9,7 @@ from code_agent.interfaces.runtime_errors import (
     runtime_error_summary,
 )
 from code_agent.providers.errors import ProviderProtocolError
+from code_agent.sessions.errors import SessionStorageError
 
 
 class RuntimeErrorExplanationTests(unittest.TestCase):
@@ -37,4 +39,13 @@ class RuntimeErrorExplanationTests(unittest.TestCase):
         self.assertEqual(
             runtime_error_summary(error),
             "ProviderProtocolError: Chat stream ended without a completion marker",
+        )
+
+    def test_summary_explains_a_busy_session_database_without_sql(self) -> None:
+        error = SessionStorageError("SQLite session operation failed")
+        error.__cause__ = sqlite3.OperationalError("database is locked")
+
+        self.assertEqual(
+            runtime_error_summary(error),
+            "Session database is busy. Close other Chaos Agent sessions, then retry.",
         )

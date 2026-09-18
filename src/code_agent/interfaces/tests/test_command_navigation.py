@@ -105,7 +105,7 @@ class CommandNavigationTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(await app.submit("/mode ask"))
         self.assertIn("/new", app.state.entries[-1].text)
         self.assertEqual(runtime.calls, [])
-        self.assertEqual(app.task_modes.current.name, "code")
+        self.assertEqual(app.task_modes.current.name, "auto")
 
     async def test_advanced_commands_are_searchable_but_do_not_expand_root(self):
         app = make_app()

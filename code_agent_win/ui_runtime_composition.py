@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -177,6 +178,7 @@ class _UiComposer:
                 runtime_summary=(
                     f"{parts.workspace_runtime.powershell_info().summary}; "
                     f"{windows_path_support().summary}"
+                    if os.name == "nt" else "posix_sh (/bin/sh)"
                 ),
             ),
             recover_pending=parts.workspace_runtime.recover_pending,

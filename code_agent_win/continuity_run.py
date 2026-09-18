@@ -79,7 +79,9 @@ def _v2_dimensions(record, journal, folder, arm):
 
 
 def _record(arm, options, stats, journal, receipts, grade, observation, started):
-    expected = 0 if arm == "A" else 3
+    # The first persistent context is committed while the control arm starts.
+    # A has no host-scheduled switches, whereas B/C/D each add three.
+    expected = 1 if arm == "A" else 3
     count = len(stats.get("windows", []))
     fresh = journal.get("fresh_agent_verification", False)
     usage = usage_metrics(stats.get("usage", []))
@@ -110,7 +112,7 @@ async def durable_stats(state, options):
         return {}
     thread = json.loads(identity.read_text(encoding="utf-8"))["thread"]
     sessions = SQLiteSessionRepository(state / "sessions.sqlite3")
-    budget = await sessions.get_or_create_task_budget(thread, options.model, EngineLimits(20, 100, 12, options.task_tokens))
+    budget = await sessions.get_or_create_task_budget(thread, options.model, EngineLimits(24, 100, 12, options.task_tokens))
     return {"model_turns": budget.model_turns, "tool_calls": budget.tool_calls,
             "windows": list(await sessions.context_records(thread, "window")),
             "usage": list(await sessions.context_records(thread, "usage"))}

@@ -32,7 +32,7 @@
 - 负责：把动态插件命令以始终命名空间化的 ID 合并进不可变命令快照；动态贡献属于 `internal`，不得膨胀默认根 Picker；禁用、撤销或 digest 变化后不执行旧选择。
 - 负责：`Shift+:` 产生的 `:` 打开带边框、查询行、命令/说明两列和选中行的默认命令面板；`Tab` 补全、`Enter` 执行，旧 `/` 前缀保持兼容。默认面板只展示 `primary`，Diff 仅保留为可完整输入的 `advanced` 兼容命令。
 - 负责：选中无参数命令后一次 `Enter` 立即执行，选中复合命令后一次 `Enter` 进入由同一注册表生成的二级动作菜单；`/会话`、`/模式` 和 `/权限` 只作为根父项，其具体动作不得平铺到根面板。
-- 负责：默认命令面暴露 20 个英文主命令（按注入服务可用性启用）；`/login` 仅登录，`/model` 统一选择配置 profile 与已保存登录可用模型，并在成功后记住当前 Windows 用户的选择；WorkBuddy 上次模型启动时经一次账号目录验证后恢复，Antigravity OAuth 首层仅提供本地全量目录的二级入口。成功改变选择后开启新会话，同值和失败保留旧会话，运行中先暂停。`/mode`、`/effort` 分别管理 `ask|code|plan` 任务行为和思考深度，旧复合 `/mode agent|model|effort` 仅作隐藏兼容入口。
+- 负责：默认命令面暴露 20 个英文主命令（按注入服务可用性启用）；`/login` 仅登录，`/model` 统一选择配置 profile 与已保存登录可用模型，并在成功后记住当前 Windows 用户的选择；WorkBuddy 上次模型启动时经一次账号目录验证后恢复，Antigravity OAuth 首层仅提供本地全量目录的二级入口。成功改变选择后开启新会话，同值和失败保留旧会话，运行中先暂停。`/mode`、`/effort` 分别管理默认 `auto` 及显式 `ask|code|plan` 任务行为和思考深度；`auto` 在创建时根据输入冻结为持久的 `ask` 或 `code`，旧复合 `/mode agent|model|effort` 仅作隐藏兼容入口。
 - 负责：`/会话` 二级面把历史会话与同机在线 Agent、重命名、纯文本发送、入站策略及 held 消息处理分开；`/list-agents`、`/peers`、`/rename` 仅为隐藏兼容入口，不进入注册表、根 Picker 或默认帮助。
 - 不负责：把 peer 文本解释为用户授权、斜杠命令或附件，也不从界面直接访问 peer 存储。
 - 负责：`/清屏` 只清空本次转录，必须保留 `current_thread_id` 和当前会话语义。
@@ -43,7 +43,7 @@
 - 不负责：复制 Agent 状态机、直接执行工具、直接访问 provider、切换活动任务的模型，或绕过 `ActionPolicy` 权限决定。
 - 不负责：把启发式 bug/dead-code 候选渲染成确定根因或可安全删除结论，也不从界面维护第二份 Repo Index。
 - 不负责：接管 Windows Terminal 字体、调色板、复制设置或鼠标选择；不提供默认全屏仪表板、固定顶部栏或应用自有滚动历史。
-- 不负责：首版 Linux/macOS 端到端适配、IDE 插件、Web UI、远程多用户服务或桌面应用。
+- 不负责：macOS 端到端适配、Linux 平台专有剪贴板/Win32 快捷键支持、IDE 插件、Web UI、远程多用户服务或桌面应用。
 - 同一 TUI 同时只管理一个前台任务；运行中的 `Enter` 默认持久排队，当前回合收尾后再进入上下文，而非创建第二任务。`Tab` 在非命令输入中切换为转向，转向立即持久化并在下一模型安全边界生效，不硬杀当前工具。
 - `Esc` 先显示 `pausing` 再暂停并创建 checkpoint，关闭 TUI 中断并创建 checkpoint，显式停止转为失败；已持久化排队不因暂停或关闭丢失。
 - 负责在单栏转录中呈现 evidence-backed completion、partial/unverified 差异、当前未满足条件及 `/证据`、`/evidence` 查询；不自行判定验证成功。
@@ -94,7 +94,7 @@
 - Ctrl+C 原生读取：轮询时先检查控制台 KEY_EVENT，再调用 CRT kbhit/getwch；Ctrl+C 的 UnicodeChar 或 Ctrl+C 修饰键记录归一为 `\x03`，失败状态与命令草稿仍使用双击退出逻辑；关闭清理失败也必须恢复控制台模式。
 - `reset_conversation`、`set_model`、`set_effort`：`/new` 和模型/思考深度切换共用空对话重置，兼容复合命令委托同一入口 | 只重置界面会话绑定并委托运行时控件 | 同值不重建，验证或应用失败保留旧会话，旧 task 契约和消息不修改。
 - `ForegroundTaskController.restore_runtime_settings`：恢复历史对话前委托恢复该 task 冻结的运行时 | 读取 task 并委托 resolver | 恢复失败不替换当前会话，避免 Picker 用上一对话设置误判同值。
-- `read_key`、`_read_bracketed_paste`：通过控制台 KEY_EVENT 的 Alt 标志识别 Alt+V（在 getwch 丢失修饰键信息前捕获），兼容 ESC-v 和 Windows 扩展扫描码，按完整 CSI 标记收取粘贴，超限仍排空标记，兼容未标记的连续文本批次 | 控制台读取 | 不把粘贴 CR/LF 作为提交键。
+- `read_key`、`_read_bracketed_paste`、`posix_terminal_io.read_key`：Windows 通过控制台 KEY_EVENT 识别 Alt+V 与扩展扫描码；Linux 通过 raw TTY 解析 UTF-8、CSI 导航和 bracketed paste，超限仍排空标记 | 控制台读取 | 不把粘贴 CR/LF 作为提交键，退出恢复原始 TTY 模式。
 - `InputDocument`、`InputAtom`：用不可变编辑单元区分原文、长粘贴块与图片引用，投影可见标记和光标位置 | 无副作用 | 用户手输相同标记是普通文字，发送不包含内部占位字符；历史保留粘贴边界且不恢复旧图片。
 - `InputBuffer.insert_paste/display/sync_images/backspace/delete`、`delete_input`：长文本只按粘贴事件折叠；同步图片引用，按单元移动和删除；删除后保留旧帧几何，擦除和重绘合并为一次输出，重绘期间隐藏光标并在编辑位置恢复 | 进程草稿/移除附件引用/终端尾部刷新 | 删除正文不误删附件；提交待确认的附件仍由 durable message 回执移除。
 - `InputBuffer.insert`、`paste_event`：规范化换行和 UTF-16 字符对，统一 UTF-8 65536 字节（64 KiB）输入边界 | 进程草稿 | 超限整次拒绝、不移动光标；不截断正文。
@@ -153,6 +153,6 @@
 - `ContextBudgetDisplay`、`TerminalPresentation`: 展示当前输入/有效工作窗与独立任务用量；手动换窗仅显示排队状态 | 终端 I/O | 不把累计消耗当成上下文占用，保留旧模式显示兼容
 
 - `capture_ctrl_c_as_input`、`Win32Input`、`read_character`、`read_key`：TUI 存活时启用 Windows VT input 保留右键/Ctrl+V 粘贴边界，并开启 Win32 input reporting 保留物理键修饰信息、关闭 Ctrl+C 默认信号处理；先解码 Win32 封装再解析粘贴边界，原生 Enter/Shift+Enter/Alt+V 修饰键不参与文本 burst，framed paste 内换行只进入草稿 | 控制台读取/模式恢复 | 退出必恢复原模式；兼容 CSI/SS3 导航键、CSI u、modifyOtherKeys 与 Windows VT input 的普通 Enter、Shift+Enter；legacy burst 单元测试以虚拟时钟驱动轮询间隔，避免操作系统调度延迟改变假输入的分组。
-- `runtime_error_summary`：将异常因果链中的 HTTP 状态显示为短提示，其余诊断单行有界 | 无副作用 | 错误仅经受管转录渲染，不直接打印 traceback 或 HTML。
+- `runtime_error_summary`：将异常因果链中的 HTTP 状态与 SQLite busy/conflict 显示为短提示，其余诊断单行有界 | 无副作用 | 错误仅经受管转录渲染，不直接打印 traceback、SQL、数据库路径或 HTML。
 
 - FOLLOW-UP 采用方案 A：固定青色 `›`、静态边框与细竖线光标，等待动效仅在底部固定三字符宽度的点阵中变化；退出恢复终端默认光标样式，关闭动效时点阵静止。

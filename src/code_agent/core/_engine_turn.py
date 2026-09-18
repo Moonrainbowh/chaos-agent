@@ -15,6 +15,7 @@ from .errors import EngineLimitError, ModelStreamError
 from .events import AgentEvent, EventKind
 from .models import ContextBundle
 from .runtime_timing import phase_duration_ms, phase_started_at
+from .completion_contract import TaskIntent
 from .task import TaskRecord, TaskStatus
 from .task_supervisor import SupervisionKind
 
@@ -41,8 +42,13 @@ class AgentEngineTurnMixin(AgentEngineConvergenceMixin, AgentEngineDispatchMixin
         last_available_turn = (
             state.budget.model_turns == state.budget.limits.max_agent_rounds
         )
-        summary_only = last_available_turn
-        if last_available_turn:
+        final_modify_turn = (
+            last_available_turn
+            and state.task is not None
+            and state.task.contract.intent is TaskIntent.MODIFY
+        )
+        summary_only = last_available_turn and not final_modify_turn
+        if summary_only:
             queue_runtime_notice(
                 state,
                 "Runtime control: this is the final available model turn. "
@@ -77,11 +83,17 @@ class AgentEngineTurnMixin(AgentEngineConvergenceMixin, AgentEngineDispatchMixin
                 async for event in self._flush_runtime_notices(state):
                     yield event
             return
-        await self._reserve_tool_calls(state, turn)
+        await self._reserve_tool_calls(
+            state, turn, allow_at_model_limit=final_modify_turn
+        )
         async for event in self._dispatch_tool_calls(state, turn):
             yield event
         async for event in self._flush_runtime_notices(state):
             yield event
+        if final_modify_turn:
+            async for event in self._finish_task_without_calls(state, turn):
+                yield event
+            return
         async for event in self._observe_tool_only_convergence(state, turn):
             yield event
 
@@ -239,9 +251,12 @@ class AgentEngineTurnMixin(AgentEngineConvergenceMixin, AgentEngineDispatchMixin
             yield event
 
     async def _reserve_tool_calls(
-        self, state: _RunState, turn: _TurnState
+        self, state: _RunState, turn: _TurnState, *, allow_at_model_limit: bool = False
     ) -> None:
-        if state.budget.model_turns >= state.budget.limits.max_agent_rounds:
+        if (
+            state.budget.model_turns >= state.budget.limits.max_agent_rounds
+            and not allow_at_model_limit
+        ):
             raise EngineLimitError("model turn budget exceeded")
         if len(turn.calls) > state.budget.limits.max_tool_calls_per_round:
             raise EngineLimitError("tool call per-round budget exceeded")

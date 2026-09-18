@@ -60,8 +60,9 @@ async def drive(workspace, variant, adapter, artifact_dir=None):
                 current = await adapter.work(workspace, event.message, ROUNDS[stage - 1])
                 evidence = current.verified_digest
                 label = {1: "after-diagnosis-1", 2: "before-patch",
-                         3: "after-diagnosis-3", 4: "final"}[stage]
-                observations.append(await observe(workspace, stage >= 3, label, artifact_dir))
+                         3: "after-diagnosis-3", 4: "final"}.get(stage)
+                if label is not None:
+                    observations.append(await observe(workspace, stage >= 3, label, artifact_dir))
             else:
                 current = await getattr(adapter, event.action)()
             _check(previous, current, event.action)

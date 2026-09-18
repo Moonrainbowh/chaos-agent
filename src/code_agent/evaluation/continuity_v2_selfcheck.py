@@ -28,7 +28,7 @@ class StagedOfflineAdapter(OfflineAdapter):
                 "        line, identity, raw = (item.line, item.identity, item.amount) "
                 "if hasattr(item, 'line') else item")
         result = await super().work(workspace, message, rounds)
-        if self.stage == 4 and self.mutation == "stale-verification":
+        if self.stage >= 4 and self.mutation == "stale-verification":
             result = replace(result, verified_digest=None)
         return result
 

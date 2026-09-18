@@ -5,7 +5,7 @@ from pathlib import Path
 from code_agent.context.repo_index import RepoIndexService
 from code_agent.context.repo_scan import RepoFileScanner
 from code_agent.runtime._powershell_runtime import PowerShellRuntimeResolver
-from code_agent.runtime.local import WindowsLocalRuntime
+from code_agent.runtime.platform import build_local_runtime
 from code_agent.verification.local_adapter import LocalVerificationAdapter
 from code_agent.workspace.files import WorkspaceFiles
 from code_agent.workspace.ignore import IgnoreRules
@@ -33,6 +33,6 @@ def build_workspace_services(
         files,
         git,
         repo_index,
-        WindowsLocalRuntime(root, powershell=powershell),
+        build_local_runtime(root, powershell=powershell),
         LocalVerificationAdapter(root),
     )

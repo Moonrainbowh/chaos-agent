@@ -56,7 +56,7 @@ Global options:
   -h, --help                   Show this help
   -V, --version                Show the installed version
 
-Run without a command to open the Windows Terminal UI.
+Run without a command to open the interactive terminal UI.
 """
 
 _ACP_HELP = """Usage: chaos-agent [global options] acp
@@ -64,6 +64,13 @@ _ACP_HELP = """Usage: chaos-agent [global options] acp
 Serve Agent Client Protocol v1 over stdio for an editor client.
 The process working directory is the single ACP workspace root.
 """
+
+_COMMAND_HELP = {
+    "ask": "Usage: chaos-agent [global options] ask <prompt>\n\nRun one durable task and render its result.",
+    "resume": "Usage: chaos-agent [global options] resume <thread-id> [prompt]\n\nResume a saved task or open its history in the TUI.",
+    "run": "Usage: chaos-agent [global options] run --json <prompt>\n\nRun one durable task and stream JSON lifecycle events.",
+    "task": "Usage: chaos-agent [global options] task list|resume <task-id> [prompt]\n\nInspect or resume durable tasks.",
+}
 
 
 def create_application(**kwargs):
@@ -226,6 +233,10 @@ def _meta_command_output(arguments: Sequence[str]) -> str | None:
     values = tuple(arguments)
     if values in {("-h",), ("--help",)}:
         return _HELP.rstrip()
+    if len(values) == 2 and values[0] in _COMMAND_HELP and values[1] in {
+        "-h", "--help",
+    }:
+        return _COMMAND_HELP[values[0]]
     if values in {("acp", "-h"), ("acp", "--help")}:
         return _ACP_HELP.rstrip()
     if values in {

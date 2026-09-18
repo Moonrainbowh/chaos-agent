@@ -24,7 +24,7 @@
 ## Units
 - `provider_settings.provider_config()`、`provider_auth_options()`：保留旧 API Key 配置并解析按平台的 OAuth/存储 API Key 引用和显式协议路径；拒绝认证冲突和 API Key 环境覆盖 OAuth，不联网。
 - `default_config_path(env)`、`resolve_config_path(env)`: 解析默认或绝对覆盖配置文件路径 | 无副作用 | 相对 `CHAOS_CONFIG` 拒绝；无新配置时回退旧目录
-- `load_runtime_config(env, cli_profile)`: 读取、验证、选择并合并本地 provider 配置 | 文件 I/O | `CHAOS_*` 优先、`CODE_AGENT_*` 回退；异常不包含文件内容或密钥
+- `load_runtime_config(env, cli_profile)`: 读取、验证、选择并合并本地 provider 配置 | 文件 I/O | `CHAOS_*` 优先、`CODE_AGENT_*` 回退；异常不包含文件内容或密钥；省略 Agent 预算时采用 50 回合、128 总工具调用、每回合 50 调用的硬安全上限，实际收敛由 Core 进展门控制
 - `RuntimeConfig`: 冻结已选择的 Provider、profile、审批模式、敏感路径开关、PowerShell 方言请求、能力策略和配置路径 | 无副作用 | 能力策略默认 hybrid 且只接受 legacy/hybrid/progressive；方言缺失为兼容期 `auto`；默认审批模式为 `auto`；密钥状态只能显示脱敏描述
 - `configured_capability_strategy(document, env)`: 合并 `[agent].capability_strategy` 与新旧环境变量 | 无副作用 | `CHAOS_CAPABILITY_STRATEGY` 优先，未知值失败闭合
 - `ProfileSummary`: 提供 profile 名、模型、协议、endpoint host、预算和密钥来源类型 | 无副作用 | 不包含密钥、URL 路径或认证头

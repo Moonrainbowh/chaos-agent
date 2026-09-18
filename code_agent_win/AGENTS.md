@@ -5,7 +5,7 @@
 - 负责：CSV continuity 评测的独立进程宿主，组合生产 AgentEngine、PersistentContextBuilder、SQLite History/Notes 和受限 Workspace 工具；D 组退出并重启相同持久 thread，保留真实回执与版本验证。离线 scripted model 仅用于接线测试，不计 API 成绩；不等同完整 TUI 前台 TaskRecord 生命周期验收。
 - 负责：显式选择 v2 时通过宿主 RPC 设置诊断/修复阶段，记录越界尝试；保存阶段快照、最终正确性、挑战覆盖及笔记生命周期，语义审阅未完成不得声称整链覆盖。v1 默认事件与预算保持不变。
 - 负责：创建共享依赖、调度 typed tools、把策略审批结果传递给文件和运行时 Feature。
-- 负责：声明 Windows/PowerShell 执行契约，按工作区能力注册 Git 工具，并把方言不匹配、非零退出码和已知 Git 故障转换为可修复的结构化 tool result。
+- 负责：按宿主声明 Windows/PowerShell 或 POSIX sh 执行契约，按工作区能力注册 Git 工具，并把方言不匹配、非零退出码和已知 Git 故障转换为可修复的结构化 tool result。
 - 负责：在基础 Provider 提示中声明克制的 Markdown 可读性约定，要求结果前置、短层级和有意义的重点标粗，不以装饰性格式虚构重要性。
 - 负责：把 TUI Semantic Insights 控制器绑定到当前 thread 对应 workspace 的共享 `RepoIndexService`，后台刷新同一快照后只读生成用户报告。
 - 负责：发布 Chaos Agent 的 `chaos-agent` 命令与本地数据目录，并在迁移期保持旧 `agent` 命令和本地状态可用。
@@ -22,7 +22,7 @@
 - `TaskScopedVerificationService.suggest_verification(...)`：仅对修改任务或实际变更刷新共享语义图；纯问答收尾直接委托验证服务的非修改路径 | 只读/调度 | 不改动修改任务的证据门，不把未执行的验证标记为通过。
 - `ModeAwareWindowsTerminalApp`：从 Interfaces 获取唯一 Muted Slate 主题，委托紧凑启动摘要、双层输入区渲染与动效；完整能力仍通过 `:status` 访问 | 终端输出 | 不修改持久配置或接管 Windows Terminal 设置。
 - `build_managed_context(..., memory_project_id=..., memory_user_scope_id=..., allow_user_memory=...)`：按冻结 profile 组合 summary/boundary 或 persistent 的上下文、工具和统一预算 client，并在宿主提供可信身份时接入受限记忆投影 | Sessions/Provider I/O | persistent 不构造 HandoffWriter；记忆作用域默认关闭，不能由 builder 从目录名猜测；模式只投影实际已注册工具，缺省路径不变
-- `tool_definitions(include_git, powershell, include_web): tuple[ToolDefinition, ...]`: 声明严格且递归校验的契约 loader、tool schema、generation-aware `read_code_slices`、不可变 edit-plan 契约、冻结 PowerShell 方言和 versioned `run_process_v1`，并按显式注入的 Git/Web 能力省略对应工具 | 无副作用 | batch slice 为 1–16 个 target，提示合并当前已知目标但允许新信息后的后续批次；structured process 不接受 shell/env/stdin；文件 auto 不猜 legacy code page
+- `tool_definitions(include_git, powershell, shell_dialect, include_web): tuple[ToolDefinition, ...]`: 声明严格且递归校验的契约 loader、tool schema、generation-aware `read_code_slices`、不可变 edit-plan 契约、冻结 PowerShell 或 POSIX sh 方言和 versioned `run_process_v1`，并按显式注入的 Git/Web 能力省略对应工具 | 无副作用 | batch slice 为 1–16 个 target，提示合并当前已知目标但允许新信息后的后续批次；structured process 不接受 shell/env/stdin；文件 auto 不猜 legacy code page
 - `windows_system_prompt(...)`：组合冻结的 PowerShell/Git 能力与用户正文的 Markdown 可读性约定 | 无副作用 | 强调仅服务于决策、风险、结果和下一步，不要求逐句装饰
 - `RootActionDispatcher`: 在执行前验证 typed schema、评估策略并请求交互审批，再调用文件、编辑、Git 或命令 Unit；`read_code_slices` 先校验当前 RepoIndex generation/snapshot signatures，再委托 Workspace 前后复核 | 产生如实标记成功/失败且保留有界诊断的 tool result | batch 任一 stale 返回 `stale_repo_context` 且不含部分源码；只有已通过策略的外部路径可抵达 workspace Unit
 - `run_powershell_action(...)`、`run_process_action(...)`: 分别把冻结方言、默认 Stop 且保留 native 原始字节的脚本和 shell-free `program + args` 映射为 `CommandSpec` | 启动本地进程并失效工作区缓存 | structured process 拒绝 shell launcher、`.cmd/.bat`、NUL 与超限 Windows command line；stdout/stderr 独立严格解码并逐流报告截断，无法解码时返回完整 Base64/code page；legacy script 映射仅供旧 Runtime 兼容
@@ -43,7 +43,7 @@
 - `task_workspace_isolation(...)`、`isolation_available(root, isolation)`、`require_isolation(root, isolation)`、`resolve_task_workspace_plan(...)`、`prepare_workspace(...)`、`bind_workspace(...)`、`abort_prepared_workspace(...)`：把任务事实映射成隔离请求，按解析结果决定是否准备 worktree，并在 workspace 身份落盘前后绑定/补偿 | 仅在 isolated 计划下创建 worktree 并调用 `changed_snapshot_paths`/`snapshot`/`restore`；本地计划只建立 worktree-free lineage | 本地任务不得因此探测 Git 仓库内容或复制 dirty 状态；无法隔离时的拒绝发生在创建 thread/task 之前，且必须抛出带 plan 原因的 `RuntimeError` 而不是降级；managed 失败必须报错而不静默退回 source root
 - `seed_source_changes(source_root, target_root, *, allow_sensitive_paths=False)`（`workspace_seeding`）：唯一枚举 dirty 文件并把 source 的未提交改动带入新 worktree 的入口 | `changed_snapshot_paths` + `snapshot` + `restore` | 只由 isolated 准备路径调用；本地计划不得走到这里；敏感路径 opt-in 与 workspace Guard 共享
 - `candidate_worktrees(storage_root)`、`reclaim_worktrees(...)`、`ReclamationReport`（`workspace_reclamation`）：扫描 `worktrees/<repo>/<lineage>` 候选，只退役「可证明不承载任何任务工作」的托管 worktree | 删除已退役 worktree 目录、分支引用与 Git worktree 注册 | 保守闸门：有 live lineage、有 pending rewind、有 workspace snapshot（`rewindable=False` 时）或终端任务缺席/未终结者一律保留；退役前要求确为注册 worktree、分支名匹配 `task_branch_name`、`is_ancestor(HEAD, source_head)`（无自有提交）、tip 一致且干净；任何校验不通过即停止并保留
-- `local_workspace_lineage.build_local_lineage(...)`、`attach_local_lineage(...)`：为本地任务建立 `worktree_root == source_root` 的 workspace lineage，使 `/checkpoint` 与 `/rewind` 不依赖 worktree | 4 次常数大小的 Git 调用后写入一条 lineage | 不建分支、不建目录、不复制文件；无法取得事实（非仓库 / 空仓库 / Git 失败）时返回 None 并退化为 metadata-only checkpoint，不影响任务启动
+- `local_workspace_lineage.build_local_lineage(...)`、`attach_local_lineage(...)`：为本地任务建立 `worktree_root == source_root` 的 workspace lineage，使 `/checkpoint` 与 `/rewind` 不依赖 worktree | 4 次常数大小的 Git 调用后写入一条 lineage | 不建分支、不建目录、不复制文件；无法取得事实或该 source root 已被历史 direct lineage 占用时退化为 metadata-only checkpoint，不影响任务启动；其他 SQLite 故障必须继续报错
 - `TaskWorkspace`、`WorkspaceServices`: 在独立模型模块中承载 lineage/worktree 身份与已组合服务，供 Host composition 和 runtime 共用 | 无副作用 | 不自行创建 Guard、进程或持久状态
 - `build_mode_registry(...)`、`freeze_mode(...)`：绑定四档模式的实际主 profile、统一完整工具集、统一 Ultra 硬预算、提示策略和推理强度 | 读取显式环境绑定 | profile 不存在时拒绝启动，不回退到任意模型。
 - `RuntimeSelectionControl.use(...)`、`resolve_runtime_contract(...)`: 在空闲边界独立切换/恢复 topology、已配置 profile 与 reasoning effort，并原子替换 provider、runner、dispatcher 与审计快照 | 创建并关闭 provider client | legacy/plugin mode 只更新提示/工具投影和 `legacy_mode`，不得重置三个独立选择轴；构建或 runner 替换失败保留旧 runtime；恢复时 model/protocol/host/digest 任一漂移均失败闭合

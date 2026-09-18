@@ -125,6 +125,10 @@ class AttachmentPublicationFinalizationTests(unittest.TestCase):
             destination.write_bytes(self.payload)
             raise FileExistsError(17, "concurrent winner")
 
+        def fail_cleanup(owned: object) -> None:
+            owned.close()  # type: ignore[attr-defined]
+            raise PermissionError("pending file is locked")
+
         with patch(
             "code_agent.attachments.store.OwnedTemporary.publish_no_replace",
             autospec=True,
@@ -132,7 +136,7 @@ class AttachmentPublicationFinalizationTests(unittest.TestCase):
         ), patch(
             "code_agent.attachments.store.OwnedTemporary.cleanup",
             autospec=True,
-            side_effect=PermissionError("pending file is locked"),
+            side_effect=fail_cleanup,
         ), self.assertRaises(AttachmentCommittedError) as raised:
             store.put(
                 self.payload,

@@ -83,6 +83,30 @@ class ForegroundTaskControllerTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(task.contract.authorization.allow_workspace_write)
             self.assertFalse(task.contract.authorization.allow_local_execute)
 
+    async def test_auto_mode_freezes_an_inferred_durable_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = SQLiteSessionRepository(root / "sessions.sqlite3")
+            controller = ForegroundTaskController(
+                AgentController(_IdleRunner()),
+                repository,
+                root,
+                task_mode_supplier=lambda: "auto",
+            )
+
+            read_only = await controller.start("请只回复：你好")
+            self.assertEqual(read_only.contract.interaction_mode, "ask")
+            self.assertEqual(read_only.contract.intent.value, "analyze")
+            self.assertFalse(read_only.contract.authorization.allow_workspace_write)
+            self.assertFalse(read_only.contract.authorization.allow_local_execute)
+
+            await repository.transition_task(read_only.id, TaskStatus.RUNNING)
+            await repository.transition_task(read_only.id, TaskStatus.FAILED)
+            modify = await controller.start("修改 README.md，增加安装说明")
+            self.assertEqual(modify.contract.interaction_mode, "code")
+            self.assertEqual(modify.contract.intent.value, "modify")
+            self.assertTrue(modify.contract.authorization.allow_workspace_write)
+
     async def test_task_freezes_full_runtime_selection_and_resolves_it_on_resume(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

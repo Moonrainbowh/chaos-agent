@@ -25,7 +25,11 @@ class OwnedTemporary:
     _anchor: BinaryIO | None = field(default=None, repr=False, compare=False)
 
     def __del__(self) -> None:
-        if self._anchor is not None:
+        self.close()
+
+    def close(self) -> None:
+        """Release the retained POSIX descriptor without touching its path."""
+        if self._anchor is not None and not self._anchor.closed:
             self._anchor.close()
 
     @classmethod
@@ -78,8 +82,7 @@ class OwnedTemporary:
                 )
             self.path.unlink()
         finally:
-            if self._anchor is not None:
-                self._anchor.close()
+            self.close()
 
     def publish_no_replace(
         self,

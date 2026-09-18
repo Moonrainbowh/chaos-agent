@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import tempfile
 import unittest
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from types import SimpleNamespace
 
 from code_agent.core.attachments import AttachmentRef
@@ -25,12 +25,17 @@ def _image_ref(name: str = "screen.png") -> AttachmentRef:
     return AttachmentRef("b" * 64, "image/png", 16, name, 2, 3)
 
 
+def _display_name(path: str) -> str:
+    windows = PureWindowsPath(path)
+    return windows.name if windows.is_absolute() else Path(path).name
+
+
 class _Ingestor:
     def ingest_paths(
         self, paths: tuple[str, ...], *, explicit_external: bool
     ) -> tuple[AttachmentRef, ...]:
         assert explicit_external
-        return tuple(_text_ref(Path(path).name) for path in paths)
+        return tuple(_text_ref(_display_name(path)) for path in paths)
 
     def ingest_clipboard(self) -> AttachmentRef:
         return _image_ref()

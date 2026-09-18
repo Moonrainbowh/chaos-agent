@@ -43,6 +43,10 @@ output_cost_per_million = 1.6
         profile = runtime.profiles[0]
         self.assertEqual(profile.input_cost_per_million, 0.4)
         self.assertEqual(profile.output_cost_per_million, 1.6)
+        self.assertEqual(
+            (profile.max_agent_rounds, profile.max_tool_calls, profile.max_tool_calls_per_round),
+            (50, 128, 50),
+        )
 
     def test_prefers_chaos_configuration_and_falls_back_to_legacy_directory(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

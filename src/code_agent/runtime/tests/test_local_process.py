@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 import unittest
 from pathlib import Path
@@ -27,6 +28,7 @@ from code_agent.runtime.tests._local_test_support import (  # noqa: E402
 )
 
 
+@unittest.skipUnless(os.name == "nt", "Windows process tests require Windows")
 class WindowsLocalProcessTests(LocalRuntimeTestCase):
     async def test_create_suspended_blocks_marker_until_identity_resume(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

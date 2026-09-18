@@ -88,7 +88,10 @@ class _ApplicationComposer:
         self.restore_model_selection = restore_model_selection
         self.workspace_storage_root = _workspace_storage_path()
         self.runtime_config = load_runtime_config(cli_profile=profile_name)
-        self.powershell = resolved_powershell_runtime(self.runtime_config.powershell_dialect)
+        self.powershell = (
+            resolved_powershell_runtime(self.runtime_config.powershell_dialect)
+            if os.name == "nt" else None
+        )
         guard = WorkspacePathGuard(
             self.root,
             allow_sensitive=self.runtime_config.allow_sensitive_paths,

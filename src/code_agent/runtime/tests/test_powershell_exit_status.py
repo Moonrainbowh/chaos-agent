@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sys
 import tempfile
 import unittest
@@ -15,6 +16,7 @@ from code_agent.runtime.local import WindowsLocalRuntime
 from code_agent.runtime.models import CommandResult, CommandSpec, TerminationReason
 
 
+@unittest.skipUnless(os.name == "nt", "PowerShell exit-status tests require Windows")
 class PowerShellExitStatusTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()

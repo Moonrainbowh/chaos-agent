@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -133,6 +134,8 @@ class StructuredProcessTests(unittest.IsolatedAsyncioTestCase):
         runtime.run.assert_not_awaited()
 
     async def test_literal_metacharacters_survive_real_windows_process(self) -> None:
+        if os.name != "nt":
+            self.skipTest("real Windows process behavior requires Windows")
         runtime = WindowsLocalRuntime(self.root)
         literal = "two words & | ; $() %PATH%"
         script = "import json,sys; print(json.dumps(sys.argv[1:]))"

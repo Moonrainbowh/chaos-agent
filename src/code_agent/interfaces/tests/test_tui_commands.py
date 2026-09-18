@@ -157,7 +157,7 @@ class TuiCommandTests(unittest.TestCase):
             ("list", "create"),
         )
 
-    def test_mode_declares_three_task_behavior_actions(self) -> None:
+    def test_mode_declares_automatic_and_explicit_task_behavior_actions(self) -> None:
         mode = REGISTRY.resolve("mode")
 
         self.assertEqual(
@@ -166,8 +166,9 @@ class TuiCommandTests(unittest.TestCase):
                 for action in mode.actions
                 if action.visibility.value == "primary"
             ),
-            ("ask", "code", "plan"),
+            ("auto", "ask", "code", "plan"),
         )
+        self.assertEqual(parse_tui_command("/mode auto").command.action, "auto")
         self.assertEqual(
             parse_tui_command("/mode ask").command.action,
             "ask",

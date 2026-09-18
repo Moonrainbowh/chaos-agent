@@ -59,6 +59,9 @@ class AgentEngineConvergenceMixin:
         yield warning
         async for event in self._flush_runtime_notices(state):
             yield event
+        if observation.kind == "finalize" and state.task is not None:
+            async for event in self._finish_task_without_calls(state, turn):
+                yield event
 
     async def _reject_summary_tool_calls(
         self, state: _RunState, turn: _TurnState

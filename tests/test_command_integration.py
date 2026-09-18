@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import tempfile
@@ -282,10 +283,12 @@ class CapabilityTests(unittest.TestCase):
         plain = windows_system_prompt(False)
         repository = windows_system_prompt(True)
 
-        self.assertIn("PowerShell runtime information is unavailable", plain)
+        expected_shell = "PowerShell runtime information is unavailable" if os.name == "nt" else "POSIX sh syntax"
+        self.assertIn(expected_shell, plain)
         self.assertIn("run_process_v1", plain)
-        self.assertIn("readable Markdown", plain)
-        self.assertIn("**bold emphasis**", plain)
+        if os.name == "nt":
+            self.assertIn("readable Markdown", plain)
+            self.assertIn("**bold emphasis**", plain)
         self.assertIn("not a Git repository", plain)
         self.assertIn("Git repository", repository)
 

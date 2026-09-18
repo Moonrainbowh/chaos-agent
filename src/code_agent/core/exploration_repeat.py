@@ -28,13 +28,14 @@ class ToolOnlyObservation:
 
 
 class ToolOnlyConvergenceGuard:
-    """Request an evidence checkpoint during extended tool-only exploration.
+    """Converge extended tool-only exploration using durable task evidence.
 
     This guard intentionally observes turn shape, not fuzzy result similarity.
     It is not a proof of a loop: a multi-step read-only investigation can need
     several distinct tools. Exact repeated reads remain the separate hard-stop
-    signal; this guard only asks the model to state what it has learned and
-    constrain any further evidence gathering.
+    signal. At the final threshold the engine stops requesting more model
+    actions and resolves the task from its actual workspace and verification
+    evidence instead of spending the global budget on another open-ended loop.
     """
 
     def __init__(self, *, warn_at: int = 3, force_at: int = 5) -> None:
@@ -55,10 +56,10 @@ class ToolOnlyConvergenceGuard:
         self._count += 1
         if self._count == self.force_at:
             return ToolOnlyObservation(
-                "replan",
+                "finalize",
                 "task produced no answer text or edit/verification progress for "
-                f"{self._count} consecutive tool-only turns; state the evidence "
-                "and remaining gap before any further targeted tool calls",
+                f"{self._count} consecutive tool-only turns; resolve from the "
+                "current evidence instead of continuing broad exploration",
                 self._count,
             )
         if self._count == self.warn_at:

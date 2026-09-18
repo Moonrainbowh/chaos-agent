@@ -1,6 +1,6 @@
 # Chaos Agent
 
-`Chaos Agent` is a Windows-first, open-source coding agent with a shared headless core, an append-only Windows Terminal UI, and non-interactive CLI/JSON modes.
+`Chaos Agent` is an open-source, terminal-focused coding agent with a shared headless core, an append-only terminal UI, and non-interactive CLI/JSON modes.
 
 The core takes architectural lessons from projects such as uv-agent, Aider, Cline, OpenCode, mini-swe-agent, OpenHands, and Goose. Provider authentication and selected protocol adapters include MIT-licensed work adapted from URI Agent; see [third-party notices](THIRD_PARTY_NOTICES.md).
 
@@ -13,8 +13,15 @@ The core takes architectural lessons from projects such as uv-agent, Aider, Clin
 - Runs bounded advisory Subagent, Oracle, Review, Search, and Librarian children through the same typed tools, policy checks, cancellation tree, and cumulative parent budget.
 - Loads trusted declarative plugins without executing plugin Python, shell, URLs, or terminal control sequences. Tools, namespaced commands and modes, custom Agents, typed events, and Host-owned interactions are wired through bounded controllers and policy checks.
 - Uses a configurable `legacy` / `hybrid` / `progressive` tool-capability strategy. The recommended `hybrid` default preloads common built-in reads while progressively disclosing long-tail, plugin, and MCP schemas.
-- Routes file reads, edits, Git inspection, structured local verification, and PowerShell commands through typed tools, central policy checks, audit events, and explicit approval.
-- Provides a Windows Terminal TUI (`chaos-agent`), a text CLI (`chaos-agent ask`), session resume (`chaos-agent resume`), machine-readable events (`chaos-agent run --json`), and an ACP v1 editor adapter (`chaos-agent-acp`). The legacy `agent` command remains available during migration.
+- Routes file reads, edits, Git inspection, structured local verification, and platform-native shell commands through typed tools, central policy checks, audit events, and explicit approval.
+- Provides a terminal TUI (`chaos-agent`), a text CLI (`chaos-agent ask`), session resume (`chaos-agent resume`), machine-readable events (`chaos-agent run --json`), and an ACP v1 editor adapter (`chaos-agent-acp`). The legacy `agent` command remains available during migration.
+
+### Platform support
+
+The shared model, session, workspace-file, Git, CLI, and terminal-input paths run on Windows and Linux. The default TUI uses **Auto** mode: it freezes read-only prompts as Ask tasks and modification requests as Code tasks. Use `:mode ask`, `:mode plan`, or `:mode code` when an explicit contract is preferred.
+
+Windows uses Job Objects for process-tree control. Linux uses a dedicated POSIX process group for local commands, cancellation, timeouts, and output limits; it is exercised for TUI, provider, file-edit, and command flows. macOS uses the same POSIX path and runs the same automated suite in CI, but has
+not yet received equivalent manual end-to-end validation. Neither local runtime is an OS-level sandbox, and the project deliberately reports these capability differences rather than silently treating one platform as another.
 
 ## Install
 
@@ -29,12 +36,19 @@ python -m pip install -e .
 python scripts\run_tests.py
 ```
 
-The full runner discovers every `src\code_agent\<feature>\tests` directory and
+On Linux and macOS the same commands use forward slashes:
+
+```sh
+python -m pip install -e .
+python scripts/run_tests.py
+```
+
+The full runner discovers every `src/code_agent/<feature>/tests` directory and
 then runs the root integration suite. Use the Feature-specific `unittest
 discover` command only for a focused edit; release and CI validation use the
-full runner. Windows CI and release validation therefore cannot omit newly
-added Features silently; the portable non-Windows job remains a smaller smoke
-subset.
+full runner. CI runs that same full runner on both matrices — Windows Python
+3.10/3.13 and portable Ubuntu Python 3.10/3.13 plus macOS Python 3.13 — so
+newly added Features cannot be dropped silently on either platform.
 
 ### Windows long paths
 
@@ -74,7 +88,9 @@ platforms and ordinary API Key providers. `auth status` shows saved login state;
 use user-scoped DPAPI. OAuth and API Key credentials can coexist for one platform;
 `auth configure ... --auth oauth|api_key` chooses which the profile uses.
 
-Create `%LOCALAPPDATA%\chaos-agent\config.toml` to configure a provider once for the current Windows user. An existing `%LOCALAPPDATA%\code-agent\config.toml` is read when the new file is absent:
+Create the platform-local `chaos-agent/config.toml` shown by a configuration
+error to configure a provider. Use an environment variable or OAuth by default;
+do not put API keys in a project file or commit them to source control:
 
 ```toml
 [default]
@@ -84,9 +100,14 @@ provider = "openai"
 api = "responses"
 base_url = "https://api.openai.com"
 model = "gpt-4.1-mini"
-api_key = "replace-with-your-key"
+api_key_env = "OPENAI_API_KEY"
 context_window = 128000
 max_output_tokens = 16384
+# Optional hard safety ceilings. The engine normally converges earlier from
+# task evidence; change these only to constrain unusually costly tasks.
+# max_agent_rounds = 50
+# max_tool_calls = 128
+# max_tool_calls_per_round = 50
 # Optional USD rates used by /cost. Configure both or neither.
 input_cost_per_million = 0.40
 output_cost_per_million = 1.60
@@ -105,7 +126,7 @@ capability_strategy = "hybrid"
 # allow_sensitive_paths = true
 ```
 
-Every configured `[providers.<name>]` profile must declare `api`, `base_url`, `model`, one authentication source (`api_key`, `api_key_env`, or `auth` with `provider_id`), `context_window`, and `max_output_tokens`. Optional `input_cost_per_million` and `output_cost_per_million` rates must be configured together; `/cost` always reports durable task tokens and adds an estimated USD breakdown only when those rates exist. Use `chaos-agent --profile <name>` or `CHAOS_PROFILE` to choose one; `CHAOS_CONFIG` may select another absolute config path. `CHAOS_API`, `CHAOS_BASE_URL`, `CHAOS_MODEL`, and `CHAOS_API_KEY_ENV` override only the selected profile; a key override cannot replace stored authentication. Legacy `CODE_AGENT_*` names remain fallback aliases during migration.
+Every configured `[providers.<name>]` profile must declare `api`, `base_url`, `model`, one authentication source (`api_key`, `api_key_env`, or `auth` with `provider_id`), `context_window`, and `max_output_tokens`. Prefer `api_key_env` or OAuth; literal `api_key` remains only for compatibility and can expose a secret through backups or accidental commits. Optional `input_cost_per_million` and `output_cost_per_million` rates must be configured together; `/cost` always reports durable task tokens and adds an estimated USD breakdown only when those rates exist. Use `chaos-agent --profile <name>` or `CHAOS_PROFILE` to choose one; `CHAOS_CONFIG` may select another absolute config path. `CHAOS_API`, `CHAOS_BASE_URL`, `CHAOS_MODEL`, and `CHAOS_API_KEY_ENV` override only the selected profile; a key override cannot replace stored authentication. Legacy `CODE_AGENT_*` names remain fallback aliases during migration.
 
 `[agent].powershell_dialect` accepts `powershell_7` or
 `windows_powershell_5_1`; omit it (or set `auto`) for the migration default.
@@ -159,11 +180,13 @@ animation stay active and Esc cancels preparation. A completed task clears
 the busy/queue indicator; a task lacking verification evidence shows
 `Waiting for decision` with the missing evidence instead of staying busy.
 
-`/mode ask|code|plan` controls the next task contract: `ask` and
-`plan` disable workspace writes and local execution, while `code` remains
-governed by `/permission auto|plan|ask|unrestricted`. `/compact` persists a
+`/mode auto|ask|code|plan` controls the next task contract. `auto` (the
+default) classifies the next prompt and freezes either an `ask` or `code`
+contract; it never persists an ambiguous `auto` task. `ask` and `plan` disable
+workspace writes and local execution, while `code` remains governed by
+`/permission auto|plan|ask|unrestricted`. `/compact` persists a
 traceable semantic checkpoint when enough closed history exists; `/doctor`
-runs bounded PowerShell, Git, workspace, path-policy, and provider TCP checks.
+runs bounded platform-native shell, Git, workspace, path-policy, and provider TCP checks.
 `/map` is the user-facing Unified Semantic Graph surface. Its secondary menu
 provides `overview`, `context`, `impact`, `tests`, `risk`, `review`, `refactor`,
 `locate`, and `dead-code`; every report shows the semantic generation and keeps
@@ -443,6 +466,12 @@ policy risks together.
 
 ## Safety Defaults
 
+The defaults below are written from the Windows runtime and also apply on Linux
+and macOS, with two mechanics differences: `run_command` carries a `posix_sh`
+script executed as `/bin/sh -lc` instead of the frozen PowerShell dialect, and
+process-tree control uses the dedicated POSIX process group. Statements about
+"the current Windows user" mean the local account that runs the agent.
+
 - `CHAOS_APPROVAL_MODE=auto` is the default. Once the current workspace is selected, ordinary workspace reads, writes, non-critical local commands, and structured verification run without per-action approval. Network access, protected paths, and paths outside that workspace still require approval; unknown and critical actions remain denied.
 - Use `:权限` (or the compatible `/权限` and English `permission` alias) while idle to select `unrestricted`, `plan`, `ask`, `auto`, `elevated`, or `full-local` for subsequent tasks. The same values are accepted by `[agent].approval_mode` and `CHAOS_APPROVAL_MODE`.
 - Use `/权限 允许命令 [--network] <program> [args...]` to persist one exact `run_process_v1` rule for the current workspace. `/权限 规则` lists these rules and `/权限 撤销 <id-prefix>` removes one. A rule binds the resolved executable, complete argument list, workspace identity, descendant cwd scope, and network declaration; it never grants raw PowerShell.
@@ -457,7 +486,9 @@ policy risks together.
 - The local runtime is controlled process execution, not an OS-level sandbox. Typed verification executes user-authorized project code under the current Windows user and therefore does not isolate that code's indirect filesystem or network effects. Docker is optional and uses no network and no image pulls.
 - On Windows 10/11, each local command gets an anonymous Job Object configured with `KILL_ON_JOB_CLOSE`. The root process is created suspended, identity-bound, assigned to the Job, and only then resumed. Timeout, cancellation, and output-limit termination target the Job first; assignment or Job API failures are reported instead of silently running without containment. The runtime waits for Job accounting to reach zero, closes the Job, and requires both pipe readers to reach EOF before returning; ordinary inherited children left after a normal root exit are terminated during the same finalization. This process ownership boundary is not an OS sandbox and does not claim to contain service-mediated or explicit breakaway execution.
 
-Sessions are stored at `%LOCALAPPDATA%\chaos-agent\sessions.sqlite3` by default. When that target is absent and the legacy `%LOCALAPPDATA%\code-agent\sessions.sqlite3` exists, Chaos Agent uses SQLite backup into a temporary target, checks integrity and key counts, then atomically publishes the copy while retaining the legacy database.
+Sessions are stored at `%LOCALAPPDATA%\chaos-agent\sessions.sqlite3` by default;
+when `LOCALAPPDATA` is unset (the usual case on Linux and macOS), the same path
+is derived under `~/AppData/Local`. When that target is absent and the legacy `%LOCALAPPDATA%\code-agent\sessions.sqlite3` exists, Chaos Agent uses SQLite backup into a temporary target, checks integrity and key counts, then atomically publishes the copy while retaining the legacy database.
 
 ## Replay Evaluation
 
@@ -651,7 +682,10 @@ observations; Workflow edges never grant thread access.
 
 ## Development Status
 
-The first release targets Windows 10/11. The core protocol and adapters are portable, while Linux/macOS end-to-end terminal/runtime support remains future work.
+Windows 10/11 is the primary and best-validated target. The core protocol and
+adapters are portable and also run on Linux and macOS, but Linux/macOS end-to-end
+terminal/runtime support is newer, exercised mainly through the automated suites,
+and has not received equivalent manual validation.
 
 ## License And Acknowledgements
 

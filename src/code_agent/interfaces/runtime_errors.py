@@ -1,6 +1,10 @@
 """Bound failure messages before they enter the managed terminal transcript."""
 from __future__ import annotations
 
+import sqlite3
+
+from code_agent.sessions.errors import SessionStorageError
+
 
 def runtime_error_summary(error: BaseException) -> str:
     """Keep HTTP status across wrapped errors without rendering upstream bodies."""
@@ -8,6 +12,8 @@ def runtime_error_summary(error: BaseException) -> str:
     seen: set[int] = set()
     while cause is not None and id(cause) not in seen and len(seen) < 8:
         seen.add(id(cause))
+        if isinstance(cause, SessionStorageError):
+            return _session_storage_summary(cause)
         status = getattr(cause, "status", None)
         if type(status) is int and 100 <= status <= 599:
             return f"Model request failed (HTTP {status}). Retry the request."
@@ -24,6 +30,17 @@ def runtime_error_summary(error: BaseException) -> str:
     if "<html" in message.lower() or "<!doctype" in message.lower():
         message = "Request failed; upstream returned an HTML error page."
     return f"{type(error).__name__}: {message[:240]}"
+
+
+def _session_storage_summary(error: SessionStorageError) -> str:
+    """Give a safe recovery action without exposing SQLite paths or SQL."""
+    cause = error.__cause__
+    if isinstance(cause, sqlite3.OperationalError):
+        if "locked" in str(cause).casefold() or "busy" in str(cause).casefold():
+            return "Session database is busy. Close other Chaos Agent sessions, then retry."
+    if isinstance(cause, sqlite3.IntegrityError):
+        return "Session data conflicts with an existing record. Start a new task or retry."
+    return "Session storage failed. Restart Chaos Agent, then retry the task."
 
 
 def explain_runtime_error(

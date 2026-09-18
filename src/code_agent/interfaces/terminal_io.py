@@ -9,6 +9,7 @@ import os
 from .terminal_win32_input import Win32Input
 from .input_events import MAX_PASTE_BYTES
 from .console_shortcuts import read_character, _consume_shortcut
+from .posix_terminal_io import read_key as read_posix_key
 
 from .terminal_renderer import ColorMode, Theme, render_entries, render_live_tail
 from .terminal_state import TerminalState
@@ -50,7 +51,25 @@ def capture_ctrl_c_as_input() -> Callable[[], None]:
     has enabled bracketed paste. Keep native shortcuts and restore all flags.
     """
     if os.name != "nt":
-        return _noop
+        if not sys.stdin.isatty():
+            return _noop
+        try:
+            import termios
+            import tty
+
+            descriptor = sys.stdin.fileno()
+            original = termios.tcgetattr(descriptor)
+            tty.setraw(descriptor)
+        except (OSError, ValueError):
+            return _noop
+
+        def restore() -> None:
+            try:
+                termios.tcsetattr(descriptor, termios.TCSADRAIN, original)
+            except OSError:
+                pass
+
+        return restore
     try:
         import ctypes
         from ctypes import wintypes
@@ -126,6 +145,8 @@ def _available(console, timeout=.02):
 
 def read_key(*, timeout: float | None = None) -> str | None:
     """Keep framed paste atomic even when the console delivers its marker in chunks."""
+    if os.name != "nt" and "msvcrt" not in sys.modules:
+        return read_posix_key(timeout=timeout)
     import msvcrt
     global _console, _decoded_console
     if _console is not msvcrt:

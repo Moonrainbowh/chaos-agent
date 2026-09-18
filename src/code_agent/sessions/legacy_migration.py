@@ -143,6 +143,8 @@ def _create_temporary(destination: Path) -> OwnedTemporary:
     try:
         cleanup = OwnedTemporary.capture_cleanup_descriptor(Path(name), descriptor)
         temporary = OwnedTemporary.capture_descriptor(Path(name), descriptor)
+        cleanup.close()
+        cleanup = None
     except BaseException as error:
         failure = error
     try:

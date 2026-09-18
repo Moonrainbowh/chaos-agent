@@ -31,6 +31,7 @@ from code_agent.runtime.tests._local_test_support import (  # noqa: E402
 from code_agent.workspace.errors import PathOutsideWorkspace  # noqa: E402
 
 
+@unittest.skipUnless(os.name == "nt", "Windows local runtime tests require Windows")
 class WindowsLocalRuntimeTests(LocalRuntimeTestCase):
 
     async def test_argv_streams_both_pipes_and_reports_exit(self) -> None:

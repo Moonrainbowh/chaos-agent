@@ -25,7 +25,7 @@ async def serve(options):
                     value = await runtime.stats()
                 elif action == "stage":
                     stage = command["stage"]
-                    if stage not in (1, 2, 3, 4):
+                    if stage not in (1, 2, 3, 4, 5):
                         raise ValueError("invalid stage")
                     runtime.dispatcher.stage = stage
                     value = {"stage": stage}

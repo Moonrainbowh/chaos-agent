@@ -62,6 +62,20 @@ class CliFailureTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Usage: chaos-agent", stdout.getvalue())
         self.assertIn("chaos-agent 1.2.3", stdout.getvalue())
 
+    async def test_subcommand_help_is_available_before_application_startup(self) -> None:
+        stdout = StringIO()
+
+        with patch("code_agent_win.cli.create_application") as create, patch(
+            "sys.stdout", stdout
+        ):
+            for command in (("ask", "--help"), ("run", "--help"), ("resume", "--help"), ("task", "--help")):
+                with self.subTest(command=command):
+                    self.assertEqual(await run(command), 0)
+
+        create.assert_not_called()
+        self.assertIn("ask <prompt>", stdout.getvalue())
+        self.assertIn("run --json <prompt>", stdout.getvalue())
+
     async def test_configuration_error_explains_the_next_action(self) -> None:
         stderr = StringIO()
 

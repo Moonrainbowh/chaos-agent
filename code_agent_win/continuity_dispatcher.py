@@ -40,10 +40,10 @@ class ContinuityDispatcher(ExperimentDispatcher):
         started = time.monotonic()
         rejection = None
         if request.name in ("write_file", "replace_text"):
-            rejection = ("diagnosis-read-only" if self.stage in (1, 3) else
+            rejection = ("diagnosis-read-only" if self.stage in (1, 3, 5) else
                          "protected-path" if not self._writable(request) else None)
         if rejection:
-            message = ("Diagnosis stage: workspace edits are disabled; inspect and plan the pending repair."
+            message = ("This stage is read-only; inspect, plan, or verify without editing the workspace."
                        if rejection == "diagnosis-read-only" else "Only batch.py and new tests may change.")
             result = ActionResult(request.id, request.name, message, True)
         elif request.name == "run_verification":

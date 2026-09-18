@@ -12,9 +12,9 @@ _GREETINGS = frozenset({
 })
 _READ_PREFIXES = (
     "explain ", "why ", "what is ", "how does ", "analyze ", "read ",
-    "what ", "where ", "which ", "can ", "解释", "分析", "为什么",
+    "what ", "where ", "which ", "can ", "reply ", "answer ", "解释", "分析", "为什么",
     "什么是", "这是什么", "这个是什么", "有没有", "是否有", "能否找到",
-    "请问", "哪里有", "描述", "识别", "总结", "概括",
+    "请问", "请只回复", "哪里有", "描述", "识别", "总结", "概括", "回复", "只回复",
 )
 _READ_PHRASES = (
     "什么意思", "是什么意思", "是什么内容", "包含什么", "有什么内容",

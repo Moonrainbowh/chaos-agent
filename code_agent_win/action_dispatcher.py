@@ -13,7 +13,6 @@ from code_agent.interfaces.approval import ApprovalBroker
 from code_agent.mcp.registry import McpController
 from code_agent.policy.engine import ActionPolicy
 from code_agent.policy.command_rules import ProcessRuleMatch, ProcessRuleStore
-from code_agent.runtime.local import WindowsLocalRuntime
 from code_agent.verification.local_adapter import LocalVerificationAdapter
 from code_agent.workspace.edits import WorkspaceEditor
 from code_agent.workspace.files import WorkspaceFiles
@@ -63,7 +62,7 @@ class RootActionDispatcher:
         approvals: ApprovalBroker,
         *,
         git: GitWorkspace | None = None,
-        runtime: WindowsLocalRuntime | None = None,
+        runtime: object | None = None,
         verification: LocalVerificationAdapter | None = None,
         mcp: McpController | None = None,
         plugins: PluginToolBridge | None = None,
@@ -116,10 +115,13 @@ class RootActionDispatcher:
         self.interactive = False
 
     def tools(self) -> Sequence[ToolDefinition]:
-        powershell = self.runtime.powershell_info() if isinstance(self.runtime, WindowsLocalRuntime) else None
+        powershell_info = getattr(self.runtime, "powershell_info", None)
+        powershell = powershell_info() if callable(powershell_info) else None
+        shell_dialect = getattr(self.runtime, "shell_dialect", None)
         builtins = tool_definitions(
             include_git=self.git is not None,
             powershell=powershell,
+            shell_dialect=shell_dialect,
             include_web=self._web_access_enabled,
         )
         mcp = self.mcp.definitions() if self.mcp is not None else ()

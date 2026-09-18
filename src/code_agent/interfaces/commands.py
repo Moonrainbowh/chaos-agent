@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import shutil
 from collections.abc import AsyncIterator, Callable, Sequence
 from dataclasses import dataclass
@@ -94,11 +95,17 @@ async def execute_command(
             write,
         )
         return 0
-    if command.kind is CommandKind.RUN_JSON:
-        async for line in controller.run_json(
-            _required_prompt(command), attachments=attachments
-        ):
-            write(line + "\n")
+    if command.kind in {CommandKind.ASK, CommandKind.RUN_JSON}:
+        if tasks is None:
+            raise ValueError("task controls are unavailable")
+        task = await tasks.start(_required_prompt(command))
+        events = tasks.events(
+            task.id, _required_prompt(command), attachments=attachments
+        )
+        if command.kind is CommandKind.RUN_JSON:
+            await _write_json_events(events, write)
+        else:
+            await _write_rendered_events(events, write)
         return 0
     if command.kind is CommandKind.RESUME:
         resume_thread = getattr(tasks, "resume_thread", None) if tasks else None
@@ -116,7 +123,7 @@ async def execute_command(
             )
         )
     else:
-        events = controller.ask(_required_prompt(command), attachments=attachments)
+        raise AssertionError(f"unhandled command kind: {command.kind}")
     await _write_rendered_events(events, write)
     return 0
 
@@ -150,3 +157,16 @@ async def _write_rendered_events(
         )
         if rendered:
             write(rendered + "\n")
+
+
+async def _write_json_events(
+    events: AsyncIterator[AgentEvent], write: Callable[[str], object]
+) -> None:
+    async for event in events:
+        write(
+            json.dumps(
+                event.to_dict(), ensure_ascii=False, sort_keys=True,
+                separators=(",", ":"),
+            )
+            + "\n"
+        )

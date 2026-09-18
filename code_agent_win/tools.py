@@ -6,7 +6,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import PureWindowsPath
 
 from code_agent.core.models import ToolDefinition
-from code_agent.runtime.models import PowerShellRuntimeInfo
+from code_agent.runtime.models import PowerShellRuntimeInfo, ShellDialect
 from code_agent.runtime.output_codec import OutputEncoding
 from code_agent_win.edit_plan_tools import (
     EDIT_PLAN_TOOL_DEFINITIONS,
@@ -247,6 +247,7 @@ def tool_definitions(
     *,
     include_git: bool = True,
     powershell: PowerShellRuntimeInfo | None = None,
+    shell_dialect: ShellDialect | None = None,
     include_web: bool = False,
 ) -> tuple[ToolDefinition, ...]:
     """Return provider-facing definitions for explicitly available capabilities."""
@@ -260,6 +261,8 @@ def tool_definitions(
         definitions = tuple(
             _powershell_tool(tool, powershell) for tool in definitions
         )
+    elif shell_dialect is ShellDialect.POSIX_SH:
+        definitions = tuple(_posix_tool(tool) for tool in definitions)
     if include_git:
         return definitions
     return tuple(tool for tool in definitions if tool.name not in _GIT_TOOLS)
@@ -275,6 +278,17 @@ def _powershell_tool(
         f"Run an approved {powershell.prompt_summary} script. Use only this "
         "dialect; errors stop by default, explicit recovery remains under "
         "script control; pipe stdin explicitly and never use Bash <<< syntax.",
+        tool.parameters,
+    )
+
+
+def _posix_tool(tool: ToolDefinition) -> ToolDefinition:
+    if tool.name != "run_command":
+        return tool
+    return ToolDefinition(
+        tool.name,
+        "Run an approved POSIX sh script. Use POSIX shell syntax; errors must "
+        "be handled explicitly, and shell execution remains policy-governed.",
         tool.parameters,
     )
 

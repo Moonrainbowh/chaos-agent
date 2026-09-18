@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 
 _MODES = {
+    "auto": "Agent chooses a read-only or programming contract from the next prompt.",
     "ask": "Pure Q&A. Workspace writes and local execution are disabled.",
     "code": "Programming mode. Tools remain governed by the permission policy.",
     "plan": "Read-only planning. Workspace writes and local execution are disabled.",
@@ -17,9 +18,9 @@ class TaskModeSummary:
 
 
 class TaskModeControl:
-    """Own the interaction contract applied to newly created tasks."""
+    """Own the selection policy used to freeze newly created task contracts."""
 
-    def __init__(self, initial: str = "code") -> None:
+    def __init__(self, initial: str = "auto") -> None:
         self._current = self._resolve(initial)
 
     @property
@@ -38,9 +39,9 @@ class TaskModeControl:
     @staticmethod
     def _resolve(name: str) -> TaskModeSummary:
         if not isinstance(name, str) or not name.strip():
-            raise ValueError("task mode must be ask, code, or plan")
+            raise ValueError("task mode must be auto, ask, code, or plan")
         normalized = name.casefold()
         try:
             return TaskModeSummary(normalized, _MODES[normalized])
         except KeyError:
-            raise ValueError("task mode must be ask, code, or plan") from None
+            raise ValueError("task mode must be auto, ask, code, or plan") from None

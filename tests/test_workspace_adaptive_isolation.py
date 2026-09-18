@@ -115,6 +115,25 @@ class LocalCheckpointTests(unittest.IsolatedAsyncioTestCase):
                 await application.tui.sessions.load_workspace_snapshot(created.id)
             await application.aclose()
 
+    async def test_new_local_task_after_a_paused_task_starts_without_lineage(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            _init_git_source(root)
+            application = _configured_application(root)
+
+            first = await application.foreground_tasks.start("first task")
+            await application.foreground_tasks.pause(first.id)
+
+            second = await application.foreground_tasks.start("second task")
+
+            with self.assertRaises(SessionNotFound):
+                await application.tui.sessions.load_lineage_for_task(second.id)
+            created = await _metadata_checkpoint(
+                application, second.id, "task-created"
+            )
+            self.assertEqual(created.metadata["task_id"], second.id)
+            await application.aclose()
+
     async def test_local_task_rewinds_the_source_workspace(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()

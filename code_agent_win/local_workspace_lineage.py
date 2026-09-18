@@ -15,9 +15,11 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import os
+import sqlite3
 import uuid
 from pathlib import Path
 
+from code_agent.sessions.errors import SessionStorageError
 from code_agent.sessions.workspace_models import WorkspaceLineageRecord
 from code_agent.workspace._git_worktrees import FixedGitWorktreeCommands
 from code_agent.workspace.errors import WorkspaceError
@@ -35,12 +37,32 @@ async def attach_local_lineage(
 
     Returns whether the task can write durable checkpoints. A root that cannot
     host a lineage keeps metadata-only checkpoints instead of losing the task.
+    A prior direct task reserves the same persistent worktree identity, so a
+    later task uses that metadata-only fallback rather than failing to start.
     """
     record = await asyncio.to_thread(build_local_lineage, root.resolve(), task_id)
     if record is None:
         return False
-    await sessions.create_lineage(record)
+    try:
+        await sessions.create_lineage(record)
+    except SessionStorageError as error:
+        if not _duplicate_worktree_root(error):
+            raise
+        return False
     return True
+
+
+def _duplicate_worktree_root(error: SessionStorageError) -> bool:
+    """Recognize only the expected unique-root conflict from SQLite.
+
+    Other storage failures (including a locked or unavailable database) must
+    remain visible to the caller instead of being treated as a harmless local
+    workspace limitation.
+    """
+    cause = error.__cause__
+    return isinstance(cause, sqlite3.IntegrityError) and (
+        getattr(cause, "sqlite_errorname", "") == "SQLITE_CONSTRAINT_UNIQUE"
+    )
 
 
 def build_local_lineage(

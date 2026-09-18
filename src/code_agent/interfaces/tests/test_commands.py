@@ -21,6 +21,24 @@ from code_agent.interfaces.controller import AgentController  # noqa: E402
 from code_agent.interfaces.tests._support import FakeEngine  # noqa: E402
 
 
+class _Tasks:
+    def __init__(self, events: tuple[AgentEvent, ...]) -> None:
+        self._events = events
+        self.started: list[str] = []
+        self.event_calls: list[tuple[str, str, tuple[AttachmentRef, ...]]] = []
+
+    async def start(self, prompt: str):
+        self.started.append(prompt)
+        return type("Task", (), {"id": "task-1"})()
+
+    async def events(
+        self, task_id: str, prompt: str, *, attachments: tuple[AttachmentRef, ...]
+    ):
+        self.event_calls.append((task_id, prompt, attachments))
+        for event in self._events:
+            yield event
+
+
 class CommandParsingTests(unittest.TestCase):
     def test_default_command_opens_tui(self) -> None:
         command = parse_command(())
@@ -61,15 +79,19 @@ class CommandExecutionTests(unittest.IsolatedAsyncioTestCase):
             {"event": ModelEvent(ModelEventKind.TEXT_DELTA, text="### Result\n\n**answer**").to_dict()},
         )
         output: list[str] = []
+        tasks = _Tasks((event, AgentEvent(EventKind.COMPLETED)))
 
         status = await execute_command(
             parse_command(("ask", "question")),
-            AgentController(FakeEngine((event, AgentEvent(EventKind.COMPLETED)))),
+            AgentController(FakeEngine(())),
             object(),  # type: ignore[arg-type]
             output.append,
+            tasks,
         )
 
         self.assertEqual(status, 0)
+        self.assertEqual(tasks.started, ["question"])
+        self.assertEqual(tasks.event_calls[0][:2], ("task-1", "question"))
         rendered = "".join(output)
         self.assertIn("Result", rendered)
         self.assertIn("answer", rendered)
@@ -77,19 +99,37 @@ class CommandExecutionTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("**", rendered)
 
     async def test_ask_forwards_cli_attachment_references(self) -> None:
-        engine = FakeEngine(())
         attachment = AttachmentRef("a" * 64, "text/plain", 4, "note.txt")
+        tasks = _Tasks(())
 
         status = await execute_command(
             parse_command(("ask", "inspect")),
-            AgentController(engine),
+            AgentController(FakeEngine(())),
             object(),  # type: ignore[arg-type]
             lambda _: None,
+            tasks,
             attachments=(attachment,),
         )
 
         self.assertEqual(status, 0)
-        self.assertEqual(engine.attachments, (attachment,))
+        self.assertEqual(tasks.event_calls[0][2], (attachment,))
+
+    async def test_json_run_uses_the_same_durable_task_event_stream(self) -> None:
+        event = AgentEvent(EventKind.TASK_STATUS_CHANGED, {"task_id": "task-1", "status": "running"})
+        tasks = _Tasks((event,))
+        output: list[str] = []
+
+        status = await execute_command(
+            parse_command(("run", "--json", "modify", "note")),
+            AgentController(FakeEngine(())),
+            object(),  # type: ignore[arg-type]
+            output.append,
+            tasks,
+        )
+
+        self.assertEqual(status, 0)
+        self.assertEqual(tasks.started, ["modify note"])
+        self.assertIn('"task_id":"task-1"', output[0])
 
 
 if __name__ == "__main__":

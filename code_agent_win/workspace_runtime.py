@@ -53,7 +53,7 @@ class ManagedWorkspaceRuntime:
         self.storage_root = canonical_storage
         self.snapshot_read_fallback_roots = tuple(snapshot_read_fallback_roots)
         self.allow_sensitive_paths = allow_sensitive_paths
-        self.powershell = powershell or PowerShellRuntimeResolver()
+        self.powershell = powershell
         worktrees_root.mkdir(parents=True, exist_ok=True)
         self._worktrees = WorktreeManager(worktrees_root)
         self._preparation = PreparedWorkspaceCoordinator(sessions, self._worktrees)
@@ -70,6 +70,8 @@ class ManagedWorkspaceRuntime:
         self._mutation_source_root: Path | None = None
 
     def powershell_info(self) -> PowerShellRuntimeInfo:
+        if self.powershell is None:
+            raise RuntimeError("PowerShell is unavailable on this platform")
         return self.powershell.resolve()
 
     async def prepare_task(self, source_root: Path, task_id: str) -> TaskWorkspace:

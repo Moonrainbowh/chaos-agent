@@ -106,6 +106,7 @@ class LegacyMigrationConcurrencyTests(unittest.TestCase):
             return SimpleNamespace(published=True, temporary_consumed=False)
 
         def fail_owned_cleanup(temporary: object) -> None:
+            temporary.close()  # type: ignore[attr-defined]
             raise PermissionError("migration temporary is locked")
 
         with patch(
@@ -133,6 +134,7 @@ class LegacyMigrationConcurrencyTests(unittest.TestCase):
             return SimpleNamespace(published=False, temporary_consumed=False)
 
         def fail_owned_cleanup(temporary: object) -> None:
+            temporary.close()  # type: ignore[attr-defined]
             raise PermissionError("migration temporary is locked")
 
         with patch(

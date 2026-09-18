@@ -46,6 +46,7 @@ class ContinuityV2HostTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(record["note_probe_lifecycle_passed"], record)
             self.assertEqual(record["full_chain_status"], "review-required")
             self.assertEqual(record["committed_windows"], 3)
+            self.assertEqual(record["model_turns"], 10)
             self.assertEqual(record["dimensions"]["constraint_attempt_count"], 0)
             self.assertEqual(record["dimensions"]["note_semantics"], "review-required")
             self.assertTrue(record["api_usage_is_scripted"])

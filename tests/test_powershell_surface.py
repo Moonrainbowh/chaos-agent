@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import contextlib
 import io
 import tempfile
@@ -61,6 +62,7 @@ def _mode_snapshot() -> object:
     )
 
 
+@unittest.skipUnless(os.name == "nt", "PowerShell surface is Windows-only")
 class PowerShellSurfaceTests(unittest.TestCase):
     def test_prompt_exposes_real_dialect_without_local_path(self) -> None:
         prompt = windows_system_prompt(True, _runtime_info())
@@ -95,6 +97,7 @@ class PowerShellSurfaceTests(unittest.TestCase):
         self.assertIn("auto_primary", view.lines()[-1])
 
 
+@unittest.skipUnless(os.name == "nt", "PowerShell TUI surface is Windows-only")
 class PowerShellCliTests(unittest.IsolatedAsyncioTestCase):
     async def test_primary_tui_capability_includes_windows_path_policy(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

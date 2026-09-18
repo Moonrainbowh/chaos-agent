@@ -18,6 +18,13 @@ class OfflineContinuityModel:
             from code_agent.evaluation.continuity_v2_fixture import GOLDEN_AFTER, GOLDEN_BEFORE
             GOLDEN = GOLDEN_AFTER if evolved else GOLDEN_BEFORE
         self.calls += 1
+        if "Verification stage:" in latest:
+            if "run_verification" in {tool.name for tool in tools}:
+                yield ModelEvent(ModelEventKind.TOOL_CALL,
+                                 tool_call=ToolCall(uuid.uuid4().hex, "run_verification", {}))
+            yield ModelEvent(ModelEventKind.USAGE, usage=Usage(input_tokens=500, output_tokens=40))
+            yield ModelEvent(ModelEventKind.COMPLETED)
+            return
         if self.calls % 2 == 0:
             yield ModelEvent(ModelEventKind.TEXT_DELTA, text="Scripted wiring stage complete.")
             yield ModelEvent(ModelEventKind.USAGE, usage=Usage(input_tokens=500, output_tokens=20))

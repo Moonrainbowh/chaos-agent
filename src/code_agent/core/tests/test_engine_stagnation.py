@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import unittest
 
+from code_agent.capabilities import CapabilityStrategy
 from code_agent.core.completion_contract import TaskIntent
 from code_agent.core.engine import AgentEngine, EngineLimits
 from code_agent.core.events import EventKind
@@ -48,7 +49,7 @@ class _TaskSession(MemorySessionRepository):
 
 
 class EngineStagnationTests(unittest.IsolatedAsyncioTestCase):
-    async def test_tool_only_investigation_gets_evidence_replan_without_losing_tools(self):
+    async def test_tool_only_investigation_resolves_from_evidence_before_budget_limit(self):
         streams = []
         for index in range(5):
             call = ToolCall("read-" + str(index), "read_file", {"path": f"file-{index}.txt"})
@@ -57,16 +58,6 @@ class EngineStagnationTests(unittest.IsolatedAsyncioTestCase):
                 events.append(ModelEvent(kind=ModelEventKind.USAGE, usage=Usage(8, 1)))
             events.append(ModelEvent(kind=ModelEventKind.COMPLETED))
             streams.append(tuple(events))
-        call = ToolCall("read-5", "read_file", {"path": "file-5.txt"})
-        streams.append((
-            ModelEvent(kind=ModelEventKind.TEXT_DELTA, text="Need one final comparison."),
-            ModelEvent(kind=ModelEventKind.TOOL_CALL, tool_call=call),
-            ModelEvent(kind=ModelEventKind.COMPLETED),
-        ))
-        streams.append((
-            ModelEvent(kind=ModelEventKind.TEXT_DELTA, text="summary"),
-            ModelEvent(kind=ModelEventKind.COMPLETED),
-        ))
         sessions = _TaskSession()
         thread_id = await sessions.create_thread()
         task = TaskRecord(
@@ -80,7 +71,7 @@ class EngineStagnationTests(unittest.IsolatedAsyncioTestCase):
         sessions.task = task
         actions = FakeActionDispatcher([
             ActionResult(f"read-{index}", "read_file", {"content": str(index)})
-            for index in range(6)
+            for index in range(5)
         ])
         model = FakeModelClient(tuple(streams))
         engine = AgentEngine(
@@ -93,10 +84,8 @@ class EngineStagnationTests(unittest.IsolatedAsyncioTestCase):
 
         events = [event async for event in engine.run("inspect", thread_id=thread_id, task=task)]
 
-        self.assertEqual(len(actions.requests), 6)
-        self.assertEqual(len(model.calls), 7)
-        self.assertTrue(model.calls[5][2])
-        self.assertEqual(model.calls[-1][2], ())
+        self.assertEqual(len(actions.requests), 5)
+        self.assertEqual(len(model.calls), 5)
         self.assertIn(EventKind.COMPLETED, [event.kind for event in events])
         self.assertTrue(any(
             event.kind is EventKind.TASK_BUDGET_WARNING
@@ -120,11 +109,11 @@ class EngineStagnationTests(unittest.IsolatedAsyncioTestCase):
             for message in model.calls[3][1]
         ))
         self.assertTrue(any(
-            message.role == "developer" and "state the evidence and remaining gap" in message.content
-            for message in model.calls[5][1]
+            message.role == "developer" and "resolve from the current evidence" in message.content
+            for message in sessions.messages[thread_id]
         ))
 
-    async def test_modify_task_tool_only_loop_gets_a_no_tool_replan_turn(self):
+    async def test_modify_task_tool_only_loop_requires_a_decision_before_budget_limit(self):
         streams = []
         for index in range(5):
             call = ToolCall("read-" + str(index), "read_file", {"path": f"file-{index}.txt"})
@@ -132,10 +121,6 @@ class EngineStagnationTests(unittest.IsolatedAsyncioTestCase):
                 ModelEvent(kind=ModelEventKind.TOOL_CALL, tool_call=call),
                 ModelEvent(kind=ModelEventKind.COMPLETED),
             ))
-        streams.append((
-            ModelEvent(kind=ModelEventKind.TEXT_DELTA, text="replan"),
-            ModelEvent(kind=ModelEventKind.COMPLETED),
-        ))
         sessions = _TaskSession()
         thread_id = await sessions.create_thread()
         task = TaskRecord(
@@ -157,12 +142,13 @@ class EngineStagnationTests(unittest.IsolatedAsyncioTestCase):
         events = [event async for event in engine.run("fix", thread_id=thread_id, task=task)]
 
         self.assertEqual(len(actions.requests), 5)
-        self.assertEqual(model.calls[-1][2], ())
+        self.assertEqual(len(model.calls), 5)
         self.assertTrue(any(
             event.kind is EventKind.TASK_BUDGET_WARNING
-            and event.payload.get("phase") == "replan"
+            and event.payload.get("phase") == "finalize"
             for event in events
         ))
+        self.assertIn(EventKind.TASK_DECISION_REQUIRED, [event.kind for event in events])
 
     async def test_engine_emits_context_model_and_action_timing_events(self):
         call = ToolCall("read-1", "read_file", {"path": "file.txt"})
@@ -225,7 +211,7 @@ class EngineStagnationTests(unittest.IsolatedAsyncioTestCase):
             for message in sessions.messages[thread_id]
         ))
 
-    async def test_final_turn_tool_call_is_rejected_without_dispatch(self):
+    async def test_tool_only_analysis_converges_before_the_final_budget_turn(self):
         streams = []
         for index in range(5):
             call = ToolCall("read-" + str(index), "read_file", {"path": f"file-{index}.txt"})
@@ -261,14 +247,43 @@ class EngineStagnationTests(unittest.IsolatedAsyncioTestCase):
         events = [event async for event in engine.run("inspect", thread_id=thread_id, task=task)]
 
         self.assertEqual(len(actions.requests), 5)
-        self.assertEqual(len(model.calls), 6)
-        self.assertIn(EventKind.TASK_PAUSED, [event.kind for event in events])
-        self.assertTrue(any(
+        self.assertEqual(len(model.calls), 5)
+        self.assertIn(EventKind.COMPLETED, [event.kind for event in events])
+        self.assertFalse(any(
             event.kind is EventKind.ACTION_COMPLETED
             and event.payload.get("result", {}).get("output", {}).get("error_code")
             == "summary_tool_call_rejected"
             for event in events
         ))
+
+    async def test_final_modify_turn_keeps_tools_for_the_last_action(self):
+        sessions = _TaskSession()
+        thread_id = await sessions.create_thread()
+        task = TaskRecord(
+            "modify-task", thread_id,
+            TaskContract("update README", TaskAuthorization.local_workspace("."), intent=TaskIntent.MODIFY),
+            status=TaskStatus.RUNNING,
+        )
+        sessions.task = task
+        model = FakeModelClient(((
+            ModelEvent(
+                kind=ModelEventKind.TOOL_CALL,
+                tool_call=ToolCall("last", "read_file", {"path": "README.md"}),
+            ),
+            ModelEvent(kind=ModelEventKind.COMPLETED),
+        ),))
+        actions = FakeActionDispatcher([ActionResult("last", "read_file", {"content": "ok"})])
+        engine = AgentEngine(
+            model, FakeContextBuilder(), actions, sessions,
+            limits=EngineLimits(max_agent_rounds=1),
+            capability_strategy=CapabilityStrategy.LEGACY,
+        )
+
+        events = [event async for event in engine.run("update README", thread_id=thread_id, task=task)]
+
+        self.assertEqual([request.id for request in actions.requests], ["last"])
+        self.assertTrue(model.calls[0][2])
+        self.assertNotIn(EventKind.TASK_PAUSED, [event.kind for event in events])
 
 
 if __name__ == "__main__":

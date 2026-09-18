@@ -108,8 +108,9 @@ def _mode_spec() -> CommandSpec:
     internal = CommandVisibility.INTERNAL
     return CommandSpec(
             "mode", ("模式",), "Configuration",
-            "Choose ask, code, or read-only plan behavior", "<action>",
+            "Choose automatic, Q&A, programming, or read-only planning behavior", "<action>",
             actions=(
+                CommandAction("auto", (), "Agent chooses the next task's read-only or programming contract", requires=task_modes),
                 CommandAction("ask", (), "Pure Q&A with a read-only task contract", requires=task_modes),
                 CommandAction("code", (), "Programming mode with permission-governed tools", requires=task_modes),
                 CommandAction("plan", (), "Read-only planning with no writes or local execution", requires=task_modes),

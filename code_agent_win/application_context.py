@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from dataclasses import replace
 from pathlib import Path
 
@@ -76,9 +77,10 @@ class RuntimeContextFactory:
         root: Path,
     ) -> object:
         guard, files, repo_index = self._workspace_parts(root)
+        powershell = self._powershell.resolve() if os.name == "nt" else None
         prompt = (
             windows_system_prompt(
-                self._git_available, self._powershell.resolve()
+                self._git_available, powershell
             )
             + "\n\n"
             + mode_prompt(mode)

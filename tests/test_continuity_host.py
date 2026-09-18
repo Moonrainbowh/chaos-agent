@@ -19,7 +19,7 @@ class ContinuityHostTests(unittest.IsolatedAsyncioTestCase):
             sessions = SQLiteSessionRepository(state / "sessions.sqlite3")
             thread = await sessions.create_thread()
             (state / "identity.json").write_text(json.dumps({"thread": thread}), encoding="utf-8")
-            await sessions.get_or_create_task_budget(thread, options.model, EngineLimits(20, 100, 12, 300000))
+            await sessions.get_or_create_task_budget(thread, options.model, EngineLimits(24, 100, 12, 300000))
             await sessions.reserve_task_budget(thread, model_turns=1)
             await sessions.reserve_context_call(thread, "interrupted-call", 1000, 300000, "main")
             stats = await durable_stats(state, options)

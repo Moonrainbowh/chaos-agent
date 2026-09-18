@@ -22,7 +22,7 @@ from code_agent.workspace.git import GitCommandError, GitWorkspace
 from code_agent.workspace.windows_paths import windows_path_support
 
 
-_BASE_SYSTEM_PROMPT = """You are a careful coding agent running on Windows.
+_WINDOWS_SYSTEM_PROMPT = """You are a careful coding agent running on Windows.
 Use only the frozen PowerShell dialect reported below for run_command, and never
 use Bash-only redirection such as <<< or <<HEREDOC. To provide multiple stdin
 lines, use @('line1', 'line2') | command. run_command uses Stop as the default
@@ -57,6 +57,12 @@ If unexpected errors happen (e.g. tool fails or scope expands), declare <replan>
 For simple single-step tasks (reading a single file, answering a direct question, explaining an error),
 do NOT output a <plan> block; answer or execute directly."""
 
+_POSIX_SYSTEM_PROMPT = """You are a careful coding agent running on a POSIX host.
+Use POSIX sh syntax only for run_command. run_process_v1 starts program + args
+directly: it performs no shell parsing, expansion, redirection, pipelines,
+variable interpolation, environment override, or stdin. Treat tool errors and
+nonzero exits as failures that must be diagnosed before claiming completion."""
+
 
 def windows_system_prompt(
     git_available: bool,
@@ -68,13 +74,15 @@ def windows_system_prompt(
         if git_available
         else "The current workspace is not a Git repository; Git tools are unavailable."
     )
+    if os.name != "nt":
+        return f"{_POSIX_SYSTEM_PROMPT}\n{git_note}"
     shell_note = (
         f"Frozen PowerShell runtime: {powershell.prompt_summary}."
         if powershell is not None
         else "PowerShell runtime information is unavailable until host resolution."
     )
     path_note = f"Windows path support: {windows_path_support().summary}."
-    return f"{_BASE_SYSTEM_PROMPT}\n{shell_note}\n{path_note}\n{git_note}"
+    return f"{_WINDOWS_SYSTEM_PROMPT}\n{shell_note}\n{path_note}\n{git_note}"
 
 
 def discover_git_workspace(root: os.PathLike[str] | str) -> GitWorkspace | None:

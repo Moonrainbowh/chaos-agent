@@ -55,7 +55,7 @@ class ContinuityRuntime:
             identity_path.write_text(json.dumps(self.identity), encoding="utf-8")
         self.thread = self.identity["thread"]
         self.instance = f"{os.getpid()}:{uuid.uuid4().hex}"
-        self.limits = EngineLimits(20, 100, 12, options.task_tokens)
+        self.limits = EngineLimits(24, 100, 12, options.task_tokens)
         self.dispatcher = ContinuityDispatcher(self.workspace, self.state)
         self.dispatcher.process_instance = self.instance
         self._compose()
