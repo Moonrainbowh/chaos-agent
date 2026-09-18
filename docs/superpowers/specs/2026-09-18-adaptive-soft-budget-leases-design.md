@@ -1,205 +1,125 @@
-# Adaptive soft budget leases design
+# 自适应软预算租约设计
 
-## Goal
+## 目标
 
-Reduce unnecessary model turns and tool calls on simple tasks without weakening
-the agent's ability to complete deep, cross-module work. Keep the existing
-50-round and 128-tool-call limits as final safety ceilings, and add auditable
-soft leases that the agent can renew automatically when trusted runtime evidence
-shows useful progress.
+在不削弱 Agent 完成深层、跨模块任务能力的前提下，减少简单任务中不必要的模型回合和工具调用。保留现有 50 个模型回合和 128 次工具调用作为最终硬安全上限，并增加可审计的软预算租约；当可信运行时证据表明任务仍有有效进展时，Agent 可以自动续约。
 
-## Current problem
+## 当前问题
 
-`EngineLimits` currently exposes one large task-wide ceiling. The Core has
-separate guards for exact repeated reads, consecutive tool-only turns, repeated
-validation failures, repair cycles, active time, and token use, but it has no
-early checkpoint between starting a task and approaching the final ceiling.
+`EngineLimits` 当前只提供一个较大的任务级总上限。Core 已分别针对完全重复读取、连续纯工具回合、重复验证失败、修复周期、活跃时间和 token 使用设置保护机制，但从任务开始到接近最终上限之间，缺少较早的进展检查点。
 
-The high ceiling is not itself an instruction to consume the full budget.
-However, without an earlier progress checkpoint, an ordinary task can continue
-exploring until a repetition or global-budget guard activates. Conversely,
-replacing the ceiling with a small fixed limit would stop legitimate discovery
-before the agent can establish that a reported one-file bug has a wider cause.
+较高的上限本身并不等于要求 Agent 用完预算。但是，如果没有更早的进展检查点，普通任务可能持续探索，直到重复检测或全局预算保护被触发。反过来，如果直接把硬上限替换成较小的固定值，又可能在 Agent 确认一个表面上的单文件问题实际具有更广原因之前，就中止合理调查。
 
-Permissions are a separate concern. The existing action policy already permits
-recognized work inside the authorized workspace and preserves approval or deny
-boundaries for protected paths, outside-workspace access, network access,
-unknown tools, and critical actions. Soft leases must not grant or remove any
-capability.
+权限是另一个独立问题。现有 Action Policy 已允许在已授权工作区内执行已识别的工作，同时为 protected path、工作区外访问、网络访问、未知工具和 critical 动作保留审批或拒绝边界。软预算租约不得授予或移除任何能力。
 
-## Options considered
+## 已考虑方案
 
-1. **Adaptive soft leases inside the existing hard ceiling (selected).** Start
-   with a bounded working lease, renew it from trusted progress signals, and
-   preserve the existing hard limits and action policy.
-2. **Lower the hard limits by task class.** This is simpler, but a mistaken
-   initial classification can irreversibly stop a complex task before useful
-   evidence exists.
-3. **Use a second model to review every renewal.** This resembles Auto-review
-   systems, but adds latency, cost, and another failure mode before deterministic
-   runtime signals have been evaluated in production.
+1. **在现有硬上限内增加自适应软租约（选定）。** 任务从有界工作租约开始，依据可信进展信号自动续约，同时保留现有硬上限和 Action Policy。
+2. **按任务类别降低硬上限。** 实现更简单，但错误的初始分类可能在产生有效证据前不可逆地中止复杂任务。
+3. **使用第二个模型审核每次续约。** 这种方式类似 Auto-review 系统，但在确定性运行时信号尚未经过生产验证前，会额外增加延迟、成本和故障点。
 
-## Selected design
+## 选定设计
 
-### Hard ceiling and soft lease
+### 硬上限与软租约
 
-The existing `EngineLimits` remain the only hard model-turn, tool-call, token,
-and output limits. Exhausting them continues to pause the task before another
-provider or external-action call.
+现有 `EngineLimits` 继续作为模型回合、工具调用、token 和输出量的唯一硬上限。耗尽硬上限后，系统仍须在下一次 Provider 调用或外部动作前暂停任务。
 
-Each persistent foreground task also has a soft lease with these cumulative
-default thresholds:
+每个持久化前台任务还拥有一个软租约，默认采用以下累计阈值：
 
-| Lease | Model turns | Tool calls | Initial use |
+| 租约 | 模型回合 | 工具调用 | 初始用途 |
 | --- | ---: | ---: | --- |
-| `quick` | 4 | 8 | Read-only questions and bounded explanations |
-| `standard` | 12 | 30 | Normal modification and debugging tasks |
-| `deep` | 30 | 80 | Explicit deep work or evidence-backed escalation |
+| `quick` | 4 | 8 | 只读问答和边界明确的解释 |
+| `standard` | 12 | 30 | 常规修改和调试任务 |
+| `deep` | 30 | 80 | 用户明确要求的深度工作或有证据支持的升级 |
 
-The thresholds are internal defaults in the first release, not new user-facing
-configuration. They will be calibrated with evaluation data before becoming a
-public tuning surface.
+这些阈值在第一版中是内部默认值，不新增面向用户的配置入口。在将其开放为公共调节项之前，先使用评估数据进行校准。
 
-At the `deep` threshold, a progressing task may receive one final extension to
-the existing hard ceiling. No lease can exceed the task's frozen
-`EngineLimits`. A profile with a lower hard limit clamps every lease threshold
-to that limit.
+达到 `deep` 阈值时，仍有进展的任务可以获得一次延伸至现有硬上限的最终续约。任何租约都不能超过任务冻结的 `EngineLimits`。如果 Profile 的硬上限更低，则所有租约阈值均截断到该上限。
 
-### Initial lease selection
+### 初始租约选择
 
-Initial selection is deliberately conservative and does not claim to know the
-task's final complexity:
+初始选择应保持保守，不声称预先知道任务的最终复杂度：
 
-- Read-only questions and bounded explanation requests start at `quick`.
-- Modification, investigation, and debugging requests start at `standard`.
-- A user request that explicitly asks for deep, exhaustive, repository-wide, or
-  cross-module work starts at `deep`.
+- 只读问答和边界明确的解释请求从 `quick` 开始。
+- 修改、调查和调试请求从 `standard` 开始。
+- 用户明确要求深度、穷尽式、全仓库或跨模块工作时，从 `deep` 开始。
 
-Initial selection reuses the task's frozen intent and request facts. It does not
-change the task's interaction mode, agent mode, model, tools, or permissions.
+初始选择复用任务已冻结的意图和请求事实，不改变任务的交互模式、Agent 模式、模型、工具或权限。
 
-### Trusted progress signals
+### 可信进展信号
 
-When the next model turn or tool reservation would cross the current soft
-threshold, Core evaluates progress since that lease was issued. Renewal is
-allowed when at least one of these Host-observed signals exists and no existing
-stagnation guard has requested convergence:
+当下一次模型回合或工具预算预留将越过当前软阈值时，Core 评估自本次租约签发以来的进展。如果至少存在以下一项由 Host 观察到的信号，且现有停滞保护没有要求收敛，则允许续约：
 
-- the workspace subject generation increased;
-- a new verification run or a different validation-failure fingerprint was
-  recorded;
-- a successful write or structured verification action completed;
-- a read-only action produced a call/result fingerprint not previously observed
-  in the current lease;
-- the task contract was revised by a promoted user follow-up or steering input.
+- 工作区 subject generation 增加；
+- 记录了新的验证运行，或出现了不同的验证失败指纹；
+- 成功完成写入动作或结构化验证动作；
+- 只读动作产生了当前租约内尚未观察到的调用/结果指纹；
+- 因提升后的用户 follow-up 或 steering 输入而修订了任务契约。
 
-Model prose, a model's claim that a task is complex, repeated identical reads,
-repeated identical validation failures, and a tool call rejected before
-execution are not progress evidence.
+模型正文、模型声称任务复杂、完全相同的重复读取、完全相同的重复验证失败，以及执行前即被拒绝的工具调用，都不属于进展证据。
 
-Read-only fingerprints are bounded digests of the canonical tool name,
-arguments, and result. Raw tool output is never copied into the lease state.
-Only a bounded recent digest set is retained so persistence cannot grow with the
-number or size of tool results.
+只读指纹由规范化后的工具名称、参数和结果生成有界摘要。原始工具输出绝不复制到租约状态中。系统只保留有界的近期摘要集合，防止持久化数据随工具结果数量或大小无限增长。
 
-### Renewal and convergence
+### 续约与收敛
 
-The lease decision is deterministic:
+租约决策必须是确定性的：
 
-1. If the task is already at a hard limit, preserve the existing hard-limit
-   pause behavior.
-2. If an existing exact-repeat, tool-only, repeated-validation, repair-cycle, or
-   active-time guard requires convergence or pause, do not renew the lease.
-3. If trusted progress exists, advance `quick` to `standard`, `standard` to
-   `deep`, or grant the single final deep extension.
-4. If no trusted progress exists, queue one bounded runtime notice requiring the
-   next response to resolve from current evidence. Analysis tasks summarize;
-   modification tasks continue through the existing completion and verification
-   gates and cannot claim completion without required evidence.
+1. 如果任务已经达到硬上限，保持现有硬上限暂停行为。
+2. 如果现有完全重复、纯工具回合、重复验证、修复周期或活跃时间保护要求收敛或暂停，则不得续约。
+3. 如果存在可信进展，则执行 `quick → standard`、`standard → deep`，或者授予唯一一次最终深度延伸。
+4. 如果不存在可信进展，则排队一条有界运行时通知，要求下一次响应依据现有证据收敛。分析任务应给出总结；修改任务继续经过现有完成门和验证门，没有所需证据时不得宣称完成。
 
-A lease checkpoint is not a permission prompt and does not wait for the user.
-Rejected or unavailable actions remain available for an alternative approach
-within the current lease; they do not justify renewal by themselves.
+租约检查点不是权限审批，也不等待用户输入。被拒绝或不可用的动作仍可在当前租约内改用其他方式处理，但这些动作本身不能作为续约依据。
 
-### Persistence and audit
+### 持久化与审计
 
-The current lease is part of the persistent task budget, alongside cumulative
-usage. Sessions stores:
+当前租约与累计用量一起成为持久任务预算的一部分。Sessions 保存：
 
-- current lease level;
-- cumulative turn and tool thresholds;
-- renewal count and whether the final deep extension was used;
-- bounded progress fingerprints and the progress baseline for the lease;
-- the last renewal or convergence reason.
+- 当前租约级别；
+- 累计模型回合阈值和工具调用阈值；
+- 续约次数，以及是否已使用最终深度延伸；
+- 有界进展指纹和当前租约的进展基线；
+- 最近一次续约或收敛的原因。
 
-Budget reservation, checkpoint fork, resume, and rewind preserve these fields.
-Old databases migrate to a lease derived from the frozen task intent and current
-usage; migration never reduces the existing hard limit or resets usage.
+预算预留、checkpoint fork、resume 和 rewind 均须保留这些字段。旧数据库迁移时，根据冻结的任务意图和当前用量推导租约；迁移不得降低现有硬上限或重置用量。
 
-Lease decisions reuse `TASK_BUDGET_WARNING` with a `category` of `lease` and a
-phase of `renewed` or `converge`. The payload contains only the previous and new
-lease, cumulative usage, and a stable reason code. It contains no prompt, tool
-output, path contents, or model reasoning.
+租约决策复用 `TASK_BUDGET_WARNING`：`category` 为 `lease`，`phase` 为 `renewed` 或 `converge`。Payload 只包含旧租约、新租约、累计用量和稳定原因码，不得包含提示词、工具输出、路径内容或模型 reasoning。
 
-The existing cost/status projection displays the current lease and renewal count
-from persisted facts. There is no new permission mode, modal approval, or
-task-mode picker.
+现有 cost/status 投影根据持久事实显示当前租约和续约次数。不增加新的权限模式、模态审批或任务模式选择器。
 
-## Component boundaries
+## 组件边界
 
-- **Core** owns initial lease derivation, bounded progress observation, renewal
-  decisions, runtime notices, and interaction with existing convergence guards.
-- **Sessions** atomically persists lease state with task budget reservations and
-  carries it through migration, resume, checkpoint fork, and rewind.
-- **Interfaces** only project persisted lease facts in existing status and cost
-  views; they do not decide renewal or infer progress.
-- **Policy, Runtime, and Verification** keep their existing authority. Lease
-  changes cannot weaken action decisions, create verification evidence, or
-  describe local execution as an operating-system sandbox.
-- **Providers and capability disclosure** remain unchanged. A larger lease does
-  not reveal more tools or alter provider protocol limits.
+- **Core**：负责推导初始租约、观察有界进展、作出续约决策、生成运行时通知，以及与现有收敛保护协作。
+- **Sessions**：将租约状态与任务预算预留原子持久化，并在迁移、resume、checkpoint fork 和 rewind 中保留这些状态。
+- **Interfaces**：只在现有状态和 cost 视图中投影已持久化的租约事实，不决定续约，也不推断进展。
+- **Policy、Runtime 和 Verification**：保持现有权限。租约变化不得削弱动作决策、生成验证证据，或把本地执行描述为操作系统级沙箱。
+- **Providers 和 capability disclosure**：保持不变。扩大租约不会暴露更多工具，也不会改变 Provider 协议限制。
 
-## Failure behavior
+## 失败行为
 
-- A persistence conflict fails closed before the additional model turn or tool
-  call. Resume reloads the last committed lease and cumulative usage.
-- Unknown or corrupt lease values fail task restoration rather than silently
-  resetting the budget. Legacy rows without lease fields use the migration rule.
-- A renewal event and its updated budget state are committed atomically; neither
-  may appear without the other.
-- Cancelling during a lease checkpoint follows the existing durable interrupt
-  path and cannot consume an unreserved model turn or tool call.
-- The final hard ceiling always wins, even if progress evidence exists.
+- 持久化冲突必须在额外模型回合或工具调用发生前失败闭合。恢复时重新加载最近一次已提交的租约和累计用量。
+- 未知或损坏的租约值应使任务恢复失败，不得静默重置预算。缺少租约字段的旧记录使用迁移规则。
+- 续约事件及其更新后的预算状态必须原子提交，两者不能单独出现。
+- 在租约检查点期间取消任务时，沿用现有持久中断路径，不得消耗尚未预留的模型回合或工具调用。
+- 即使存在进展证据，最终硬上限也始终优先。
 
-## Verification
+## 验证计划
 
-- Unit-test initial lease selection for read-only, modification, and explicit
-  deep requests.
-- Test asymmetric boundaries immediately below and at every turn/tool threshold.
-- Verify novel read evidence renews a lease while an identical call/result
-  fingerprint does not.
-- Verify a new subject generation, a new verification run, and a distinct
-  validation failure renew independently; rejected calls and model prose do not.
-- Verify `quick → standard → deep → final extension`, clamping under lower
-  profile limits, and refusal beyond the hard ceiling.
-- Verify existing exact-repeat, five-turn tool-only, repeated-validation,
-  repair-cycle, token, and active-time guards take precedence over renewal.
-- Verify lease state survives repository reopen, resume, checkpoint fork, and
-  rewind without resetting cumulative usage.
-- Verify legacy database migration derives a valid lease for tasks whose usage
-  is already above `quick` or `standard` thresholds.
-- Verify audit events contain stable bounded facts and no tool output or model
-  reasoning.
-- Add evaluation scenarios for a simple answer, a bounded one-file change, and a
-  cross-module failure. Compare completion rate, user interventions, model
-  turns, tool calls, premature convergence, and hard-limit pauses against the
-  current behavior.
+- 对只读、修改和明确深度请求的初始租约选择进行单元测试。
+- 测试每个模型回合/工具阈值前一单位和恰好到达阈值时的非对称边界。
+- 验证新的只读证据可以续约，而相同的调用/结果指纹不能续约。
+- 分别验证新的 subject generation、新的验证运行和不同的验证失败能够独立触发续约；被拒绝调用和模型正文不能触发续约。
+- 验证 `quick → standard → deep → 最终延伸`、较低 Profile 上限下的截断，以及超过硬上限时的拒绝。
+- 验证现有完全重复、连续五个纯工具回合、重复验证、修复周期、token 和活跃时间保护优先于续约。
+- 验证租约状态在仓储重开、resume、checkpoint fork 和 rewind 后仍然保留，且累计用量不会重置。
+- 验证旧数据库迁移能为用量已经超过 `quick` 或 `standard` 阈值的任务推导有效租约。
+- 验证审计事件只包含稳定、有界事实，不包含工具输出或模型 reasoning。
+- 增加简单回答、边界明确的单文件修改和跨模块故障评估场景；与当前行为比较完成率、用户介入次数、模型回合、工具调用、过早收敛和硬上限暂停。
 
-## Non-goals
+## 非目标
 
-- Adding a second-model renewal or safety reviewer.
-- Changing action permissions, approval prompts, sandboxing, or network policy.
-- Removing or raising the existing hard limits.
-- Making lease thresholds a public configuration surface in the first release.
-- Treating token use, model confidence, response length, or elapsed tool count
-  alone as evidence of progress.
+- 增加第二模型续约审核器或安全审核器。
+- 改变动作权限、审批提示、沙箱或网络策略。
+- 移除或提高现有硬上限。
+- 在第一版中把租约阈值开放为公共配置。
+- 把 token 使用量、模型置信度、响应长度或单纯经过的工具调用数量视为进展证据。
