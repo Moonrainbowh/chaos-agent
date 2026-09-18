@@ -571,6 +571,20 @@ terminal, sleep, hibernate, shutdown, or reboot does not keep work running;
 the next foreground session resumes from a checkpoint and never replays an
 in-flight command. A foreground task runs **directly in the source workspace**
 by default; a managed Git worktree is used only when isolation is requested.
+
+Task autonomy uses recoverable soft budget leases inside the existing final
+hard limits. Read-only analysis starts at `quick` (4 model turns / 8 tool
+calls), modifications at `standard` (12 / 30), and explicitly deep,
+exhaustive, repository-wide, or cross-module work at `deep` (30 / 80). The
+Host renews `quick` to `standard`, `standard` to `deep`, or extends `deep` once
+to the configured hard limit only after durable trusted progress such as a new
+code generation, subject, verification result, failure fingerprint, or a
+different successful read. Model claims, repeated reads, repeated failures,
+and calls rejected before execution do not renew a lease. `/cost` shows the
+current soft lease separately from the final hard limit. Leases do not grant
+permissions, network access, a wider workspace, or additional provider
+capabilities.
+
 Durable checkpoints can restore tracked and eligible untracked code,
 session/task state, or both. Ignored files, secrets, build outputs, Git
 metadata, links/reparse targets, and in-flight commands are never captured or

@@ -36,7 +36,7 @@
 - 负责：`/会话` 二级面把历史会话与同机在线 Agent、重命名、纯文本发送、入站策略及 held 消息处理分开；`/list-agents`、`/peers`、`/rename` 仅为隐藏兼容入口，不进入注册表、根 Picker 或默认帮助。
 - 不负责：把 peer 文本解释为用户授权、斜杠命令或附件，也不从界面直接访问 peer 存储。
 - 负责：`/清屏` 只清空本次转录，必须保留 `current_thread_id` 和当前会话语义。
-- 负责：`/compact` 委托 Context Controller 生成真实可复用语义 checkpoint；`/cost` 读取持久 task budget，未配置价格时不得伪造费用；`/doctor` 只委托注入的有界诊断控制器，网络结果不得硬编码。
+- 负责：`/compact` 委托 Context Controller 生成真实可复用语义 checkpoint；`/cost` 读取持久 task budget，区分当前软租约与最终硬上限并显示续约状态，未配置价格时不得伪造费用；`/doctor` 只委托注入的有界诊断控制器，网络结果不得硬编码。
 - 负责：`:map` 以独立用户入口展示共享语义图，并通过二级动作提供上下文选择、测试影响/优先级、修改风险、审查范围、重构规划、bug 定位和 dead-code 静态候选；结果必须显示 generation 与静态分析限制。
 - 负责：底部状态栏左侧显示动态任务状态，右侧显示模型、耗时等稳定上下文；窗口变窄时按优先级隐藏右侧信息，动态文本不得左右跳动。
 - 负责：底部状态栏实时显示当前模型回合的输出 token/s；首个文本增量开始计时，生成中使用确定性 token 估算，收到 provider 输出用量后校准。
@@ -151,6 +151,8 @@
 - `handle_skill_command`、`handle_mcp_command`、`handle_plugin_command`：把 `/技能`、`/mcp` 与 `/插件` 的注册 action（含 Skill 分类结构化列表、`/skill run` 及显式管理）委托给注入 Controller | Controller I/O 与追加显示 | 不读取完整扩展正文、不直接启动进程或绕过 Host policy
 
 - `ContextBudgetDisplay`、`TerminalPresentation`: 展示当前输入/有效工作窗与独立任务用量；手动换窗仅显示排队状态 | 终端 I/O | 不把累计消耗当成上下文占用，保留旧模式显示兼容
+- `TaskCostControl.report(...)`、`format_cost_report(...)`: 从持久任务预算投影 token 成本、当前 soft lease、最终 hard limit、续约次数和最终延伸状态 | 只读 Sessions | 定价缺失保持 unavailable，不自行推导或续约租约
+- `TerminalState.task_budget_line`: 将 `category=lease` 的 renewed/converge 事件投影为有界状态文本 | 进程内状态 | 只接受类型化 tier、phase、计数和原因，畸形事件不覆盖已有状态
 
 - `capture_ctrl_c_as_input`、`Win32Input`、`read_character`、`read_key`：TUI 存活时启用 Windows VT input 保留右键/Ctrl+V 粘贴边界，并开启 Win32 input reporting 保留物理键修饰信息、关闭 Ctrl+C 默认信号处理；先解码 Win32 封装再解析粘贴边界，原生 Enter/Shift+Enter/Alt+V 修饰键不参与文本 burst，framed paste 内换行只进入草稿 | 控制台读取/模式恢复 | 退出必恢复原模式；兼容 CSI/SS3 导航键、CSI u、modifyOtherKeys 与 Windows VT input 的普通 Enter、Shift+Enter；legacy burst 单元测试以虚拟时钟驱动轮询间隔，避免操作系统调度延迟改变假输入的分组。
 - `runtime_error_summary`：将异常因果链中的 HTTP 状态与 SQLite busy/conflict 显示为短提示，其余诊断单行有界 | 无副作用 | 错误仅经受管转录渲染，不直接打印 traceback、SQL、数据库路径或 HTML。

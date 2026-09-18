@@ -127,8 +127,12 @@ class TerminalState:
                 self.task_stop_reason = None
             self.status = status if isinstance(status, str) else "task"
         elif event.kind is EventKind.TASK_BUDGET_WARNING:
-            reason = event.payload.get("reason")
-            self.task_budget_line = reason if isinstance(reason, str) else "budget warning"
+            lease_line = _lease_budget_line(event.payload)
+            if lease_line is not None:
+                self.task_budget_line = lease_line
+            elif event.payload.get("category") != "lease":
+                reason = event.payload.get("reason")
+                self.task_budget_line = reason if isinstance(reason, str) else "budget warning"
         elif event.kind is EventKind.PHASE_COMPLETED:
             self._apply_phase_timing(event)
         elif event.kind is EventKind.TASK_DECISION_REQUIRED:
@@ -331,3 +335,26 @@ def _action_timeline(events: tuple[AgentEvent, ...]) -> list[str]:
         if event.kind in {EventKind.ACTION_REQUESTED, EventKind.ACTION_COMPLETED}
     ]
     return lines[-8:]
+
+
+def _lease_budget_line(payload: Mapping[str, object]) -> str | None:
+    if payload.get("category") != "lease":
+        return None
+    phase = payload.get("phase")
+    tier = payload.get("tier")
+    renewals = payload.get("renewals")
+    reason = payload.get("reason")
+    if (
+        phase not in {"renewed", "converge"}
+        or tier not in {"quick", "standard", "deep"}
+        or isinstance(renewals, bool)
+        or not isinstance(renewals, int)
+        or renewals < 0
+        or not isinstance(reason, str)
+        or not reason.strip()
+    ):
+        return None
+    detail = " ".join(reason.split())[:120]
+    if phase == "renewed":
+        return f"Lease renewed to {tier} ({renewals}): {detail}"[:180]
+    return f"Lease converging at {tier}: {detail}"[:180]

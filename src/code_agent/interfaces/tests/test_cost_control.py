@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from code_agent.core.limits import EngineLimits
+from code_agent.core.limits import BudgetLeaseTier, EngineLimits, TaskProgressSnapshot
 from code_agent.core.models import Usage
 from code_agent.core.task import TaskAuthorization, TaskContract
 from code_agent.interfaces.cost_control import TaskCostControl, format_cost_report
@@ -30,7 +30,16 @@ class TaskCostControlTests(unittest.IsolatedAsyncioTestCase):
                 ),
             )
             await sessions.get_or_create_task_budget(
-                thread_id, "model-x", EngineLimits(max_total_tokens=1_000_000)
+                thread_id,
+                "model-x",
+                EngineLimits(max_total_tokens=1_000_000),
+                BudgetLeaseTier.QUICK,
+            )
+            await sessions.reserve_task_budget(
+                thread_id,
+                model_turns=4,
+                tool_calls=2,
+                progress=TaskProgressSnapshot(reason="initial"),
             )
             await sessions.consume_task_usage(task.id, Usage(250_000, 100_000))
             provider = ProviderConfig(
@@ -46,7 +55,37 @@ class TaskCostControlTests(unittest.IsolatedAsyncioTestCase):
             report = await control.report(task_id=task.id, thread_id=None)
 
             self.assertEqual(report.total_tokens, 350_000)
-            self.assertIn("Estimated total: $1.300000", format_cost_report(report))
+            rendered = format_cost_report(report)
+            self.assertIn("Estimated total: $1.300000", rendered)
+            self.assertIn("Soft lease (quick): model turns 4/4, tool calls 2/8", rendered)
+            self.assertIn("Hard limit: model turns 4/50, tool calls 2/128", rendered)
+
+    async def test_reports_lease_when_pricing_is_unavailable(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sessions = SQLiteSessionRepository(root / "sessions.sqlite3")
+            thread_id = await sessions.create_thread()
+            task = await sessions.create_task(
+                thread_id,
+                TaskContract(
+                    "inspect",
+                    TaskAuthorization.local_workspace(str(root)),
+                ),
+            )
+            await sessions.get_or_create_task_budget(
+                thread_id,
+                "model-x",
+                EngineLimits(),
+                BudgetLeaseTier.STANDARD,
+            )
+
+            report = await TaskCostControl(sessions, {}).report(
+                task_id=task.id, thread_id=None
+            )
+            rendered = format_cost_report(report)
+
+            self.assertIn("Soft lease (standard)", rendered)
+            self.assertIn("Cost: unavailable", rendered)
 
 
 if __name__ == "__main__":

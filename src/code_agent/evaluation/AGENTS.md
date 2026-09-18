@@ -13,6 +13,7 @@
 - 不负责：参与生产任务执行、保存 provider 凭据或在 fixture 原目录执行。
 - 不负责：把 benchmark 成绩自动转化为 release 决策；发布门槛由集成层显式执行。
 - 不负责：把 scripted replay 分数宣称为真实模型修复成功率，或把 hidden golden 应用于正式执行工作区。
+- 独立 `scripts/adaptive_budget_selfcheck.py` 只用临时 SQLite 和确定性 Host 进展快照检查软租约、恢复、fork 与硬上限；它不调用模型、网络或真实工作区工具，也不改变固定 40 场景 catalog。
 
 ## Units
 - `ExperienceTaskRecord`, `ExperienceEvaluationMetrics`, `render_experience_metrics`: 记录真实工程任务的可理解性与完成质量（完成、真实验证、用户介入、重试、误报完成、耗时、token、工具调用及失败来源）；只接受受信 runner/grader 事实，不把 replay 分数或模型自述当作真实任务成功率，也不把 Provider/基础设施失败计作模型失败。
@@ -36,3 +37,4 @@
 - `EvaluationMetrics`、`render_markdown_report`: 汇总可重复 JSON 结果和人类可读报告 | 无副作用 | 不保存 provider 凭据或原始秘密
 - `BenchmarkRecord`、`ReplayBenchmark.run(...)`、`ReplayBenchmarkResult.write_reports(...)`: 以单一 record 源执行并导出固定 40 场景 | 临时文件系统 I/O | 报告含 verifier、digest、changed、timeout、cleanup 与 infrastructure
 - `corpus_fingerprint(...)`、`evaluate_hard_gates(...)`: 审计 canonical corpus 指纹/ID/配额、重算 grade 与指标 | 无副作用 | 人工 records、空 grades 或不一致统计不能通过
+- `adaptive_budget_selfcheck.py`: 机器可读地覆盖 quick/standard/deep、无进展、可信/重复进展、重启、fork 与最终硬上限 | 临时 SQLite I/O | 任一不变量失败以非零退出；不计入 benchmark 分数

@@ -158,6 +158,46 @@ class TerminalStateTests(unittest.TestCase):
 
         self.assertEqual(state.task_stop_reason, "active time budget exceeded")
 
+    def test_lease_warning_projects_renewal_and_convergence(self) -> None:
+        state = TerminalState()
+        state.apply(AgentEvent(EventKind.TASK_BUDGET_WARNING, {
+            "category": "lease",
+            "phase": "renewed",
+            "tier": "standard",
+            "renewals": 1,
+            "reason": "new code generation",
+        }))
+        self.assertEqual(
+            state.task_budget_line,
+            "Lease renewed to standard (1): new code generation",
+        )
+
+        state.apply(AgentEvent(EventKind.TASK_BUDGET_WARNING, {
+            "category": "lease",
+            "phase": "converge",
+            "tier": "standard",
+            "renewals": 1,
+            "reason": "soft lease exhausted without new trusted progress",
+        }))
+        self.assertEqual(
+            state.task_budget_line,
+            "Lease converging at standard: soft lease exhausted without new trusted progress",
+        )
+
+    def test_malformed_lease_warning_does_not_replace_status(self) -> None:
+        state = TerminalState()
+        state.task_budget_line = "existing"
+
+        state.apply(AgentEvent(EventKind.TASK_BUDGET_WARNING, {
+            "category": "lease",
+            "phase": "renewed",
+            "tier": "unknown",
+            "renewals": "one",
+            "reason": "invalid",
+        }))
+
+        self.assertEqual(state.task_budget_line, "existing")
+
     def test_state_tracks_transcript_timeline_status_and_diff(self) -> None:
         state = TerminalState()
         state.apply(AgentEvent(EventKind.RUN_STARTED, {"thread_id": "thread-1"}))
