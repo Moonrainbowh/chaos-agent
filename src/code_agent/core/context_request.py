@@ -32,6 +32,10 @@ def budget_lease(budget: TaskBudget) -> dict[str, int]:
         "max_tool_calls": limits.max_tool_calls,
         "max_tool_calls_per_round": limits.max_tool_calls_per_round,
         "max_total_tokens": limits.max_total_tokens,
+        "lease_model_turn_limit": budget.lease_model_turn_limit,
+        "lease_tool_call_limit": budget.lease_tool_call_limit,
+        "lease_renewals": budget.lease_renewals,
+        "lease_final_extension": int(budget.lease_final_extension),
     }
 
 

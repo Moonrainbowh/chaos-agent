@@ -63,7 +63,9 @@
 - `AgentEngine._dispatch`: 单步动作执行与结果落地 | 调用 dispatcher、发布 `MESSAGE_ADDED` | 取消仅在动作、其结果与工具消息均已持久后生效（`token.raise_if_cancelled()` 置于结果记录之后），使运行在下一步停止而非丢弃该结果；已开始的写操作无论取消与否都必须先落可恢复记录
 - `SessionRepository`: 异步创建线程并持久化消息与事件 | 具体副作用由实现负责
 - `EngineLimits`: 冻结模型回合、工具调用、token 与输出字符预算 | 无副作用 | 越界前先阻止新的外部工具动作
-- `TaskBudget`: 表达可恢复任务的模型名、限制和已消耗额度 | 无副作用 | 只允许单调增加的使用量
+- `BudgetLeaseTier`、`select_budget_lease(...)`、`lease_limits(...)`: 按任务意图和显式深度信号选择 quick/standard/deep 初始软租约并裁剪到硬上限 | 无副作用 | 只影响收敛预算，不改变授权、沙箱、网络或 Provider 能力
+- `TaskProgressSnapshot`: 将 Host 已确认的 generation、subject、验证、失败、动作和交互修订压缩为稳定有界摘要 | 无副作用 | 模型正文和自述不能构造可信进展
+- `TaskBudget`: 表达可恢复任务的模型名、硬限制、软租约和已消耗额度 | 无副作用 | 使用量只允许单调增加；软租约不得超过硬上限
 - `TaskAuthorization`、`TaskContract`、`TaskRecord`、`TaskStatus`: 表达前台自主任务的范围、预算和生命周期 | 无副作用 | `ACCEPTED_PARTIAL` 只能由显式用户决定产生；`SUPERSEDED` 是不可恢复执行的终态
 - `TaskSupervisor.observe(...)`: 根据恢复后的持久预算、验证结果和失败指纹决定继续、checkpoint、暂停或等待决策 | 无副作用 | token/round/tool/stall 预算跨恢复持续累计；活跃时间保留累计遥测，但每次 Engine run 使用新的独立 active-time 段
 - `TaskContract.interaction_mode`: 冻结 `ask|code|plan` 行为并随任务持久化 | 无副作用 | `ask`、`plan` 必须同时关闭 workspace write 与 local execute，旧记录缺失字段时兼容为 `code`
