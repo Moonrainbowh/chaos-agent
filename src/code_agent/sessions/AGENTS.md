@@ -14,6 +14,7 @@
 - 不负责：读取文件、执行 Git、恢复工作树或决定用户授权。
 - 不负责：把模型摘要作为唯一的任务状态来源。
 - 预算预留与读取必须保留 token、repair、failure、active-time 及 warning 等全部累计字段；恢复不得重置扩展计数。
+- 软预算租约的 tier、当前阈值、续约次数、最终延伸、可信进展基线和最近原因必须与累计用量同事务持久化；checkpoint、fork 与 rewind 不能重置租约或再次取得已经使用的延伸。
 - 负责原子记录运行实例和中断 checkpoint，并只对已失效 owner 的运行任务执行幂等恢复对账。
 - 负责持久化 contract revision、code generation、verification run、append-only evidence 与原子 completion；完成事务必须复核最新 generation 和全部 required evidence。
 - 负责记录创建任务时的 profile 身份、模型、协议和脱敏 endpoint host，并支持旧会话库的可重复、非破坏性迁移。
@@ -52,7 +53,9 @@
 - `EditBatchRepositoryMixin`、`record_edit_batch_post_identities(...)`: 准备、查询、迁移、记录操作进度与 POST 所有权证明并闭合多文件编辑批次 | SQLite I/O | 同 workspace 最多一个 unresolved；计划漂移、逆序进度、相反终态与冲突码漂移均失败闭合；`target_post_device/inode`（v22）只能在 APPLYING 阶段写入，因为原子替换后的文件索引在 journal 落库时还不存在，且该证明从 `EditBatchPath` 的相等性中排除，否则重放原始 prepare 请求会被误判为计划漂移
 - `CheckpointForkRepositoryMixin`、`AtomicSessionRewindRepositoryMixin`: 从 checkpoint 非破坏性分叉游标前事实与累计预算；以单事务创建 paused replacement、转交 owner、SUPERSEDE 旧任务并完成 operation | SQLite I/O | session/combined 禁止 generic completion；任一写入故障整体回滚为 pending，completed 幂等重试复核 source/replacement/owner/lineage/status 事实
 - `save_task_contract_revision`、`begin_verification_run`、`append_verification_evidence`、`finalize_task`: 保存 append-only 验证账本并原子完成 | SQLite I/O | 必须复核最新 generation、revision 与全部 required evidence
-- `SessionDatabase`、`migrate_legacy_session_database`、稳定 JSON codecs: 执行 v1-v22 migration、schema/index/FK 校验、旧库复制及含附件引用的 Message 编解码 | SQLite/JSON I/O | v20 follow-up 队列、v21 记忆条目表、v22 编辑批次 POST 所有权证明列；未来版本、缺表/索引、损坏数据失败闭合，旧库始终保留
+- `SessionDatabase`、`migrate_legacy_session_database`、稳定 JSON codecs: 执行 v1-v23 migration、schema/index/FK 校验、旧库复制及含附件引用的 Message 编解码 | SQLite/JSON I/O | v20 follow-up 队列、v21 记忆条目表、v22 编辑批次 POST 所有权证明列、v23 软预算租约列；未来版本、缺表/索引、损坏数据失败闭合，旧库始终保留
+- `get_or_create_task_budget(...)`、`reserve_task_budget(...)`: 创建冻结的 quick/standard/deep 软租约，并在单个 `BEGIN IMMEDIATE` 事务内按硬上限、可信进展基线和续约资格预留额度 | SQLite I/O | 类型化区分普通预留、续约、软租约耗尽和硬上限耗尽；相同快照不能重复续约
+- `budget_payload(...)`、`copy_budget(...)`: 将租约状态写入 checkpoint，并在 fork/rewind 时采用不可回退的累计使用量和当前 owner 的权威租约元数据 | SQLite/JSON I/O | lineage 只累计用量，不建立第二套租约状态机
 - `PeerSessionRepositoryMixin`、`PeerMessageRepositoryMixin`、`PeerInboxRepositoryMixin`: 原子注册/心跳/rename 本机实例并保存、领取/续租/查询显式 `peer` origin 纯文本 | SQLite I/O | v18；同名允许但 ref 唯一；held 与 claim lease 分离，过期 lease可恢复，closed 与消息终态不可回退
 - `ContextJournalRepositoryMixin`: 原子追加窗口/笔记/换窗请求与请求预算预留、用量结算 | SQLite I/O | CAS、幂等、未知请求保留预留；不覆盖原始消息
 - `MemoryRepositoryMixin`、`MemoryRecord`: 以 scope + revision 保存 task/project/user 记忆，支持幂等新增、CAS 修订、生命周期撤回/归档和显式删除 | SQLite I/O | 默认只检索 active 且严格按 scope 过滤；历史需显式 include_history，记忆正文不改变任务状态或权限

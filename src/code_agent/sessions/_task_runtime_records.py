@@ -3,7 +3,13 @@ from __future__ import annotations
 import sqlite3
 import uuid
 
-from code_agent.core.limits import EngineLimits, TaskBudget
+from code_agent.core.limits import (
+    BudgetLeaseTier,
+    BudgetReservation,
+    EngineLimits,
+    TaskBudget,
+    TaskProgressSnapshot,
+)
 from code_agent.core.models import Message, Usage
 from code_agent.core.task import TaskRecord
 
@@ -17,20 +23,30 @@ class TaskRuntimeRepositoryMixin:
     _database: object
 
     async def get_or_create_task_budget(
-        self, thread_id: str, model_name: str, limits: EngineLimits
+        self,
+        thread_id: str,
+        model_name: str,
+        limits: EngineLimits,
+        lease_tier: BudgetLeaseTier | None = None,
     ) -> TaskBudget:
         return await _task_budget.get_or_create(
-            self._database, thread_id, model_name, limits
+            self._database, thread_id, model_name, limits, lease_tier
         )
 
     async def reserve_task_budget(
-        self, thread_id: str, *, model_turns: int = 0, tool_calls: int = 0
-    ) -> TaskBudget | None:
+        self,
+        thread_id: str,
+        *,
+        model_turns: int = 0,
+        tool_calls: int = 0,
+        progress: TaskProgressSnapshot | None = None,
+    ) -> BudgetReservation:
         return await _task_budget.reserve(
             self._database,
             thread_id,
             model_turns=model_turns,
             tool_calls=tool_calls,
+            progress=progress,
         )
 
     async def load_task_budget(self, task_id: str) -> TaskBudget:

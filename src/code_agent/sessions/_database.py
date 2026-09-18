@@ -22,7 +22,7 @@ from .errors import (
 from ._schema_structure import validate_schema_structure
 from ._schema_validation import FOLLOWUP_MIGRATION, REQUIRED_COLUMNS
 
-SCHEMA_VERSION = 22
+SCHEMA_VERSION = 23
 _BUSY_TIMEOUT_MS = 5_000
 _SQLITE_CORRUPT = 11
 _SQLITE_NOTADB = 26
@@ -142,6 +142,16 @@ _MIGRATIONS: dict[int, tuple[str, ...]] = {
         "CREATE TABLE memory_forget (scope_type TEXT NOT NULL, scope_id TEXT NOT NULL, content_sha256 TEXT NOT NULL, deleted_at TEXT NOT NULL, PRIMARY KEY(scope_type, scope_id, content_sha256))",
     ),
     22: EDIT_BATCH_IDENTITY_MIGRATION,
+    23: (
+        "ALTER TABLE task_budgets ADD COLUMN lease_tier TEXT NOT NULL DEFAULT 'standard' CHECK(lease_tier IN ('quick', 'standard', 'deep'))",
+        "ALTER TABLE task_budgets ADD COLUMN lease_model_turn_limit INTEGER NOT NULL DEFAULT 12 CHECK(lease_model_turn_limit >= 0)",
+        "ALTER TABLE task_budgets ADD COLUMN lease_tool_call_limit INTEGER NOT NULL DEFAULT 30 CHECK(lease_tool_call_limit >= 0)",
+        "ALTER TABLE task_budgets ADD COLUMN lease_renewals INTEGER NOT NULL DEFAULT 0 CHECK(lease_renewals BETWEEN 0 AND 3)",
+        "ALTER TABLE task_budgets ADD COLUMN lease_final_extension INTEGER NOT NULL DEFAULT 0 CHECK(lease_final_extension IN (0, 1))",
+        "ALTER TABLE task_budgets ADD COLUMN lease_progress_baseline TEXT NOT NULL DEFAULT '' CHECK(length(lease_progress_baseline) IN (0, 64))",
+        "ALTER TABLE task_budgets ADD COLUMN lease_last_reason TEXT",
+        "UPDATE task_budgets SET lease_model_turn_limit = min(max_agent_rounds, max(12, model_turns + 1)), lease_tool_call_limit = min(max_tool_calls, max(30, tool_calls + 1))",
+    ),
 }
 
 class SessionDatabase:

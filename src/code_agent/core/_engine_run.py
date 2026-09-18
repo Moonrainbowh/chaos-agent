@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass, field
 from inspect import signature
 from typing import AsyncIterator, Optional
@@ -8,8 +10,14 @@ from .cancellation import CancellationError, CancellationToken
 from .context_request import ContextRequest, budget_lease
 from .errors import AgentEngineError, ContextBuildError, EngineLimitError, ModelStreamError
 from .events import AgentEvent, EventKind
-from .limits import TaskBudget, add_usage
+from .limits import (
+    TaskBudget,
+    TaskProgressSnapshot,
+    add_usage,
+    select_budget_lease,
+)
 from .models import (
+    ActionResult,
     ContextBundle,
     Message,
     ModelEventKind,
@@ -125,7 +133,10 @@ class AgentEngineRunMixin:
         if task is not None and task.thread_id != active_thread:
             raise ValueError("task must belong to the active thread")
         budget = await self._journal.get_or_create_task_budget(
-            active_thread, self._model_name, self._limits
+            active_thread,
+            self._model_name,
+            self._limits,
+            select_budget_lease(task.contract) if task is not None else None,
         )
         supervisor = TaskSupervisor(task.contract, budget) if task else None
         state = _RunState(active_thread, token, task, budget, supervisor)
@@ -135,6 +146,49 @@ class AgentEngineRunMixin:
         )
         await self._journal.append_event(active_thread, started)
         return state, started
+
+    async def _task_progress_snapshot(
+        self, thread_id: str, budget: TaskBudget
+    ) -> TaskProgressSnapshot:
+        task_state = await self._journal.load_task_state(thread_id)
+        messages = await self._journal.load_messages(thread_id)
+        action_fingerprint = ""
+        verification_fingerprint = ""
+        reason = "initial task state"
+        latest_tool = next(
+            (message for message in reversed(messages) if message.role == "tool"),
+            None,
+        )
+        if latest_tool is not None:
+            result = _tool_result(latest_tool)
+            if result is not None and latest_tool.name == "run_verification":
+                verification_fingerprint = _message_fingerprint(latest_tool, messages)
+                reason = "new verification result"
+            elif (
+                result is not None
+                and not result.is_error
+                and latest_tool.name in _READ_PROGRESS_TOOLS
+            ):
+                action_fingerprint = _message_fingerprint(latest_tool, messages)
+                reason = "new read result"
+        if not action_fingerprint and not verification_fingerprint:
+            if task_state.code_generation:
+                reason = "new code generation"
+            elif budget.last_failure_signature:
+                reason = "new validation failure"
+            elif sum(message.role == "user" for message in messages) > 1:
+                reason = "task revised by user input"
+        return TaskProgressSnapshot(
+            code_generation=task_state.code_generation,
+            subject_hash=task_state.subject_hash,
+            verification_fingerprint=verification_fingerprint,
+            failure_fingerprint=budget.last_failure_signature or "",
+            action_fingerprint=action_fingerprint,
+            interaction_revision=sum(
+                message.role == "user" for message in messages
+            ),
+            reason=reason,
+        )
 
     async def _prepare_request(
         self,
@@ -279,3 +333,61 @@ class AgentEngineRunMixin:
                 yield warning
         if state.total_usage.total_tokens > self._limits.max_total_tokens:
             raise EngineLimitError("token budget exceeded")
+
+
+_READ_PROGRESS_TOOLS = frozenset(
+    {
+        "read_file",
+        "read_code_slices",
+        "list_files",
+        "search_text",
+        "load_tool_contract",
+        "git_status",
+        "git_diff",
+    }
+)
+
+
+def _tool_result(message: Message) -> ActionResult | None:
+    try:
+        payload = json.loads(message.content)
+        if not isinstance(payload, dict):
+            return None
+        return ActionResult.from_dict(payload)
+    except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+        return None
+
+
+def _message_fingerprint(
+    message: Message, messages: tuple[Message, ...] = ()
+) -> str:
+    result = _tool_result(message)
+    if result is None:
+        return ""
+    arguments: dict[str, object] = {}
+    for candidate in reversed(messages):
+        if candidate.role != "assistant":
+            continue
+        call = next(
+            (
+                item
+                for item in candidate.tool_calls
+                if item.id == message.tool_call_id and item.name == message.name
+            ),
+            None,
+        )
+        if call is not None:
+            arguments = dict(call.arguments)
+            break
+    encoded = json.dumps(
+        {
+            "name": message.name,
+            "arguments": arguments,
+            "is_error": result.is_error,
+            "output": dict(result.output),
+        },
+        ensure_ascii=True,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()

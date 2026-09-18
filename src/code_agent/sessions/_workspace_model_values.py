@@ -148,4 +148,11 @@ def budget_payload(budget: TaskBudget) -> Mapping[str, JSONValue]:
         "active_seconds": budget.active_seconds,
         "warned_at_80": budget.warned_at_80,
         "warned_at_90": budget.warned_at_90,
+        "lease_tier": budget.lease_tier.value,
+        "lease_model_turn_limit": budget.lease_model_turn_limit,
+        "lease_tool_call_limit": budget.lease_tool_call_limit,
+        "lease_renewals": budget.lease_renewals,
+        "lease_final_extension": budget.lease_final_extension,
+        "lease_progress_baseline": budget.lease_progress_baseline,
+        "lease_last_reason": budget.lease_last_reason,
     }

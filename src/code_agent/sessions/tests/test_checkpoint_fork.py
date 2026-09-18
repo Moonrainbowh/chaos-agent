@@ -12,7 +12,11 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from code_agent.core.events import AgentEvent, EventKind  # noqa: E402
-from code_agent.core.limits import EngineLimits  # noqa: E402
+from code_agent.core.limits import (  # noqa: E402
+    BudgetLeaseTier,
+    EngineLimits,
+    TaskProgressSnapshot,
+)
 from code_agent.core.models import Message, Usage  # noqa: E402
 from code_agent.core.task import TaskAuthorization, TaskContract, TaskStatus  # noqa: E402
 from code_agent.core.task_state import TaskState  # noqa: E402
@@ -41,9 +45,20 @@ class CheckpointForkTests(unittest.IsolatedAsyncioTestCase):
             TaskContract("repair", TaskAuthorization.local_workspace("C:/managed")),
         )
         await self.repository.get_or_create_task_budget(
-            thread_id, "model", EngineLimits(max_agent_rounds=20, max_tool_calls=20)
+            thread_id,
+            "model",
+            EngineLimits(max_agent_rounds=20, max_tool_calls=20),
+            BudgetLeaseTier.QUICK,
         )
-        await self.repository.reserve_task_budget(thread_id, model_turns=2, tool_calls=3)
+        await self.repository.reserve_task_budget(
+            thread_id,
+            model_turns=2,
+            tool_calls=3,
+            progress=TaskProgressSnapshot(
+                action_fingerprint="initial-read",
+                reason="initial read result",
+            ),
+        )
         await self.repository.consume_task_usage(task.id, Usage(10, 5))
         goal_id = await self.repository.create_goal(
             thread_id, "ship", metadata={"priority": 1}
@@ -92,6 +107,15 @@ class CheckpointForkTests(unittest.IsolatedAsyncioTestCase):
             old.thread_id, TaskState(objective="repair", verified_facts=("after",))
         )
         await self.repository.consume_task_usage(old.id, Usage(4, 3))
+        renewed = await self.repository.reserve_task_budget(
+            old.thread_id,
+            model_turns=3,
+            progress=TaskProgressSnapshot(
+                action_fingerprint="different-read",
+                reason="new read result",
+            ),
+        )
+        self.assertEqual(renewed.status.value, "renewed")
 
         forked = await self.repository.fork_task_from_checkpoint(checkpoint)
 
@@ -100,8 +124,19 @@ class CheckpointForkTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await self.repository.load_task_state(forked.thread_id)).verified_facts, ("before",))
         self.assertEqual((await self.repository.list_goals(forked.thread_id))[0].status, GoalStatus.COMPLETED)
         fork_budget = await self.repository.load_task_budget(forked.id)
-        self.assertEqual((fork_budget.model_turns, fork_budget.tool_calls), (2, 3))
+        self.assertEqual((fork_budget.model_turns, fork_budget.tool_calls), (5, 3))
         self.assertEqual((fork_budget.input_tokens, fork_budget.output_tokens), (14, 8))
+        self.assertIs(fork_budget.lease_tier, BudgetLeaseTier.STANDARD)
+        self.assertEqual(
+            (
+                fork_budget.lease_model_turn_limit,
+                fork_budget.lease_tool_call_limit,
+                fork_budget.lease_renewals,
+                fork_budget.lease_progress_baseline,
+                fork_budget.lease_last_reason,
+            ),
+            (12, 20, 1, renewed.budget.lease_progress_baseline, "new read result"),
+        )
         self.assertEqual(await self.repository.load_task(old.id), old)
         self.assertEqual((await self.repository.load_lineage_for_task(forked.id)).id, lineage_id)
 

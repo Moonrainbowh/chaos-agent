@@ -4,7 +4,13 @@ from .errors import SessionPersistenceError
 from .events import AgentEvent, EventKind
 from .models import ActionRequest, ActionResult, Message
 from .models import Usage
-from .limits import EngineLimits, TaskBudget
+from .limits import (
+    BudgetLeaseTier,
+    BudgetReservation,
+    EngineLimits,
+    TaskBudget,
+    TaskProgressSnapshot,
+)
 from .protocols import SessionRepository
 from .task_state import TaskState
 from .task import TaskRecord, TaskStatus
@@ -44,19 +50,33 @@ class SessionJournal:
             raise SessionPersistenceError("could not persist event") from None
 
     async def get_or_create_task_budget(
-        self, thread_id: str, model_name: str, limits: EngineLimits
+        self,
+        thread_id: str,
+        model_name: str,
+        limits: EngineLimits,
+        lease_tier: BudgetLeaseTier | None = None,
     ) -> TaskBudget:
         try:
-            return await self._repository.get_or_create_task_budget(thread_id, model_name, limits)
+            return await self._repository.get_or_create_task_budget(
+                thread_id, model_name, limits, lease_tier
+            )
         except Exception:
             raise SessionPersistenceError("could not load task budget") from None
 
     async def reserve_task_budget(
-        self, thread_id: str, *, model_turns: int = 0, tool_calls: int = 0
-    ) -> TaskBudget | None:
+        self,
+        thread_id: str,
+        *,
+        model_turns: int = 0,
+        tool_calls: int = 0,
+        progress: TaskProgressSnapshot | None = None,
+    ) -> BudgetReservation:
         try:
             return await self._repository.reserve_task_budget(
-                thread_id, model_turns=model_turns, tool_calls=tool_calls
+                thread_id,
+                model_turns=model_turns,
+                tool_calls=tool_calls,
+                progress=progress,
             )
         except Exception:
             raise SessionPersistenceError("could not persist task budget") from None

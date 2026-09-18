@@ -19,6 +19,13 @@ class BudgetLeaseTier(str, Enum):
     DEEP = "deep"
 
 
+class BudgetReserveStatus(str, Enum):
+    RESERVED = "reserved"
+    RENEWED = "renewed"
+    LEASE_EXHAUSTED = "lease_exhausted"
+    HARD_EXHAUSTED = "hard_exhausted"
+
+
 _LEASE_LIMITS = {
     BudgetLeaseTier.QUICK: (4, 8),
     BudgetLeaseTier.STANDARD: (12, 30),
@@ -229,6 +236,32 @@ class TaskBudget:
             or len(self.lease_last_reason) > 256
         ):
             raise ValueError("lease_last_reason must be bounded text or None")
+
+
+@dataclass(frozen=True)
+class BudgetReservation:
+    budget: TaskBudget
+    status: BudgetReserveStatus
+    reason: str | None = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.budget, TaskBudget):
+            raise TypeError("budget must be a TaskBudget")
+        if not isinstance(self.status, BudgetReserveStatus):
+            raise TypeError("status must be a BudgetReserveStatus")
+        if self.reason is not None and (
+            not isinstance(self.reason, str)
+            or not self.reason.strip()
+            or len(self.reason) > 256
+        ):
+            raise ValueError("reason must be bounded text or None")
+
+    @property
+    def accepted(self) -> bool:
+        return self.status in {
+            BudgetReserveStatus.RESERVED,
+            BudgetReserveStatus.RENEWED,
+        }
 
 
 def add_usage(left: Usage, right: Usage) -> Usage:

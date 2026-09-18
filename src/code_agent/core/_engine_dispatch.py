@@ -51,6 +51,7 @@ class AgentEngineDispatchMixin:
                 state.token,
                 state.supervisor,
                 milestone_call,
+                state.budget,
             )
             for event in events:
                 yield event

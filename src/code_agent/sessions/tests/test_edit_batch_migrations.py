@@ -42,8 +42,8 @@ class EditBatchMigrationTests(unittest.TestCase):
                         "PRAGMA table_info(workspace_edit_batch_operations)"
                     )
                 }
-            self.assertEqual(SCHEMA_VERSION, 22)
-            self.assertEqual(version, 22)
+            self.assertEqual(SCHEMA_VERSION, 23)
+            self.assertEqual(version, 23)
             self.assertEqual(counts, (0, 0))
             self.assertIn("workspace_edit_batches_one_unresolved", indexes)
             self.assertTrue(

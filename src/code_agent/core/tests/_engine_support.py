@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Mapping, Sequence
+from dataclasses import replace
 
 from code_agent.core.action_execution import ActionExecutionContext
 from code_agent.core.cancellation import CancellationToken
@@ -17,7 +18,15 @@ from code_agent.core.models import (
 from code_agent.core.task import TaskAuthorization
 from code_agent.core.task_state import TaskState
 from code_agent.core.task_state import reduce_task_state
-from code_agent.core.limits import EngineLimits, TaskBudget
+from code_agent.core.limits import (
+    BudgetLeaseTier,
+    BudgetReservation,
+    BudgetReserveStatus,
+    EngineLimits,
+    TaskBudget,
+    TaskProgressSnapshot,
+    lease_limits,
+)
 
 
 class FakeModelClient:
@@ -137,19 +146,101 @@ class MemorySessionRepository:
         return thread_id
 
     async def get_or_create_task_budget(
-        self, thread_id: str, model_name: str, limits: EngineLimits
+        self,
+        thread_id: str,
+        model_name: str,
+        limits: EngineLimits,
+        lease_tier: BudgetLeaseTier | None = None,
     ) -> TaskBudget:
-        return self.task_budgets.setdefault(thread_id, TaskBudget(model_name, limits))
+        selected = lease_tier or BudgetLeaseTier.DEEP
+        turns, tools = (
+            lease_limits(selected, limits)
+            if lease_tier is not None
+            else (limits.max_agent_rounds, limits.max_tool_calls)
+        )
+        return self.task_budgets.setdefault(
+            thread_id,
+            TaskBudget(
+                model_name,
+                limits,
+                lease_tier=selected,
+                lease_model_turn_limit=turns,
+                lease_tool_call_limit=tools,
+                lease_final_extension=lease_tier is None,
+            ),
+        )
 
     async def reserve_task_budget(
-        self, thread_id: str, *, model_turns: int = 0, tool_calls: int = 0
-    ) -> TaskBudget | None:
+        self,
+        thread_id: str,
+        *,
+        model_turns: int = 0,
+        tool_calls: int = 0,
+        progress: TaskProgressSnapshot | None = None,
+    ) -> BudgetReservation:
         current = self.task_budgets[thread_id]
         if current.model_turns + model_turns > current.limits.max_agent_rounds or current.tool_calls + tool_calls > current.limits.max_tool_calls:
-            return None
-        next_budget = TaskBudget(current.model_name, current.limits, current.model_turns + model_turns, current.tool_calls + tool_calls)
+            return BudgetReservation(
+                current,
+                BudgetReserveStatus.HARD_EXHAUSTED,
+                "hard task budget exhausted",
+            )
+        snapshot = progress or TaskProgressSnapshot()
+        baseline = current.lease_progress_baseline or snapshot.digest
+        current = replace(current, lease_progress_baseline=baseline)
+        exceeds = (
+            current.model_turns + model_turns > current.lease_model_turn_limit
+            or current.tool_calls + tool_calls > current.lease_tool_call_limit
+        )
+        status = BudgetReserveStatus.RESERVED
+        reason = None
+        if exceeds:
+            if snapshot.digest == baseline:
+                return BudgetReservation(
+                    current,
+                    BudgetReserveStatus.LEASE_EXHAUSTED,
+                    "soft lease exhausted without new trusted progress",
+                )
+            if current.lease_tier is BudgetLeaseTier.QUICK:
+                tier = BudgetLeaseTier.STANDARD
+                turns, tools = lease_limits(tier, current.limits)
+                final = False
+            elif current.lease_tier is BudgetLeaseTier.STANDARD:
+                tier = BudgetLeaseTier.DEEP
+                turns, tools = lease_limits(tier, current.limits)
+                final = False
+            elif not current.lease_final_extension:
+                tier = BudgetLeaseTier.DEEP
+                turns, tools = (
+                    current.limits.max_agent_rounds,
+                    current.limits.max_tool_calls,
+                )
+                final = True
+            else:
+                return BudgetReservation(
+                    current,
+                    BudgetReserveStatus.LEASE_EXHAUSTED,
+                    "soft lease exhausted after final extension",
+                )
+            current = replace(
+                current,
+                lease_tier=tier,
+                lease_model_turn_limit=turns,
+                lease_tool_call_limit=tools,
+                lease_renewals=current.lease_renewals + 1,
+                lease_final_extension=final,
+                lease_progress_baseline=snapshot.digest,
+                lease_last_reason=snapshot.reason,
+            )
+            status = BudgetReserveStatus.RENEWED
+            reason = snapshot.reason
+        next_budget = replace(
+            current,
+            model_turns=current.model_turns + model_turns,
+            tool_calls=current.tool_calls + tool_calls,
+        )
         self.task_budgets[thread_id] = next_budget
-        return next_budget
+        return BudgetReservation(next_budget, status, reason)
 
     async def load_messages(self, thread_id: str) -> Sequence[Message]:
         return tuple(self.messages[thread_id])

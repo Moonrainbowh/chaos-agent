@@ -16,7 +16,13 @@ from .models import (
     Usage,
 )
 from .task_state import TaskState
-from .limits import EngineLimits, TaskBudget
+from .limits import (
+    BudgetLeaseTier,
+    BudgetReservation,
+    EngineLimits,
+    TaskBudget,
+    TaskProgressSnapshot,
+)
 from .task import TaskAuthorization, TaskContract, TaskRecord, TaskStatus
 
 
@@ -62,12 +68,21 @@ class SessionRepository(Protocol):
     ) -> None: ...
 
     async def get_or_create_task_budget(
-        self, thread_id: str, model_name: str, limits: EngineLimits
+        self,
+        thread_id: str,
+        model_name: str,
+        limits: EngineLimits,
+        lease_tier: BudgetLeaseTier | None = None,
     ) -> TaskBudget: ...
 
     async def reserve_task_budget(
-        self, thread_id: str, *, model_turns: int = 0, tool_calls: int = 0
-    ) -> TaskBudget | None: ...
+        self,
+        thread_id: str,
+        *,
+        model_turns: int = 0,
+        tool_calls: int = 0,
+        progress: TaskProgressSnapshot | None = None,
+    ) -> BudgetReservation: ...
 
     async def create_task(self, thread_id: str, contract: TaskContract) -> TaskRecord: ...
     async def load_task(self, task_id: str) -> TaskRecord: ...

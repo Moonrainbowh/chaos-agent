@@ -20,6 +20,9 @@ REQUIRED_COLUMNS = {
         "max_tool_calls_per_round", "max_total_tokens", "model_turns", "tool_calls",
         "input_tokens", "output_tokens", "repair_cycles", "repeated_failures",
         "last_failure_signature", "active_seconds", "warned_at_80", "warned_at_90",
+        "lease_tier", "lease_model_turn_limit", "lease_tool_call_limit",
+        "lease_renewals", "lease_final_extension", "lease_progress_baseline",
+        "lease_last_reason",
     },
     "task_states": {"thread_id", "payload", "updated_at"},
     "tasks": {

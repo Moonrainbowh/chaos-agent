@@ -15,7 +15,7 @@ from .task import TaskRecord, TaskStatus
 from .task_state import TaskState
 from .task_supervisor import SupervisionKind, TaskSupervisor
 from .task_verification import InFlightValidationError
-from .limits import TaskBudget
+from .limits import BudgetReserveStatus, TaskBudget
 from .runtime_timing import phase_duration_ms, phase_started_at
 from .validation_feedback import validation_fingerprint as _validation_fingerprint
 class AgentEngineActionMixin:
@@ -244,7 +244,7 @@ class AgentEngineActionMixin:
         if suggestion is None:
             return None
         return await self._run_verification_call(
-            thread_id, task, token, supervisor, suggestion
+            thread_id, task, token, supervisor, suggestion, budget
         )
 
     async def _run_verification_call(
@@ -254,10 +254,30 @@ class AgentEngineActionMixin:
         token: CancellationToken,
         supervisor: TaskSupervisor | None,
         call: ToolCall,
+        budget: TaskBudget,
     ) -> tuple[TaskBudget, tuple[AgentEvent, ...]]:
-        reserved = await self._journal.reserve_task_budget(thread_id, tool_calls=1)
-        if reserved is None:
+        reservation = await self._journal.reserve_task_budget(
+            thread_id,
+            tool_calls=1,
+            progress=await self._task_progress_snapshot(thread_id, budget),
+        )
+        if reservation.status is BudgetReserveStatus.HARD_EXHAUSTED:
             raise EngineLimitError("tool call budget exceeded")
+        if reservation.status is BudgetReserveStatus.LEASE_EXHAUSTED:
+            warning = AgentEvent(
+                EventKind.TASK_BUDGET_WARNING,
+                {
+                    "task_id": task.id,
+                    "category": "lease",
+                    "phase": "converge",
+                    "tier": reservation.budget.lease_tier.value,
+                    "renewals": reservation.budget.lease_renewals,
+                    "reason": reservation.reason
+                    or "verification soft lease exhausted",
+                },
+            )
+            await self._journal.append_event(thread_id, warning)
+            return reservation.budget, (warning,)
         _, declared = await self._persist_assistant_message(thread_id, [], [call])
         available_names = {
             tool.name for tool in self._actions.tools()
@@ -272,7 +292,7 @@ class AgentEngineActionMixin:
                 task=task, supervisor=supervisor,
             )]
         )
-        return reserved, events
+        return reservation.budget, events
 
     @staticmethod
     def _should_stop_after_action(events: tuple[AgentEvent, ...]) -> bool:

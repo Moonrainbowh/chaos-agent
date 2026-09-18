@@ -144,12 +144,27 @@ class SessionMigrationTests(unittest.IsolatedAsyncioTestCase):
                 row[1]
                 for row in connection.execute("PRAGMA index_list(peer_messages)")
             }
+            budget_columns = {
+                row[1]
+                for row in connection.execute("PRAGMA table_info(task_budgets)")
+            }
         self.assertIn("replacement_task_id", columns)
         self.assertIn("rewind_operations_one_pending", indexes)
         self.assertIn("lineage_id", cursor_columns)
         self.assertIn("last_failure_signature", usage_columns)
         self.assertTrue({"origin", "claim_token", "expires_at"}.issubset(peer_columns))
         self.assertIn("peer_messages_receiver_status_created", peer_indexes)
+        self.assertTrue(
+            {
+                "lease_tier",
+                "lease_model_turn_limit",
+                "lease_tool_call_limit",
+                "lease_renewals",
+                "lease_final_extension",
+                "lease_progress_baseline",
+                "lease_last_reason",
+            }.issubset(budget_columns)
+        )
 
         with closing(sqlite3.connect(self.database)) as connection, connection:
             connection.execute("DROP INDEX rewind_operations_status_created")

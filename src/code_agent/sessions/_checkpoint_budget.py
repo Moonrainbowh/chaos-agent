@@ -4,7 +4,7 @@ import sqlite3
 from typing import Mapping, cast
 
 from code_agent.core._json import JSONValue
-from code_agent.core.limits import EngineLimits, TaskBudget
+from code_agent.core.limits import BudgetLeaseTier, EngineLimits, TaskBudget
 
 from . import _task_budget
 from .errors import SessionCorruptionError
@@ -72,6 +72,30 @@ def _budget_from_payload(
             _integer(payload, "active_seconds", 0),
             _boolean(payload, "warned_at_80", False),
             _boolean(payload, "warned_at_90", False),
+            BudgetLeaseTier(cast(str, payload.get("lease_tier", source.lease_tier.value))),
+            _integer(
+                payload,
+                "lease_model_turn_limit",
+                source.lease_model_turn_limit,
+            ),
+            _integer(
+                payload,
+                "lease_tool_call_limit",
+                source.lease_tool_call_limit,
+            ),
+            _integer(payload, "lease_renewals", source.lease_renewals),
+            _boolean(
+                payload,
+                "lease_final_extension",
+                source.lease_final_extension,
+            ),
+            cast(
+                str,
+                payload.get(
+                    "lease_progress_baseline", source.lease_progress_baseline
+                ),
+            ),
+            cast(str | None, payload.get("lease_last_reason", source.lease_last_reason)),
         )
     except (TypeError, ValueError) as error:
         raise SessionCorruptionError("invalid checkpoint budget payload") from error
@@ -127,6 +151,9 @@ def _insert_budget(
         + ", ".join(USAGE_NAMES[:6])
         + ", last_failure_signature, "
         + ", ".join(USAGE_NAMES[6:])
+        + ", lease_tier, lease_model_turn_limit, lease_tool_call_limit, "
+        "lease_renewals, lease_final_extension, lease_progress_baseline, "
+        "lease_last_reason"
     )
     arguments = (
         thread_id,
@@ -138,6 +165,13 @@ def _insert_budget(
         *(values[name] for name in USAGE_NAMES[:6]),
         failure_signature,
         *(values[name] for name in USAGE_NAMES[6:]),
+        source.lease_tier.value,
+        source.lease_model_turn_limit,
+        source.lease_tool_call_limit,
+        source.lease_renewals,
+        int(source.lease_final_extension),
+        source.lease_progress_baseline,
+        source.lease_last_reason,
     )
     placeholders = ", ".join("?" for _ in arguments)
     connection.execute(

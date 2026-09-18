@@ -19,7 +19,12 @@ from code_agent.core.protocols import SessionRepository  # noqa: E402
 from code_agent.sessions.errors import SessionNotFound  # noqa: E402
 from code_agent.sessions.models import GoalStatus, ThreadStatus  # noqa: E402
 from code_agent.sessions.repository import SQLiteSessionRepository  # noqa: E402
-from code_agent.core.limits import EngineLimits  # noqa: E402
+from code_agent.core.limits import (  # noqa: E402
+    BudgetLeaseTier,
+    BudgetReserveStatus,
+    EngineLimits,
+    TaskProgressSnapshot,
+)
 from code_agent.core.models import Usage  # noqa: E402
 from code_agent.core.task import TaskAuthorization, TaskContract  # noqa: E402
 from code_agent.core.task import TaskStatus  # noqa: E402
@@ -179,9 +184,97 @@ class SQLiteSessionRepositoryTests(unittest.IsolatedAsyncioTestCase):
         reopened = SQLiteSessionRepository(self.database)
 
         self.assertEqual(created.model_turns, 0)
-        self.assertEqual(reserved.model_turns, 1)
-        self.assertEqual(reserved.tool_calls, 2)
-        self.assertIsNone(await reopened.reserve_task_budget(thread_id, tool_calls=2))
+        self.assertEqual(reserved.budget.model_turns, 1)
+        self.assertEqual(reserved.budget.tool_calls, 2)
+        refused = await reopened.reserve_task_budget(thread_id, tool_calls=2)
+        self.assertIs(refused.status, BudgetReserveStatus.HARD_EXHAUSTED)
+
+    async def test_soft_lease_renews_only_for_new_trusted_progress(self) -> None:
+        thread_id = await self.repository.create_thread()
+        task = await self.repository.create_task(
+            thread_id,
+            TaskContract("inspect", TaskAuthorization.local_workspace(self.temporary.name)),
+        )
+        limits = EngineLimits(max_agent_rounds=50, max_tool_calls=128)
+        created = await self.repository.get_or_create_task_budget(
+            thread_id, "model-a", limits, BudgetLeaseTier.QUICK
+        )
+        initial = TaskProgressSnapshot()
+        for _ in range(4):
+            reservation = await self.repository.reserve_task_budget(
+                thread_id, model_turns=1, progress=initial
+            )
+            self.assertTrue(reservation.accepted)
+
+        exhausted = await self.repository.reserve_task_budget(
+            thread_id, model_turns=1, progress=initial
+        )
+        self.assertIs(exhausted.status, BudgetReserveStatus.LEASE_EXHAUSTED)
+        progressed = TaskProgressSnapshot(
+            action_fingerprint="read:one", reason="new read result"
+        )
+        renewed = await self.repository.reserve_task_budget(
+            thread_id, model_turns=1, progress=progressed
+        )
+
+        self.assertIs(created.lease_tier, BudgetLeaseTier.QUICK)
+        self.assertIs(renewed.status, BudgetReserveStatus.RENEWED)
+        self.assertIs(renewed.budget.lease_tier, BudgetLeaseTier.STANDARD)
+        self.assertEqual(renewed.budget.lease_renewals, 1)
+        self.assertEqual(renewed.budget.lease_model_turn_limit, 12)
+        reopened = SQLiteSessionRepository(self.database)
+        self.assertEqual(await reopened.load_task_budget(task.id), renewed.budget)
+
+    async def test_deep_lease_extends_to_hard_limit_only_once(self) -> None:
+        thread_id = await self.repository.create_thread()
+        task = await self.repository.create_task(
+            thread_id,
+            TaskContract("deep repair", TaskAuthorization.local_workspace(self.temporary.name)),
+        )
+        await self.repository.get_or_create_task_budget(
+            thread_id,
+            "model-a",
+            EngineLimits(max_agent_rounds=32, max_tool_calls=82),
+            BudgetLeaseTier.DEEP,
+        )
+        initial = TaskProgressSnapshot()
+        await self.repository.reserve_task_budget(
+            thread_id, model_turns=30, tool_calls=80, progress=initial
+        )
+        extended = await self.repository.reserve_task_budget(
+            thread_id,
+            model_turns=1,
+            progress=TaskProgressSnapshot(
+                code_generation=1,
+                subject_hash="a" * 64,
+                reason="new code generation",
+            ),
+        )
+        final = await self.repository.reserve_task_budget(
+            thread_id,
+            model_turns=1,
+            tool_calls=2,
+            progress=TaskProgressSnapshot(
+                code_generation=2,
+                subject_hash="b" * 64,
+                reason="new code generation",
+            ),
+        )
+        blocked = await self.repository.reserve_task_budget(
+            thread_id,
+            model_turns=1,
+            progress=TaskProgressSnapshot(
+                code_generation=3,
+                subject_hash="c" * 64,
+                reason="new code generation",
+            ),
+        )
+
+        self.assertIs(extended.status, BudgetReserveStatus.RENEWED)
+        self.assertTrue(extended.budget.lease_final_extension)
+        self.assertTrue(final.accepted)
+        self.assertIs(blocked.status, BudgetReserveStatus.HARD_EXHAUSTED)
+        self.assertEqual((await self.repository.load_task_budget(task.id)).lease_renewals, 1)
 
     async def test_task_controls_and_supervision_budget_survive_restart(self) -> None:
         thread_id = await self.repository.create_thread()

@@ -13,11 +13,13 @@ from .engine_turn_feedback import (
 )
 from .errors import EngineLimitError, ModelStreamError
 from .events import AgentEvent, EventKind
+from .limits import BudgetReservation, BudgetReserveStatus
 from .models import ContextBundle
 from .runtime_timing import phase_duration_ms, phase_started_at
 from .completion_contract import TaskIntent
 from .task import TaskRecord, TaskStatus
 from .task_supervisor import SupervisionKind
+from ._tool_feedback import tool_failure
 
 
 class AgentEngineTurnMixin(AgentEngineConvergenceMixin, AgentEngineDispatchMixin):
@@ -30,12 +32,37 @@ class AgentEngineTurnMixin(AgentEngineConvergenceMixin, AgentEngineDispatchMixin
             yield event
         if state.stop_requested:
             return
-        reserved = await self._journal.reserve_task_budget(
-            state.thread_id, model_turns=1
+        reservation = await self._journal.reserve_task_budget(
+            state.thread_id,
+            model_turns=1,
+            progress=await self._task_progress_snapshot(
+                state.thread_id, state.budget
+            ),
         )
-        if reserved is None:
+        if reservation.status is BudgetReserveStatus.HARD_EXHAUSTED:
             raise EngineLimitError("model turn budget exceeded")
-        state.budget = reserved
+        if reservation.status is BudgetReserveStatus.LEASE_EXHAUSTED:
+            warning = _lease_warning(state, reservation, "converge")
+            await self._journal.append_event(state.thread_id, warning)
+            yield warning
+            if state.task is None:
+                raise EngineLimitError("model turn soft lease exhausted")
+            turn = _TurnState(number, (), set(), summary_only=True)
+            async for event in self._finish_task_without_calls(state, turn):
+                yield event
+            return
+        state.budget = reservation.budget
+        if reservation.status is BudgetReserveStatus.RENEWED:
+            warning = _lease_warning(state, reservation, "renewed")
+            await self._journal.append_event(state.thread_id, warning)
+            queue_runtime_notice(
+                state,
+                "Runtime control: the trusted-progress lease was renewed. "
+                "Continue toward completion within the renewed boundary.",
+            )
+            yield warning
+            async for event in self._flush_runtime_notices(state):
+                yield event
         tools, tool_names = self._advertised_tools(
             state.allowed_tool_names, state.disclosed_tool_digests
         )
@@ -83,9 +110,29 @@ class AgentEngineTurnMixin(AgentEngineConvergenceMixin, AgentEngineDispatchMixin
                 async for event in self._flush_runtime_notices(state):
                     yield event
             return
-        await self._reserve_tool_calls(
+        tool_reservation = await self._reserve_tool_calls(
             state, turn, allow_at_model_limit=final_modify_turn
         )
+        if tool_reservation.status is BudgetReserveStatus.LEASE_EXHAUSTED:
+            warning = _lease_warning(state, tool_reservation, "converge")
+            await self._journal.append_event(state.thread_id, warning)
+            yield warning
+            async for event in self._close_lease_calls(state, turn):
+                yield event
+            if state.task is not None:
+                async for event in self._finish_task_without_calls(state, turn):
+                    yield event
+                return
+            raise EngineLimitError("tool call soft lease exhausted")
+        if tool_reservation.status is BudgetReserveStatus.RENEWED:
+            warning = _lease_warning(state, tool_reservation, "renewed")
+            await self._journal.append_event(state.thread_id, warning)
+            queue_runtime_notice(
+                state,
+                "Runtime control: the trusted-progress lease was renewed. "
+                "Use the additional tools to converge on the result.",
+            )
+            yield warning
         async for event in self._dispatch_tool_calls(state, turn):
             yield event
         async for event in self._flush_runtime_notices(state):
@@ -213,6 +260,13 @@ class AgentEngineTurnMixin(AgentEngineConvergenceMixin, AgentEngineDispatchMixin
             if followups is not None:
                 yield followups
                 return
+            if any(
+                event.kind is EventKind.TASK_BUDGET_WARNING
+                and event.payload.get("category") == "lease"
+                and event.payload.get("phase") == "converge"
+                for event in automatic_events
+            ):
+                break
             if verification_failed(automatic_events):
                 break
         next_task = await self._resolve_task_completion(task, state.thread_id)
@@ -252,7 +306,7 @@ class AgentEngineTurnMixin(AgentEngineConvergenceMixin, AgentEngineDispatchMixin
 
     async def _reserve_tool_calls(
         self, state: _RunState, turn: _TurnState, *, allow_at_model_limit: bool = False
-    ) -> None:
+    ) -> BudgetReservation:
         if (
             state.budget.model_turns >= state.budget.limits.max_agent_rounds
             and not allow_at_model_limit
@@ -260,13 +314,61 @@ class AgentEngineTurnMixin(AgentEngineConvergenceMixin, AgentEngineDispatchMixin
             raise EngineLimitError("model turn budget exceeded")
         if len(turn.calls) > state.budget.limits.max_tool_calls_per_round:
             raise EngineLimitError("tool call per-round budget exceeded")
-        reserved = await self._journal.reserve_task_budget(
-            state.thread_id, tool_calls=len(turn.calls)
+        reservation = await self._journal.reserve_task_budget(
+            state.thread_id,
+            tool_calls=len(turn.calls),
+            progress=await self._task_progress_snapshot(
+                state.thread_id, state.budget
+            ),
         )
-        if reserved is None:
+        if reservation.status is BudgetReserveStatus.HARD_EXHAUSTED:
             raise EngineLimitError("tool call budget exceeded")
-        state.budget = reserved
+        if reservation.accepted:
+            state.budget = reservation.budget
         if len({call.id for call in turn.calls}) != len(turn.calls) or any(
             call.id in state.used_call_ids for call in turn.calls
         ):
             raise ModelStreamError("model reused a tool call id")
+        return reservation
+
+    async def _close_lease_calls(
+        self, state: _RunState, turn: _TurnState
+    ) -> AsyncIterator[AgentEvent]:
+        reason = "soft lease converged before these tools could execute"
+        for call in turn.calls:
+            state.used_call_ids.add(call.id)
+            requested = AgentEvent(
+                EventKind.ACTION_REQUESTED,
+                {
+                    "request": {
+                        "id": call.id,
+                        "name": call.name,
+                        "arguments": dict(call.arguments),
+                    }
+                },
+            )
+            await self._journal.append_event(state.thread_id, requested)
+            yield requested
+            failure = tool_failure(
+                call, reason, error_code="soft_lease_converged"
+            )
+            for event in await self._persist_tool_failure(
+                state.thread_id, call, failure
+            ):
+                yield event
+
+
+def _lease_warning(
+    state: _RunState, reservation: BudgetReservation, phase: str
+) -> AgentEvent:
+    return AgentEvent(
+        EventKind.TASK_BUDGET_WARNING,
+        {
+            "task_id": state.task.id if state.task is not None else None,
+            "category": "lease",
+            "phase": phase,
+            "tier": reservation.budget.lease_tier.value,
+            "renewals": reservation.budget.lease_renewals,
+            "reason": reservation.reason or "soft lease boundary reached",
+        },
+    )
