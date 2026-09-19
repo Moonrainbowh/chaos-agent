@@ -24,6 +24,7 @@ from code_agent.workspace.edits import (  # noqa: E402
 from code_agent.workspace.errors import SnapshotIntegrityError, WorkspaceError  # noqa: E402
 from code_agent.workspace.paths import WorkspacePathGuard  # noqa: E402
 import code_agent.workspace._atomic_artifact_write as writer_module  # noqa: E402
+import code_agent.workspace._snapshot_artifacts as artifact_module  # noqa: E402
 from code_agent.workspace.snapshot_store import (  # noqa: E402
     SnapshotHandle,
     WorkspaceSnapshotStore,
@@ -34,6 +35,35 @@ def canonical(payload: object) -> bytes:
     return json.dumps(
         payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
     ).encode("utf-8")
+
+
+class SnapshotArtifactPathTests(unittest.TestCase):
+    def test_macos_var_alias_does_not_allow_user_links(self) -> None:
+        real_resolve = Path.resolve
+
+        def resolve_alias(path: Path, strict: bool = False) -> Path:
+            if path == Path("/var"):
+                return Path("/private/var")
+            return real_resolve(path, strict=strict)
+
+        with (
+            patch.object(artifact_module.sys, "platform", "darwin"),
+            patch.object(Path, "resolve", resolve_alias),
+            patch.object(
+                artifact_module,
+                "_is_link_like",
+                side_effect=lambda path: path
+                in {Path("/var"), Path("/var/folders/user-link")},
+            ),
+        ):
+            artifact_module._reject_link_components(Path("/var/folders/safe"))
+            with self.assertRaises(WorkspaceError):
+                artifact_module._reject_link_components(
+                    Path("/var/folders/user-link/artifact")
+                )
+
+        with patch.object(artifact_module.sys, "platform", os.name):
+            self.assertFalse(artifact_module._is_allowed_system_root_alias(Path("/var")))
 
 
 class SnapshotIntegrityTests(unittest.TestCase):

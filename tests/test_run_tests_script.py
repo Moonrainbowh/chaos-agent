@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import io
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -23,6 +24,22 @@ from scripts.run_tests import (  # noqa: E402
 
 
 class TestSuiteDiscoveryTests(unittest.TestCase):
+    def test_direct_script_entrypoint_imports_without_pythonpath(self) -> None:
+        environment = os.environ.copy()
+        environment.pop("PYTHONPATH", None)
+
+        completed = subprocess.run(
+            [sys.executable, str(ROOT / "scripts/run_tests.py"), "--list"],
+            cwd=ROOT,
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertIn("src/code_agent/interfaces/tests", completed.stdout.splitlines())
+
     def test_discovers_sorted_features_and_integration_last(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -82,6 +99,10 @@ class TestSuiteDiagnosticsTests(unittest.TestCase):
                 "path",
                 ["installed-packages", str(root), str(root / "src")],
             ),
+            mock.patch.dict(
+                os.environ,
+                {"PYTHONPATH": "installed-env"},
+            ),
             mock.patch(
                 "scripts.suite_process.run_supervised_suite",
                 return_value=SimpleNamespace(returncode=0),
@@ -89,10 +110,15 @@ class TestSuiteDiagnosticsTests(unittest.TestCase):
         ):
             returncode = run_test_suites(root, (suite,))
             active_path = tuple(sys.path)
+            python_path = os.environ["PYTHONPATH"].split(os.pathsep)
 
         self.assertEqual(returncode, 0)
         self.assertEqual(active_path[:2], (str(root / "src"), str(root)))
         self.assertEqual(active_path[2], "installed-packages")
+        self.assertEqual(
+            python_path,
+            [str(root / "src"), str(root), "installed-env"],
+        )
 
     def test_ci_failure_annotation_identifies_suite(self) -> None:
         root = Path.cwd()

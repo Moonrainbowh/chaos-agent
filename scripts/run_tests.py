@@ -7,6 +7,11 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+if __package__:
+    from .run_test_suite import prioritize_source_tree
+else:
+    from run_test_suite import prioritize_source_tree
+
 
 TEST_PATTERN = "test_*.py"
 
@@ -54,13 +59,7 @@ def discover_test_suites(root: Path) -> tuple[Path, ...]:
 
 
 def run_test_suites(root: Path, suites: Sequence[Path], suite_timeout: float = 600) -> int:
-    source = root / "src"
-    for entry in (str(source), str(root)):
-        try:
-            sys.path.remove(entry)
-        except ValueError:
-            pass
-    sys.path[:0] = [str(source), str(root)]
+    prioritize_source_tree(root)
     github_actions = os.environ.get("GITHUB_ACTIONS", "").casefold() == "true"
     for suite in suites:
         relative = suite.relative_to(root)

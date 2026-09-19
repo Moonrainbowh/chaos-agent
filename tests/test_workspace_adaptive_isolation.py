@@ -7,17 +7,34 @@ worktree-free workspace lineage so it can checkpoint and rewind on demand.
 
 from __future__ import annotations
 
+import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
 
-from code_agent.sessions.errors import SessionNotFound
+from code_agent.sessions.errors import SessionNotFound, SessionStorageError
+from code_agent_win.local_workspace_lineage import _duplicate_worktree_root
 from tests.agent_app_test_support import (
     _assert_no_worktree,
     _configured_application,
     _init_git_source,
     workspace_mode_scope,
 )
+
+
+class LegacySQLiteConflictTests(unittest.TestCase):
+    def test_python_310_duplicate_root_error_uses_narrow_message_fallback(self) -> None:
+        duplicate = SessionStorageError("SQLite session operation failed")
+        duplicate.__cause__ = sqlite3.IntegrityError(
+            "UNIQUE constraint failed: workspace_lineages.worktree_root"
+        )
+        other = SessionStorageError("SQLite session operation failed")
+        other.__cause__ = sqlite3.IntegrityError(
+            "UNIQUE constraint failed: workspace_lineages.id"
+        )
+
+        self.assertTrue(_duplicate_worktree_root(duplicate))
+        self.assertFalse(_duplicate_worktree_root(other))
 
 
 class ConcurrentWriterIsolationTests(unittest.IsolatedAsyncioTestCase):

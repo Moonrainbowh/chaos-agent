@@ -109,6 +109,10 @@ class SourceTreeImportTests(unittest.TestCase):
                     "path",
                     ["installed-packages", str(root), str(root / "src")],
                 ),
+                mock.patch.dict(
+                    os.environ,
+                    {"PYTHONPATH": "installed-env"},
+                ),
                 mock.patch(
                     "scripts.run_test_suite.unittest.main",
                     return_value=mock.Mock(result=result),
@@ -116,10 +120,15 @@ class SourceTreeImportTests(unittest.TestCase):
             ):
                 returncode = run_suite(root, "tests", "test_*.py")
                 active_path = tuple(sys.path)
+                python_path = os.environ["PYTHONPATH"].split(os.pathsep)
 
         self.assertEqual(returncode, 0)
         self.assertEqual(active_path[:2], (str(root / "src"), str(root)))
         self.assertEqual(active_path[2], "installed-packages")
+        self.assertEqual(
+            python_path,
+            [str(root / "src"), str(root), "installed-env"],
+        )
 
 
 class StructuredResultTests(unittest.TestCase):

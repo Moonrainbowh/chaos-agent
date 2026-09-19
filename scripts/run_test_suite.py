@@ -20,6 +20,17 @@ def repository_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
+def prioritize_source_tree(root: Path) -> None:
+    """Prefer the checkout for this process and any nested test subprocesses."""
+    root = Path(root).resolve()
+    preferred = [str(root / "src"), str(root)]
+    sys.path[:] = preferred + [entry for entry in sys.path if entry not in preferred]
+    inherited = os.environ.get("PYTHONPATH", "").split(os.pathsep)
+    os.environ["PYTHONPATH"] = os.pathsep.join(
+        preferred + [entry for entry in inherited if entry and entry not in preferred]
+    )
+
+
 def strict_test_id(test: object) -> str:
     test_type = type(test)
     if test_type.__module__ == "unittest.suite" and test_type.__name__ == "_ErrorHolder":
@@ -110,13 +121,7 @@ class StructuredRunner(unittest.TextTestRunner):
 def run_suite(root: Path, start_dir: str, pattern: str) -> int:
     root = Path(root).resolve()
     relative, suite = _resolve_suite(root, start_dir)
-    source = root / "src"
-    for entry in (str(source), str(root)):
-        try:
-            sys.path.remove(entry)
-        except ValueError:
-            pass
-    sys.path[:0] = [str(source), str(root)]
+    prioritize_source_tree(root)
     program = unittest.main(
         module=None,
         argv=["unittest", "discover", "-s", str(suite), "-p", pattern],

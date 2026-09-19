@@ -60,8 +60,13 @@ def _duplicate_worktree_root(error: SessionStorageError) -> bool:
     workspace limitation.
     """
     cause = error.__cause__
-    return isinstance(cause, sqlite3.IntegrityError) and (
-        getattr(cause, "sqlite_errorname", "") == "SQLITE_CONSTRAINT_UNIQUE"
+    if not isinstance(cause, sqlite3.IntegrityError):
+        return False
+    error_name = getattr(cause, "sqlite_errorname", "")
+    if error_name:
+        return error_name == "SQLITE_CONSTRAINT_UNIQUE"
+    return cause.args == (
+        "UNIQUE constraint failed: workspace_lineages.worktree_root",
     )
 
 

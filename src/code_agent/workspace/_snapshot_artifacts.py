@@ -4,6 +4,7 @@ import hashlib
 import os
 import re
 import stat
+import sys
 import uuid
 from pathlib import Path
 
@@ -182,7 +183,19 @@ def _reject_link_components(path: Path) -> None:
     for part in path.parts[1:]:
         current /= part
         if _is_link_like(current):
+            if _is_allowed_system_root_alias(current):
+                continue
             raise WorkspaceError("snapshot artifact path contains a link or reparse point")
+
+
+def _is_allowed_system_root_alias(path: Path) -> bool:
+    """Accept only macOS's system /var spelling for /private/var."""
+    if sys.platform != "darwin" or path != Path("/var"):
+        return False
+    try:
+        return path.resolve(strict=True) == Path("/private/var")
+    except OSError:
+        return False
 
 
 def _is_link_like(path: Path) -> bool:
