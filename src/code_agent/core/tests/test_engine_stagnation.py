@@ -49,7 +49,7 @@ class _TaskSession(MemorySessionRepository):
 
 
 class EngineStagnationTests(unittest.IsolatedAsyncioTestCase):
-    async def test_tool_only_investigation_resolves_from_evidence_before_budget_limit(self):
+    async def test_tool_only_investigation_forces_a_final_summary_before_completion(self):
         streams = []
         for index in range(5):
             call = ToolCall("read-" + str(index), "read_file", {"path": f"file-{index}.txt"})
@@ -58,6 +58,10 @@ class EngineStagnationTests(unittest.IsolatedAsyncioTestCase):
                 events.append(ModelEvent(kind=ModelEventKind.USAGE, usage=Usage(8, 1)))
             events.append(ModelEvent(kind=ModelEventKind.COMPLETED))
             streams.append(tuple(events))
+        streams.append((
+            ModelEvent(kind=ModelEventKind.TEXT_DELTA, text="已完成调查总结。"),
+            ModelEvent(kind=ModelEventKind.COMPLETED),
+        ))
         sessions = _TaskSession()
         thread_id = await sessions.create_thread()
         task = TaskRecord(
@@ -85,7 +89,8 @@ class EngineStagnationTests(unittest.IsolatedAsyncioTestCase):
         events = [event async for event in engine.run("inspect", thread_id=thread_id, task=task)]
 
         self.assertEqual(len(actions.requests), 5)
-        self.assertEqual(len(model.calls), 5)
+        self.assertEqual(len(model.calls), 6)
+        self.assertEqual(model.calls[-1][2], ())
         self.assertIn(EventKind.COMPLETED, [event.kind for event in events])
         self.assertTrue(any(
             event.kind is EventKind.TASK_BUDGET_WARNING
@@ -112,6 +117,10 @@ class EngineStagnationTests(unittest.IsolatedAsyncioTestCase):
             message.role == "developer" and "resolve from the current evidence" in message.content
             for message in sessions.messages[thread_id]
         ))
+        self.assertTrue(any(
+            message.role == "assistant" and message.content == "已完成调查总结。"
+            for message in sessions.messages[thread_id]
+        ))
 
     async def test_modify_task_tool_only_loop_requires_a_decision_before_budget_limit(self):
         streams = []
@@ -121,6 +130,7 @@ class EngineStagnationTests(unittest.IsolatedAsyncioTestCase):
                 ModelEvent(kind=ModelEventKind.TOOL_CALL, tool_call=call),
                 ModelEvent(kind=ModelEventKind.COMPLETED),
             ))
+        streams.append((ModelEvent(kind=ModelEventKind.COMPLETED),))
         sessions = _TaskSession()
         thread_id = await sessions.create_thread()
         task = TaskRecord(
@@ -142,10 +152,15 @@ class EngineStagnationTests(unittest.IsolatedAsyncioTestCase):
         events = [event async for event in engine.run("fix", thread_id=thread_id, task=task)]
 
         self.assertEqual(len(actions.requests), 5)
-        self.assertEqual(len(model.calls), 5)
+        self.assertEqual(len(model.calls), 6)
         self.assertTrue(any(
             event.kind is EventKind.TASK_BUDGET_WARNING
             and event.payload.get("phase") == "finalize"
+            for event in events
+        ))
+        self.assertTrue(any(
+            event.kind is EventKind.ERROR
+            and event.payload.get("code") == "empty_summary"
             for event in events
         ))
         self.assertIn(EventKind.TASK_DECISION_REQUIRED, [event.kind for event in events])
@@ -226,6 +241,10 @@ class EngineStagnationTests(unittest.IsolatedAsyncioTestCase):
             ),
             ModelEvent(kind=ModelEventKind.COMPLETED),
         ))
+        streams.append((
+            ModelEvent(kind=ModelEventKind.TEXT_DELTA, text="工具调用已完成，现给出总结。"),
+            ModelEvent(kind=ModelEventKind.COMPLETED),
+        ))
         sessions = _TaskSession()
         thread_id = await sessions.create_thread()
         task = TaskRecord(
@@ -241,19 +260,24 @@ class EngineStagnationTests(unittest.IsolatedAsyncioTestCase):
         model = FakeModelClient(tuple(streams))
         engine = AgentEngine(
             model, FakeContextBuilder(), actions, sessions,
-            limits=EngineLimits(max_agent_rounds=6),
+            limits=EngineLimits(max_agent_rounds=7),
         )
 
         events = [event async for event in engine.run("inspect", thread_id=thread_id, task=task)]
 
         self.assertEqual(len(actions.requests), 5)
-        self.assertEqual(len(model.calls), 5)
+        self.assertEqual(len(model.calls), 7)
+        self.assertEqual(model.calls[-1][2], ())
         self.assertIn(EventKind.COMPLETED, [event.kind for event in events])
-        self.assertFalse(any(
+        self.assertTrue(any(
             event.kind is EventKind.ACTION_COMPLETED
             and event.payload.get("result", {}).get("output", {}).get("error_code")
             == "summary_tool_call_rejected"
             for event in events
+        ))
+        self.assertTrue(any(
+            message.role == "assistant" and message.content == "工具调用已完成，现给出总结。"
+            for message in sessions.messages[thread_id]
         ))
 
     async def test_final_modify_turn_keeps_tools_for_the_last_action(self):

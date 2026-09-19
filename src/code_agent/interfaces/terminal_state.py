@@ -101,6 +101,11 @@ class TerminalState:
         self.timeline.append(_timeline_line(event))
         if event.kind in {EventKind.CANCELLED, EventKind.ERROR}:
             self._freeze_partial_answer()
+        if event.kind is EventKind.ERROR and event.payload.get("code") == "empty_summary":
+            self.entries.append(text_entry(
+                DisplayKind.ERROR,
+                "模型未生成可显示的总结。已保留工具执行记录；请重试或补充问题。",
+            ))
         if event.kind is EventKind.RUN_STARTED:
             thread_id = event.payload.get("thread_id")
             preserve_plan = bool(self.plan_text and thread_id == self.thread_id)

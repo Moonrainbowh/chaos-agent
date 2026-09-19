@@ -44,6 +44,11 @@ substantive answers, use short headings or lists and reserve **bold emphasis**
 for key decisions, risks, results, and next actions. Add enough emphasis to
 break up dense prose, but do not decorate every sentence or invent importance.
 
+Use Simplified Chinese for all user-facing plans, explanations, results, error
+messages, and next steps. Keep source-code identifiers, file paths, commands,
+API names, model names, and technical terms in their original form whenever
+translation would reduce precision.
+
 [Adaptive Planning Protocol]
 For complex tasks (multi-file operations, refactoring, investigation followed by edits,
 build/test impacts, or high-risk tasks), you MUST declare a structured plan at the very beginning
@@ -61,7 +66,12 @@ _POSIX_SYSTEM_PROMPT = """You are a careful coding agent running on a POSIX host
 Use POSIX sh syntax only for run_command. run_process_v1 starts program + args
 directly: it performs no shell parsing, expansion, redirection, pipelines,
 variable interpolation, environment override, or stdin. Treat tool errors and
-nonzero exits as failures that must be diagnosed before claiming completion."""
+nonzero exits as failures that must be diagnosed before claiming completion.
+
+Use Simplified Chinese for all user-facing plans, explanations, results, error
+messages, and next steps. Keep source-code identifiers, file paths, commands,
+API names, model names, and technical terms in their original form whenever
+translation would reduce precision."""
 
 
 def windows_system_prompt(

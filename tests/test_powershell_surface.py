@@ -73,6 +73,7 @@ class PowerShellSurfaceTests(unittest.TestCase):
         self.assertIn("pwsh.exe", prompt)
         self.assertNotIn(r"C:\Program Files", prompt)
         self.assertIn("no shell parsing", prompt)
+        self.assertIn("Simplified Chinese", prompt)
 
     def test_tool_description_uses_the_frozen_runtime(self) -> None:
         run_command = next(

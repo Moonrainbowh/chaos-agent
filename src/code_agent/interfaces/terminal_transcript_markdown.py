@@ -21,7 +21,7 @@ def _format_plan_card(plan_text: str, width: int, theme: Theme) -> list[_RenderL
     # steps pushed the bottom edge past the top edge after wrapping.
     box_w = max(20, min(width, 76))
     inner_w = box_w - 2
-    title = "─ Task plan "
+    title = "─ 任务计划 "
     title = title + "─" * max(1, inner_w - display_width(title))
     lines: list[_RenderLine] = [_RenderLine("┌" + title[:inner_w] + "┐", "table_border")]
     body_w = max(1, inner_w - 6)
@@ -160,5 +160,4 @@ def _wrap_display(value: str, width: int) -> list[str]:
 
 def _pad_display(value: str, width: int) -> str:
     return value + " " * max(0, width - display_width(value))
-
 

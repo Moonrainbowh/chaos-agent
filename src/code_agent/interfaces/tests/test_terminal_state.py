@@ -284,6 +284,14 @@ class TerminalStateTests(unittest.TestCase):
         self.assertEqual(state.transcript, [])
         self.assertFalse(state.has_draft)
 
+    def test_empty_summary_error_is_rendered_as_a_recoverable_message(self) -> None:
+        state = TerminalState()
+
+        state.apply(AgentEvent(EventKind.ERROR, {"code": "empty_summary"}))
+
+        self.assertEqual(state.entries[-1].kind, DisplayKind.ERROR)
+        self.assertIn("模型未生成可显示的总结", state.entries[-1].text)
+
     def test_persisted_final_message_is_visible_before_task_completion(self) -> None:
         state = TerminalState()
         state.apply(AgentEvent(EventKind.MODEL_EVENT, {"event": ModelEvent(ModelEventKind.TEXT_DELTA, text="answer").to_dict()}))

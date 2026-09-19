@@ -24,7 +24,7 @@ class PlanPersistenceTests(unittest.TestCase):
             for status in ("running", "building_context", "waiting_model"):
                 app.state.status = status
                 app.redraw()
-                self.assertIn("Task plan", writes[-1])
+                self.assertIn("任务计划", writes[-1])
                 self.assertIn("1. Inspect", writes[-1])
                 self.assertIn("2. Fix", writes[-1])
 

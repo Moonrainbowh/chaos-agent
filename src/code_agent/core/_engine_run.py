@@ -49,6 +49,8 @@ class _RunState:
     action_history: list[str] = field(default_factory=list)
     exploration_repeat: ExplorationRepeatObserver = field(default_factory=ExplorationRepeatObserver)
     tool_only_guard: ToolOnlyConvergenceGuard = field(default_factory=ToolOnlyConvergenceGuard)
+    summary_required: bool = False
+    summary_retry_count: int = 0
     pending_runtime_notices: list[str] = field(default_factory=list)
 
 
@@ -58,6 +60,7 @@ class _TurnState:
     tools: tuple[ToolDefinition, ...]
     tool_names: set[str]
     summary_only: bool = False
+    forced_summary: bool = False
     text_parts: list[str] = field(default_factory=list)
     calls: list[ToolCall] = field(default_factory=list)
 

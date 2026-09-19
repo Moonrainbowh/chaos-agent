@@ -74,7 +74,11 @@ class AgentEngineTurnMixin(AgentEngineConvergenceMixin, AgentEngineDispatchMixin
             and state.task is not None
             and state.task.contract.intent is TaskIntent.MODIFY
         )
-        summary_only = last_available_turn and not final_modify_turn
+        forced_summary = state.summary_required
+        summary_only = forced_summary or (last_available_turn and not final_modify_turn)
+        if forced_summary:
+            state.summary_required = False
+            final_modify_turn = False
         if summary_only:
             queue_runtime_notice(
                 state,
@@ -85,7 +89,13 @@ class AgentEngineTurnMixin(AgentEngineConvergenceMixin, AgentEngineDispatchMixin
                 yield event
         if summary_only:
             tools, tool_names = (), set()
-        turn = _TurnState(number, tools, tool_names, summary_only=summary_only)
+        turn = _TurnState(
+            number,
+            tools,
+            tool_names,
+            summary_only=summary_only,
+            forced_summary=forced_summary,
+        )
         bundles: list[ContextBundle] = []
         async for event in self._start_turn(state, turn, user_input, bundles):
             yield event
@@ -97,6 +107,9 @@ class AgentEngineTurnMixin(AgentEngineConvergenceMixin, AgentEngineDispatchMixin
         state.messages += (assistant,)
         yield added
         if not turn.calls:
+            if turn.summary_only and not "".join(turn.text_parts).strip():
+                async for event in self._report_empty_summary(state):
+                    yield event
             async for event in self._finish_without_calls(state, turn):
                 yield event
             if not state.stop_requested:

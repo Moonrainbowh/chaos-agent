@@ -59,9 +59,28 @@ class AgentEngineConvergenceMixin:
         yield warning
         async for event in self._flush_runtime_notices(state):
             yield event
-        if observation.kind == "finalize" and state.task is not None:
-            async for event in self._finish_task_without_calls(state, turn):
-                yield event
+        if observation.kind == "finalize":
+            state.summary_required = True
+            queue_runtime_notice(
+                state,
+                "Runtime control: the next model turn must provide a final "
+                "user-facing summary from the collected evidence; no tools "
+                "will be available.",
+            )
+
+    async def _report_empty_summary(
+        self, state: _RunState
+    ) -> AsyncIterator[AgentEvent]:
+        """Make a missing final answer visible without inventing a result."""
+        event = AgentEvent(
+            EventKind.ERROR,
+            {
+                "code": "empty_summary",
+                "reason": "model completed the summary turn without answer text",
+            },
+        )
+        await self._journal.append_event(state.thread_id, event)
+        yield event
 
     async def _reject_summary_tool_calls(
         self, state: _RunState, turn: _TurnState
@@ -89,6 +108,15 @@ class AgentEngineConvergenceMixin:
                 state.thread_id, call, failure
             ):
                 yield event
+        if turn.forced_summary and state.summary_retry_count == 0:
+            state.summary_retry_count += 1
+            state.summary_required = True
+            queue_runtime_notice(
+                state,
+                "Runtime control: tools remain unavailable. Reply now with the "
+                "final user-facing summary only; do not request another tool.",
+            )
+            return
         state.stop_requested = True
         if state.task is not None:
             await self._pause_task(

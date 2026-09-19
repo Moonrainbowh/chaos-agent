@@ -7,9 +7,9 @@ from code_agent.interfaces.i18n import Language, localize_task_status, select_la
 
 
 class I18nTests(unittest.TestCase):
-    def test_runtime_defaults_to_english_on_chinese_windows(self) -> None:
+    def test_runtime_defaults_to_chinese_on_chinese_windows(self) -> None:
         with patch("code_agent.interfaces.i18n.locale.getlocale", return_value=("zh_CN", "UTF-8")):
-            self.assertEqual(select_runtime_language({}), Language.EN_US)
+            self.assertEqual(select_runtime_language({}), Language.ZH_CN)
 
     def test_selects_chinese_windows_default_and_explicit_english(self) -> None:
         self.assertEqual(select_language("zh_CN", None), Language.ZH_CN)

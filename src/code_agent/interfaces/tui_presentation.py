@@ -123,7 +123,7 @@ class TerminalPresentation:
         if not palette and self.state.plan_text and active:
             steps = [line.strip() for line in safe_text(self.state.plan_text).splitlines() if line.strip()]
             limit = max(1, min(12, size.lines - 12))
-            palette = [clip_display("Task plan", size.columns)]
+            palette = [clip_display("任务计划", size.columns)]
             completed = min(getattr(self.state, "plan_completed_steps", 0), max(0, len(steps) - 1))
             palette += [
                 clip_display(
