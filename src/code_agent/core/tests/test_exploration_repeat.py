@@ -117,11 +117,21 @@ class ToolOnlyConvergenceGuardTests(unittest.TestCase):
         read = ToolCall("read", "read_file", {"path": "x.py"})
         write = ToolCall("write", "write_file", {"path": "x.py", "content": "x"})
         verify = ToolCall("verify", "run_verification", {"recipe": "unit"})
+        new_context = ToolCall("window", "new_context", {})
         guard.observe(has_text=False, calls=[read])
         self.assertIsNone(guard.observe(has_text=True, calls=[read]))
         self.assertIsNone(guard.observe(has_text=False, calls=[read]))
         self.assertIsNone(guard.observe(has_text=False, calls=[write]))
         self.assertIsNone(guard.observe(has_text=False, calls=[verify]))
+        guard.observe(has_text=False, calls=[read])
+        guard.observe(has_text=False, calls=[read])
+        self.assertIsNone(guard.observe(has_text=False, calls=[new_context]))
+        self.assertIsNone(guard.observe(has_text=False, calls=[read]))
+        self.assertIsNone(guard.observe(has_text=False, calls=[read]))
+        self.assertEqual(
+            guard.observe(has_text=False, calls=[read]).kind,
+            "warn",
+        )
         guard.reset()
         self.assertIsNone(guard.observe(has_text=False, calls=[read]))
 

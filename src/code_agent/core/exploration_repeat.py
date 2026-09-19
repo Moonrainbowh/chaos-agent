@@ -81,6 +81,7 @@ _PROGRESS_TOOLS = frozenset({
     "replace_text",
     "apply_workspace_edit_plan_v1",
     "run_verification",
+    "new_context",
 })
 
 

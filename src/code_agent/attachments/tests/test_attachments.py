@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import os
 import sys
 import tempfile
 import unittest
@@ -18,6 +19,7 @@ from code_agent.attachments.errors import (  # noqa: E402
     AttachmentError,
     AttachmentIntegrityError,
 )
+from code_agent.attachments import security as attachment_security  # noqa: E402
 from code_agent.attachments.ingest import AttachmentIngestor  # noqa: E402
 from code_agent.attachments.store import AttachmentStore  # noqa: E402
 from code_agent.workspace.ignore import IgnoreRules  # noqa: E402
@@ -97,6 +99,47 @@ class AttachmentTests(unittest.TestCase):
         sensitive.write_text("TOKEN=value", encoding="utf-8")
         with self.assertRaises(AttachmentError):
             self.ingestor.ingest_path(sensitive, explicit_external=True)
+
+    def test_external_path_rejects_user_controlled_symlink(self) -> None:
+        actual = self.root / "actual"
+        actual.mkdir()
+        external = actual / "outside.txt"
+        external.write_text("not allowed through a link", encoding="utf-8")
+        linked = self.root / "linked"
+        try:
+            linked.symlink_to(actual, target_is_directory=True)
+        except (OSError, NotImplementedError) as error:
+            self.skipTest(f"directory symlinks unavailable: {error}")
+
+        with self.assertRaisesRegex(AttachmentError, "linked external attachment"):
+            self.ingestor.ingest_path(
+                linked / external.name,
+                explicit_external=True,
+            )
+
+    def test_only_verified_macos_var_alias_is_allowed(self) -> None:
+        real_resolve = Path.resolve
+
+        def resolve_alias(path: Path, strict: bool = False) -> Path:
+            if path == Path("/var"):
+                return Path("/private/var")
+            return real_resolve(path, strict=strict)
+
+        with (
+            patch.object(attachment_security.sys, "platform", "darwin"),
+            patch.object(Path, "resolve", resolve_alias),
+        ):
+            self.assertTrue(
+                attachment_security._is_allowed_system_root_alias(Path("/var"))
+            )
+            self.assertFalse(
+                attachment_security._is_allowed_system_root_alias(Path("/tmp"))
+            )
+
+        with patch.object(attachment_security.sys, "platform", os.name):
+            self.assertFalse(
+                attachment_security._is_allowed_system_root_alias(Path("/var"))
+            )
 
     def test_product_config_directory_is_never_attachable(self) -> None:
         local = self.root / "local"

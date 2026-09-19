@@ -3,6 +3,8 @@ from __future__ import annotations
 import contextlib
 import io
 import os
+import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -10,6 +12,7 @@ from unittest import mock
 from scripts.run_test_suite import (
     StructuredTextResult,
     _emit_github_failure,
+    run_suite,
     strict_test_id,
 )
 
@@ -91,6 +94,32 @@ class StructuredIdentifierTests(unittest.TestCase):
         holder = unittest.suite._ErrorHolder("setUpClass (private.SecretCase)")
 
         self.assertEqual(strict_test_id(holder), "unittest.fixture_error")
+
+
+class SourceTreeImportTests(unittest.TestCase):
+    def test_source_tree_precedes_an_installed_package(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            (root / "src").mkdir()
+            (root / "tests").mkdir()
+            result = StructuredTextResult(io.StringIO(), False, 1)
+            with (
+                mock.patch.object(
+                    sys,
+                    "path",
+                    ["installed-packages", str(root), str(root / "src")],
+                ),
+                mock.patch(
+                    "scripts.run_test_suite.unittest.main",
+                    return_value=mock.Mock(result=result),
+                ),
+            ):
+                returncode = run_suite(root, "tests", "test_*.py")
+                active_path = tuple(sys.path)
+
+        self.assertEqual(returncode, 0)
+        self.assertEqual(active_path[:2], (str(root / "src"), str(root)))
+        self.assertEqual(active_path[2], "installed-packages")
 
 
 class StructuredResultTests(unittest.TestCase):

@@ -39,7 +39,7 @@
 - `TaskVerificationService.suggest_verification(...)`: 在没有当前测试 evidence 时返回一个受信的 typed verifier tool call | 具体 recipe 由实现选择 | 不能包含 shell、argv 或安装参数；系统调用仍须持久化配对的 assistant tool-call 消息
 - `TaskVerificationService.begin_logical_change(...)`、`commit_logical_change(...)`、`InFlightValidationError`: 以抽象协议把一组工具写入收敛为单次 generation，并把 Host 规划的 milestone verifier 返回给 engine | 具体语义图、快照和 evidence 副作用由 Verification 实现负责 | L0 失败必须携带已发生写入后的 TaskState，剩余同批工具不得继续执行
 - `validation_fingerprint(...)`、`circuit_breaker_result(...)`、`is_in_flight_failure(...)`: 将结构化失败归一为监督器可比较的有界身份，并识别重复动作/L0 阻断信号 | 无副作用 | 优先使用 Host 生成的失败摘要，不泄露任意长度输出
-- `ExplorationRepeatObserver`、`ToolOnlyConvergenceGuard`：分别检测精确只读重复与连续无正文、无写入/验证动作的工具回合 | 无副作用 | exact-repeat 保持窄范围；tool-only guard 先 warning，连续五回合仍无进展时强制一个无工具总结回合；总结错误请求工具时仅重试一次，仍无正文时发布可见错误，不把多步只读调查误判为停滞
+- `ExplorationRepeatObserver`、`ToolOnlyConvergenceGuard`：分别检测精确只读重复与连续无正文、无写入/验证/换窗动作的工具回合 | 无副作用 | exact-repeat 保持窄范围；tool-only guard 先 warning，连续五回合仍无进展时强制一个无工具总结回合；主动换窗作为跨窗恢复边界重置连续计数，总结错误请求工具时仅重试一次，仍无正文时发布可见错误，不把多步只读调查或合法换窗恢复误判为停滞
 - `phase_started_at(...)`、`phase_duration_ms(...)`：生成单调、非负且有界的 context/model/action 计时 | 无副作用 | 仅用于 `PHASE_COMPLETED` durable 事件，不计入任务 active-time 预算
 - `AgentEngineConvergenceMixin`：在 assistant/tool 配对闭合后持久化 runtime developer notice；连续无正文、无写入/验证进展达到门限时请求一个无工具总结回合，错误请求工具时仅重试一次，仍无正文则发布可见错误后按当前证据进入完成/验证门 | 写入消息/事件并更新暂停状态 | notice 只进入下一模型 payload 一次；分析任务的最终预算回合不调用 dispatcher，而修改任务保留一次工具执行机会后进入完成/验证门
 - `AgentEngineDispatchMixin`：执行模型工具调用、持久化成对 tool 结果并保留 exact-repeat 反馈 | 调用 dispatcher、写入动作消息与事件 | 仅作为回合协调器的工具执行支撑，不改变工具预算和验证顺序

@@ -54,7 +54,13 @@ def discover_test_suites(root: Path) -> tuple[Path, ...]:
 
 
 def run_test_suites(root: Path, suites: Sequence[Path], suite_timeout: float = 600) -> int:
-    sys.path.insert(0, str(root))
+    source = root / "src"
+    for entry in (str(source), str(root)):
+        try:
+            sys.path.remove(entry)
+        except ValueError:
+            pass
+    sys.path[:0] = [str(source), str(root)]
     github_actions = os.environ.get("GITHUB_ACTIONS", "").casefold() == "true"
     for suite in suites:
         relative = suite.relative_to(root)

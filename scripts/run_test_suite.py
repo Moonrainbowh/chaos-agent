@@ -110,8 +110,13 @@ class StructuredRunner(unittest.TextTestRunner):
 def run_suite(root: Path, start_dir: str, pattern: str) -> int:
     root = Path(root).resolve()
     relative, suite = _resolve_suite(root, start_dir)
-    if str(root) not in sys.path:
-        sys.path.insert(0, str(root))
+    source = root / "src"
+    for entry in (str(source), str(root)):
+        try:
+            sys.path.remove(entry)
+        except ValueError:
+            pass
+    sys.path[:0] = [str(source), str(root)]
     program = unittest.main(
         module=None,
         argv=["unittest", "discover", "-s", str(suite), "-p", pattern],

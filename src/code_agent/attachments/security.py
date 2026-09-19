@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import stat
+import sys
 from pathlib import Path
 
 from .errors import AttachmentError
@@ -71,4 +72,16 @@ def _reject_link_components(path: Path) -> None:
         metadata = current.lstat()
         reparse = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
         if current.is_symlink() or getattr(metadata, "st_file_attributes", 0) & reparse:
+            if _is_allowed_system_root_alias(current):
+                continue
             raise AttachmentError("linked external attachment paths are not allowed")
+
+
+def _is_allowed_system_root_alias(path: Path) -> bool:
+    """Accept only macOS's immutable /var spelling for /private/var."""
+    if sys.platform != "darwin" or path != Path("/var"):
+        return False
+    try:
+        return path.resolve(strict=True) == Path("/private/var")
+    except OSError:
+        return False

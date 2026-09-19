@@ -73,6 +73,27 @@ class TestSuiteDiscoveryTests(unittest.TestCase):
 
 
 class TestSuiteDiagnosticsTests(unittest.TestCase):
+    def test_parent_runner_prefers_source_tree_before_supervision(self) -> None:
+        root = Path.cwd()
+        suite = root / "tests"
+        with (
+            mock.patch.object(
+                sys,
+                "path",
+                ["installed-packages", str(root), str(root / "src")],
+            ),
+            mock.patch(
+                "scripts.suite_process.run_supervised_suite",
+                return_value=SimpleNamespace(returncode=0),
+            ),
+        ):
+            returncode = run_test_suites(root, (suite,))
+            active_path = tuple(sys.path)
+
+        self.assertEqual(returncode, 0)
+        self.assertEqual(active_path[:2], (str(root / "src"), str(root)))
+        self.assertEqual(active_path[2], "installed-packages")
+
     def test_ci_failure_annotation_identifies_suite(self) -> None:
         root = Path.cwd()
         suite = root / "tests"
