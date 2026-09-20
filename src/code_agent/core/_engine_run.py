@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from inspect import signature
 from typing import AsyncIterator, Optional
 
+from ._json import plain
 from .cancellation import CancellationError, CancellationToken
 from .context_request import ContextRequest, budget_lease
 from .errors import AgentEngineError, ContextBuildError, EngineLimitError, ModelStreamError
@@ -367,7 +368,7 @@ def _message_fingerprint(
     result = _tool_result(message)
     if result is None:
         return ""
-    arguments: dict[str, object] = {}
+    arguments: object = {}
     for candidate in reversed(messages):
         if candidate.role != "assistant":
             continue
@@ -380,14 +381,14 @@ def _message_fingerprint(
             None,
         )
         if call is not None:
-            arguments = dict(call.arguments)
+            arguments = plain(call.arguments)
             break
     encoded = json.dumps(
         {
             "name": message.name,
             "arguments": arguments,
             "is_error": result.is_error,
-            "output": dict(result.output),
+            "output": plain(result.output),
         },
         ensure_ascii=True,
         sort_keys=True,

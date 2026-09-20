@@ -64,7 +64,7 @@
 - `SessionRepository`: 异步创建线程并持久化消息与事件 | 具体副作用由实现负责
 - `EngineLimits`: 冻结模型回合、工具调用、token 与输出字符预算 | 无副作用 | 越界前先阻止新的外部工具动作
 - `BudgetLeaseTier`、`select_budget_lease(...)`、`lease_limits(...)`: 按任务意图和显式深度信号选择 quick/standard/deep 初始软租约并裁剪到硬上限 | 无副作用 | 只影响收敛预算，不改变授权、沙箱、网络或 Provider 能力
-- `TaskProgressSnapshot`: 将 Host 已确认的 generation、subject、验证、失败、动作和交互修订压缩为稳定有界摘要 | 无副作用 | 模型正文和自述不能构造可信进展
+- `TaskProgressSnapshot`: 将 Host 已确认的 generation、subject、验证、失败、动作和交互修订压缩为稳定有界摘要，工具参数与结果先递归还原为普通 JSON 再计算指纹 | 无副作用 | 模型正文和自述不能构造可信进展；嵌套冻结映射不得泄漏到 JSON 编码器
 - `TaskBudget`: 表达可恢复任务的模型名、硬限制、软租约和已消耗额度 | 无副作用 | 使用量只允许单调增加；软租约不得超过硬上限
 - `TaskAuthorization`、`TaskContract`、`TaskRecord`、`TaskStatus`: 表达前台自主任务的范围、预算和生命周期 | 无副作用 | `ACCEPTED_PARTIAL` 只能由显式用户决定产生；`SUPERSEDED` 是不可恢复执行的终态
 - `TaskSupervisor.observe(...)`: 根据恢复后的持久预算、验证结果和失败指纹决定继续、checkpoint、暂停或等待决策 | 无副作用 | token/round/tool/stall 预算跨恢复持续累计；活跃时间保留累计遥测，但每次 Engine run 使用新的独立 active-time 段

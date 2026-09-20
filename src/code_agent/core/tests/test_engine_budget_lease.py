@@ -40,6 +40,36 @@ class EngineBudgetLeaseTests(unittest.TestCase):
             _message_fingerprint(second, (second_request, second)),
         )
 
+    def test_tool_result_fingerprint_serializes_nested_frozen_search_results(self) -> None:
+        message = _tool_message(
+            "call-1",
+            {
+                "matches": [
+                    {
+                        "path": "src/data_pipeline.py",
+                        "line": 12,
+                        "captures": [{"text": "dynamic_features"}],
+                    }
+                ]
+            },
+            name="search_text",
+        )
+        request = Message(
+            role="assistant",
+            tool_calls=(
+                ToolCall(
+                    "call-1",
+                    "search_text",
+                    {"query": "dynamic", "include_globs": ["src/**/*.py"]},
+                ),
+            ),
+        )
+
+        fingerprint = _message_fingerprint(message, (request, message))
+
+        self.assertEqual(len(fingerprint), 64)
+        self.assertTrue(all(character in "0123456789abcdef" for character in fingerprint))
+
     def test_lease_exhaustion_is_distinct_from_hard_exhaustion(self) -> None:
         budget = TaskBudget(
             "model",
@@ -59,11 +89,13 @@ class EngineBudgetLeaseTests(unittest.TestCase):
         self.assertIs(reservation.status, BudgetReserveStatus.LEASE_EXHAUSTED)
 
 
-def _tool_message(call_id: str, output: dict[str, object]) -> Message:
-    result = ActionResult(call_id, "read_file", output)
+def _tool_message(
+    call_id: str, output: dict[str, object], *, name: str = "read_file"
+) -> Message:
+    result = ActionResult(call_id, name, output)
     return Message(
         role="tool",
-        name="read_file",
+        name=name,
         tool_call_id=call_id,
         content=json.dumps(result.to_dict()),
     )
