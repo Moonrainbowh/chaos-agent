@@ -108,9 +108,7 @@ class LedgerTaskVerificationService:
         plan = self._planner.plan(tuple(sorted(pending)), phase=phase, diff="\n".join(diff_parts))
         if failures:
             return state, None
-        if plan.tier is RiskTier.LOW and planner_attestation_allowed(
-            plan.changed_files
-        ):
+        if planner_attestation_allowed(plan):
             await record_planner_attestation(
                 self._sessions, task.id, state, plan
             )
@@ -248,9 +246,7 @@ class LedgerTaskVerificationService:
             state.files_changed, phase=VerificationPhase.FINAL_GATE,
             diff="\n".join(self._task_diffs.get(task.id, ()))
         )
-        if plan.tier is RiskTier.LOW and planner_attestation_allowed(
-            state.files_changed
-        ):
+        if planner_attestation_allowed(plan):
             await record_planner_attestation(
                 self._sessions, task.id, state, plan
             )

@@ -20,12 +20,12 @@
 - `PythonVerificationAdapter.build(request)`: 为 Python 验证 kind 生成固定 argv 或 unavailable | 只查询本地模块可用性 | 不执行命令、不安装依赖、不接收 shell 文本
 - `LocalVerificationAdapter.build(request)`: 为 Node/.NET 已声明脚本或项目生成固定 argv | 只读取 manifest、现有 node_modules 和本机 executable | `npm` 不安装依赖，`dotnet` 始终使用 `--no-restore`
 - `check_syntax(...)`、`SyntaxCheckResult`: 对 Python/JSON/TOML 执行写后 L0 检查并生成有界定位 | 读取已授权目标文件 | 失败只报告验证状态；文件字节恢复由 Workspace edit batch 负责
-- `classify_risk(...)`、`RiskTier`: 以保守路径规则建立图评估前的风险下界 | 无副作用 | UI 可执行代码不归入低风险文档
+- `classify_risk(...)`、`classify_patch_risk(...)`、`RiskTier`: 以保守路径规则建立图评估前的风险下界，并把完整单文件、总变更不超过 20 行且未命中接口、安全、持久化、并发、网络、配置、入口、测试或控制流信号的 diff 标为 `TRIVIAL` | 无副作用 | `TRIVIAL` 仅省略项目测试，不跳过 L0 与完成门；UI 可执行代码不归入低风险文档，高/关键路径、截断或二进制 diff 不得降级
 - `VerificationPlanner`: 基于 ChangeSet、RiskTier 与同代 UnifiedSemanticGraph 规划三阶段渐进验证（In-Flight L0 语法截瘫、Local Milestone 影响域单测、Final Gate 全量门禁） | 无外部副作用 | 计划携带 semantic generation，结合反向依赖图排除无关测试，并提供审查范围与重构拓扑排序
 - `PlannerVerificationAdapter`: 把计划转换成受限结构化请求或 L0/免测试结果 | 只读取语法目标 | 不接收 shell/argv，不执行验证进程
 - `PlannedCallRegistry`: 将 Host 生成的不可伪造 call id 绑定 phase/risk/step 和 completion criterion | 维护进程内一次性映射 | 模型自选 targeted test 只能产生 integrity evidence，不能直接满足完成条件
 - Host 规划的 milestone/final verifier 仍消耗同一任务工具租约；其规范化 kind/参数可作为必要的结构化进展，但租约耗尽只进入现有收敛与完成门，不得扩大权限或绕过最终硬上限。
-- `validation_contract(...)`、`planner_attestation_allowed(...)`、`record_planner_attestation(...)`、`verifier_outcome(...)`: 建立风险适配完成条件、明确文档路径的低风险规划证明与标准结果 | 追加 evidence ledger | 没有工作区文件变化时不调度项目验证，由 Core 区分只读完成与修改未实现；模糊 `.txt` 和实际可执行文件改动不能免测，高/关键风险仍必须运行 verifier
+- `validation_contract(...)`、`planner_attestation_allowed(...)`、`record_planner_attestation(...)`、`verifier_outcome(...)`: 建立风险适配完成条件，为明确文档 `LOW` 或 Host 完整 diff 分类后的单文件 `TRIVIAL` 计划记录免测试证明与标准结果 | 追加 evidence ledger | 没有工作区文件变化时不调度项目验证，由 Core 区分只读完成与修改未实现；模型、路径数量或扩展名单独不能生成 `TRIVIAL` 证明，高/关键风险仍必须运行 verifier
 - `LedgerTaskVerificationService`: 支持 Logical Change 验证事务（解耦单个 Tool Call 与 Generation 递增，批次提交时单调递增一次）并结合 guarded subject snapshot 和 evidence ledger | 事务内多编辑共享 generation、逐写 L0 fail-fast、提交时产生 milestone 计划；完成仍由 sessions 原子复核 | 该事务管理 generation/evidence，不宣称回滚已写文件；文件恢复属于 Workspace edit batch
 
 - 定向验证同时纳入同名测试及 `test_<module>_*.py` 行为分组，避免命中单个同名测试后漏掉相邻既有行为；不读取外部隐藏验收答案。

@@ -119,6 +119,33 @@ class LogicalChangeTransactionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(captured[-1].tier, RiskTier.HIGH)
         self.assertTrue(captured[-1].require_full_gate)
 
+    async def test_trivial_patch_records_attestation_without_verifier_call(self) -> None:
+        from dataclasses import replace
+        from code_agent.verification.evidence import EvidenceProvenance
+        from code_agent.verification.planner import RiskTier
+
+        self.service.begin_logical_change(self.task.id)
+        result = ActionResult(
+            "edit-trivial",
+            "write_file",
+            {"path": "service.py"},
+            metadata={"diff": "-LABEL = 'old'\n+LABEL = 'new'"},
+        )
+        updated = await self.service.record_action(
+            self.task,
+            ActionRequest("edit-trivial", "write_file", {"path": "service.py"}),
+            result,
+            replace(self.state, files_changed=("service.py",)),
+        )
+        updated, plan = await self.service.commit_logical_change(self.task, updated)
+
+        self.assertEqual(plan.tier, RiskTier.TRIVIAL)
+        self.assertIsNone(await self.service.suggest_verification(self.task, updated))
+        evidence = await self.sessions.list_verification_evidence(self.task.id)
+        self.assertTrue(
+            any(item.provenance is EvidenceProvenance.SYSTEM_PLANNER for item in evidence)
+        )
+
     async def test_logical_change_rollback_discards_pending(self) -> None:
         initial_generation = self.state.code_generation
         self.service.begin_logical_change(self.task.id)

@@ -92,6 +92,19 @@ class VerificationPlannerTests(unittest.TestCase):
         self.assertTrue(plan.skip_tests)
         self.assertFalse(plan.require_full_gate)
 
+    def test_plan_trivial_patch_keeps_syntax_check_and_skips_tests(self) -> None:
+        files = ["feature.py"]
+        plan = self.planner.plan(
+            files,
+            phase=VerificationPhase.FINAL_GATE,
+            diff="-LABEL = 'old'\n+LABEL = 'new'",
+        )
+        self.assertEqual(plan.tier, RiskTier.TRIVIAL)
+        self.assertEqual(plan.syntax_targets, tuple(files))
+        self.assertEqual(plan.targeted_tests, ())
+        self.assertTrue(plan.skip_tests)
+        self.assertFalse(plan.require_full_gate)
+
     def test_plan_critical_risk_requires_full_gate_on_final(self) -> None:
         files = ["pyproject.toml"]
         plan = self.planner.plan(files, phase=VerificationPhase.FINAL_GATE)

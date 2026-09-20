@@ -16,6 +16,7 @@ from code_agent.core.completion_contract import (
 from code_agent.core.verification_state import VerifierOutcome
 from code_agent.projects.discovery import ProjectKind
 from .planner import VerificationPlan
+from .risk import RiskTier
 
 from .evidence import (
     EvidenceOutcome,
@@ -58,9 +59,16 @@ def is_legacy_default_contract(contract: TaskContractRevision) -> bool:
     )
 
 
-def planner_attestation_allowed(changed_files: Sequence[str]) -> bool:
-    """Allow no-test proof only for paths that are unambiguously documentation."""
+def planner_attestation_allowed(plan: VerificationPlan) -> bool:
+    """Allow no-test proof for Host-classified trivial or clear documentation plans."""
+    if not isinstance(plan, VerificationPlan):
+        raise TypeError("plan must be a VerificationPlan")
+    changed_files = plan.changed_files
     if not changed_files:
+        return False
+    if plan.tier is RiskTier.TRIVIAL:
+        return len(changed_files) == 1
+    if plan.tier is not RiskTier.LOW:
         return False
     for raw in changed_files:
         path = PurePosixPath(raw.replace("\\", "/"))

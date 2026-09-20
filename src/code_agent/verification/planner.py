@@ -99,10 +99,20 @@ class VerificationPlanner:
             tier, reason = classify_risk(changed_files)
         changed = tuple(changed_files)
         patch_tier, symbols, reasons, checks = classify_patch_risk(changed_files, diff)
-        if diff and patch_tier is RiskTier.LOW and tier is RiskTier.MEDIUM:
+        order = [
+            RiskTier.TRIVIAL,
+            RiskTier.LOW,
+            RiskTier.MEDIUM,
+            RiskTier.HIGH,
+            RiskTier.CRITICAL,
+        ]
+        if (
+            diff
+            and tier is RiskTier.MEDIUM
+            and patch_tier in {RiskTier.TRIVIAL, RiskTier.LOW}
+        ):
             tier = patch_tier
         if patch_tier.value != tier.value:
-            order = [RiskTier.LOW, RiskTier.MEDIUM, RiskTier.HIGH, RiskTier.CRITICAL]
             if order.index(patch_tier) > order.index(tier):
                 tier = patch_tier
         if self._semantic_graph is not None and reason not in reasons:
@@ -112,7 +122,7 @@ class VerificationPlanner:
             f for f in changed_files
             if f.endswith((".py", ".json", ".toml"))
         )
-        if tier is RiskTier.LOW:
+        if tier in {RiskTier.TRIVIAL, RiskTier.LOW}:
             return self._make_plan(
                 tier, phase, changed, syntax_targets, (), False, True, reason, symbols, tuple(reasons), checks
             )
