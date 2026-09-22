@@ -8,7 +8,7 @@
 - 不负责：安装依赖、下载、联网、更新包或访问工作区外路径。
 - 不负责：把已验证项目代码宣称为操作系统级隔离；验证仅适用于用户授权且可信的工作区。
 - 负责：verifier registry、标准化 outcome、evidence provenance、失败指纹与 repair directive；只有 Host registry 或确定性 Planner 产生的 evidence 可参与完成判断。
-- 负责：从 Context 已发布的同一 `RepoIndexSnapshot` 消费 `UnifiedSemanticGraph`，将 snapshot generation 固化到验证计划。
+- 负责：从 Context 已发布的同一 `RepoIndexSnapshot` 消费 `UnifiedSemanticGraph`，将 snapshot generation 固化到验证计划；在存在符号级反向依赖时，将变更符号精准收敛至受影响的具体靶向测试用例（targeted tests），避免大范围无关测试耗时。
 - 不负责：调用模型、直接改变 task status，或把用户批准的任意 shell 命令伪装为系统 verifier。
 
 ## Units
@@ -28,4 +28,4 @@
 - `validation_contract(...)`、`planner_attestation_allowed(...)`、`record_planner_attestation(...)`、`verifier_outcome(...)`: 建立风险适配完成条件，为明确文档 `LOW` 或 Host 完整 diff 分类后的单文件 `TRIVIAL` 计划记录免测试证明与标准结果 | 追加 evidence ledger | 没有工作区文件变化时不调度项目验证，由 Core 区分只读完成与修改未实现；模型、路径数量或扩展名单独不能生成 `TRIVIAL` 证明，高/关键风险仍必须运行 verifier
 - `LedgerTaskVerificationService`: 支持 Logical Change 验证事务（解耦单个 Tool Call 与 Generation 递增，批次提交时单调递增一次）并结合 guarded subject snapshot 和 evidence ledger | 事务内多编辑共享 generation、逐写 L0 fail-fast、提交时产生 milestone 计划；完成仍由 sessions 原子复核 | 该事务管理 generation/evidence，不宣称回滚已写文件；文件恢复属于 Workspace edit batch
 
-- 定向验证同时纳入同名测试及 `test_<module>_*.py` 行为分组，避免命中单个同名测试后漏掉相邻既有行为；不读取外部隐藏验收答案。
+- 定向验证同时纳入同名测试及 `test_<module>_*.py` 行为分组，并在同名测试缺失时根据 stem 依赖精准锁定包含该模块引用的测试文件，避免盲目拉入整个测试目录全量执行；不读取外部隐藏验收答案。

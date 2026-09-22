@@ -89,7 +89,7 @@ class RuntimeContextFactory:
             root,
             root,
             prompt,
-            prompt_budget=_profile_prompt_budget(profile),
+            prompt_budget=_profile_prompt_budget(profile, mode),
             repo_map_enabled=self._repo_map_enabled,
         )
         rules = RuleLoader(guard, files, config)
@@ -134,8 +134,32 @@ class RuntimeContextFactory:
         return services.guard, services.files, services.repo_index
 
 
-def _profile_prompt_budget(profile: ModelProfile) -> PromptBudget:
-    base = PromptBudget()
+def _profile_prompt_budget(
+    profile: ModelProfile, mode: ModeSnapshot | None = None
+) -> PromptBudget:
+    is_ultra = False
+    if mode is not None and hasattr(mode, "definition"):
+        mode_val = getattr(mode.definition.mode, "value", str(mode.definition.mode))
+        if mode_val == "ultra":
+            is_ultra = True
+
+    env_max_prompt = os.getenv("CHAOS_MAX_PROMPT_TOKENS")
+    if env_max_prompt and env_max_prompt.isdigit():
+        custom_max = int(env_max_prompt)
+        base = PromptBudget(
+            max_prompt_tokens=custom_max,
+            max_message_tokens=max(12_000, custom_max * 3 // 4),
+        )
+    elif is_ultra:
+        ultra_prompt = min(64_000, max(20_000, profile.context_window))
+        ultra_message = min(48_000, max(12_000, ultra_prompt * 3 // 4))
+        base = PromptBudget(
+            max_prompt_tokens=ultra_prompt,
+            max_message_tokens=ultra_message,
+        )
+    else:
+        base = PromptBudget()
+
     prompt_tokens = min(base.max_prompt_tokens, profile.context_window)
     safety_tokens = min(
         max(base.safety_tokens, PEER_CONTEXT_RESERVE_TOKENS),

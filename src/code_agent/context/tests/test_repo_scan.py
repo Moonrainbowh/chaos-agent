@@ -117,5 +117,41 @@ class RepoFileScannerTests(unittest.TestCase):
         self.assertIn("TAIL_MARKER", facts.search_text)
 
 
+    def test_scans_typescript_const_and_rust_impl(self) -> None:
+        self.write(
+            "src/utils.ts",
+            "export const API_URL = 'https://example.com';\n"
+            "export const fetchUser = async () => {};\n"
+            "export interface User { id: string; }\n",
+        )
+        self.write(
+            "src/model.rs",
+            "pub struct Worker;\n"
+            "impl Worker {\n"
+            "    pub fn run(&self) {}\n"
+            "}\n",
+        )
+
+        ts_facts = self.scanner.scan("src/utils.ts")
+        self.assertEqual(
+            [(item.name, item.kind) for item in ts_facts.symbols],
+            [
+                ("API_URL", "variable"),
+                ("fetchUser", "variable"),
+                ("User", "interface"),
+            ],
+        )
+
+        rs_facts = self.scanner.scan("src/model.rs")
+        self.assertEqual(
+            [(item.name, item.kind) for item in rs_facts.symbols],
+            [
+                ("Worker", "struct"),
+                ("Worker", "impl"),
+                ("run", "function"),
+            ],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

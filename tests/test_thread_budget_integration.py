@@ -173,6 +173,13 @@ class ProfilePromptBudgetTests(unittest.IsolatedAsyncioTestCase):
             budget.max_prompt_tokens - budget.safety_tokens,
         )
 
+    async def test_ultra_mode_expands_prompt_budget(self) -> None:
+        profile = _profile(context_window=128_000)
+        mode = SimpleNamespace(definition=SimpleNamespace(mode=SimpleNamespace(value="ultra")))
+        budget = _profile_prompt_budget(profile, mode)
+        self.assertEqual(budget.max_prompt_tokens, 64_000)
+        self.assertEqual(budget.max_message_tokens, 48_000)
+
 
 if __name__ == "__main__":
     unittest.main()

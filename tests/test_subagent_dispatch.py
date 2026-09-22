@@ -119,6 +119,19 @@ class RestrictedDispatcherTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(result.is_error)
         self.assertIs(inner.context, context)
 
+    def test_distill_subagent_summary_bounds_excessive_output(self) -> None:
+        from code_agent_win.subagents import distill_subagent_summary
+
+        short_text = "Analysis completed. 2 files checked."
+        self.assertEqual(distill_subagent_summary(short_text, max_chars=100), short_text)
+
+        long_text = "A" * 500 + "KEY_FINDINGS_IN_MIDDLE" + "B" * 500
+        distilled = distill_subagent_summary(long_text, max_chars=200)
+        self.assertTrue(len(distilled) < 350)
+        self.assertIn("subagent output distilled:", distilled)
+        self.assertTrue(distilled.startswith("A" * 100))
+        self.assertTrue(distilled.endswith("B" * 100))
+
 
 if __name__ == "__main__":
     unittest.main()

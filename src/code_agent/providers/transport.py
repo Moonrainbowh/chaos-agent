@@ -133,19 +133,40 @@ class ProviderTransport:
                     retry_delay = self._backoff(attempt)
                 else:
                     raise ProviderError(
-                        f"Provider transport failure: {type(error).__name__}",
+                        self._format_transport_error(error, url),
+                        sensitive_values=(api_key,),
                         effect_unknown=True,
+                        retryable=True,
                     ) from None
             except httpx.TransportError as error:
                 raise ProviderError(
-                    f"Provider transport failure: {type(error).__name__}",
+                    self._format_transport_error(error, url),
+                    sensitive_values=(api_key,),
                     effect_unknown=True,
+                    retryable=isinstance(
+                        error, (httpx.TimeoutException, httpx.NetworkError)
+                    ),
                 ) from None
 
             if retry_delay is None:
                 return
             await self._sleep(retry_delay)
             attempt += 1
+
+    @staticmethod
+    def _format_transport_error(error: BaseException, url: str) -> str:
+        from urllib.parse import urlsplit
+        host = urlsplit(url).hostname or url
+        error_name = type(error).__name__
+        details = " ".join(str(error).split()) if str(error) else ""
+        if details:
+            details = f": {details[:80]}"
+        hint = ""
+        if isinstance(
+            error, (httpx.ConnectError, httpx.ConnectTimeout, httpx.NetworkError)
+        ):
+            hint = " (check network or proxy settings)"
+        return f"Provider transport failure: {error_name} ({host}){details}{hint}"
 
     @staticmethod
     def _backoff(attempt: int) -> float:

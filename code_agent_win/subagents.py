@@ -126,6 +126,20 @@ class SubagentTool:
         )
 
 
+def distill_subagent_summary(raw_summary: str, max_chars: int = 2_500) -> str:
+    """Distill child agent summary to protect parent context budget."""
+    if not isinstance(raw_summary, str) or len(raw_summary) <= max_chars:
+        return raw_summary
+    prefix_len = max_chars // 2
+    suffix_len = max_chars // 2
+    omitted = len(raw_summary) - (prefix_len + suffix_len)
+    return (
+        f"{raw_summary[:prefix_len].rstrip()}\n\n"
+        f"... [subagent output distilled: {omitted} characters omitted for context economy] ...\n\n"
+        f"{raw_summary[-suffix_len:].lstrip()}"
+    )
+
+
 def _action_result(
     request: ActionRequest, role: AgentRole, result: ChildRunResult
 ) -> ActionResult:
@@ -134,7 +148,7 @@ def _action_result(
         "run_id": result.run_id,
         "role": role.value,
         "status": result.status.value,
-        "summary": result.summary,
+        "summary": distill_subagent_summary(result.summary),
         "usage": {
             "tokens": result.usage.total_tokens,
             "tool_calls": result.usage.tool_calls,

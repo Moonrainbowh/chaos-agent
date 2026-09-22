@@ -192,17 +192,27 @@ class VerificationPlanner:
             candidate_tests_dir = self._root / parent.as_posix() / "tests"
             if candidate_tests_dir.is_dir():
                 specific = candidate_tests_dir / f"test_{stem}.py"
-                if specific.is_file():
-                    rel = specific.relative_to(self._root).as_posix()
-                    discovered.add(rel)
-                    discovered.update(
-                        candidate.relative_to(self._root).as_posix()
-                        for candidate in candidate_tests_dir.glob(f"test_{stem}_*.py")
-                        if candidate.is_file()
-                    )
+                matching_tests = [
+                    candidate.relative_to(self._root).as_posix()
+                    for candidate in candidate_tests_dir.glob(f"test_{stem}*.py")
+                    if candidate.is_file()
+                ]
+                if matching_tests:
+                    discovered.update(matching_tests)
                 else:
-                    rel_dir = candidate_tests_dir.relative_to(self._root).as_posix()
-                    discovered.add(rel_dir)
+                    # Look for test files importing or mentioning the stem to avoid blanket directory execution
+                    targeted = []
+                    for t_file in candidate_tests_dir.glob("test_*.py"):
+                        try:
+                            if stem in t_file.read_text(encoding="utf-8", errors="ignore"):
+                                targeted.append(t_file.relative_to(self._root).as_posix())
+                        except OSError:
+                            pass
+                    if targeted:
+                        discovered.update(targeted)
+                    else:
+                        rel_dir = candidate_tests_dir.relative_to(self._root).as_posix()
+                        discovered.add(rel_dir)
 
             # Root tests/ directory matching
             root_tests_dir = self._root / "tests"

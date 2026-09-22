@@ -86,8 +86,10 @@ class ProviderError(RuntimeError):
         *,
         sensitive_values: Iterable[str] = (),
         effect_unknown: bool = False,
+        retryable: bool = False,
     ) -> None:
         self.effect_unknown = bool(effect_unknown)
+        self.retryable = bool(retryable)
         super().__init__(_redact(message, sensitive_values))
 
 
@@ -105,11 +107,11 @@ class ProviderHTTPError(ProviderError):
         sensitive_values: Iterable[str] = (),
     ) -> None:
         self.status = status
-        self.retryable = retryable
         super().__init__(
             message if message is not None else f"Provider HTTP status {status}",
             sensitive_values=sensitive_values,
             effect_unknown=500 <= status <= 599,
+            retryable=retryable,
         )
 
 

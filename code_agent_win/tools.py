@@ -17,6 +17,7 @@ from code_agent_win.tool_schema import (
     matches_schema as _matches_schema,
     nonempty_text_schema as _nonempty_text_schema,
     object_schema as _object_schema,
+    text_schema as _text_schema,
 )
 
 
@@ -190,7 +191,13 @@ TOOL_DEFINITIONS: tuple[ToolDefinition, ...] = (
         "Continue, SilentlyContinue, or Ignore remain under script control; "
         "pipe multiple stdin lines with @('line1', 'line2') | command and never "
         "use the Bash here-string operator <<<.",
-        _object_schema({"command": _nonempty_text_schema()}, ("command",)),
+        _object_schema(
+            {
+                "command": _nonempty_text_schema(),
+                "description": _text_schema(),
+            },
+            ("command",),
+        ),
     ),
     ToolDefinition(
         "run_process_v1",
@@ -340,10 +347,16 @@ def validate_tool_arguments(name: str, arguments: Mapping[str, object]) -> str |
         raise RuntimeError("invalid built-in tool schema")
     unexpected = set(arguments).difference(properties)
     if unexpected:
-        return "unexpected argument"
+        unexpected_names = ", ".join(sorted(unexpected))
+        allowed_names = ", ".join(sorted(properties.keys()))
+        return (
+            f"unexpected argument(s): {unexpected_names}. "
+            f"Allowed arguments: {allowed_names}."
+        )
     for field in required:
         if field not in arguments:
-            return f"missing required argument: {field}"
+            allowed_names = ", ".join(sorted(properties.keys()))
+            return f"missing required argument: {field}. Allowed arguments: {allowed_names}."
     for field, value in arguments.items():
         schema = properties[field]
         if not isinstance(schema, Mapping) or not _matches_schema(value, schema):

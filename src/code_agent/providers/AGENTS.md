@@ -26,7 +26,7 @@
 - 2026-09-05 的配置、验证与实验边界见根目录 `docs/context-boundary-experiment.md` 和 `docs/context-boundary-results.md`；具体候选值可配置，实验结果不自动推广为默认策略。
 
 ## Units
-- `ProviderError` 及子类：表达配置、HTTP、协议和响应上限失败 | 无副作用 | 对外消息执行脱敏
+- `ProviderError` 及子类：表达配置、HTTP、协议和响应上限失败 | 无副作用 | 对外消息执行脱敏；支持可选 retryable 标记以指示可恢复的瞬态传输与网络中断
 - `ProviderConfig`、`ApiProtocol`: 校验并冻结端点、协议和传输限制 | 请求时读取 API key 环境变量
 - `InputModality`、`ModelProfile`、`ModelProfileResolver`: 显式校验单模型输入模态、提供方和 Agent 限制，并按 CLI 模型名选择 profile | 请求时读取 API key 环境变量 | 缺失模态声明默认仅 text；未显式配置时采用 50 回合、128 总工具调用、每回合 50 调用的硬安全上限，实际收敛由 Core 进展门控制
 - `AttachmentResolver`、`ProviderAttachmentEncoder`: 逐引用复核 blob 并生成三种协议的图片/不可信文本原生块 | 调用注入 resolver | 能力、缺失和完整性失败发生在网络请求前
@@ -34,7 +34,7 @@
 - `ProviderRequestOptions`、`request_options(...)`: 校验 provider-facing effort 与正数输出上限 | 无副作用 | Anthropic reasoning 不猜测映射并失败闭合
 - `SSEDecoder.feed(chunk)`: 有界增量解码 UTF-8 SSE 事件 | 保存未完成行与事件状态
 - `ArgumentBuffer`、`ToolBudget`: 按 UTF-8 字节累计工具参数并限制工具调用数 | 保存当前流的有界分片
-- `ProviderTransport.stream_sse(path, payload)`: 禁止重定向，限制响应总量并按白名单有限重试；HTTP 错误正文读取不超过响应配置与 8 KiB 上限，超限/HTML/认证错误仅返回状态摘要，其他诊断脱敏后压缩为单行 | 网络 I/O；仅关闭内部创建的 client；重试中的错误响应直接关闭，最终错误体读取失败仍保留 HTTP 状态
+- `ProviderTransport.stream_sse(path, payload)`: 禁止重定向，限制响应总量并按白名单有限重试；HTTP 错误正文读取不超过响应配置与 8 KiB 上限，超限/HTML/认证错误仅返回状态摘要，其他诊断脱敏后压缩为单行且包含目标主机与排查提示 | 网络 I/O；仅关闭内部创建的 client；重试中的错误响应直接关闭，最终错误体读取失败仍保留 HTTP 状态；瞬态连接与网络故障生成带 retryable 标记的可恢复 ProviderError
 - `OpenAIChatClient.stream(system_prompt, messages, tools)`: 适配 Chat Completions 文本、推理、工具与用量流，并发送冻结的 `reasoning_effort`/`max_completion_tokens`；内部 developer checkpoint 合并到首个 system 消息 | 网络 I/O | 不向仅兼容传统 Chat 角色的服务发送 developer 角色；WorkBuddy 的首个完成标志在 `[DONE]` 前视为暂定，尾部文本、用量和工具分片统一在 `[DONE]` 后完成，避免调度半截工具调用
 - `OpenAIResponsesClient.stream(system_prompt, messages, tools)`: 适配 Responses item/call 事件并去重工具调用，发送冻结的 `reasoning.effort`/`max_output_tokens` | 网络 I/O
 - `AnthropicClient.stream(system_prompt, messages, tools)`: 适配 Messages content block、工具输入与累计用量，发送 profile `max_tokens` | 网络 I/O | 非空 reasoning effort 在构造期明确拒绝

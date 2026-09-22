@@ -7,7 +7,8 @@
 - 不负责：解析附件内容、生成 Provider content blocks，或让语义 summarizer 接触附件 blob。
 - 负责：稳定系统前缀、分层 `AGENTS.md` 规则发现、按需 repo map、相关文件选择和 token 预算。
 - 负责：默认工具预算覆盖当前内置 Host 工具目录；固定内容增长时优先压缩可选 Repo Map，不突破总提示预算或最小消息预算。
-- 负责：在进程内维护可增量更新、带 generation 的仓库事实快照，并从稳定快照生成本轮轻量 Repo Map。
+- 负责：PromptBudget 支持结合模型配置与运行模式进行自适应扩容，允许高阶任务（如 `ultra` 模式）按配置弹性突破 20k token 静态上限，同时受硬上限与最小消息比例约束。
+- 负责：在进程内维护可增量更新、带 generation 的仓库事实快照，支持对 Python AST 以及 TypeScript/JavaScript、Go、Rust 等语言提取结构化声明（函数、类、接口、结构体与导出符号），并从稳定快照生成本轮轻量 Repo Map。
 - 负责：用 SQLite FTS5 对有界源码正文、路径和符号进行词法召回，并与精确路径/符号、依赖图和 touched files 信号做确定性融合；FTS5 不可用时保留现有结构化排序。
 - 负责：保留近期原文的确定性压缩，并为后续实验性压缩策略提供接口。
 - 负责：压缩接收请求的 `thread_id`、`revision` 与 cancellation，但绝不持久化 checkpoint。
@@ -30,7 +31,7 @@
 - `estimate_tokens(text): int`、`truncate_to_tokens(text, budget): str`: 对 ASCII、多字节字符和代理对做确定性保守估算与截断 | 无副作用 | 不切断 Unicode 代理对
 - `RuleLoader.load(cwd): tuple[ProjectRule, ...]`: 按根规则、根目录直属扩展规则和目录链加载受边界保护的说明 | 读取已授权工作区文件 | 以根目录 mtime 复用直属扩展名称，不递归扫描工作区；严格受单文件和总字节预算约束
 - `RuleLoader.render(rules): str`: 把规则序列编码为稳定、带路径边界的系统提示片段 | 无副作用
-- `RepoFileScanner.scan(path): RepoFileFacts`、`extract_python_semantics(...)`: 读取单个受保护文件并提取签名、有界检索正文、scope-aware Python 定义/import/use/config facts | 只读取指定文件 | 参数、局部变量、comprehension 和 shadowing 不得误标外部 exact 引用；二进制或解析失败降级为 path-only facts
+- `RepoFileScanner.scan(path): RepoFileFacts`、`extract_python_semantics(...)`、`_parse_declarations(...)`: 读取单个受保护文件并提取签名、有界检索正文、Python AST 以及 TS/JS、Rust 等多语言结构化定义（var/const/interface/impl/fn/struct） | 只读取指定文件 | 参数、局部变量、comprehension 和 shadowing 不得误标外部 exact 引用；二进制或解析失败降级为 path-only facts
 - `resolve_semantic_graph(records)`、`UnifiedSemanticGraph`: 从同一批 File Facts 解析 `import/reference/call/inherits/config` 关系，构建统一代码认知底座（Unified Semantic Graph），服务于 Context Selection、Test Impact Analysis、Change Risk 评估、Review Scope 圈定与 Refactor Planning 拓扑编排 | 无副作用 | relative/alias/src/re-export 可解析；star import、动态派发和歧义名称不得标 exact；配置关系绑定 namespace/key/provenance
 - `plan_repo_query(query): RepoQueryPlan`: 将不可信查询拆为有界字面 term、中文 trigram、短中文词和少量中英代码词汇别名 | 无副作用 | 通道和输入长度均有硬上限，不把原始输入拼入 FTS MATCH 语法
 - `SQLiteRepoSearch.sync(previous, current)`、`rank(query)`、`close()`: 以事务方式增量维护进程内 unicode61/trigram FTS5 文件索引并返回有界候选名次 | 维护内存 SQLite 连接 | 短 ASCII/CJK n-gram 使用索引字段；Feature contract 只索引正向职责；FTS5、trigram 或查询失败时降级为结构化检索

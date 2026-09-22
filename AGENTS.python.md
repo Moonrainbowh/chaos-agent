@@ -30,3 +30,13 @@
 - 主题预览：`python -m code_agent.interfaces.theme_preview --theme slate --animate`；离线示例不调用模型或工具。
 - 可交互对照页：`python -m code_agent.interfaces.theme_preview --html docs/ui-preview/index.html`；页面必须复用真实渲染器输出并明确标记示例数据。
 - 动效只刷新动态尾部，保持历史可选择、中文列宽与光标几何；唯一主题必须验证窄窗口、`NO_COLOR` 和 reduced motion。
+
+## 脚本运行与命令行规范
+- 文件优先（File-First）：严禁在 PowerShell 下使用 `python -c "..."` 执行超过 3 行、包含嵌套引号或中文字符的内联脚本；多行与复杂逻辑必须先落盘为 `.py` 文件（如脚本或临时目录），再以 `python <path>` 执行，彻底规避字符串转义、编码乱码与长度溢出。
+- 探测轻量：`python -c` 仅允许用于无嵌套引号的单行版本或环境探测。
+
+## 数据处理与可视化规范
+- 表头防御：读取多工作表数据文件（如 Excel/CSV）时，必须动态嗅探或显式声明表头与类型，禁止无防护盲目假设 `header=None` 造成数值列被推断为 object 类型。
+- 布局自适应：科学图表与数据看板必须使用自适应网格（如 `GridSpec` 配合 `constrained_layout=True`），严禁混用绝对像素或固定比例 `add_axes` 导致多环境导出时重叠溢出。
+- 科学对齐：多指标强正相关对比时优先采用上下共享 X 轴子图（Shared X-Axis），严禁以固定倍率粗暴缩放双 Y 轴致使曲线完全重叠。
+

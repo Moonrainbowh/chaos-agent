@@ -44,9 +44,15 @@ _JS_FUNCTION = re.compile(
     r"^\s*(?:(?:export|default|declare)\s+)*"
     r"(?:async\s+)?function\s+([A-Za-z_$][\w$]*)"
 )
+_JS_VAR = re.compile(
+    r"^\s*(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*[:=]"
+)
 _RUST_DECL = re.compile(
     r'^\s*(?:(?:pub(?:\([^)]*\))?|async|unsafe|const|extern(?:\s+"[^"]+")?)\s+)*'
     r"(struct|enum|trait|type|fn)\s+([A-Za-z_]\w*)"
+)
+_RUST_IMPL = re.compile(
+    r"^\s*impl(?:\s*<[^>]*>)?\s+(?:(?:\w+::)*\w+\s+for\s+)?([A-Za-z_]\w*)"
 )
 _GO_TYPE = re.compile(r"^\s*type\s+([A-Za-z_]\w*)\s*(struct|interface)?")
 _GO_FUNC = re.compile(
@@ -196,15 +202,20 @@ def _parse_declarations(
         if suffix in {".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx"}:
             if match := _JS_TYPE.match(line):
                 declarations.append((match.group(2), match.group(1)))
-            if match := _JS_FUNCTION.match(line):
+            elif match := _JS_FUNCTION.match(line):
                 declarations.append((match.group(1), "function"))
-        elif suffix == ".rs" and (match := _RUST_DECL.match(line)):
-            declarations.append(
-                (
-                    match.group(2),
-                    "function" if match.group(1) == "fn" else match.group(1),
+            elif match := _JS_VAR.match(line):
+                declarations.append((match.group(1), "variable"))
+        elif suffix == ".rs":
+            if match := _RUST_DECL.match(line):
+                declarations.append(
+                    (
+                        match.group(2),
+                        "function" if match.group(1) == "fn" else match.group(1),
+                    )
                 )
-            )
+            elif match := _RUST_IMPL.match(line):
+                declarations.append((match.group(1), "impl"))
         elif suffix == ".go":
             if match := _GO_TYPE.match(line):
                 declarations.append(
