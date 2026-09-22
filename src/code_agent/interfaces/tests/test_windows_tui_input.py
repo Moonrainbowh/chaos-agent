@@ -52,6 +52,23 @@ class InputBufferTests(unittest.TestCase):
         buffer.move_home(); self.assertEqual(buffer.cursor, 4)
         buffer.move_end(); self.assertEqual(buffer.cursor, 6)
 
+    def test_external_editor_invokes_and_updates_input(self) -> None:
+        import os
+        import tempfile
+        buffer = InputBuffer()
+        buffer.insert("initial prompt")
+        with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False, encoding="utf-8") as script:
+            script.write("import sys\nwith open(sys.argv[1], 'w', encoding='utf-8') as f: f.write('edited multiline\\nprompt')\n")
+            script_path = script.name
+        try:
+            mock_editor = f'"{sys.executable}" "{script_path}"'
+            updated = buffer.edit_externally(editor=mock_editor)
+            self.assertEqual(updated, "edited multiline\nprompt")
+            self.assertEqual(buffer.text, "edited multiline\nprompt")
+        finally:
+            if os.path.exists(script_path):
+                os.unlink(script_path)
+
     def test_paste_normalizes_newlines_and_is_bounded(self) -> None:
         self.assertEqual(paste_event("第一行\r\n第二行\r第三行").value, "第一行\n第二行\n第三行")
         with self.assertRaises(ValueError):

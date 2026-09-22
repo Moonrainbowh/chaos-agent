@@ -13,6 +13,7 @@ from code_agent.interfaces.terminal_display import DisplayKind, clip_display, di
 from code_agent.interfaces.terminal_renderer import ColorMode, Theme, render_entries, render_entry, render_live_tail
 from code_agent.interfaces.terminal_style import (
     BODY_WHITE,
+    BOLD_WHITE,
     BORDER_GRAY,
     BRAND_CYAN,
     BRIGHT_CYAN,
@@ -206,7 +207,8 @@ class TerminalFirstRendererTests(unittest.TestCase):
             color=ColorMode.ALWAYS,
         )
 
-        self.assertIn(f"\x1b[{BRIGHT_CYAN}m结论：可以执行\x1b[0m", rendered)
+        self.assertIn(f"\x1b[{BRIGHT_CYAN}m结论：\x1b[0m", rendered)
+        self.assertIn(f"\x1b[{BOLD_WHITE}m可以执行\x1b[0m", rendered)
         self.assertIn(f"\x1b[{BRAND_CYAN}msrc/app.py\x1b[0m", rendered)
         self.assertNotIn("**", _plain(rendered))
         self.assertNotIn("`", _plain(rendered))

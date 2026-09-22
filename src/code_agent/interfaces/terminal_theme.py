@@ -5,7 +5,7 @@ import re
 from dataclasses import dataclass
 from enum import Enum
 
-from .terminal_style import BODY_WHITE, BORDER_GRAY, BRAND_CYAN, BRIGHT_CYAN, DIM_GRAY, TOOL_GRAY
+from .terminal_style import BOLD_WHITE, BODY_WHITE, BORDER_GRAY, BRAND_CYAN, BRIGHT_CYAN, DIM_GRAY, TOOL_GRAY
 
 
 class Theme(str, Enum):
@@ -59,7 +59,7 @@ def recolor(rendered: str, theme: object) -> str:
         return rendered
     mapping = {
         BRAND_CYAN: design.accent, BRIGHT_CYAN: "1;" + design.accent,
-        BODY_WHITE: design.body, DIM_GRAY: design.muted,
+        BODY_WHITE: design.body, BOLD_WHITE: "1;38;2;248;250;252", DIM_GRAY: design.muted,
         TOOL_GRAY: design.muted, BORDER_GRAY: design.border,
         "38;5;179": ACTIVE_GOLD, "38;5;203": "38;2;248;113;113", "38;5;115": "38;2;110;231;183",
     }

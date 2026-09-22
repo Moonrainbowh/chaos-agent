@@ -121,7 +121,7 @@ def composer_rows(
             + colorize(" " + side, design.border, color)
         )
     if color_enabled(color):
-        background = "\x1b[48;2;23;48;46m"
+        background = "\x1b[48;2;30;48;76m"
         body = [background + row.replace("\x1b[0m", "\x1b[0m" + background) + "\x1b[0m" for row in body]
     return [top, *body, bottom]
 

@@ -190,6 +190,7 @@ class TerminalPresentation:
                 self.state.entries, size.columns, theme=self.theme, color=self.color,
             )
             prefix = "\x1b[2J\x1b[H" + (transcript + "\n\r" if transcript else "")
+            prefix = "\x1b[3J\x1b[2J\x1b[H" + (transcript + "\n\r" if transcript else "")
         self._write(prefix + "\x1b[?25l" + frame.text + "\x1b[?25h")
         self._tail_geometry = frame.geometry; self._redraw_dirty = False; self._drawn_draft_revision = self.state.draft_revision; self._drawn_size = (size.columns, size.lines)
 

@@ -52,6 +52,18 @@ class PickerStateTests(unittest.TestCase):
         picker.move(1)
         self.assertEqual(picker.accept().completion, "/status")  # type: ignore[union-attr]
 
+    def test_fuzzy_subsequence_matches_non_contiguous_query(self) -> None:
+        items = (
+            PickerItem("app_ui", "app_ui.py", PickerSource.COMMAND),
+            PickerItem("apple", "apple.py", PickerSource.COMMAND),
+            PickerItem("application", "application.py", PickerSource.COMMAND),
+        )
+        picker = PickerState(items)
+        picker.update_query("appui")
+
+        self.assertEqual(len(picker.matches), 1)
+        self.assertEqual(picker.matches[0].identifier, "app_ui")
+
     def test_limited_window_can_reach_every_matching_command(self) -> None:
         items = tuple(
             PickerItem(f"command-{index}", f"/command-{index}", PickerSource.COMMAND)

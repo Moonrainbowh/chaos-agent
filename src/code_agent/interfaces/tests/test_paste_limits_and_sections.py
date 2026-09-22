@@ -93,7 +93,7 @@ class SectionTests(unittest.TestCase):
     def test_headings_use_blank_line_without_automatic_rules(self):
         text = "## One\nbody\n```python\n## code\n```\n## Two\nend"
         result = render_entry(text_entry(DisplayKind.AGENT, text), 60, theme=Theme.SLATE, color=ColorMode.NEVER)
-        self.assertIn("─" * 58, result)
+        self.assertNotIn("─" * 58, result)
         self.assertIn("## code", result)
         rows = render_streaming_markdown_rows(text, 58, ColorMode.NEVER)
         self.assertNotIn("─" * 58, rows)
@@ -101,6 +101,6 @@ class SectionTests(unittest.TestCase):
 
     def test_background_is_local_to_input_and_disabled_without_color(self):
         frame = render_live_tail_frame("text", "ready", 60, theme=Theme.SLATE, color=ColorMode.ALWAYS)
-        self.assertIn("\x1b[48;2;23;48;46m", frame.text)
+        self.assertIn("\x1b[48;2;30;48;76m", frame.text)
         plain = render_live_tail_frame("text", "ready", 60, theme=Theme.SLATE, color=ColorMode.NEVER)
         self.assertNotIn("48;2;", plain.text)

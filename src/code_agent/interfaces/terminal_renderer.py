@@ -27,8 +27,6 @@ from .terminal_tail import render_live_tail
 
 from .terminal_theme import Theme, design_for, recolor
 from .terminal_transcript_markdown import _RenderLine, _markdown_lines, _wrap_display
-
-
 _MARKERS = {
     DisplayKind.USER: ">", DisplayKind.AGENT: "*", DisplayKind.PARTIAL_AGENT: "!", DisplayKind.TOOL: ":",
     DisplayKind.SUCCESS: "+", DisplayKind.WARNING: "!", DisplayKind.ERROR: "x",
@@ -67,18 +65,6 @@ def render_entry(entry: DisplayEntry, width: int, *, theme: Theme = Theme.SYMBOL
     if theme is Theme.SLATE and entry.kind is DisplayKind.DIFF_ADD:
         code = SUCCESS_GREEN
     content_width = max(1, width - display_width(prefix) - 1)
-    if entry.kind is DisplayKind.AGENT and theme is Theme.SLATE:
-        from .terminal_ac_layout import render_ac_rows
-        rows = render_ac_rows(entry.text, content_width, color)
-        header = colorize(f"{prefix} Chaos Agent", BRIGHT_CYAN, color)
-        def row_prefix(row: str) -> str:
-            # Code rows already carry their own full-width background and are
-            # intentionally emitted without the prose gutter so copying them
-            # from the terminal does not add synthetic indentation.
-            if "48;2;24;40;62m" in row or "48;2;34;52;76m" in row:
-                return ""
-            return "  "
-        return recolor("\n".join([header, *(row_prefix(row) + row for row in rows)]), theme)
     if entry.kind is DisplayKind.AGENT:
         lines = _markdown_lines(entry.text, content_width, theme)
         if theme is Theme.MODERN or design_for(theme):
@@ -99,7 +85,12 @@ def render_entry(entry: DisplayEntry, width: int, *, theme: Theme = Theme.SYMBOL
         if line.role == "quote":
             rendered.extend(render_streaming_markdown_rows("> " + line.text, width, color))
             continue
-        leader = prefix if index == 0 else " " * display_width(prefix)
+        if line.role in {"code", "code_language"}:
+            leader = ""
+        elif index == 0:
+            leader = prefix
+        else:
+            leader = " " * display_width(prefix)
         for part in _wrap_display(line.text, max(1, width - display_width(leader) - 1)):
             styled = _style_line(leader, part, code, color, role=line.role, kind=entry.kind)
             if line.role in {"code", "code_language"} and color_enabled(color):
@@ -110,7 +101,6 @@ def render_entry(entry: DisplayEntry, width: int, *, theme: Theme = Theme.SYMBOL
                     + styled + (" " * fill) + "\x1b[0m"
                 )
             rendered.append(styled)
-            leader = " " * display_width(prefix)
     if entry.kind is DisplayKind.USER and theme is Theme.SLATE and color_enabled(color):
         background = "\x1b[48;2;30;48;76m"
         rendered = [
@@ -251,7 +241,8 @@ def _style_line(leader: str, value: str, code: str | None, color: ColorMode, *, 
         styled_value = _highlight_inline_spans(value, body_code, color)
     else:
         styled_value = colorize(value, body_code, color)
-    return _link_local_paths(f"{styled_leader} {styled_value}")
+    prefix_str = f"{styled_leader} " if styled_leader else ""
+    return _link_local_paths(f"{prefix_str}{styled_value}")
 
 
 # Stop at terminal control sequences as well as whitespace/punctuation; the

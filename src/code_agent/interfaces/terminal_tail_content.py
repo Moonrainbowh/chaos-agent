@@ -41,8 +41,7 @@ def _render_draft(value: str, width: int, max_rows: int, color: ColorMode, *, mo
     title = clip_display(f"{star} Responding", width)
     prefix = "  " if width > 2 else ""
     content_width = max(1, width - display_width(prefix))
-    from .terminal_ac_layout import render_ac_rows
-    render = (lambda value, width, color: render_ac_rows(value, width, color, incomplete=True)) if modern else render_streaming_markdown_rows
+    render = render_streaming_markdown_rows
     rows = render(value, content_width, color)
     if len(rows) > max_rows and content_width > 2:
         rows = render(value, content_width - 2, color)
@@ -52,5 +51,3 @@ def _render_draft(value: str, width: int, max_rows: int, color: ColorMode, *, mo
     return [colorize(title, BRAND_CYAN, color)] + [
         colorize(prefix, BODY_WHITE, color) + row for row in clipped
     ]
-
-

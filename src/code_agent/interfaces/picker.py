@@ -56,6 +56,40 @@ class PickerSelection:
     completion: str
 
 
+def fuzzy_subsequence_match(pattern: str, target: str) -> tuple[bool, int]:
+    """Check if pattern is a subsequence of target, returning (matched, score)."""
+    if not pattern:
+        return True, 0
+    pattern = pattern.casefold()
+    target = target.casefold()
+
+    if pattern in target:
+        base_score = 100
+        if target.startswith(pattern):
+            base_score += 50
+        return True, base_score + max(0, 50 - len(target))
+
+    p_idx = 0
+    score = 0
+    prev_matched_idx = -2
+
+    for t_idx, char in enumerate(target):
+        if p_idx < len(pattern) and char == pattern[p_idx]:
+            if t_idx == prev_matched_idx + 1:
+                score += 15
+            elif t_idx == 0 or target[t_idx - 1] in "_-/. :\\":
+                score += 20
+            else:
+                score += 5
+            prev_matched_idx = t_idx
+            p_idx += 1
+
+    if p_idx == len(pattern):
+        score += max(0, 40 - len(target))
+        return True, score
+    return False, 0
+
+
 class PickerState:
     def __init__(self, items: Iterable[PickerItem] = (), *, limit: int = 6) -> None:
         if isinstance(limit, bool) or limit <= 0 or limit > 20:
@@ -90,20 +124,29 @@ class PickerState:
         ranked: list[tuple[int, int, PickerItem]] = []
         for order, item in enumerate(self._items):
             text = " ".join((item.label, item.identifier, item.detail, *item.keywords)).casefold()
-            if not all(term in text for term in terms):
+            matched_all = True
+            term_scores: list[int] = []
+            for term in terms:
+                matched, score = fuzzy_subsequence_match(term, text)
+                if not matched:
+                    matched_all = False
+                    break
+                term_scores.append(score)
+            if not matched_all:
                 continue
             label = item.label.casefold().lstrip("/:")
             label_tail = label.rsplit(" ", 1)[-1]
             keywords = tuple(value.casefold() for value in item.keywords)
-            score = sum(
+            exact_bonus = sum(
                 100 if term == label
                 else 50 if term == label_tail
                 else 40 if term in keywords
-                else 4 if label.startswith(term)
-                else 1
+                else 10 if label.startswith(term)
+                else 0
                 for term in terms
             )
-            ranked.append((-score, order, item))
+            total_score = exact_bonus + sum(term_scores)
+            ranked.append((-total_score, order, item))
         ranked.sort(key=lambda value: (value[0], value[1]))
         return tuple(value[2] for value in ranked)
 

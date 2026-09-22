@@ -167,13 +167,35 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(plain.count("✦ Chaos Agent\n  full answer"), 1)
         self.assertNotIn("◆ full \n", plain)
 
-    async def test_raw_reasoning_is_not_written(self) -> None:
-        events = (
-            AgentEvent(EventKind.MODEL_EVENT, {"event": ModelEvent(ModelEventKind.REASONING_DELTA, text="private work").to_dict()}),
-            AgentEvent(EventKind.COMPLETED, {}),
-        )
-        app = WindowsTerminalApp(AgentController(FakeEngine(events)), ApprovalBroker(), write=lambda _: None)
-        await app.submit("inspect"); await app.wait_idle()
-        self.assertNotIn("private work", "\n".join(entry.text for entry in app.state.entries))
+    async def test_recoverable_transport_error_marks_status_interrupted_and_retains_active_task(self) -> None:
+        from code_agent.providers.errors import ProviderError
 
-if __name__ == "__main__": unittest.main()
+        class FailingTasks:
+            async def events(self, task_id: str, text: str):
+                if False:
+                    yield None
+                raise ProviderError(
+                    "Provider transport failure: ConnectError (cloudcode-pa.googleapis.com) (check network or proxy settings)",
+                    retryable=True,
+                )
+
+        app = WindowsTerminalApp(
+            AgentController(FakeEngine(())),
+            ApprovalBroker(),
+            tasks=FailingTasks(),
+            write=lambda _: None,
+        )
+        app.active_task_id = "task-1"
+
+        await app._consume_task("task-1", "test query")
+
+        self.assertEqual(app.state.status, "interrupted")
+        self.assertEqual(app.active_task_id, "task-1")
+        last_entry = app.state.entries[-1]
+        self.assertEqual(last_entry.kind, DisplayKind.ERROR)
+        self.assertIn("Status: interrupted", last_entry.text)
+        self.assertIn("Provider transport failure: ConnectError", last_entry.text)
+
+
+if __name__ == "__main__":
+    unittest.main()

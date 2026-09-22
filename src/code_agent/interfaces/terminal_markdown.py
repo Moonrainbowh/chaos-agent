@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from .terminal_display import display_width, graphemes, grapheme_width, safe_text
 from .terminal_style import (
     BODY_WHITE,
+    BOLD_WHITE,
     BRAND_CYAN,
     BRIGHT_CYAN,
     DIM_GRAY,
@@ -122,7 +123,7 @@ def _inline_spans(
         marker = ""
         code = base_code
         if value.startswith("**", cursor) or value.startswith("__", cursor):
-            marker, code = value[cursor:cursor + 2], BRIGHT_CYAN
+            marker, code = value[cursor:cursor + 2], BOLD_WHITE
         elif value[cursor] == "`":
             marker, code = "`", BRAND_CYAN
         if not marker:

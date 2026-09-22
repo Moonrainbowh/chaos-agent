@@ -52,11 +52,13 @@ class AcLayoutTests(unittest.TestCase):
         narrow = render_ac_rows(value, 40, ColorMode.NEVER)
         self.assertTrue(all(f"BODY{i}" in narrow for i in range(5)))
 
-    def test_complete_answer_uses_ac_in_slate_only(self):
+    def test_complete_answer_uses_antigravity_single_column_in_slate(self):
         text = "## 建议\n内容\n## 注意\n边界"
         output = render_entry(text_entry(DisplayKind.AGENT, text), 80, theme=Theme.SLATE, color=ColorMode.NEVER)
-        self.assertIn("一、建议" + " " * 6 + "内容", output)
-        self.assertIn("─" * 78, output)
+        self.assertIn("建议\n  内容", output)
+        self.assertNotIn("─" * 78, output)
+        ac_rows = render_ac_rows(text, 80, ColorMode.NEVER)
+        self.assertIn("一、建议" + " " * 6 + "内容", ac_rows[0])
 
     def test_table_and_unclosed_stream_emphasis_are_safe(self):
         text = "## 对照\n| 列一 | 列二 |\n| --- | --- |\n| 值一 | 值二 |\n## 结论\n**仍在生成"

@@ -75,14 +75,32 @@ class CollapsedComposerTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(app.composer_expanded)
         self.assertEqual(app.input.text, "hello world")
 
-    async def test_mode_2_printable_character_auto_expands(self) -> None:
+    async def test_only_space_expands_a_collapsed_composer(self) -> None:
         app = self.make_app()
         app.composer_expanded = False
 
-        # Typing a character while collapsed must auto-expand and insert
+        # Printable keys must not open or modify a collapsed composer.
         await app.handle_key("x")
-        self.assertTrue(app.composer_expanded)
-        self.assertEqual(app.input.text, "x")
+        self.assertFalse(app.composer_expanded)
+        self.assertEqual(app.input.text, "")
+
+    async def test_space_keeps_scrollback_view_when_not_at_bottom(self) -> None:
+        app = self.make_app()
+        app.composer_expanded = False
+
+        with patch("code_agent.interfaces.windows_tui.viewport_at_bottom", return_value=False):
+            await app.handle_key(" ")
+
+        self.assertFalse(app.composer_expanded)
+
+    async def test_escape_event_does_not_reopen_a_collapsed_composer(self) -> None:
+        app = self.make_app()
+        app.composer_expanded = False
+
+        await app.handle_key("escape")
+
+        self.assertFalse(app.composer_expanded)
+        self.assertEqual(app.input.text, "")
 
     def test_scrolling_clamps_visible_rows_to_six(self) -> None:
         lines_text = "\n".join(f"line {i}" for i in range(12))

@@ -148,3 +148,48 @@ class InputBuffer:
     def _set(self, document: InputDocument) -> None:
         self._document = document
         self.cursor = len(document.raw)
+
+    def edit_externally(self, editor: str | None = None) -> str:
+        """Open current input in external editor and replace text with result."""
+        result = launch_external_editor(self.text, editor=editor)
+        if result != self.text:
+            self.clear()
+            self.insert(result)
+        return self.text
+
+
+def launch_external_editor(initial_text: str = "", editor: str | None = None) -> str:
+    """Launch an external editor on a temporary file, returning updated text on exit."""
+    import os
+    import shlex
+    import subprocess
+    import tempfile
+
+    if editor is None:
+        editor = os.environ.get("EDITOR") or os.environ.get("VISUAL")
+        if not editor:
+            editor = "notepad" if os.name == "nt" else "nano"
+
+    fd, path = tempfile.mkstemp(prefix="chaos_prompt_", suffix=".md")
+    try:
+        with open(fd, "w", encoding="utf-8") as f:
+            f.write(initial_text)
+
+        if isinstance(editor, str):
+            cmd = f'{editor} "{path}"'
+            subprocess.run(cmd, shell=True, check=False)
+        else:
+            cmd = list(editor) + [path]
+            subprocess.run(cmd, check=False)
+
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            return f.read()
+    except Exception:
+        return initial_text
+    finally:
+        try:
+            if os.path.exists(path):
+                os.unlink(path)
+        except OSError:
+            pass
+

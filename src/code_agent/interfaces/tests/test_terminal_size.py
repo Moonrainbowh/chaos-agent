@@ -4,7 +4,7 @@ import os
 import unittest
 from unittest.mock import patch
 
-from code_agent.interfaces.terminal_size import terminal_size
+from code_agent.interfaces.terminal_size import terminal_size, viewport_at_bottom
 
 
 class TerminalSizeTests(unittest.TestCase):
@@ -15,3 +15,6 @@ class TerminalSizeTests(unittest.TestCase):
         ):
             self.assertEqual(terminal_size(), (80, 24))
 
+    def test_non_windows_viewport_is_treated_as_at_bottom(self) -> None:
+        with patch("code_agent.interfaces.terminal_size.os.name", "posix"):
+            self.assertTrue(viewport_at_bottom())

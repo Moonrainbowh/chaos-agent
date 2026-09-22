@@ -18,7 +18,7 @@ from .input_buffer import InputBuffer
 from .input_events import ExitGuard
 from .terminal_display import DisplayKind, text_entry
 from .terminal_renderer import ColorMode, Theme, render_entries
-from .terminal_size import terminal_size
+from .terminal_size import terminal_size, viewport_at_bottom
 from .terminal_win32_input import WIN32_INPUT_ENABLE, WIN32_INPUT_DISABLE
 from .terminal_io import BRACKETED_PASTE_DISABLE, BRACKETED_PASTE_ENABLE, capture_ctrl_c_as_input, read_key, render_terminal as render_terminal, stdout_write
 from .terminal_tail import LiveTailGeometry, clear_live_tail
@@ -150,7 +150,7 @@ class WindowsTerminalApp(TerminalPresentation):
             await handle_interrupt(self)
         elif await self.interactions.handle_key(self, key):
             pass
-        elif key == "\x1b":
+        elif key in {"\x1b", "escape"}:
             if self.composer_expanded:
                 self.composer_expanded = False
                 self._clear_input_tail()
@@ -177,6 +177,8 @@ class WindowsTerminalApp(TerminalPresentation):
         elif key == "\x15": clear_input(self)
         elif key == "\t" and self._run_task and not self._run_task.done(): toggle_submit_mode(self)
         elif key == " " and not self.composer_expanded:
+            if not viewport_at_bottom():
+                return
             self.composer_expanded = True
             if self._tail_geometry is not None:
                 height = shutil.get_terminal_size((100, 30)).lines
@@ -201,8 +203,7 @@ class WindowsTerminalApp(TerminalPresentation):
             delete_input(self, backwards=True)
         elif key == "delete":
             delete_input(self, backwards=False)
-        elif key.isprintable():
-            self.composer_expanded = True
+        elif key.isprintable() and self.composer_expanded:
             self.exit_guard.input_received(); insert_input(self, key)
         self.redraw()
     def _clear_input_tail(self) -> None:
@@ -248,7 +249,8 @@ class WindowsTerminalApp(TerminalPresentation):
         except CancellationError:
             self.state.status = "paused"
         except Exception as error:
-            recoverable = type(error).__name__ == "ModelStreamError" or isinstance(error, TimeoutError) or bool(getattr(error, "retryable", False))
+            from .task_controller import _is_recoverable_model_failure
+            recoverable = _is_recoverable_model_failure(error)
             self.state.status = "interrupted" if recoverable else "error"
             from .runtime_errors import explain_runtime_error
             self._append(
@@ -294,7 +296,9 @@ class WindowsTerminalApp(TerminalPresentation):
             self.state.status = "paused"
             self._append(DisplayKind.METADATA, "task paused")
         except Exception as error:
-            self.state.status = "error"
+            from .task_controller import _is_recoverable_model_failure
+            recoverable = _is_recoverable_model_failure(error)
+            self.state.status = "interrupted" if recoverable else "error"
             from .runtime_errors import explain_runtime_error
             self._append(
                 DisplayKind.ERROR,
@@ -342,6 +346,7 @@ class WindowsTerminalApp(TerminalPresentation):
         # A completed run is the one intentional full-transcript rewrite; it
         # removes the detailed streamed rows so the user keeps a compact result.
         self._write(self._tail_clear_sequence() + "\x1b[2J\x1b[H" + rendered + "\n\r")
+        self._write(self._tail_clear_sequence() + "\x1b[3J\x1b[2J\x1b[H" + rendered + "\n\r")
         self._tail_geometry = None
         self._flushed_entries = len(self.state.entries)
 
