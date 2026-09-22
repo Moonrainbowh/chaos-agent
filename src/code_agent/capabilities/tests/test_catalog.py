@@ -63,6 +63,23 @@ class ProgressiveToolCatalogTests(unittest.TestCase):
             [CONTRACT_TOOL_NAME, "read_file"],
         )
 
+    def test_hybrid_modify_intent_preleases_write_tools(self) -> None:
+        replace_text = _tool("replace_text", "Replace text in file.")
+        write_file = _tool("write_file", "Write content to file.")
+        projected = progressive_tools(
+            (self.loader, self.read, self.run, replace_text, write_file),
+            {},
+            strategy=CapabilityStrategy.HYBRID,
+            intent="modify",
+        )
+
+        names = [tool.name for tool in projected]
+        self.assertIn(CONTRACT_TOOL_NAME, names)
+        self.assertIn("read_file", names)
+        self.assertIn("replace_text", names)
+        self.assertIn("write_file", names)
+        self.assertNotIn("run_command", names)
+
     def test_hybrid_preloads_only_explicit_builtin_read_allowlist(self) -> None:
         code = _tool("read_code_slices")
         mcp = _tool("mcp.docs.read_file")

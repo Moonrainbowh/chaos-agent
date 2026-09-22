@@ -20,6 +20,13 @@ HYBRID_EAGER_BUILTIN_NAMES = frozenset(
         "git_diff",
     }
 )
+HYBRID_EAGER_MODIFY_NAMES = frozenset(
+    {
+        "replace_text",
+        "write_file",
+        "apply_workspace_edit_plan_v1",
+    }
+)
 _SPACE = re.compile(r"\s+")
 _DIGEST = re.compile(r"^[0-9a-f]{64}$")
 _SUMMARY_LIMIT = 120
@@ -36,8 +43,9 @@ def progressive_tools(
     disclosed_tools: Mapping[str, str],
     *,
     strategy: CapabilityStrategy = CapabilityStrategy.HYBRID,
+    intent: object = None,
 ) -> tuple[ToolDefinition, ...]:
-    """Project tool definitions according to the selected disclosure strategy."""
+    """Project tool definitions according to the selected disclosure strategy and intent."""
     checked = tuple(tools)
     if not all(isinstance(tool, ToolDefinition) for tool in checked):
         raise TypeError("tools must contain ToolDefinition values")
@@ -61,6 +69,9 @@ def progressive_tools(
     }
     if strategy is CapabilityStrategy.HYBRID:
         selected |= HYBRID_EAGER_BUILTIN_NAMES
+        intent_value = getattr(intent, "value", intent)
+        if isinstance(intent_value, str) and intent_value.casefold() == "modify":
+            selected |= HYBRID_EAGER_MODIFY_NAMES
     return (
         _directory_definition(loader, candidates),
         *(tool for tool in candidates if tool.name in selected),
