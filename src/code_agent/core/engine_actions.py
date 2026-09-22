@@ -307,12 +307,14 @@ class AgentEngineActionMixin:
         self,
         allowed_names: frozenset[str] | None = None,
         disclosed_tools: Mapping[str, str] | None = None,
+        intent: object = None,
     ) -> tuple[tuple[ToolDefinition, ...], set[str]]:
         return advertised_tools(
             self._actions,
             allowed_names,
             disclosed_tools or {},
             self._capability_strategy,
+            intent=intent,
         )
 
     @staticmethod

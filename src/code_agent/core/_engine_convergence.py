@@ -42,6 +42,7 @@ class AgentEngineConvergenceMixin:
         observation = state.tool_only_guard.observe(
             has_text=bool("".join(turn.text_parts).strip()),
             calls=turn.calls,
+            has_validation_error=getattr(turn, "has_validation_error", False),
         )
         if observation is None:
             return

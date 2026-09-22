@@ -18,6 +18,8 @@ def advertised_tools(
     allowed_names: frozenset[str] | None,
     disclosed_tools: Mapping[str, str],
     strategy: CapabilityStrategy,
+    *,
+    intent: object = None,
 ) -> tuple[tuple[ToolDefinition, ...], set[str]]:
     try:
         tools = tuple(dispatcher.tools())
@@ -29,7 +31,7 @@ def advertised_tools(
         if allowed_names is not None:
             tools = tuple(tool for tool in tools if tool.name in allowed_names)
         projected = progressive_tools(
-            tools, disclosed_tools, strategy=strategy
+            tools, disclosed_tools, strategy=strategy, intent=intent
         )
         return projected, {tool.name for tool in projected}
     except ModelStreamError:

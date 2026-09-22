@@ -38,42 +38,78 @@ class ToolOnlyConvergenceGuard:
     evidence instead of spending the global budget on another open-ended loop.
     """
 
-    def __init__(self, *, warn_at: int = 3, force_at: int = 5) -> None:
+    def __init__(
+        self,
+        *,
+        warn_at: int = 3,
+        force_at: int = 5,
+        max_correction_failures: int = 3,
+    ) -> None:
         if warn_at < 1 or force_at <= warn_at:
             raise ValueError("invalid tool-only convergence thresholds")
         self.warn_at, self.force_at = warn_at, force_at
         self._count = 0
+        self.warn_at = warn_at
+        self.force_at = force_at
+        self.max_correction_failures = max_correction_failures
+        self.exploration_count = 0
+        self.correction_count = 0
+
+    @property
+    def _count(self) -> int:
+        return self.exploration_count
+
+    @_count.setter
+    def _count(self, value: int) -> None:
+        self.exploration_count = value
 
     def observe(
         self,
         *,
         has_text: bool,
         calls: tuple[ToolCall, ...] | list[ToolCall],
+        has_validation_error: bool = False,
     ) -> ToolOnlyObservation | None:
         if has_text or not calls or any(call.name in _PROGRESS_TOOLS for call in calls):
-            self._count = 0
+            self.exploration_count = 0
+            self.correction_count = 0
             return None
-        self._count += 1
-        if self._count == self.force_at:
+
+        if has_validation_error:
+            self.correction_count += 1
+            if self.correction_count >= self.max_correction_failures:
+                return ToolOnlyObservation(
+                    "finalize",
+                    "task encountered repeated tool argument/contract validation errors "
+                    f"for {self.correction_count} consecutive turns; resolve with a summary "
+                    "or change approach instead of repeating invalid calls",
+                    self.correction_count,
+                )
+            return None
+
+        self.correction_count = 0
+        self.exploration_count += 1
+        if self.exploration_count == self.force_at:
             return ToolOnlyObservation(
                 "finalize",
                 "task produced no answer text or edit/verification progress for "
-                f"{self._count} consecutive tool-only turns; resolve from the "
+                f"{self.exploration_count} consecutive tool-only turns; resolve from the "
                 "current evidence instead of continuing broad exploration",
-                self._count,
+                self.exploration_count,
             )
-        if self._count == self.warn_at:
+        if self.exploration_count == self.warn_at:
             return ToolOnlyObservation(
                 "warn",
                 "task produced no answer text or edit/verification progress for "
-                f"{self._count} consecutive tool-only turns; summarize current "
+                f"{self.exploration_count} consecutive tool-only turns; summarize current "
                 "evidence and avoid broad repeated exploration",
-                self._count,
+                self.exploration_count,
             )
         return None
 
     def reset(self) -> None:
-        self._count = 0
+        self.exploration_count = 0
+        self.correction_count = 0
 
 
 _PROGRESS_TOOLS = frozenset({

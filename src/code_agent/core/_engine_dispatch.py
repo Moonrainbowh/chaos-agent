@@ -6,6 +6,14 @@ from typing import AsyncIterator
 from ._engine_run import _RunState, _TurnState
 from ._engine_convergence import queue_runtime_notice
 from .engine_turn_feedback import circuit_breaker_result, is_in_flight_failure
+from .engine_turn_feedback import (
+    call_signature,
+    circuit_breaker_result,
+    duplicate_failed_call_result,
+    format_action_error,
+    is_in_flight_failure,
+    is_validation_failure,
+)
 from .events import AgentEvent, EventKind
 from .models import ActionResult, Message, ToolCall
 
@@ -62,8 +70,14 @@ class AgentEngineDispatchMixin:
         # Register every accepted call before policy handling so a blocked call
         # cannot have its id reused by a later model turn.
         state.used_call_ids.add(call.id)
-        failure = circuit_breaker_result(state.action_history, call)
+        failure = duplicate_failed_call_result(
+            getattr(state, "last_failed_call", None), call
+        )
+        if failure is None:
+            failure = circuit_breaker_result(state.action_history, call)
         if failure is not None:
+            if is_validation_failure(failure):
+                setattr(turn, "has_validation_error", True)
             requested = AgentEvent(EventKind.ACTION_REQUESTED, {"request": {
                 "id": call.id, "name": call.name, "arguments": dict(call.arguments)
             }})
@@ -92,6 +106,16 @@ class AgentEngineDispatchMixin:
             self._track_turn_event(state, event, validation_blocked)
             if event.kind is EventKind.ACTION_COMPLETED:
                 completed_result = event.payload.get("result")
+                if isinstance(completed_result, dict):
+                    if is_validation_failure(completed_result):
+                        setattr(turn, "has_validation_error", True)
+                    if completed_result.get("is_error") is True:
+                        state.last_failed_call = (
+                            call_signature(call),
+                            format_action_error(completed_result),
+                        )
+                    else:
+                        state.last_failed_call = None
             yield event
             if event.kind is EventKind.MESSAGE_ADDED and completed_result is not None:
                 try:

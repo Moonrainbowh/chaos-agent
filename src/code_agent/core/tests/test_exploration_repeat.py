@@ -135,6 +135,47 @@ class ToolOnlyConvergenceGuardTests(unittest.TestCase):
         guard.reset()
         self.assertIsNone(guard.observe(has_text=False, calls=[read]))
 
+    def test_validation_error_does_not_consume_exploration_quota(self):
+        guard = ToolOnlyConvergenceGuard(warn_at=3, force_at=5, max_correction_failures=3)
+        read = ToolCall("read", "read_file", {"path": "x.py"})
+        cmd = ToolCall("cmd", "run_command", {"command": "dir"})
+
+        # 3 normal read exploration turns:
+        self.assertIsNone(guard.observe(has_text=False, calls=[read]))
+        self.assertIsNone(guard.observe(has_text=False, calls=[read]))
+        warn = guard.observe(has_text=False, calls=[read])
+        self.assertEqual(warn.kind, "warn")
+        self.assertEqual(guard.exploration_count, 3)
+
+        # 2 validation error turns: exploration_count must NOT advance to 5!
+        self.assertIsNone(guard.observe(has_text=False, calls=[cmd], has_validation_error=True))
+        self.assertEqual(guard.exploration_count, 3)
+        self.assertEqual(guard.correction_count, 1)
+
+        self.assertIsNone(guard.observe(has_text=False, calls=[cmd], has_validation_error=True))
+        self.assertEqual(guard.exploration_count, 3)
+        self.assertEqual(guard.correction_count, 2)
+
+        # 3rd consecutive validation error triggers finalize on correction failures
+        finalize = guard.observe(has_text=False, calls=[cmd], has_validation_error=True)
+        self.assertIsNotNone(finalize)
+        self.assertEqual(finalize.kind, "finalize")
+        self.assertIn("repeated tool argument/contract validation errors", finalize.reason)
+
+    def test_successful_turn_resets_correction_count(self):
+        guard = ToolOnlyConvergenceGuard(warn_at=3, force_at=5, max_correction_failures=3)
+        cmd = ToolCall("cmd", "run_command", {"command": "dir"})
+        read = ToolCall("read", "read_file", {"path": "x.py"})
+
+        self.assertIsNone(guard.observe(has_text=False, calls=[cmd], has_validation_error=True))
+        self.assertIsNone(guard.observe(has_text=False, calls=[cmd], has_validation_error=True))
+        self.assertEqual(guard.correction_count, 2)
+
+        # Next turn succeeds without validation error: correction_count resets to 0
+        self.assertIsNone(guard.observe(has_text=False, calls=[read], has_validation_error=False))
+        self.assertEqual(guard.correction_count, 0)
+        self.assertEqual(guard.exploration_count, 1)
+
 
 class _DispatchHost:
     def __init__(self):

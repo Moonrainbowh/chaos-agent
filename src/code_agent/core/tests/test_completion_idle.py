@@ -24,6 +24,13 @@ class CompletionIdleTests(unittest.IsolatedAsyncioTestCase):
             "请检查代码有什么问题？",
             "请只回复：Linux TUI 正常",
             "reply with: Linux TUI is ready",
+            "先不要修改任何文件，只帮我看看原因",
+            "不用修改代码，只告诉我需要怎么改",
+            "暂时不要修改，仅分析逻辑",
+            "这段修复代码是什么意思？",
+            "这个修改的原理是什么",
+            "do not modify, just explain why it fails",
+            "no need to edit, only analyze",
         ):
             self.assertEqual(infer_task_intent(text, "code"), TaskIntent.ANALYZE)
         for text in (

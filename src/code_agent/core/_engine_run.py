@@ -53,6 +53,7 @@ class _RunState:
     summary_required: bool = False
     summary_retry_count: int = 0
     pending_runtime_notices: list[str] = field(default_factory=list)
+    last_failed_call: tuple[str, str] | None = None
 
 
 @dataclass(slots=True)
@@ -64,6 +65,7 @@ class _TurnState:
     forced_summary: bool = False
     text_parts: list[str] = field(default_factory=list)
     calls: list[ToolCall] = field(default_factory=list)
+    has_validation_error: bool = False
 
 
 def _validate_run_arguments(

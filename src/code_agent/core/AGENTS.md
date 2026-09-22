@@ -2,7 +2,8 @@
 以有界、可取消的事件循环协调模型、上下文和工具动作，形成与界面无关的编码 Agent 内核。
 
 ## 边界
-- 负责：确定性的普通问候和只读问答按分析意图建立新任务；含执行要求的输入仍保留修改验证门。修改意图但没有工作区文件变化时不得运行无关项目测试或伪装完成，而应要求继续实现或说明无需修改；模型和自动验证均已停止后，缺少证据的实际改动进入有原因的等待决定，不永久停在验证中。
+- 负责：确定性的普通问候和只读问答按分析意图建立新任务；否定意图短语（如“先不要修改”、“无需修改”、“只解释”、“仅分析”等）必须确定性归为分析意图，不得因句子中包含写动作词而误判为修改意图；含执行要求的肯定意图输入仍保留修改验证门。修改意图但没有工作区文件变化时不得运行无关项目测试或伪装完成，而应要求继续实现或说明无需修改；模型和自动验证均已停止后，缺少证据的实际改动进入有原因的等待决定，不永久停在验证中。
+- 负责：工具调用失败或验证门禁未通过时，由引擎在下一轮提示词追加有界的结构化诊断反思脚手架（说明失败根因、受挫假设与替代策略引导），降低模型盲目重试，同时受现有重复失败熔断器约束。
 - ContextBundle 允许 `context_tokens_remaining` 非负估算计数，用于 persistent 工作窗提示；它不代表 provider 实测或累计任务额度。
 - 负责：以不可变、可序列化的附件引用扩展 user Message，并让 Engine 在首回合、恢复和 steering 中持久化完整用户输入；引用只含内容摘要、类型、大小和安全显示元数据。
 - 负责：附件仅允许出现在 user Message；空文本但有附件是有效输入，空文本且无附件仍失败闭合。
@@ -31,15 +32,15 @@
 - 2026-09-05 的配置、验证与实验边界见根目录 `docs/context-boundary-experiment.md` 和 `docs/context-boundary-results.md`；具体候选值可配置，实验结果不自动推广为默认策略。
 
 ## Units
-- `infer_task_intent(...)`、`is_small_talk(...)`：对新任务确定问候、中文/英文只读问答或修改意图，并复用为上下文轻量路径 | 无副作用 | “什么意思/图片内容/请只回复”等问答不触发修改门，任何明确写入要求仍优先；不修改已持久化任务的意图。
+- `infer_task_intent(...)`、`is_small_talk(...)`：对新任务确定问候、中文/英文只读问答、否定修改或修改意图，并复用为上下文轻量路径 | 无副作用 | “什么意思/图片内容/请只回复/这段代码什么原理”及明确否定词（“不要修改/无需修改/dont edit”）判定为分析意图，避免误入写验证门；明确写入要求优先；不修改已持久化任务的意图。
 - `TaskIntent`、`AcceptanceCriterion`、`TaskContractRevision`: 表达不可降级的完成条件与 revision | 无副作用 | 不写入旧 `core/models.py`
 - `ActionEffect`、`CompletionCandidate`、`CompletionAssessment`、`assess_completion(...)`: 以 generation/subject/evidence 纯函数评估 verified、partial 或 unverified | 无副作用 | 模型文本不能生成通过证据
 - `VerificationService`: 约束 core 请求抽象验证与完成候选 | 具体副作用由实现负责 | core 不导入 verification 或 projects adapter
 - `VerificationAssessment`、`TaskVerificationService`: 将当前 subject 的 assessment、verifier outcome 和原子完成句柄传回 core | 具体副作用由实现负责 | engine 只调用抽象协议，不能自行伪造 evidence
 - `TaskVerificationService.suggest_verification(...)`: 在没有当前测试 evidence 时返回一个受信的 typed verifier tool call | 具体 recipe 由实现选择 | 不能包含 shell、argv 或安装参数；系统调用仍须持久化配对的 assistant tool-call 消息
 - `TaskVerificationService.begin_logical_change(...)`、`commit_logical_change(...)`、`InFlightValidationError`: 以抽象协议把一组工具写入收敛为单次 generation，并把 Host 规划的 milestone verifier 返回给 engine | 具体语义图、快照和 evidence 副作用由 Verification 实现负责 | L0 失败必须携带已发生写入后的 TaskState，剩余同批工具不得继续执行
-- `validation_fingerprint(...)`、`circuit_breaker_result(...)`、`is_in_flight_failure(...)`: 将结构化失败归一为监督器可比较的有界身份，并识别重复动作/L0 阻断信号 | 无副作用 | 优先使用 Host 生成的失败摘要，不泄露任意长度输出
-- `ExplorationRepeatObserver`、`ToolOnlyConvergenceGuard`：分别检测精确只读重复与连续无正文、无写入/验证/换窗动作的工具回合 | 无副作用 | exact-repeat 保持窄范围；tool-only guard 先 warning，连续五回合仍无进展时强制一个无工具总结回合；主动换窗作为跨窗恢复边界重置连续计数，总结错误请求工具时仅重试一次，仍无正文时发布可见错误，不把多步只读调查或合法换窗恢复误判为停滞
+- `validation_fingerprint(...)`、`circuit_breaker_result(...)`、`duplicate_failed_call_result(...)`、`build_diagnostic_reflection(...)`、`is_validation_failure(...)`、`is_in_flight_failure(...)`: 将结构化失败归一为监督器可比较的有界身份，识别重复动作/同态失败调用与校验失败阻断信号；在同态失败或熔断时注入结构化诊断反思脚手架（根因反思、假设检验与替代方案引导） | 无副作用 | 对上一轮完全相同且失败的调用直接阻断并回显错误与反思引导；优先使用 Host 生成的失败摘要，不泄露任意长度输出
+- `ExplorationRepeatObserver`、`ToolOnlyConvergenceGuard`：分别检测精确只读重复与连续无正文、无写入/验证/换窗动作的工具回合 | 无副作用 | 区分只读探索与参数校验纠错计数（参数校验失败不消耗 exploration_count，连续三次校验失败触发收敛防死循环）；tool-only guard 连续五回合探索仍无进展时强制总结回合；主动换窗重置计数，不把多步只读调查误判为停滞
 - `phase_started_at(...)`、`phase_duration_ms(...)`：生成单调、非负且有界的 context/model/action 计时 | 无副作用 | 仅用于 `PHASE_COMPLETED` durable 事件，不计入任务 active-time 预算
 - `AgentEngineConvergenceMixin`：在 assistant/tool 配对闭合后持久化 runtime developer notice；连续无正文、无写入/验证进展达到门限时请求一个无工具总结回合，错误请求工具时仅重试一次，仍无正文则发布可见错误后按当前证据进入完成/验证门 | 写入消息/事件并更新暂停状态 | notice 只进入下一模型 payload 一次；分析任务的最终预算回合不调用 dispatcher，而修改任务保留一次工具执行机会后进入完成/验证门
 - `AgentEngineDispatchMixin`：执行模型工具调用、持久化成对 tool 结果并保留 exact-repeat 反馈 | 调用 dispatcher、写入动作消息与事件 | 仅作为回合协调器的工具执行支撑，不改变工具预算和验证顺序

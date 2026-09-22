@@ -63,8 +63,9 @@ class AgentEngineTurnMixin(AgentEngineConvergenceMixin, AgentEngineDispatchMixin
             yield warning
             async for event in self._flush_runtime_notices(state):
                 yield event
+        intent = state.task.contract.intent if state.task is not None else None
         tools, tool_names = self._advertised_tools(
-            state.allowed_tool_names, state.disclosed_tool_digests
+            state.allowed_tool_names, state.disclosed_tool_digests, intent=intent
         )
         last_available_turn = (
             state.budget.model_turns == state.budget.limits.max_agent_rounds
