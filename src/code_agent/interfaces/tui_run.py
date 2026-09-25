@@ -58,9 +58,12 @@ async def start_prepared(app: object, prepared: object, original: str = "") -> b
     app._token = CancellationToken()
     app._run_started_at = time.monotonic()
     app._task_finished_handled = False
-    # Keep the previous plan when retrying a task on its existing thread;
-    # starting a genuinely new task still gets a clean plan.
-    app.state.begin_run(preserve_plan=bool(app.tasks and app.active_task_id))
+    # Only a paused/interrupted task is a retry. A completed or waiting task
+    # followed by fresh input must not project its previous plan into this run.
+    resumable = getattr(app.state, "task_status", None) in {"paused", "interrupted"}
+    app.state.begin_run(
+        preserve_plan=bool(app.tasks and app.active_task_id and resumable)
+    )
     app._starting_task = bool(app.tasks and not app.active_task_id)
     if app._starting_task:
         app.state.status = "preparing_workspace"

@@ -3,7 +3,8 @@ from __future__ import annotations
 import sqlite3
 import unittest
 
-from code_agent.core.errors import ModelStreamError
+from code_agent.context.errors import PromptBudgetError, RuleLimitError
+from code_agent.core.errors import ContextBuildError, ModelStreamError
 from code_agent.interfaces.runtime_errors import (
     explain_runtime_error,
     runtime_error_summary,
@@ -49,3 +50,25 @@ class RuntimeErrorExplanationTests(unittest.TestCase):
             runtime_error_summary(error),
             "Session database is busy. Close other Chaos Agent sessions, then retry.",
         )
+
+    def test_wrapped_context_budget_failure_explains_cause_and_recovery(self) -> None:
+        error = ContextBuildError("context build failed")
+        error.__cause__ = PromptBudgetError(
+            "system_and_rules_tokens exceeds its configured ceiling"
+        )
+
+        explanation = explain_runtime_error(error, status="error")
+        self.assertIn("System prompt and project instructions exceed", explanation)
+        self.assertIn("inspect the project instructions", explanation)
+        self.assertNotIn("inspect the failure details", explanation)
+
+    def test_rule_failure_does_not_echo_workspace_path_or_instruction_text(self) -> None:
+        error = ContextBuildError("context build failed")
+        error.__cause__ = RuleLimitError(
+            "project rule exceeds limit: C:\\private\\AGENTS.md secret"
+        )
+
+        explanation = explain_runtime_error(error, status="error")
+        self.assertIn("Project instructions exceed the context rule limit", explanation)
+        self.assertNotIn("C:\\private", explanation)
+        self.assertNotIn("secret", explanation)

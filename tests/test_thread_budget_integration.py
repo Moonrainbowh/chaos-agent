@@ -64,11 +64,13 @@ def _profile(context_window: int = 8_000) -> ModelProfile:
     return ModelProfile("budget", provider, context_window, 2_000)
 
 
-def _workspace_builder(root: Path, budget: PromptBudget) -> WorkspaceContextBuilder:
+def _workspace_builder(
+    root: Path, budget: PromptBudget, system_prompt: str = "System prompt"
+) -> WorkspaceContextBuilder:
     config = ContextConfig(
         root,
         root,
-        "System prompt",
+        system_prompt,
         prompt_budget=budget,
         repo_map_enabled=False,
     )
@@ -128,6 +130,37 @@ class SemanticSummaryInputBudgetTests(unittest.IsolatedAsyncioTestCase):
 
 
 class ProfilePromptBudgetTests(unittest.IsolatedAsyncioTestCase):
+    async def test_large_system_prompt_and_valid_rules_fit_together(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            (root / "AGENTS.md").write_text("rules " * 1_900, encoding="utf-8")
+            budget = _profile_prompt_budget(_profile(context_window=20_000))
+            builder = _workspace_builder(
+                root, budget, "System instruction " * 300
+            )
+            rendered_rules = builder.rules.render(builder.rules.load())
+            fixed_tokens = estimate_tokens(
+                builder.config.system_prompt + rendered_rules
+            )
+            self.assertLessEqual(estimate_tokens(rendered_rules), budget.max_rule_tokens)
+            self.assertGreater(fixed_tokens, budget.max_rule_tokens)
+            self.assertLessEqual(
+                fixed_tokens, budget.max_rule_tokens + budget.max_system_tokens
+            )
+
+            bundle = await builder.build(
+                ContextRequest(
+                    "thread-budget", 1, (Message("user", "hello"),), "", (),
+                    TaskState.empty(), CancellationToken(),
+                )
+            )
+
+            self.assertEqual(bundle.messages[-1].content, "hello")
+            self.assertLessEqual(
+                bundle.measurements["prompt_estimated_tokens"],
+                budget.max_prompt_tokens - budget.safety_tokens,
+            )
+
     async def test_complete_prompt_is_capped_by_small_profile_window(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()

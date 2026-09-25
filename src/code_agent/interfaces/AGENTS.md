@@ -3,7 +3,7 @@
 
 ## 边界
 - 负责：交互启动时在重依赖加载前用临时全屏显示蓝色大字 `CHAOS`，由左到右扫描显现，初始化结束退出动画屏，清空启动前的终端画面和滚动历史并将光标移至左上角，再进入输入区；运行期间保留新产生的滚动历史，重定向输出禁用，NO_COLOR/reduced motion 使用静态反馈。
-- 负责：输入区支持 URI-Agent 风格的单行待命胶囊与 6 行工作台展开，但不显示行数标签；折叠状态仅在终端视口位于底部时由 Space 唤起展开，查看滚动历史时不改写视口，Esc 折叠收拢并保全草稿；输入区使用与用户提问行一致的统一深蓝底色；默认回答采用 Antigravity 现代单栏流式排版，粗体加粗高亮纯白、行内代码天蓝、标题独立成行自然留白，代码块全宽深蓝底色无多余缩进，保留原生 Markdown 结构且不强制添加中文数字或章节分割横线。
+- 负责：输入区支持 URI-Agent 风格的单行待命胶囊与 6 行工作台展开，但不显示行数标签；折叠状态仅在终端视口位于底部时由 Space 唤起展开，查看滚动历史时不改写视口，Esc 折叠收拢并保全草稿；输入区使用与用户输入行一致的统一深蓝底色（`\x1b[48;2;30;48;76m`）；默认回答采用 Antigravity 风格单栏现代自然流式排版，标题独立成行且章节适度留白，粗体高亮亮白，行内代码使用冰雾蓝；代码内容保持原样。
 - 负责：输入按 UTF-8 65536 字节（64 KiB）计量，超限插入整次拒绝且保留草稿；单次粘贴超过 10 个逻辑行时折叠为独立 `[chars: N]`（按 Unicode 码点计数），前后键入文字及其他粘贴块独立显示；折叠块作为一个编辑单元，发送时还原完整正文；粘贴换行只入草稿，拆包粘贴标记不可泄漏为提交键。
 - 负责：提交后立即启动可取消的准备阶段与持续动画；准备、生成和持久收尾共用一个前台槽，完成回调刷新尾部，失败保留未提交的输入和附件。
 - 负责：程序 UI 默认简体中文；文件名、路径、代码、命令、API、模型名与影响精确性的专业术语保持原文；斜杠命令共享分层选择、当前值、参数提示、逐级返回和失败输入恢复；同一 task/对话的模型与思考深度固定，空闲时选择不同值须在应用成功后按 `/new` 进入无旧消息和上下文的新对话，旧记录保持不变；同值或失败不新建，运行中须先暂停；模式仍遵守未结束任务的冻结边界。
@@ -102,7 +102,7 @@
 - `fuzzy_subsequence_match(pattern, target)`、`PickerState.matches`：通过字符子序列模糊匹配与单词边界、连续命中得分对候选项进行排序，保留精确子串优先 | 无副作用 | 支持非连续缩写（如 appui 命中 app_ui.py）精确定位。
 - `InputBuffer.insert`、`paste_event`：规范化换行和 UTF-16 字符对，统一 UTF-8 65536 字节（64 KiB）输入边界 | 进程草稿 | 超限整次拒绝、不移动光标；不截断正文。
 - `tui_run.submit/start_prepared/finish_run`：把任务创建、取消、直接 Skill 斜杠唤醒（`/<skill-name> [prompt]`）与最终尾部刷新绑定同一前台 future | 异步任务与展示 | 准备失败/取消等待原创建流程清理；追加输入不得创建并行任务，附件仍以持久消息确认移除。
-- `command_navigation`、`runtime_picker`：从注册表与当前控制器生成选择项、参数提示与当前值，统一方向键、Enter、Tab 和逐级 Esc | 进程内选择态 | 失败保留输入；禁用选项不得落入其他命令；旧任务冻结设置不可隐式替换。
+- `command_navigation`、`runtime_picker`：从注册表与当前控制器生成选择项、参数提示与当前值，统一方向键、Enter、Tab 和逐级 Esc | 进程内选择态 | `/mode` 默认提示当前任务行为与推荐 `auto`，高级设置仍独立可查；失败保留输入；禁用选项不得落入其他命令；旧任务冻结设置不可隐式替换。
 - `Theme`、`TerminalDesign`、`preferred_theme`、`recolor`：维护唯一 Muted Slate 的可信语义颜色与轮廓，忽略旧 `CHAOS_THEME` 偏好 | 无副作用 | 不改变终端背景、权限或任务预算。
 - `render_designed_frame`、`render_collapsed_capsule`、`render_welcome`：按窗口预算渲染紧凑启动摘要、流式连续输入区、Picker 与真实状态，消除控制台空白空行；细节通过 `:status` 查询 | 无副作用 | 输入光标始终可见，累计 token 明示 task，不推导容量百分比。
 - `TailMotion`、`watch_visuals`、`exit_transition`：以可注入时间控制 280ms 边框过渡、活动期间的非百分比巡移光带和持久取消完成后的至多 160ms 退出反馈，空闲窗口只在 resize 或过渡时刷新 | 终端 I/O/有界异步等待 | `:theme motion off`、`CHAOS_REDUCED_MOTION=1`、`NO_COLOR` 禁用动态装饰；完成语义只来自状态机。
@@ -158,6 +158,6 @@
 - `TerminalState.task_budget_line`: 将 `category=lease` 的 renewed/converge 事件投影为有界状态文本 | 进程内状态 | 只接受类型化 tier、phase、计数和原因，畸形事件不覆盖已有状态
 
 - `capture_ctrl_c_as_input`、`Win32Input`、`read_character`、`read_key`：TUI 存活时启用 Windows VT input 保留右键/Ctrl+V 粘贴边界，并开启 Win32 input reporting 保留物理键修饰信息、关闭 Ctrl+C 默认信号处理；先解码 Win32 封装再解析粘贴边界，原生 Enter/Shift+Enter/Alt+V 修饰键不参与文本 burst，framed paste 内换行只进入草稿 | 控制台读取/模式恢复 | 退出必恢复原模式；兼容 CSI/SS3 导航键、CSI u、modifyOtherKeys 与 Windows VT input 的普通 Enter、Shift+Enter；legacy burst 单元测试以虚拟时钟驱动轮询间隔，避免操作系统调度延迟改变假输入的分组。
-- `runtime_error_summary`：将异常因果链中的 HTTP 状态与 SQLite busy/conflict 显示为短提示，其余诊断单行有界 | 无副作用 | 错误仅经受管转录渲染，不直接打印 traceback、SQL、数据库路径或 HTML。
+- `runtime_error_summary`、`explain_runtime_error`：将异常因果链中的 HTTP 状态、SQLite busy/conflict、上下文预算/规则超限显示为短提示与对应恢复动作，其余诊断单行有界 | 无副作用 | 不回显规则正文和路径；错误仅经受管转录渲染，不直接打印 traceback、SQL、数据库路径或 HTML。
 
 - FOLLOW-UP 采用方案 A：固定青色 `›`、静态边框与细竖线光标，等待动效仅在底部固定三字符宽度的点阵中变化；退出恢复终端默认光标样式，关闭动效时点阵静止。

@@ -29,6 +29,10 @@ def command_rows(interactions: object, app: object) -> tuple[str, ...]:
     spec, arguments = _tokens(app)
     picker.title = "COMMANDS" if spec is None else text[0] + spec.name
     picker.hint = _usage_hint(spec, arguments, registry)
+    if parent is not None and parent.name == "mode" and not query.strip():
+        mode = getattr(getattr(app, "task_modes", None), "current", None)
+        current = getattr(mode, "name", "auto")
+        picker.hint = f"当前：{current} · 推荐：auto；需要指定任务行为时再选 ask/code/plan"
     if dynamic is not None:
         items, query = dynamic
     elif spec is not None and arguments is not None and (

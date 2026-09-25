@@ -29,6 +29,10 @@ def toggle_submit_mode(app: object) -> SubmitMode:
 
 
 async def submit_active_input(app: object, prepared: PreparedInput) -> bool:
+    # A queued/steered user turn is new work from the user's perspective. Do
+    # not keep showing the previous turn's plan while the follow-up waits.
+    app.state.plan_text = ""
+    app.state.plan_completed_steps = 0
     try:
         if app.submit_mode is SubmitMode.QUEUE:
             await queue_followup(

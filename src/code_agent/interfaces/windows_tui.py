@@ -345,7 +345,6 @@ class WindowsTerminalApp(TerminalPresentation):
         )
         # A completed run is the one intentional full-transcript rewrite; it
         # removes the detailed streamed rows so the user keeps a compact result.
-        self._write(self._tail_clear_sequence() + "\x1b[2J\x1b[H" + rendered + "\n\r")
         self._write(self._tail_clear_sequence() + "\x1b[3J\x1b[2J\x1b[H" + rendered + "\n\r")
         self._tail_geometry = None
         self._flushed_entries = len(self.state.entries)

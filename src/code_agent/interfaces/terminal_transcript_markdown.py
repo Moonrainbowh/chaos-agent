@@ -4,6 +4,7 @@ import re
 from dataclasses import dataclass
 from .terminal_display import display_width, safe_text
 from .terminal_theme import Theme
+from .terminal_theme import Theme, design_for
 
 
 @dataclass(frozen=True)
@@ -22,16 +23,42 @@ def _format_plan_card(plan_text: str, width: int, theme: Theme) -> list[_RenderL
     box_w = max(20, min(width, 76))
     inner_w = box_w - 2
     title = "─ 任务计划 "
+    design = design_for(theme)
+    c_tl, c_tr, c_bl, c_br = (
+        (design.corners[0], design.corners[1], design.corners[2], design.corners[3])
+        if design and len(design.corners) == 4
+        else ("┌", "┐", "└", "┘")
+    )
+    done_count = sum(1 for line in raw_lines if re.search(r"\[(x|X|✓|done|Done)\]", line))
+    total_count = len(raw_lines)
+    progress_str = f" [{done_count}/{total_count}]" if total_count > 0 else ""
+    title = f"─ 任务计划{progress_str} "
     title = title + "─" * max(1, inner_w - display_width(title))
     lines: list[_RenderLine] = [_RenderLine("┌" + title[:inner_w] + "┐", "table_border")]
+    lines: list[_RenderLine] = [_RenderLine(c_tl + title[:inner_w] + c_tr, "table_border")]
     body_w = max(1, inner_w - 6)
     for raw in raw_lines:
         item = re.sub(r"^\d+\.\s*", "", raw)
         for chunk in _wrap_display(item, body_w):
             content = "│ [ ] " + chunk
+        is_done = bool(re.search(r"\[(x|X|✓|done|Done)\]", item))
+        is_active = bool(re.search(r"\[(→|>|active|running|●)\]", item))
+        item_clean = re.sub(r"^\[(x|X|✓|done|Done|→|>|active|running|●|\s*)\]\s*", "", item)
+        if is_done:
+            prefix = "[✓] "
+            role = "plan_step_done"
+        elif is_active:
+            prefix = "[●] "
+            role = "plan_step_active"
+        else:
+            prefix = "[ ] "
+            role = "plan_step_pending"
+        for idx, chunk in enumerate(_wrap_display(item_clean, body_w)):
+            p = prefix if idx == 0 else "    "
+            content = "│ " + p + chunk
             content += " " * max(0, box_w - display_width(content) - 1) + "│"
-            lines.append(_RenderLine(content, "plan_step"))
-    lines.append(_RenderLine("└" + "─" * inner_w + "┘", "table_border"))
+            lines.append(_RenderLine(content, role))
+    lines.append(_RenderLine(c_bl + "─" * inner_w + c_br, "table_border"))
     return lines
 
 

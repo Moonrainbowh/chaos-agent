@@ -72,11 +72,19 @@ def decode_output(
         codec, code_page = _codec_name(selected)
         text = payload.decode(codec, errors="strict")
     except UnicodeDecodeError:
+        has_tail = _has_incomplete_tail(payload, codec)
         status = (
             OutputDecodeStatus.INCOMPLETE_TAIL
-            if truncated and _has_incomplete_tail(payload, codec)
+            if truncated and has_tail
             else OutputDecodeStatus.UNKNOWN_OR_MIXED
         )
+        if not has_tail and os.name == "nt" and selected is OutputEncoding.UTF_8:
+            try:
+                ansi_codec, ansi_page = _codec_name(OutputEncoding.WINDOWS_ANSI)
+                text = payload.decode(ansi_codec, errors="strict")
+                return DecodedOutput(text, OutputEncoding.WINDOWS_ANSI, OutputDecodeStatus.DECODED, code_page=ansi_page)
+            except (UnicodeDecodeError, OSError):
+                pass
         return _failed(raw, selected, status, code_page=code_page)
     except (LookupError, OSError):
         return _failed(

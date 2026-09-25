@@ -60,6 +60,7 @@ class PromptBudget:
 
     max_prompt_tokens: int = 20_000
     max_rule_tokens: int = 3_000
+    max_system_tokens: int = 2_000
     max_tool_tokens: int = 2_000
     max_task_state_tokens: int = 1_000
     max_repo_map_tokens: int = 2_000
@@ -71,6 +72,7 @@ class PromptBudget:
         for label in (
             "max_prompt_tokens",
             "max_rule_tokens",
+            "max_system_tokens",
             "max_tool_tokens",
             "max_task_state_tokens",
             "max_repo_map_tokens",
@@ -97,7 +99,11 @@ class PromptBudget:
     ) -> PromptAllocation:
         """Allocate a bounded prompt, dropping map capacity before messages."""
         fixed = (
-            ("system_and_rules_tokens", system_and_rules_tokens, self.max_rule_tokens),
+            (
+                "system_and_rules_tokens",
+                system_and_rules_tokens,
+                self.max_rule_tokens + self.max_system_tokens,
+            ),
             ("tool_tokens", tool_tokens, self.max_tool_tokens),
             ("task_state_tokens", task_state_tokens, self.max_task_state_tokens),
         )

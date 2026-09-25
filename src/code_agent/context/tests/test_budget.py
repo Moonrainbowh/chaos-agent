@@ -59,13 +59,26 @@ class PromptBudgetTests(unittest.TestCase):
         self.assertEqual(allocation.message_tokens, 4_000)
         self.assertLessEqual(allocation.total_tokens, budget.max_prompt_tokens)
 
+    def test_system_prompt_has_capacity_beyond_project_rule_ceiling(self) -> None:
+        budget = PromptBudget()
+        allocation = budget.allocate(
+            system_and_rules_tokens=4_000,
+            tool_tokens=1_500,
+            task_state_tokens=1_000,
+        )
+
+        self.assertEqual(budget.max_rule_tokens, 3_000)
+        self.assertEqual(allocation.rule_tokens, 4_000)
+        self.assertEqual(allocation.message_tokens, 12_000)
+        self.assertLessEqual(allocation.total_tokens, budget.max_prompt_tokens)
+
     def test_allocation_rejects_invalid_fixed_content_and_unsatisfiable_minimum(self) -> None:
         budget = PromptBudget(max_prompt_tokens=7_000)
         for field, value in (
             ("system_and_rules_tokens", -1),
             ("tool_tokens", -1),
             ("task_state_tokens", -1),
-            ("system_and_rules_tokens", 3_001),
+            ("system_and_rules_tokens", 5_001),
             ("tool_tokens", 2_001),
             ("task_state_tokens", 1_001),
         ):
@@ -84,6 +97,7 @@ class PromptBudgetTests(unittest.TestCase):
             allocation.message_tokens = 7  # type: ignore[misc]
         for kwargs in (
             {"max_prompt_tokens": 0},
+            {"max_system_tokens": 0},
             {"max_message_tokens": 1_999},
             {"min_message_tokens": 12_001},
             {"safety_tokens": -1},

@@ -189,7 +189,13 @@ class TerminalPresentation:
             transcript = render_entries(
                 self.state.entries, size.columns, theme=self.theme, color=self.color,
             )
-            prefix = "\x1b[2J\x1b[H" + (transcript + "\n\r" if transcript else "")
+            if transcript:
+                frame_height = frame.geometry.height if hasattr(frame, "geometry") else 8
+                max_rows = max(0, size.lines - frame_height - 1)
+                t_lines = transcript.split("\n")
+                if len(t_lines) > max_rows:
+                    t_lines = t_lines[-max_rows:]
+                transcript = "\n".join(t_lines)
             prefix = "\x1b[3J\x1b[2J\x1b[H" + (transcript + "\n\r" if transcript else "")
         self._write(prefix + "\x1b[?25l" + frame.text + "\x1b[?25h")
         self._tail_geometry = frame.geometry; self._redraw_dirty = False; self._drawn_draft_revision = self.state.draft_revision; self._drawn_size = (size.columns, size.lines)

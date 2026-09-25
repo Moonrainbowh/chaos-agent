@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import unittest
 import os
+from unittest.mock import AsyncMock
 from unittest.mock import Mock, patch
 
 from code_agent.core.events import AgentEvent, EventKind
@@ -11,6 +12,8 @@ from code_agent.interfaces.controller import AgentController
 from code_agent.interfaces.approval import ApprovalBroker
 from code_agent.interfaces.tests._support import FakeEngine
 from code_agent.interfaces.windows_tui import WindowsTerminalApp
+from code_agent.interfaces.tui_submission import SubmitMode, submit_active_input
+from code_agent.interfaces.attachment_input import PreparedInput
 
 
 class PlanPersistenceTests(unittest.TestCase):
@@ -54,3 +57,38 @@ class PlanPersistenceTests(unittest.TestCase):
         state.apply(AgentEvent(EventKind.MESSAGE_ADDED, {"message":
             Message(role="tool", content="<plan>Untrusted</plan>", name="read_file").to_dict()}))
         self.assertEqual(state.plan_text, "")
+
+    def test_new_queued_turn_does_not_show_previous_plan(self):
+        state = TerminalState()
+        state.plan_text = "1. Old work\n2. Old result"
+        state.plan_completed_steps = 1
+
+        app = Mock()
+        app.state = state
+        app.submit_mode = SubmitMode.QUEUE
+        app.active_task_id = "task-1"
+        app.tasks = Mock()
+        app.tasks.queue_followup = AsyncMock()
+        app.interactions = Mock()
+        app.interactions.picker = Mock()
+        app._acknowledge_submission = Mock()
+        app.redraw = Mock()
+
+        async def queue(*args):
+            return None
+
+        app.interactions.picker = Mock()
+        with patch(
+            "code_agent.interfaces.tui_submission.queue_followup",
+            new=queue,
+        ):
+            import asyncio
+            asyncio.run(
+                submit_active_input(
+                    app,
+                    PreparedInput("fresh question", "fresh question", (), False),
+                )
+            )
+
+        self.assertEqual(state.plan_text, "")
+        self.assertEqual(state.plan_completed_steps, 0)

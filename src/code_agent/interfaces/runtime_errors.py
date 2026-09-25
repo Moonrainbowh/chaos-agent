@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import sqlite3
 
+from code_agent.context.errors import PromptBudgetError, RuleLimitError
 from code_agent.sessions.errors import SessionStorageError
 
 
@@ -14,6 +15,12 @@ def runtime_error_summary(error: BaseException) -> str:
         seen.add(id(cause))
         if isinstance(cause, SessionStorageError):
             return _session_storage_summary(cause)
+        if isinstance(cause, RuleLimitError):
+            return "Project instructions exceed the context rule limit."
+        if isinstance(cause, PromptBudgetError):
+            if str(cause) == "system_and_rules_tokens exceeds its configured ceiling":
+                return "System prompt and project instructions exceed their reserved context capacity."
+            return "The context cannot fit within the configured prompt budget."
         status = getattr(cause, "status", None)
         if type(status) is int and 100 <= status <= 599:
             return f"Model request failed (HTTP {status}). Retry the request."
@@ -66,5 +73,19 @@ def explain_runtime_error(
     if checkpoint_saved:
         lines.append("A recovery checkpoint was saved.")
     lines.append("Error: " + runtime_error_summary(error))
-    lines.append("Next: retry from the current workspace or inspect the failure details.")
+    if _has_context_budget_cause(error):
+        lines.append("Next: inspect the project instructions and configured prompt limits, then retry.")
+    else:
+        lines.append("Next: retry from the current workspace or inspect the failure details.")
     return "\n".join(lines)
+
+
+def _has_context_budget_cause(error: BaseException) -> bool:
+    cause = error
+    seen: set[int] = set()
+    while cause is not None and id(cause) not in seen and len(seen) < 8:
+        if isinstance(cause, (RuleLimitError, PromptBudgetError)):
+            return True
+        seen.add(id(cause))
+        cause = cause.__cause__
+    return False

@@ -220,6 +220,12 @@ def _style_line(leader: str, value: str, code: str | None, color: ColorMode, *, 
         body_code = BRIGHT_CYAN
     elif role == "table_border":
         body_code = DIM_GRAY
+    elif role == "plan_step_done":
+        body_code = SUCCESS_GREEN
+    elif role == "plan_step_active":
+        body_code = BRIGHT_CYAN
+    elif role == "plan_step_pending":
+        body_code = DIM_GRAY
     elif role == "plan_step":
         body_code = BRAND_CYAN
     elif role == "code":

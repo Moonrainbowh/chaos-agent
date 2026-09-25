@@ -26,7 +26,7 @@
 ## Units
 - `_requires_repo_map(query)`：复用 Core 的有界问候识别，跳过纯问候的仓库索引 | 无副作用 | 包含工作请求仍按正常上下文路径处理。
 - `render_evidence_summary(...)`: 渲染当前 generation 的 required criteria 和有效 evidence 摘要 | 无副作用 | 优先保留失败/未满足条件，绝不输出完整 verifier 原始内容
-- `PromptBudget.allocate(system_and_rules_tokens, tool_tokens, task_state_tokens): PromptAllocation`: 在固定安全余量下为规则、工具、任务状态、repo map 和消息分配 token | 无副作用 | 默认 2,000 token 工具上限覆盖内置目录；repo map 先于消息收缩，保留最小消息预算
+- `PromptBudget.allocate(system_and_rules_tokens, tool_tokens, task_state_tokens): PromptAllocation`: 在固定安全余量下为规则、系统提示、工具、任务状态、repo map 和消息分配 token | 无副作用 | 默认规则上限 3,000 token，另为系统提示预留 2,000 token；工具上限 2,000 token；repo map 先于消息收缩，保留最小消息预算
 - `ContextConfig`、`ProjectRule`、`Symbol`、`RepoEntry`、`CompactionResult`: 冻结上下文构建配置和中间结果 | 无副作用 | 路径和预算在构造时校验；旧 map/message 预算参数归一化为 `PromptBudget`
 - `estimate_tokens(text): int`、`truncate_to_tokens(text, budget): str`: 对 ASCII、多字节字符和代理对做确定性保守估算与截断 | 无副作用 | 不切断 Unicode 代理对
 - `RuleLoader.load(cwd): tuple[ProjectRule, ...]`: 按根规则、根目录直属扩展规则和目录链加载受边界保护的说明 | 读取已授权工作区文件 | 以根目录 mtime 复用直属扩展名称，不递归扫描工作区；严格受单文件和总字节预算约束
