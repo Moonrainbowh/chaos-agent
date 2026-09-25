@@ -83,3 +83,17 @@ class AltVImageTests(unittest.IsolatedAsyncioTestCase):
             await app.handle_key("alt+v")
         errors = [entry for entry in app.state.entries if "clipboard does not contain" in entry.text]
         self.assertEqual(len(errors), 1)
+
+    async def test_held_ctrl_v_does_not_repeat_empty_clipboard_error(self):
+        class EmptyIngestor(_Ingestor):
+            def ingest_clipboard_items(self, **kwargs):
+                return ()
+
+        app = WindowsTerminalApp(
+            AgentController(FakeEngine(())), ApprovalBroker(),
+            attachment_draft=AttachmentDraft(EmptyIngestor()), write=lambda _: None,
+        )
+        for _ in range(3):
+            await app.handle_key("\x16")
+        errors = [entry for entry in app.state.entries if "clipboard does not contain" in entry.text]
+        self.assertEqual(len(errors), 1)

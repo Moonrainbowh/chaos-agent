@@ -173,7 +173,15 @@ class WindowsTerminalApp(TerminalPresentation):
                 self._last_alt_v_failure_at = 0.0
         elif key == "\x16":
             self.composer_expanded = True
-            await apply_clipboard_images(self)
+            # Ctrl+V can be replayed by ConPTY just like Alt+V. Debounce only
+            # failed clipboard gestures; successful pastes remain repeatable.
+            now = time.monotonic()
+            if now - self._last_alt_v_failure_at < 0.45:
+                return
+            if not await apply_clipboard_images(self):
+                self._last_alt_v_failure_at = now
+            else:
+                self._last_alt_v_failure_at = 0.0
         elif key == "\x15": clear_input(self)
         elif key == "\t" and self._run_task and not self._run_task.done(): toggle_submit_mode(self)
         elif key == " " and not self.composer_expanded:
