@@ -20,3 +20,10 @@ coverage.xml
 /.worktrees/
 /local_api_config_implementation_prompt.md
 /plan.md
+
+# Local run artifacts, evaluations and tool logs
+/.playwright-cli/
+/.workbuddy/
+/artifacts/
+/logs/
+/output/
