@@ -118,7 +118,7 @@ input_modalities = ["text", "image"]
 approval_mode = "auto"
 # Recommended default; alternatives are "legacy" and "progressive".
 capability_strategy = "hybrid"
-# Optional; "auto" probes PowerShell 7 first, then Windows PowerShell 5.1.
+# Optional; "auto" probes PowerShell 7 (`pwsh`) only.
 # powershell_dialect = "powershell_7"
 # Optional alternatives:
 # approval_mode = "ask"
@@ -128,11 +128,13 @@ capability_strategy = "hybrid"
 
 Every configured `[providers.<name>]` profile must declare `api`, `base_url`, `model`, one authentication source (`api_key`, `api_key_env`, or `auth` with `provider_id`), `context_window`, and `max_output_tokens`. Prefer `api_key_env` or OAuth; literal `api_key` remains only for compatibility and can expose a secret through backups or accidental commits. Optional `input_cost_per_million` and `output_cost_per_million` rates must be configured together; `/cost` always reports durable task tokens and adds an estimated USD breakdown only when those rates exist. Use `chaos-agent --profile <name>` or `CHAOS_PROFILE` to choose one; `CHAOS_CONFIG` may select another absolute config path. `CHAOS_API`, `CHAOS_BASE_URL`, `CHAOS_MODEL`, and `CHAOS_API_KEY_ENV` override only the selected profile; a key override cannot replace stored authentication. Legacy `CODE_AGENT_*` names remain fallback aliases during migration.
 
-`[agent].powershell_dialect` accepts `powershell_7` or
-`windows_powershell_5_1`; omit it (or set `auto`) for the migration default.
-The Host performs a bounded no-Profile probe at startup, verifies the actual
-Edition/version, and freezes one executable for the source workspace and all
-managed worktrees. An explicit dialect never falls back to the other one.
+On Windows, `[agent].powershell_dialect` accepts only `powershell_7`; omit it
+(or set `auto`) to probe `pwsh`. The Host performs a bounded no-Profile probe
+at startup, verifies the actual Core edition/version, and freezes one
+executable for the source workspace and all managed worktrees. If PowerShell 7
+is unavailable or invalid, startup fails rather than falling back to
+Windows PowerShell 5.1. On Linux, macOS, and WSL2, the local runtime uses
+POSIX `/bin/sh` instead.
 `CHAOS_POWERSHELL_DIALECT` overrides TOML and the legacy
 `CODE_AGENT_POWERSHELL_DIALECT` remains a fallback alias. `/状态` shows the
 full local selection, while Provider prompts receive only its basename and
@@ -483,7 +485,7 @@ process-tree control uses the dedicated POSIX process group. Statements about
 - `delegate_agent` is a normal typed action. It is policy checked before a child starts; child output is explicitly advisory and never counts as verification evidence or parent completion.
 - `run_command` represents model-provided raw PowerShell in the frozen dialect. Its UTF-8 wrapper preserves top-level `using`/`param`/`return`, uses `ErrorActionPreference=Stop` by default, and treats explicit catch/`Continue`/`SilentlyContinue`/`Ignore` as script-controlled recovery. It never sends native stdout/stderr through a PowerShell object pipeline, so raw bytes, missing final newlines, and control characters remain intact; genuine native stderr with exit zero succeeds, while the last nonzero native exit code has priority. `run_process_v1` instead accepts only `program`, literal `args`, optional workspace-relative `cwd`, a bounded timeout, and independent stdout/stderr encodings; it has no shell parsing, environment override, stdin, redirection, pipeline, glob, or variable expansion, and rejects shell launchers plus `.cmd/.bat`. In the default trusted-workspace flow, recognized non-critical commands run without per-action approval; network, protected-path, and outside-workspace signals still raise an approval card. Every actual attempt invalidates older verification evidence. `run_verification` accepts a registered kind plus constrained relative paths and lets the local adapter generate fixed argv for trusted verification.
 - Process output defaults to strict UTF-8; BOM or an explicit UTF-8/UTF-16/Windows ANSI/OEM selection is decoded per stream. Undecodable or mixed output is reported with exact Base64 and code-page metadata rather than replacement characters, and output-limit metadata identifies the stream that actually lost bytes. Typed file reads return encoding/BOM/newline/code-page metadata; edits preserve existing UTF-8/16/32 BOM and consistent newline style, while new files default to UTF-8 without BOM. Legacy ANSI/OEM files require an explicit encoding.
-- The local runtime is controlled process execution, not an OS-level sandbox. Typed verification executes user-authorized project code under the current Windows user and therefore does not isolate that code's indirect filesystem or network effects. Docker is optional and uses no network and no image pulls.
+- The local runtime is controlled process execution, not an OS-level sandbox. Typed verification executes user-authorized project code under the current user and therefore does not isolate that code's indirect filesystem or network effects.
 - On Windows 10/11, each local command gets an anonymous Job Object configured with `KILL_ON_JOB_CLOSE`. The root process is created suspended, identity-bound, assigned to the Job, and only then resumed. Timeout, cancellation, and output-limit termination target the Job first; assignment or Job API failures are reported instead of silently running without containment. The runtime waits for Job accounting to reach zero, closes the Job, and requires both pipe readers to reach EOF before returning; ordinary inherited children left after a normal root exit are terminated during the same finalization. This process ownership boundary is not an OS sandbox and does not claim to contain service-mediated or explicit breakaway execution.
 
 Sessions are stored at `%LOCALAPPDATA%\chaos-agent\sessions.sqlite3` by default;

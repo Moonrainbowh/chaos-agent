@@ -23,30 +23,14 @@ class RealPowerShellWrapperScopeTests(LocalRuntimeTestCase):
     async def test_powershell_7_native_failure_survives_top_level_return(self) -> None:
         await self._assert_native_failure_survives_return(ShellDialect.POWERSHELL_7)
 
-    async def test_windows_powershell_native_failure_survives_return(self) -> None:
-        await self._assert_native_failure_survives_return(
-            ShellDialect.WINDOWS_POWERSHELL_5_1
-        )
-
     async def test_powershell_7_error_survives_top_level_return(self) -> None:
         await self._assert_error_survives_return(ShellDialect.POWERSHELL_7)
-
-    async def test_windows_powershell_error_survives_return(self) -> None:
-        await self._assert_error_survives_return(
-            ShellDialect.WINDOWS_POWERSHELL_5_1
-        )
 
     async def test_powershell_7_accepts_top_level_using(self) -> None:
         await self._assert_top_level_using(ShellDialect.POWERSHELL_7)
 
-    async def test_windows_powershell_accepts_top_level_using(self) -> None:
-        await self._assert_top_level_using(ShellDialect.WINDOWS_POWERSHELL_5_1)
-
     async def test_powershell_7_accepts_top_level_param(self) -> None:
         await self._assert_top_level_param(ShellDialect.POWERSHELL_7)
-
-    async def test_windows_powershell_accepts_top_level_param(self) -> None:
-        await self._assert_top_level_param(ShellDialect.WINDOWS_POWERSHELL_5_1)
 
     async def _assert_native_failure_survives_return(
         self, dialect: ShellDialect

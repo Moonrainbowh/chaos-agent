@@ -13,6 +13,7 @@ from code_agent.policy.models import ApprovalMode
 from code_agent.workspace.edits import WorkspaceEditor
 
 from code_agent_win.action_dispatcher import RootActionDispatcher
+from code_agent_win.action_metrics import ActionMetricsCollector
 from code_agent_win.workspace_mutation_pool import WorkspaceMutationPool
 from code_agent_win.workspace_models import WorkspaceServices
 
@@ -37,6 +38,7 @@ class TaskScopedDispatcher:
         self.peers = dependencies.get("peers")
         self.caller_thread = dependencies.get("caller_thread")
         self.capture = dependencies.get("capture")
+        self.metrics = dependencies.get("metrics") or ActionMetricsCollector()
         self.process_rules = dependencies.get("process_rules")
         self._permission_override: ContextVar[tuple[ApprovalMode, str] | None] = (
             ContextVar(f"task-dispatcher-permission-{id(self)}", default=None)
@@ -132,6 +134,7 @@ class TaskScopedDispatcher:
                 if self._permission_override.get() is not None
                 else None
             ),
+            metrics=self.metrics,
         )
         dispatcher.interactive = self.interactive
         return dispatcher

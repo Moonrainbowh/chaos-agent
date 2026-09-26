@@ -34,11 +34,8 @@ class PowerShellDialectConfigTests(unittest.TestCase):
                     )
                     self.assertIsNone(config.powershell_dialect)
 
-    def test_environment_accepts_both_explicit_dialects(self) -> None:
-        for value, expected in (
-            ("powershell_7", ShellDialect.POWERSHELL_7),
-            ("windows_powershell_5_1", ShellDialect.WINDOWS_POWERSHELL_5_1),
-        ):
+    def test_environment_accepts_only_powershell_7(self) -> None:
+        for value, expected in (("powershell_7", ShellDialect.POWERSHELL_7),):
             with self.subTest(value=value), tempfile.TemporaryDirectory() as directory:
                 config = load_runtime_config(
                     env=_environment(directory, CHAOS_POWERSHELL_DIALECT=value)
@@ -75,16 +72,14 @@ powershell_dialect = "windows_powershell_5_1"
 """.strip(),
                 encoding="utf-8",
             )
-            config = load_runtime_config(env={"CHAOS_CONFIG": str(path)})
+            with self.assertRaises(LocalConfigError):
+                load_runtime_config(env={"CHAOS_CONFIG": str(path)})
             overridden = load_runtime_config(
                 env={
                     "CHAOS_CONFIG": str(path),
                     "CHAOS_POWERSHELL_DIALECT": "powershell_7",
                 }
             )
-        self.assertIs(
-            config.powershell_dialect, ShellDialect.WINDOWS_POWERSHELL_5_1
-        )
         self.assertIs(overridden.powershell_dialect, ShellDialect.POWERSHELL_7)
 
     def test_invalid_and_non_powershell_values_fail_closed(self) -> None:

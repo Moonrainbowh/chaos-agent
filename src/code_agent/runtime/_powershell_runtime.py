@@ -35,7 +35,6 @@ class PowerShellRuntimeResolver:
     ) -> None:
         if requested is not None and requested not in {
             ShellDialect.POWERSHELL_7,
-            ShellDialect.WINDOWS_POWERSHELL_5_1,
         }:
             raise ValueError("requested dialect must identify PowerShell")
         if finder is not None and not callable(finder):
@@ -55,31 +54,14 @@ class PowerShellRuntimeResolver:
     def _resolve_once(self) -> PowerShellRuntimeInfo:
         if self.requested is ShellDialect.POWERSHELL_7:
             return self._explicit("pwsh", ShellDialect.POWERSHELL_7)
-        if self.requested is ShellDialect.WINDOWS_POWERSHELL_5_1:
-            return self._explicit(
-                "powershell", ShellDialect.WINDOWS_POWERSHELL_5_1
-            )
         primary = self._finder("pwsh")
         if primary is not None:
-            try:
-                return self._candidate(
-                    primary,
-                    ShellDialect.POWERSHELL_7,
-                    PowerShellSelection.AUTO_PRIMARY,
-                )
-            except RuntimeUnavailable:
-                pass
-        fallback = self._finder("powershell")
-        if fallback is not None:
-            try:
-                return self._candidate(
-                    fallback,
-                    ShellDialect.WINDOWS_POWERSHELL_5_1,
-                    PowerShellSelection.AUTO_FALLBACK,
-                )
-            except RuntimeUnavailable:
-                pass
-        raise RuntimeUnavailable("PowerShell 7 or Windows PowerShell 5.1 was not found")
+            return self._candidate(
+                primary,
+                ShellDialect.POWERSHELL_7,
+                PowerShellSelection.AUTO_PRIMARY,
+            )
+        raise RuntimeUnavailable("PowerShell 7 (pwsh) was not found")
 
     def _explicit(
         self, executable_name: str, dialect: ShellDialect
@@ -132,14 +114,6 @@ def _find_powershell(name: str) -> str | None:
             / "7"
             / "pwsh.exe"
         )
-    elif name == "powershell":
-        candidate = (
-            Path(os.environ.get("SystemRoot", r"C:\Windows"))
-            / "System32"
-            / "WindowsPowerShell"
-            / "v1.0"
-            / "powershell.exe"
-        )
     else:
         return None
     return str(candidate) if candidate.is_file() else None
@@ -152,12 +126,8 @@ def _validate_probe(
     if not components or not all(part.isdigit() for part in components):
         raise ValueError("invalid PowerShell version")
     major = int(components[0])
-    if dialect is ShellDialect.POWERSHELL_7:
-        if edition != "Core" or major < 7:
-            raise ValueError("candidate is not PowerShell 7")
-        return
-    if edition != "Desktop" or components[:2] != ["5", "1"]:
-        raise ValueError("candidate is not Windows PowerShell 5.1")
+    if edition != "Core" or major < 7:
+        raise ValueError("candidate is not PowerShell 7")
 
 
 def _probe_powershell(executable: str) -> tuple[str, str]:

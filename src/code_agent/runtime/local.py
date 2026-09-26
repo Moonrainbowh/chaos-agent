@@ -100,10 +100,7 @@ class WindowsLocalRuntime:
         if spec.argv is None:
             if (
                 spec.shell_script is not None
-                and spec.shell_script.dialect not in {
-                    ShellDialect.POWERSHELL_7,
-                    ShellDialect.WINDOWS_POWERSHELL_5_1,
-                }
+                and spec.shell_script.dialect is not ShellDialect.POWERSHELL_7
             ):
                 raise RuntimeUnavailable(
                     "local Windows runtime requires a PowerShell dialect"

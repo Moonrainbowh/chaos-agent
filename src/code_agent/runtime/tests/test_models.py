@@ -76,7 +76,7 @@ class ResultModelTests(unittest.TestCase):
         self.assertTrue(issubclass(process_tree_error, RuntimeErrorBase))
 
     def test_enums_expose_stable_wire_values(self) -> None:
-        self.assertEqual([item.value for item in RuntimeKind], ["local", "docker"])
+        self.assertEqual([item.value for item in RuntimeKind], ["local"])
         self.assertEqual([item.value for item in StreamName], ["stdout", "stderr"])
         self.assertEqual(
             [item.value for item in TerminationReason],

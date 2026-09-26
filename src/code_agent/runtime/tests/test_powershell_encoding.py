@@ -78,9 +78,6 @@ class RealPowerShellEncodingTests(LocalRuntimeTestCase):
     async def test_powershell_7_uses_utf8_without_user_setup(self) -> None:
         await self._assert_utf8_boundary(ShellDialect.POWERSHELL_7)
 
-    async def test_windows_powershell_5_1_pipes_utf8_to_native(self) -> None:
-        await self._assert_utf8_boundary(ShellDialect.WINDOWS_POWERSHELL_5_1)
-
     async def test_native_output_bytes_remain_exact_in_either_dialect(
         self,
     ) -> None:
@@ -133,7 +130,6 @@ class RealPowerShellEncodingTests(LocalRuntimeTestCase):
     def _dialects() -> tuple[ShellDialect, ...]:
         return (
             ShellDialect.POWERSHELL_7,
-            ShellDialect.WINDOWS_POWERSHELL_5_1,
         )
 
     async def _run(self, dialect: ShellDialect, script: str):

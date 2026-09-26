@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
@@ -46,6 +47,7 @@ from code_agent_win.action_support import (
     preflight_action,
     with_action_duration,
 )
+from code_agent_win.action_metrics import ActionMetricsCollector
 from code_agent_win.thread_actions import execute_thread_action
 from code_agent_win.verification_action import run_verification_action
 from code_agent_win.workspace_actions import execute_workspace_action
@@ -80,6 +82,7 @@ class RootActionDispatcher:
         permission_workspace_root: Path | None = None,
         permission_workspace_fingerprint: str | None = None,
         web_access: WebAccessService | None = None,
+        metrics: ActionMetricsCollector | None = None,
     ) -> None:
         self.files, self.editor, self.policy, self.approvals = files, editor, policy, approvals
         self.git, self.runtime, self.verification = git, runtime, verification
@@ -89,6 +92,7 @@ class RootActionDispatcher:
         self.repo_index = repo_index
         self._web_access_enabled = web_access is not None
         self.web_access = web_access or WebAccessService()
+        self.metrics = metrics or ActionMetricsCollector()
         self.process_rules = process_rules
         self.permission_source = permission_source
         self.invalidate_cache = invalidate_cache
@@ -195,6 +199,7 @@ class RootActionDispatcher:
         *,
         process_rule: ProcessRuleMatch | None = None,
     ) -> ActionResult:
+        started_at = time.perf_counter()
         try:
             plugin_target = translated is not request
             translated = bind_process_rule(translated, process_rule)
@@ -212,6 +217,7 @@ class RootActionDispatcher:
             result = attach_permission_metadata(
                 result, self.permission_source, process_rule
             )
+            self._record_metrics(context, translated, result)
             if not plugin_target:
                 return result
             return ActionResult(
@@ -219,12 +225,30 @@ class RootActionDispatcher:
                 {**result.metadata, "plugin_target": translated.name},
             )
         except GitCommandError as error:
-            return git_error_result(request, error)
+            result = _with_elapsed_duration(git_error_result(request, error), started_at)
+            self._record_metrics(context, translated, result)
+            return result
         except (CancellationError, asyncio.CancelledError):
             raise
         except Exception as error:
-            return _exception(request, error)
+            result = _with_elapsed_duration(_exception(request, error), started_at)
+            self._record_metrics(context, translated, result)
+            return result
 
+    def _record_metrics(
+        self,
+        context: ActionExecutionContext | None,
+        request: ActionRequest,
+        result: ActionResult,
+    ) -> None:
+        try:
+            self.metrics.record(
+                context.task_id if context is not None and context.task_id else "unscoped",
+                request,
+                result,
+            )
+        except Exception:
+            return
     async def _execute(
         self, request: ActionRequest, cancellation: CancellationToken,
         context: ActionExecutionContext | None,
@@ -316,3 +340,16 @@ class RootActionDispatcher:
                 self.invalidate_cache,
             )
         return _error(request, "tool is not implemented")
+
+
+def _with_elapsed_duration(result: ActionResult, started_at: float) -> ActionResult:
+    return ActionResult(
+        result.request_id,
+        result.name,
+        result.output,
+        result.is_error,
+        {
+            **result.metadata,
+            "duration_ms": max(0, round((time.perf_counter() - started_at) * 1000)),
+        },
+    )

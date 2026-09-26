@@ -1,0 +1,180 @@
+{
+  "repeat": 3,
+  "median_ms": {
+    "git.snapshot_paths_ms": 55.04,
+    "git.changed_snapshot_paths_ms": 318.474,
+    "production_like_inventory.capture_ms": 5807.588,
+    "changed_snapshot.read_ms": 1453.043,
+    "changed_snapshot.put_ms": 2109.916,
+    "changed_snapshot.repeated_put_ms": 168.121,
+    "changed_snapshot.materialize_ms": 119.33,
+    "full_snapshot.read_ms": 7072.42,
+    "full_snapshot.put_ms": 2361.575,
+    "full_snapshot.repeated_put_ms": 210.616,
+    "full_snapshot.materialize_ms": 532.244
+  },
+  "runs": [
+    {
+      "parameters": {
+        "tracked": 1000,
+        "changed": 200,
+        "untracked": 50,
+        "ignored": 500,
+        "deleted": 1,
+        "repeat": 3
+      },
+      "fixture_accounting": {
+        "tracked_payload_files": 1000,
+        "tracked_gitignore_files": 1,
+        "visible_untracked_files": 50,
+        "ignored_files_created": 500,
+        "deleted_tracked_files": 1
+      },
+      "git": {
+        "all_paths": 1051,
+        "changed_paths": 251,
+        "snapshot_paths_ms": 62.61,
+        "changed_snapshot_paths_ms": 321.785
+      },
+      "production_like_inventory": {
+        "entries": 1050,
+        "bytes": 165626,
+        "capture_ms": 5865.734
+      },
+      "changed_snapshot": {
+        "entries": 251,
+        "existing_entries": 250,
+        "tombstones": 1,
+        "input_bytes": 41760,
+        "read_ms": 1569.206,
+        "unique_blobs": 250,
+        "unique_input_bytes": 41760,
+        "blob_bytes": 41760,
+        "put_ms": 2310.162,
+        "repeated_put_ms": 186.768,
+        "materialize_ms": 145.457
+      },
+      "full_snapshot": {
+        "entries": 1051,
+        "existing_entries": 1050,
+        "tombstones": 1,
+        "input_bytes": 165626,
+        "read_ms": 7376.814,
+        "unique_blobs": 283,
+        "unique_input_bytes": 46730,
+        "blob_bytes": 46730,
+        "put_ms": 2564.084,
+        "repeated_put_ms": 225.147,
+        "materialize_ms": 532.244
+      }
+    },
+    {
+      "parameters": {
+        "tracked": 1000,
+        "changed": 200,
+        "untracked": 50,
+        "ignored": 500,
+        "deleted": 1,
+        "repeat": 3
+      },
+      "fixture_accounting": {
+        "tracked_payload_files": 1000,
+        "tracked_gitignore_files": 1,
+        "visible_untracked_files": 50,
+        "ignored_files_created": 500,
+        "deleted_tracked_files": 1
+      },
+      "git": {
+        "all_paths": 1051,
+        "changed_paths": 251,
+        "snapshot_paths_ms": 55.04,
+        "changed_snapshot_paths_ms": 318.474
+      },
+      "production_like_inventory": {
+        "entries": 1050,
+        "bytes": 165626,
+        "capture_ms": 5807.588
+      },
+      "changed_snapshot": {
+        "entries": 251,
+        "existing_entries": 250,
+        "tombstones": 1,
+        "input_bytes": 41760,
+        "read_ms": 1452.227,
+        "unique_blobs": 250,
+        "unique_input_bytes": 41760,
+        "blob_bytes": 41760,
+        "put_ms": 2106.872,
+        "repeated_put_ms": 164.287,
+        "materialize_ms": 119.33
+      },
+      "full_snapshot": {
+        "entries": 1051,
+        "existing_entries": 1050,
+        "tombstones": 1,
+        "input_bytes": 165626,
+        "read_ms": 7072.42,
+        "unique_blobs": 283,
+        "unique_input_bytes": 46730,
+        "blob_bytes": 46730,
+        "put_ms": 2351.249,
+        "repeated_put_ms": 210.264,
+        "materialize_ms": 505.061
+      }
+    },
+    {
+      "parameters": {
+        "tracked": 1000,
+        "changed": 200,
+        "untracked": 50,
+        "ignored": 500,
+        "deleted": 1,
+        "repeat": 3
+      },
+      "fixture_accounting": {
+        "tracked_payload_files": 1000,
+        "tracked_gitignore_files": 1,
+        "visible_untracked_files": 50,
+        "ignored_files_created": 500,
+        "deleted_tracked_files": 1
+      },
+      "git": {
+        "all_paths": 1051,
+        "changed_paths": 251,
+        "snapshot_paths_ms": 52.998,
+        "changed_snapshot_paths_ms": 295.154
+      },
+      "production_like_inventory": {
+        "entries": 1050,
+        "bytes": 165626,
+        "capture_ms": 5553.736
+      },
+      "changed_snapshot": {
+        "entries": 251,
+        "existing_entries": 250,
+        "tombstones": 1,
+        "input_bytes": 41760,
+        "read_ms": 1453.043,
+        "unique_blobs": 250,
+        "unique_input_bytes": 41760,
+        "blob_bytes": 41760,
+        "put_ms": 2109.916,
+        "repeated_put_ms": 168.121,
+        "materialize_ms": 116.484
+      },
+      "full_snapshot": {
+        "entries": 1051,
+        "existing_entries": 1050,
+        "tombstones": 1,
+        "input_bytes": 165626,
+        "read_ms": 6493.644,
+        "unique_blobs": 283,
+        "unique_input_bytes": 46730,
+        "blob_bytes": 46730,
+        "put_ms": 2361.575,
+        "repeated_put_ms": 210.616,
+        "materialize_ms": 535.598
+      }
+    }
+  ]
+}

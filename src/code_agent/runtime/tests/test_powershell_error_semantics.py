@@ -134,7 +134,6 @@ class RealPowerShellErrorSemanticsTests(LocalRuntimeTestCase):
     def _dialects() -> tuple[ShellDialect, ...]:
         return (
             ShellDialect.POWERSHELL_7,
-            ShellDialect.WINDOWS_POWERSHELL_5_1,
         )
 
     async def _run(self, dialect: ShellDialect, script: str) -> CommandResult:

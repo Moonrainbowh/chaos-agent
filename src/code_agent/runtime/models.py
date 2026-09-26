@@ -13,19 +13,16 @@ from typing import Optional
 
 class RuntimeKind(str, Enum):
     LOCAL = "local"
-    DOCKER = "docker"
 
 
 class ShellDialect(str, Enum):
     POWERSHELL_7 = "powershell_7"
-    WINDOWS_POWERSHELL_5_1 = "windows_powershell_5_1"
     POSIX_SH = "posix_sh"
 
 
 class PowerShellSelection(str, Enum):
     EXPLICIT = "explicit"
     AUTO_PRIMARY = "auto_primary"
-    AUTO_FALLBACK = "auto_fallback"
 
 
 class StreamName(str, Enum):
@@ -102,7 +99,6 @@ class PowerShellRuntimeInfo:
     def __post_init__(self) -> None:
         if self.dialect not in {
             ShellDialect.POWERSHELL_7,
-            ShellDialect.WINDOWS_POWERSHELL_5_1,
         }:
             raise ValueError("PowerShell runtime requires a PowerShell dialect")
         if not isinstance(self.executable, str) or not self.executable.strip():
@@ -125,12 +121,6 @@ class PowerShellRuntimeInfo:
             self.edition != "Core" or int(components[0]) < 7
         ):
             raise ValueError("powershell_7 requires Core edition version 7 or later")
-        if self.dialect is ShellDialect.WINDOWS_POWERSHELL_5_1 and (
-            self.edition != "Desktop" or components[:2] != ["5", "1"]
-        ):
-            raise ValueError(
-                "windows_powershell_5_1 requires Desktop edition version 5.1"
-            )
         object.__setattr__(self, "executable", copy.deepcopy(self.executable))
         object.__setattr__(self, "version", copy.deepcopy(self.version))
 

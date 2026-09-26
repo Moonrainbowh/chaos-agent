@@ -46,21 +46,6 @@ class PowerShellResolverTests(unittest.TestCase):
         finder.assert_called_once_with("pwsh")
         probe.assert_called_once_with("C:\\pwsh.exe")
 
-    def test_auto_rejects_mismatched_primary_and_uses_fallback(self) -> None:
-        finder = Mock(side_effect=("C:\\pwsh.exe", "C:\\powershell.exe"))
-        probe = Mock(
-            side_effect=(("Desktop", "5.1.1"), ("Desktop", "5.1.26100.1"))
-        )
-
-        info = PowerShellRuntimeResolver(finder=finder, probe=probe).resolve()
-
-        self.assertEqual(info.dialect, ShellDialect.WINDOWS_POWERSHELL_5_1)
-        self.assertEqual(info.selection, PowerShellSelection.AUTO_FALLBACK)
-        self.assertEqual(
-            [call.args[0] for call in finder.call_args_list],
-            ["pwsh", "powershell"],
-        )
-
     def test_explicit_dialect_never_falls_back(self) -> None:
         finder = Mock(return_value=None)
         resolver = PowerShellRuntimeResolver(
@@ -71,6 +56,17 @@ class PowerShellResolverTests(unittest.TestCase):
             resolver.resolve()
 
         finder.assert_called_once_with("pwsh")
+
+    def test_auto_invalid_pwsh_does_not_fall_back_to_windows_powershell(self) -> None:
+        finder = Mock(return_value="C:\\pwsh.exe")
+        probe = Mock(return_value=("Desktop", "5.1.1"))
+        resolver = PowerShellRuntimeResolver(finder=finder, probe=probe)
+
+        with self.assertRaises(RuntimeUnavailable):
+            resolver.resolve()
+
+        finder.assert_called_once_with("pwsh")
+        probe.assert_called_once_with("C:\\pwsh.exe")
 
     def test_explicit_dialect_rejects_edition_or_version_mismatch(self) -> None:
         for probe_value in (("Desktop", "5.1.1"), ("Core", "6.2.0")):
@@ -185,32 +181,6 @@ class PowerShellRuntimeTests(LocalRuntimeTestCase):
                     None,
                 )
 
-    async def test_windows_powershell_is_explicit_fallback(self) -> None:
-        async def spawn(*args: object, **kwargs: object) -> CompletedProcess:
-            self.assertEqual(args[0], "C:\\powershell.exe")
-            return CompletedProcess()
-
-        with patch(
-            "code_agent.runtime._powershell_runtime.shutil.which",
-            side_effect=(None, "C:\\powershell.exe"),
-        ) as finder, patch("pathlib.Path.is_file", return_value=False), patch(
-            "code_agent.runtime._powershell_runtime._probe_powershell",
-            return_value=("Desktop", "5.1.26100.1"),
-        ), patch(
-            "code_agent.runtime.local.asyncio.create_subprocess_exec",
-            side_effect=spawn,
-        ), patch_process_identity_capture():
-            await self.runtime.run(
-                CommandSpec(cwd=".", powershell_script="Write-Output ready"),
-                CancellationToken(),
-                None,
-            )
-
-        self.assertEqual(
-            [call.args[0] for call in finder.call_args_list],
-            ["pwsh", "powershell"],
-        )
-
     async def test_typed_script_rejects_frozen_dialect_mismatch(self) -> None:
         resolver = PowerShellRuntimeResolver(
             ShellDialect.POWERSHELL_7,
@@ -224,7 +194,7 @@ class PowerShellRuntimeTests(LocalRuntimeTestCase):
                     cwd=".",
                     shell_script=ShellScript(
                         "Write-Output ready",
-                        ShellDialect.WINDOWS_POWERSHELL_5_1,
+                        ShellDialect.POSIX_SH,
                     ),
                 ),
                 CancellationToken(),

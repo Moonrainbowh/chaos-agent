@@ -36,8 +36,6 @@ class ShellModelTests(unittest.TestCase):
         invalid = (
             (ShellDialect.POWERSHELL_7, "Desktop", "5.1.26100.1"),
             (ShellDialect.POWERSHELL_7, "Core", "6.2.0"),
-            (ShellDialect.WINDOWS_POWERSHELL_5_1, "Core", "7.6.5"),
-            (ShellDialect.WINDOWS_POWERSHELL_5_1, "Desktop", "5.2.0"),
         )
         for dialect, edition, version in invalid:
             with self.subTest(dialect=dialect, edition=edition, version=version):

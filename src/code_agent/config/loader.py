@@ -240,8 +240,7 @@ def _powershell_dialect(
         dialect = ShellDialect(parsed)
     except ValueError:
         raise LocalConfigError(
-            "powershell_dialect must be auto, powershell_7, or "
-            "windows_powershell_5_1"
+            "powershell_dialect must be auto or powershell_7"
         ) from None
     if dialect is ShellDialect.POSIX_SH:
         raise LocalConfigError("powershell_dialect cannot be posix_sh")

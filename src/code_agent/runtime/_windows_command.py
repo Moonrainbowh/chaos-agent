@@ -25,7 +25,6 @@ def prepared_windows_command(
     if spec.shell_script is not None:
         if spec.shell_script.dialect not in {
             ShellDialect.POWERSHELL_7,
-            ShellDialect.WINDOWS_POWERSHELL_5_1,
         }:
             raise RuntimeUnavailable("local Windows runtime requires PowerShell")
         if spec.shell_script.dialect is not powershell.dialect:
