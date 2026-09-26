@@ -87,6 +87,52 @@ class ActionMetricsTests(unittest.TestCase):
         self.assertEqual(result.category_duration_ms["workspace_read"], 3)
         self.assertEqual(result.retries, 0)
 
+    def test_reads_after_a_successful_edit_start_a_new_generation(self) -> None:
+        collector = ActionMetricsCollector()
+        collector.record(
+            "task-1",
+            ActionRequest("read-1", "read_file", {"path": "a.py"}),
+            ActionResult("read-1", "read_file", {}, metadata={"duration_ms": 1}),
+        )
+        collector.record(
+            "task-1",
+            ActionRequest("edit", "write_file", {"path": "a.py", "content": "x"}),
+            ActionResult("edit", "write_file", {}, metadata={"duration_ms": 1}),
+        )
+        collector.record(
+            "task-1",
+            ActionRequest("read-2", "read_file", {"path": "a.py"}),
+            ActionResult("read-2", "read_file", {}, metadata={"duration_ms": 1}),
+        )
+
+        self.assertEqual(collector.snapshot("task-1").repeated_reads, 0)
+
+    def test_rolled_back_edit_does_not_start_a_new_generation(self) -> None:
+        collector = ActionMetricsCollector()
+        collector.record(
+            "task-1",
+            ActionRequest("read-1", "read_file", {"path": "a.py"}),
+            ActionResult("read-1", "read_file", {}, metadata={"duration_ms": 1}),
+        )
+        collector.record(
+            "task-1",
+            ActionRequest("rollback", "apply_workspace_edit_plan_v1", {}),
+            ActionResult(
+                "rollback",
+                "apply_workspace_edit_plan_v1",
+                {"workspace_may_have_changed": False},
+                True,
+                {"duration_ms": 1},
+            ),
+        )
+        collector.record(
+            "task-1",
+            ActionRequest("read-2", "read_file", {"path": "a.py"}),
+            ActionResult("read-2", "read_file", {}, metadata={"duration_ms": 1}),
+        )
+
+        self.assertEqual(collector.snapshot("task-1").repeated_reads, 1)
+
 
 if __name__ == "__main__":
     unittest.main()

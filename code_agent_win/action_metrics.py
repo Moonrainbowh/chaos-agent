@@ -35,8 +35,9 @@ class ActionMetricsCollector:
         self._errors: Counter[str] = Counter()
         self._names: dict[str, Counter[str]] = defaultdict(Counter)
         self._category_duration: dict[str, Counter[str]] = defaultdict(Counter)
-        self._read_fingerprints: dict[str, set[str]] = defaultdict(set)
-        self._read_calls: Counter[str] = Counter()
+        self._read_fingerprints: dict[tuple[str, int], set[str]] = defaultdict(set)
+        self._read_calls: Counter[tuple[str, int]] = Counter()
+        self._workspace_generations: Counter[str] = Counter()
         self._failed_signatures: set[str] = set()
         self._retries: Counter[str] = Counter()
 
@@ -62,10 +63,28 @@ class ActionMetricsCollector:
             self._retries[task_id] += 1
             self._failed_signatures.discard(attempt_key)
         if request.name in _READ_ACTIONS:
-            self._read_calls[task_id] += 1
-            self._read_fingerprints[task_id].add(key)
+            generation = self._workspace_generations[task_id]
+            generation_key = (task_id, generation)
+            self._read_calls[generation_key] += 1
+            self._read_fingerprints[generation_key].add(key)
         if result.is_error:
             self._failed_signatures.add(attempt_key)
+        if request.name in _PROCESS_ACTIONS:
+            self._workspace_generations[task_id] += 1
+        elif (
+            request.name in _SUCCESSFUL_MUTATIONS
+            and not result.is_error
+        ) or (
+            request.name == "apply_workspace_edit_plan_v1"
+            and (
+                (
+                    isinstance(result.output, Mapping)
+                    and result.output.get("workspace_may_have_changed") is True
+                )
+                or result.metadata.get("workspace_may_have_changed") is True
+            )
+        ):
+            self._workspace_generations[task_id] += 1
 
     def snapshot(self, task_id: str) -> TaskActionMetrics:
         if not isinstance(task_id, str) or not task_id:
@@ -79,10 +98,10 @@ class ActionMetricsCollector:
             p95_duration_ms=_percentile(durations, 0.95),
             by_name=dict(self._names.get(task_id, {})),
             category_duration_ms=dict(self._category_duration.get(task_id, {})),
-            repeated_reads=max(
-                0,
-                self._read_calls.get(task_id, 0)
-                - len(self._read_fingerprints.get(task_id, ())),
+            repeated_reads=sum(
+                max(0, calls - len(self._read_fingerprints.get(generation_key, ())))
+                for generation_key, calls in self._read_calls.items()
+                if generation_key[0] == task_id
             ),
             retries=self._retries.get(task_id, 0),
         )
@@ -99,6 +118,14 @@ def _signature(request: ActionRequest) -> str:
 
 
 _READ_ACTIONS = {"read_file", "read_code_slices", "search_text", "list_files"}
+_SUCCESSFUL_MUTATIONS = {
+    "write_file",
+    "replace_text",
+}
+_PROCESS_ACTIONS = {
+    "run_command",
+    "run_process_v1",
+}
 
 
 def _category(name: str) -> str:
