@@ -277,6 +277,9 @@ class TaskRuntimeRepositoryMixin:
     async def list_verification_evidence(self, task_id: str) -> tuple[object, ...]:
         return await _evidence_ledger.evidence_for_task(self._database, task_id)
 
+    async def list_completed_verification_evidence(self, task_id: str) -> tuple[object, ...]:
+        return await _evidence_ledger.completed_evidence_for_task(self._database, task_id)
+
     async def finalize_task(
         self,
         task_id: str,

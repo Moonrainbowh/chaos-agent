@@ -266,6 +266,50 @@ class TerminalStateTests(unittest.TestCase):
         self.assertEqual(state.draft_answer, "")
         self.assertEqual([entry.text for entry in state.entries], ["answer"])
 
+    def test_adjacent_duplicate_assistant_messages_are_not_displayed_twice(self) -> None:
+        state = TerminalState()
+        message = Message(role="assistant", content="same answer")
+        event = AgentEvent(EventKind.MESSAGE_ADDED, {"message": message.to_dict()})
+
+        state.apply(event)
+        state.apply(event)
+
+        self.assertEqual(state.transcript, ["assistant: same answer"])
+        self.assertEqual(
+            len([entry for entry in state.entries if entry.kind is DisplayKind.AGENT]),
+            1,
+        )
+
+    def test_non_adjacent_duplicate_assistant_messages_are_preserved(self) -> None:
+        state = TerminalState()
+        for content in ("same answer", "other answer", "same answer"):
+            state.apply(AgentEvent(
+                EventKind.MESSAGE_ADDED,
+                {"message": Message(role="assistant", content=content).to_dict()},
+            ))
+
+        self.assertEqual(
+            state.transcript,
+            ["assistant: same answer", "assistant: other answer", "assistant: same answer"],
+        )
+
+    def test_assistant_messages_with_tool_calls_are_not_deduplicated(self) -> None:
+        state = TerminalState()
+        message = Message(
+            role="assistant",
+            content="checking",
+            tool_calls=(ToolCall("call-1", "read_file", {"path": "a.txt"}),),
+        )
+        event = AgentEvent(EventKind.MESSAGE_ADDED, {"message": message.to_dict()})
+
+        state.apply(event)
+        state.apply(event)
+
+        self.assertEqual(
+            state.transcript,
+            ["assistant: checking", "assistant: checking"],
+        )
+
     def test_cancelled_draft_becomes_non_conversation_partial_entry(self) -> None:
         state = TerminalState()
         state.apply(_text_delta("unfinished"))

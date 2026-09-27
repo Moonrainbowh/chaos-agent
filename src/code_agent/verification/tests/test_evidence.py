@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from code_agent.verification.evidence import EvidenceOutcome, EvidenceProvenance, EvidenceRecord, append_evidence, evidence_satisfies_required
+from code_agent.verification.evidence import EvidenceOutcome, EvidenceProvenance, EvidenceRecord, append_evidence, evidence_satisfies_current_verifier, evidence_satisfies_required
 
 
 class EvidenceTests(unittest.TestCase):
@@ -25,3 +25,17 @@ class EvidenceTests(unittest.TestCase):
     def test_user_confirmation_requires_explicit_manual_condition(self) -> None:
         with self.assertRaises(ValueError):
             self.record(EvidenceOutcome.USER_CONFIRMED, EvidenceProvenance.USER_CONFIRMATION)
+
+    def test_legacy_record_without_verifier_identity_remains_readable(self) -> None:
+        record = EvidenceRecord.from_dict({
+            "identifier": "evidence-1",
+            "criterion_id": "tests",
+            "outcome": "pass",
+            "provenance": "system_verifier",
+            "generation": 1,
+            "subject_hash": "subject",
+            "output_hash": "output",
+            "diagnostic": "ok",
+        })
+        self.assertIsNone(record.verifier_identity)
+        self.assertFalse(evidence_satisfies_current_verifier(record))

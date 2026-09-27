@@ -5,7 +5,7 @@ import sqlite3
 from typing import Sequence
 
 from code_agent.core.completion_contract import AcceptanceCriterion, CriterionRequirement, CriterionStrength, TaskContractRevision, TaskIntent
-from code_agent.verification.evidence import EvidenceRecord, evidence_satisfies_required
+from code_agent.verification.evidence import EvidenceRecord, evidence_satisfies_current_verifier
 from code_agent.core.task import TaskStatus
 
 from ._codec import encode_datetime, utc_now
@@ -110,6 +110,25 @@ async def evidence_for_task(database: object, task_id: str) -> tuple[EvidenceRec
     return await database.read(read)  # type: ignore[attr-defined]
 
 
+async def completed_evidence_for_task(database: object, task_id: str) -> tuple[EvidenceRecord, ...]:
+    task_id = _text(task_id, "task_id")
+
+    def read(connection: sqlite3.Connection) -> tuple[EvidenceRecord, ...]:
+        rows = connection.execute(
+            "SELECT evidence.payload FROM verification_evidence AS evidence "
+            "JOIN verification_runs AS runs ON runs.id = evidence.run_id "
+            "WHERE evidence.task_id = ? AND runs.status = 'completed' "
+            "ORDER BY evidence.created_at, evidence.id",
+            (task_id,),
+        ).fetchall()
+        try:
+            return tuple(EvidenceRecord.from_dict(json.loads(row["payload"])) for row in rows)
+        except (TypeError, ValueError, json.JSONDecodeError) as error:
+            raise SessionCorruptionError("invalid persisted verification evidence") from error
+
+    return await database.read(read)  # type: ignore[attr-defined]
+
+
 async def finalize_task(
     database: object,
     task_id: str,
@@ -150,7 +169,7 @@ def _finalize_write(
     latest = {record.criterion_id: record for record in records}
     if any(
         criterion.requirement is CriterionRequirement.REQUIRED
-        and not evidence_satisfies_required(
+        and not evidence_satisfies_current_verifier(
             latest.get(
                 criterion.identifier,
                 _missing_evidence(criterion.identifier, generation, subject_hash),

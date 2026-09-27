@@ -334,7 +334,7 @@ class SQLiteSessionRepositoryTests(unittest.IsolatedAsyncioTestCase):
         contract = TaskContractRevision(1, TaskIntent.MODIFY, (AcceptanceCriterion("tests", "tests pass", CriterionRequirement.REQUIRED, CriterionStrength.USER),))
         await self.repository.save_task_contract_revision(task.id, contract)
         await self.repository.begin_verification_run("run-1", task.id, 1, "subject")
-        evidence = EvidenceRecord.from_output("evidence-1", "tests", EvidenceOutcome.PASS, EvidenceProvenance.SYSTEM_VERIFIER, 1, "subject", "ok", "passed")
+        evidence = EvidenceRecord.from_output("evidence-1", "tests", EvidenceOutcome.PASS, EvidenceProvenance.SYSTEM_VERIFIER, 1, "subject", "ok", "passed", verifier_identity="test-identity")
         await self.repository.append_verification_evidence("run-1", task.id, evidence)
         await self.repository.close_verification_run("run-1", "completed")
         reopened = SQLiteSessionRepository(self.database)
@@ -349,7 +349,7 @@ class SQLiteSessionRepositoryTests(unittest.IsolatedAsyncioTestCase):
         await self.repository.transition_task(task.id, TaskStatus.RUNNING)
         await self.repository.transition_task(task.id, TaskStatus.VERIFYING)
         await self.repository.begin_verification_run("run-final", task.id, 1, "subject")
-        evidence = EvidenceRecord.from_output("evidence-final", "tests", EvidenceOutcome.PASS, EvidenceProvenance.SYSTEM_VERIFIER, 1, "subject", "ok", "passed")
+        evidence = EvidenceRecord.from_output("evidence-final", "tests", EvidenceOutcome.PASS, EvidenceProvenance.SYSTEM_VERIFIER, 1, "subject", "ok", "passed", verifier_identity="test-identity")
         await self.repository.append_verification_evidence("run-final", task.id, evidence)
         await self.repository.close_verification_run("run-final", "completed")
 
@@ -367,6 +367,29 @@ class SQLiteSessionRepositoryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await self.repository.interrupt_open_verification_runs(task.id), 1)
         self.assertEqual(await self.repository.interrupt_open_verification_runs(task.id), 0)
 
+    async def test_completed_evidence_query_excludes_open_run_evidence(self) -> None:
+        thread_id = await self.repository.create_thread()
+        task = await self.repository.create_task(
+            thread_id,
+            TaskContract("repair", TaskAuthorization.local_workspace(self.temporary.name)),
+        )
+        await self.repository.begin_verification_run("run-open", task.id, 1, "subject")
+        evidence = EvidenceRecord.from_output(
+            "evidence-open",
+            "tests",
+            EvidenceOutcome.PASS,
+            EvidenceProvenance.SYSTEM_VERIFIER,
+            1,
+            "subject",
+            "ok",
+            "passed",
+            verifier_identity="test-identity",
+        )
+        await self.repository.append_verification_evidence("run-open", task.id, evidence)
+
+        self.assertEqual(await self.repository.list_verification_evidence(task.id), (evidence,))
+        self.assertEqual(await self.repository.list_completed_verification_evidence(task.id), ())
+
     async def test_finalize_task_accepts_current_required_evidence_from_completed_runs(self) -> None:
         thread_id = await self.repository.create_thread()
         task = await self.repository.create_task(thread_id, TaskContract("repair", TaskAuthorization.local_workspace(self.temporary.name)))
@@ -379,7 +402,7 @@ class SQLiteSessionRepositoryTests(unittest.IsolatedAsyncioTestCase):
         await self.repository.transition_task(task.id, TaskStatus.VERIFYING)
         for run_id, criterion in (("run-tests", "tests"), ("run-build", "build")):
             await self.repository.begin_verification_run(run_id, task.id, 1, "subject")
-            evidence = EvidenceRecord.from_output(run_id, criterion, EvidenceOutcome.PASS, EvidenceProvenance.SYSTEM_VERIFIER, 1, "subject", "ok", "passed")
+            evidence = EvidenceRecord.from_output(run_id, criterion, EvidenceOutcome.PASS, EvidenceProvenance.SYSTEM_VERIFIER, 1, "subject", "ok", "passed", verifier_identity="test-identity")
             await self.repository.append_verification_evidence(run_id, task.id, evidence)
             await self.repository.close_verification_run(run_id, "completed")
 

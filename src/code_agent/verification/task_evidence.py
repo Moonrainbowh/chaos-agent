@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import uuid
+import hashlib
+import json
 from pathlib import PurePosixPath
 from typing import Mapping, Sequence
 
@@ -87,6 +89,7 @@ def evidence_from_result(
     generation: int,
     subject_hash: str,
     criterion_id: str,
+    verifier_identity: str | None = None,
 ) -> EvidenceRecord:
     output = result.output if isinstance(result.output, Mapping) else {}
     diagnostic = str(
@@ -110,7 +113,30 @@ def evidence_from_result(
         subject_hash,
         repr(dict(output)),
         diagnostic,
+        verifier_identity=verifier_identity,
     )
+
+
+def build_verifier_identity(request: object, criterion_id: str) -> str:
+    """Return a stable digest of Host-controlled verifier inputs."""
+    arguments = getattr(request, "arguments", {})
+    return build_verifier_identity_from_arguments(arguments, criterion_id)
+
+
+def build_verifier_identity_from_arguments(
+    arguments: Mapping[str, object], criterion_id: str
+) -> str:
+    """Hash already normalized Host verifier arguments without retaining them."""
+    targets = arguments.get("targets", ())
+    payload = {
+        "criterion_id": criterion_id,
+        "kind": arguments.get("kind"),
+        "cwd": arguments.get("cwd", "."),
+        "targets": list(targets) if isinstance(targets, (tuple, list)) else targets,
+        "timeout_s": arguments.get("timeout_s", 300),
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
 def planner_attestation(
@@ -135,12 +161,17 @@ async def record_planner_attestation(
     plan: VerificationPlan,
 ) -> None:
     existing = tuple(
-        item for item in await sessions.list_verification_evidence(task_id)
+        item for item in await sessions.list_completed_verification_evidence(task_id)
         if isinstance(item, EvidenceRecord)
         and item.generation == state.code_generation
         and item.subject_hash == state.subject_hash
     )
-    if has_passing(existing, RISK_VALIDATION_CRITERION):
+    if any(
+        item.criterion_id == RISK_VALIDATION_CRITERION
+        and item.provenance is EvidenceProvenance.SYSTEM_PLANNER
+        and evidence_satisfies_required(item)
+        for item in existing
+    ):
         return
     run_id = uuid.uuid4().hex
     await sessions.begin_verification_run(
@@ -167,9 +198,14 @@ def verifier_outcome(records: Sequence[EvidenceRecord]) -> VerifierOutcome:
     return VerifierOutcome.NOT_RUN
 
 
-def has_passing(records: Sequence[EvidenceRecord], criterion: str) -> bool:
+def has_passing(
+    records: Sequence[EvidenceRecord],
+    criterion: str,
+    identity: str | None = None,
+) -> bool:
     return any(
         item.criterion_id == criterion
+        and (identity is None or item.verifier_identity == identity)
         and item.outcome is EvidenceOutcome.PASS
         and evidence_satisfies_required(item)
         for item in records

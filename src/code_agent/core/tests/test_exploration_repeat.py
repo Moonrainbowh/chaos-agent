@@ -10,6 +10,8 @@ from code_agent.core.exploration_repeat import (
 )
 from code_agent.core.models import ActionResult, ToolCall, Message
 from code_agent.core._engine_turn import AgentEngineTurnMixin
+from code_agent.core._engine_convergence import AgentEngineConvergenceMixin
+from code_agent.core._engine_run import _TurnState
 from code_agent.core.events import AgentEvent, EventKind
 from code_agent.core.engine_turn_feedback import circuit_breaker_result
 
@@ -200,3 +202,43 @@ class _DispatchHost:
         yield AgentEvent(EventKind.ACTION_COMPLETED, {"result": result.to_dict()})
         message = Message(role="tool", name=call.name, tool_call_id=call.id, content="{}")
         yield AgentEvent(EventKind.MESSAGE_ADDED, {"message": message.to_dict()})
+
+
+class _ConvergenceJournal:
+    async def append_event(self, thread_id, event):
+        pass
+
+    async def append_message(self, thread_id, message):
+        pass
+
+    def message_added(self, message):
+        return AgentEvent(EventKind.MESSAGE_ADDED, {"message": message.to_dict()})
+
+
+class ConvergenceMixinTests(unittest.IsolatedAsyncioTestCase):
+    async def test_existing_answer_skips_forced_summary_turn(self):
+        host = AgentEngineConvergenceMixin()
+        host._journal = _ConvergenceJournal()
+        state = SimpleNamespace(
+            stop_requested=False,
+            tool_only_guard=ToolOnlyConvergenceGuard(),
+            thread_id="thread-1",
+            has_user_visible_answer=True,
+            summary_required=False,
+            pending_runtime_notices=[],
+            messages=(),
+            task=None,
+        )
+        turn = _TurnState(
+            number=1,
+            tools=(),
+            tool_names=set(),
+            text_parts=[],
+            calls=[ToolCall("read", "read_file", {"path": "answer.md"})],
+        )
+
+        for _ in range(5):
+            [event async for event in host._observe_tool_only_convergence(state, turn)]
+
+        self.assertTrue(state.stop_requested)
+        self.assertFalse(state.summary_required)

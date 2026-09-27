@@ -51,6 +51,7 @@ class _RunState:
     exploration_repeat: ExplorationRepeatObserver = field(default_factory=ExplorationRepeatObserver)
     tool_only_guard: ToolOnlyConvergenceGuard = field(default_factory=ToolOnlyConvergenceGuard)
     summary_required: bool = False
+    has_user_visible_answer: bool = False
     summary_retry_count: int = 0
     pending_runtime_notices: list[str] = field(default_factory=list)
     last_failed_call: tuple[str, str] | None = None

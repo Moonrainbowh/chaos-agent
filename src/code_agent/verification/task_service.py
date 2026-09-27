@@ -22,13 +22,15 @@ from code_agent.workspace.paths import WorkspacePathGuard
 from code_agent.workspace.subject import snapshot_subject
 from code_agent.projects.discovery import discover_projects
 
-from .evidence import EvidenceRecord, evidence_satisfies_required
+from .evidence import EvidenceRecord, evidence_satisfies_current_verifier, evidence_satisfies_required
 from .planner import RiskTier, VerificationPhase, VerificationPlan, VerificationPlanner, check_syntax
 from .task_evidence import (
     FINAL_TESTS_CRITERION,
     INTEGRITY_CRITERION,
     RISK_VALIDATION_CRITERION,
     build_kind,
+    build_verifier_identity,
+    build_verifier_identity_from_arguments,
     evidence_from_result,
     has_passing,
     is_legacy_default_contract,
@@ -169,6 +171,7 @@ class LedgerTaskVerificationService:
             state.code_generation,
             state.subject_hash,
             criterion,
+            build_verifier_identity(request, criterion),
         )
         await self._sessions.append_verification_evidence(run_id, task.id, evidence)
         await self._sessions.close_verification_run(run_id, "completed")
@@ -210,7 +213,7 @@ class LedgerTaskVerificationService:
         contract = await self._sessions.load_task_contract_revision(task.id)
         if not isinstance(contract, TaskContractRevision):
             raise RuntimeError("task contract revision is unavailable")
-        evidence = tuple(await self._sessions.list_verification_evidence(task.id))
+        evidence = tuple(await self._sessions.list_completed_verification_evidence(task.id))
         current = tuple(
             item for item in evidence
             if isinstance(item, EvidenceRecord)
@@ -218,7 +221,7 @@ class LedgerTaskVerificationService:
             and item.subject_hash == state.subject_hash
         )
         candidates = tuple(
-            CompletionCandidate(item.criterion_id, evidence_satisfies_required(item), item.generation, item.subject_hash)
+            CompletionCandidate(item.criterion_id, evidence_satisfies_current_verifier(item), item.generation, item.subject_hash)
             for item in current
         )
         assessment = assess_completion(contract, state.code_generation, state.subject_hash, candidates)
@@ -235,13 +238,11 @@ class LedgerTaskVerificationService:
         if not state.files_changed:
             return None
         current = tuple(
-            item for item in await self._sessions.list_verification_evidence(task.id)
+            item for item in await self._sessions.list_completed_verification_evidence(task.id)
             if isinstance(item, EvidenceRecord)
             and item.generation == state.code_generation
             and item.subject_hash == state.subject_hash
         )
-        if has_passing(current, RISK_VALIDATION_CRITERION):
-            return None
         plan = self._planner.plan(
             state.files_changed, phase=VerificationPhase.FINAL_GATE,
             diff="\n".join(self._task_diffs.get(task.id, ()))
@@ -254,9 +255,22 @@ class LedgerTaskVerificationService:
         project = next(iter(discover_projects(self._guard.root, self._guard)), None)
         if project is None:
             return None
-        if plan.tier is RiskTier.CRITICAL and has_passing(
-            current, FINAL_TESTS_CRITERION
-        ):
+        kind = test_kind(project.kind, project.recipes)
+        if plan.tier is RiskTier.CRITICAL and kind is not None:
+            test_identity = build_verifier_identity_from_arguments(
+                {"kind": kind, "cwd": project.root, "targets": ()},
+                FINAL_TESTS_CRITERION,
+            )
+            if not has_passing(current, FINAL_TESTS_CRITERION, test_identity):
+                return self._planned_calls.create(
+                    task.id, plan, kind, project.root, (), "tests"
+                )
+            build_identity = build_verifier_identity_from_arguments(
+                {"kind": build_kind(project.kind), "cwd": project.root, "targets": ()},
+                RISK_VALIDATION_CRITERION,
+            )
+            if has_passing(current, RISK_VALIDATION_CRITERION, build_identity):
+                return None
             return self._planned_calls.create(
                 task.id,
                 plan,
@@ -265,10 +279,18 @@ class LedgerTaskVerificationService:
                 (),
                 "build",
             )
-        kind = test_kind(project.kind, project.recipes)
         if kind is None:
             return None
         targets = plan.targeted_tests if not plan.require_full_gate else ()
+        if has_passing(
+            current,
+            RISK_VALIDATION_CRITERION,
+            build_verifier_identity_from_arguments(
+                {"kind": kind, "cwd": project.root, "targets": targets},
+                RISK_VALIDATION_CRITERION,
+            ),
+        ):
+            return None
         return self._planned_calls.create(
             task.id, plan, kind, project.root, targets, "tests"
         )

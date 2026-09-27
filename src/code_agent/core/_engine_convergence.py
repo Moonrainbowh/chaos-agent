@@ -61,13 +61,16 @@ class AgentEngineConvergenceMixin:
         async for event in self._flush_runtime_notices(state):
             yield event
         if observation.kind == "finalize":
-            state.summary_required = True
-            queue_runtime_notice(
-                state,
-                "Runtime control: the next model turn must provide a final "
-                "user-facing summary from the collected evidence; no tools "
-                "will be available.",
-            )
+            if state.has_user_visible_answer:
+                state.stop_requested = True
+            else:
+                state.summary_required = True
+                queue_runtime_notice(
+                    state,
+                    "Runtime control: the next model turn must provide a final "
+                    "user-facing summary from the collected evidence; no tools "
+                    "will be available.",
+                )
 
     async def _report_empty_summary(
         self, state: _RunState

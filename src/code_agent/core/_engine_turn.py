@@ -106,6 +106,8 @@ class AgentEngineTurnMixin(AgentEngineConvergenceMixin, AgentEngineDispatchMixin
             state.thread_id, turn.text_parts, turn.calls
         )
         state.messages += (assistant,)
+        if not turn.calls and assistant.content.strip():
+            state.has_user_visible_answer = True
         yield added
         if not turn.calls:
             if turn.summary_only and not "".join(turn.text_parts).strip():

@@ -272,6 +272,10 @@ class TerminalState:
                 if new_plan != self.plan_text:
                     self.plan_text = new_plan
                     self.plan_completed_steps = 0
+            if not message.tool_calls:
+                compacted = _compact_response(message.content)
+                if self.transcript and self.transcript[-1] == "assistant: " + compacted:
+                    return
             self._finish_display(message.content)
 
     def _finish_display(self, completed_text: str | None = None) -> None:
