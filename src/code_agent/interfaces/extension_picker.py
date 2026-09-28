@@ -9,7 +9,10 @@ from .runtime_picker import runtime_picker_items
 from .tui_auth_commands import auth_picker_items
 
 _SKILL_COMMANDS = {"/技能", "/skill", "/skills"}
-_SKILL_ACTIONS = {"信息", "info", "启用", "enable", "禁用", "disable", "来源", "source"}
+_SKILL_ACTIONS = {
+    "信息", "info", "启用", "enable", "禁用", "disable",
+    "来源", "source", "sources", "说明", "explain",
+}
 _MCP_ACTIONS = {
     "status", "状态", "tools", "工具", "enable", "启用", "disable", "禁用",
     "restart", "重启", "diagnose", "诊断",

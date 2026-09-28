@@ -230,6 +230,7 @@ class WindowsTerminalApp(TerminalPresentation):
                 await restore_settings(restored.task_id)
         except Exception: self._append(DisplayKind.ERROR, "session restore failed"); return False
         self.state = restored; self.current_thread_id = thread_id
+        self._pending_skill_id = None; self._pending_skill_ids = None
         self.active_task_id = restored.task_id if restored.task_status not in {None, "completed", "failed", "accepted_partial", "superseded"} else None
         height = shutil.get_terminal_size((100, 30)).lines
         self._write(self._tail_clear_sequence() + render_entries(restored.entries, 100, theme=self.theme, color=self.color) + "\n\r")

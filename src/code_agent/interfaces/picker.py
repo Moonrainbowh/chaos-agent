@@ -262,7 +262,7 @@ def skill_picker_items(
     controller: object, action: str
 ) -> tuple[PickerItem, ...]:
     values = controller.list()
-    command_name = "skill" if action in {"list", "info", "enable", "disable", "source", "reload"} else "技能"
+    command_name = "skill" if action in {"list", "info", "enable", "disable", "source", "sources", "explain", "reload"} else "技能"
     return tuple(
         PickerItem(
             skill.identifier,

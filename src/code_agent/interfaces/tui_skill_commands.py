@@ -23,40 +23,95 @@ async def _dispatch_skill_command(
 ) -> bool:
     if action in {"列表", "list"}:
         return _render_skill_list(app, identifier, thread_id)
+    if action in {"active", "活动", "当前"}:
+        await _restore_skill_view(app, thread_id)
+        return _render_active_skills(app, thread_id)
+    if action in {"explain", "说明", "解释"} and identifier:
+        await _restore_skill_view(app, thread_id)
+        return _render_skill_explanation(app, identifier, thread_id)
     if action in {"运行", "run", "use"} and identifier:
         skill_id, _, prompt = identifier.partition(" ")
         skill_id = skill_id.strip()
         prompt = prompt.strip()
-        if thread_id:
-            await app.skills.enable(thread_id, skill_id)
         skill = app.skills.info(skill_id)
         desc = (getattr(skill, "description", "") or "").split("\n")[0]
         if prompt:
-            app._append(DisplayKind.METADATA, f"Skill [{skill_id}] active · {desc}")
-            await app.submit(prompt)
+            app._pending_skill_id = None
+            app._pending_skill_ids = None
+            app._append(DisplayKind.METADATA, f"Skill [{skill_id}] requested · {desc}")
+            return await app.submit(prompt, skill_id=skill_id, _skill_prompt=True)
         else:
+            app._pending_skill_ids = (skill_id,)
+            app._pending_skill_id = skill_id
             app._append(
                 DisplayKind.METADATA,
-                f"Skill [{skill_id}] enabled · {desc}\n  Ready. Run /{skill_id} <prompt> or chat directly.",
+                f"Skill [{skill_id}] selected · {desc}\n  Ready. Run /{skill_id} <prompt> or chat directly.",
             )
     elif action in {"信息", "info"} and identifier:
         skill = app.skills.info(identifier)
         value = f"{skill.identifier} · {skill.description} · {skill.digest}"
         app._append(DisplayKind.METADATA, value)
-    elif action in {"来源", "source"} and identifier:
+    elif action in {"来源", "source", "sources"} and identifier:
         app._append(DisplayKind.METADATA, " | ".join(app.skills.sources(identifier)))
     elif action in {"启用", "enable"} and identifier and thread_id:
+        app._pending_skill_id = None; app._pending_skill_ids = None
         await app.skills.enable(thread_id, identifier)
         app._append(DisplayKind.METADATA, f"Skill enabled: {identifier}")
     elif action in {"禁用", "disable"} and identifier and thread_id:
+        app._pending_skill_id = None; app._pending_skill_ids = None
         await app.skills.disable(thread_id, identifier)
         app._append(DisplayKind.METADATA, f"Skill disabled: {identifier}")
     elif action in {"重载", "reload"}:
+        app._pending_skill_id = None; app._pending_skill_ids = None
         await app.skills.reload(thread_id)
         app._append(DisplayKind.METADATA, "Skills reloaded")
     else:
         app._append(DisplayKind.ERROR, "Skill command arguments are invalid")
         return False
+    return True
+
+
+def _render_active_skills(app: Any, thread_id: str | None) -> bool:
+    if not thread_id:
+        app._append(DisplayKind.METADATA, "No active Skills")
+        return True
+    values = app.skills.activation(thread_id).active()
+    if not values:
+        app._append(DisplayKind.METADATA, "No active Skills")
+        return True
+    lines = "\n".join(f"  • {clip_display(item.identifier, 120)}" for item in values)
+    app._append(DisplayKind.METADATA, clip_display("Active Skills:\n" + lines, 1000)[:1000])
+    return True
+
+
+async def _restore_skill_view(app: Any, thread_id: str | None) -> None:
+    restore = getattr(app.skills, "restore", None)
+    if thread_id and callable(restore):
+        await restore(thread_id)
+
+
+def _render_skill_explanation(app: Any, identifier: str, thread_id: str | None) -> bool:
+    skill = app.skills.info(identifier)
+    active = False
+    if thread_id:
+        active = any(item.identifier == identifier for item in app.skills.activation(thread_id).active())
+    requirements = clip_display(
+        ", ".join(getattr(skill, "requires", ())) or "none declared", 240
+    )
+    description = clip_display(getattr(skill, "description", ""), 240)
+    status = "active in this thread" if active else "available, not active in this thread"
+    app._append(
+        DisplayKind.METADATA,
+        "\n".join(
+            (
+                f"Skill: {clip_display(skill.identifier, 120)}",
+                f"Status: {status}",
+                f"Description: {description}",
+                f"Requires: {requirements}",
+                f"Digest: {skill.digest}",
+            )
+        ),
+    )
     return True
 
 

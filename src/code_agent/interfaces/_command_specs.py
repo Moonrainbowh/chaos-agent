@@ -238,9 +238,11 @@ def _advanced_specs() -> tuple[CommandSpec, ...]:
                 CommandAction("info", ("信息",), "Show skill details", "<skill-id>"),
                 CommandAction("enable", ("启用",), "Enable skill", "<skill-id>"),
                 CommandAction("disable", ("禁用",), "Disable skill", "<skill-id>"),
-                CommandAction("source", ("来源",), "Show skill source", "<skill-id>"),
+                CommandAction("source", ("来源", "sources"), "Show skill source", "<skill-id>"),
                 CommandAction("reload", ("重载",), "Reload skills"),
                 CommandAction("run", ("运行", "use"), "Run skill directly", "<skill-id> [prompt]"),
+                CommandAction("active", ("活动", "当前"), "Show active skills"),
+                CommandAction("explain", ("说明", "解释"), "Explain skill metadata", "<skill-id>"),
             ), visibility=advanced,
         ),
     )

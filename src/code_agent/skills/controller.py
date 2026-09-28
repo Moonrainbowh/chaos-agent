@@ -6,6 +6,7 @@ from typing import Protocol
 from code_agent.sessions.models import SkillActivationRecord
 
 from .registry import SkillActivation, SkillManifest, SkillRegistry
+from .capabilities import CapabilityCheck, check_capabilities
 
 
 class SkillApproval(Protocol):
@@ -60,6 +61,16 @@ class SkillController:
 
     def errors(self) -> tuple[str, ...]:
         return self._registry.errors()
+
+    def check_capabilities(
+        self,
+        identifier: str,
+        tools: object,
+        *,
+        aliases: dict[str, str] | None = None,
+    ) -> CapabilityCheck:
+        """Compare a Skill's declared requirements with a read-only tool snapshot."""
+        return check_capabilities(self.info(identifier), tools, aliases=aliases)
 
     def activation(self, thread_id: str) -> SkillActivation:
         return self._activations.setdefault(

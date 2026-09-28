@@ -14,5 +14,9 @@
 - `SkillActivation`: 管理会话激活与上下文预算 | 进程内状态 | 不执行 Skill 内容
 - `SkillContextBuilder`: 在每次模型请求前插入当前已激活的受限指令 | 调用上下文构建器 | 不改变工具或策略
 - `SkillController`: 提供列表、详情、来源、thread-scoped 启用/禁用、恢复和重载 | 本地 Skill 读取与 Sessions identity I/O | 工作区 Skill 需显式批准，digest/source 漂移会移除持久激活
+- `resolve_skill_request`: 将显式 `/skill`、直接 `/<skill-id>` 和 `+` 组合解析为结构化请求 | 纯字符串与 Skill ID 校验 | 不执行 Skill、不做自然语言自动匹配、不编排组合顺序
+- `match_skill`: 按 Skill ID/description 对普通自然语言任务做确定性高置信度匹配 | 纯内存评分 | 低置信度和近分候选返回空，不激活、不执行、不调用网络
+- `check_capabilities`: 将 Skill 的 `requires` 声明与 Host 提供的只读 ToolDefinition 快照比较 | 纯内存 | 只报告缺失能力，不注册工具、不调用 MCP、不改变 ActionPolicy 或审批
+- `SkillRequest.skill_ids` 与 TUI 有序激活链：按用户声明顺序把组合 Skill 绑定到同一 Thread | Sessions/上下文注入 | 仅支持线性组合，不推导 DAG 或工具权限
 
 - SkillContextBuilder 追加指令后同步本地 `prompt_estimated_tokens`，保留旧度量与 Prompt 内容。

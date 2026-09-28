@@ -20,6 +20,7 @@ class SkillManifest:
     instruction: str
     trusted: bool
     sources: tuple[str, ...] = ()
+    requires: tuple[str, ...] = ()
 
 
 class SkillRegistry:
@@ -93,25 +94,51 @@ def _read_skill(directory: Path, trusted: bool) -> SkillManifest:
     if not instruction.is_file() or instruction.is_symlink() or instruction.stat().st_size > _MAX_SKILL_BYTES:
         raise ValueError("invalid skill directory")
     content = instruction.read_text("utf-8")
-    identifier, description = _frontmatter(content)
+    identifier, description, requires = _frontmatter(content)
     identifier = identifier or directory.name
     if not _IDENTIFIER.fullmatch(identifier) or not content.strip():
         raise ValueError("invalid skill identifier")
     digest = hashlib.sha256(content.encode("utf-8")).hexdigest()[:16]
-    return SkillManifest(identifier, description or identifier, str(directory), digest, content, trusted)
+    return SkillManifest(identifier, description or identifier, str(directory), digest, content, trusted, (), requires)
 
 
-def _frontmatter(content: str) -> tuple[str | None, str | None]:
+def _frontmatter(content: str) -> tuple[str | None, str | None, tuple[str, ...]]:
     if not content.startswith("---\n"):
-        return None, None
+        return None, None, ()
     closing = content.find("\n---", 4)
     if closing < 0:
         raise ValueError("invalid frontmatter")
     values: dict[str, str] = {}
+    requires: list[str] = []
     current_key: str | None = None
     multiline: list[str] = []
+    in_requires = False
     for line in content[4:closing].splitlines():
         stripped = line.strip()
+        key, separator, raw_value = line.partition(":")
+        if key.strip() == "requires" and separator and raw_value.strip() and (
+            not current_key or not line.startswith((" ", "\t"))
+        ):
+            if current_key and multiline:
+                values[current_key] = " ".join(multiline)
+            requires.extend(_parse_requires_value(raw_value.strip()))
+            in_requires = False
+            continue
+        if stripped == "requires:":
+            if current_key and multiline:
+                values[current_key] = " ".join(multiline)
+            in_requires = True
+            current_key = None
+            multiline = []
+            continue
+        if in_requires:
+            if stripped.startswith("-"):
+                value = stripped[1:].strip().strip('"').strip("'")
+                if value:
+                    requires.append(value)
+                continue
+            if stripped:
+                in_requires = False
         if (line.startswith(("  ", "\t")) or (current_key and not line.partition(":")[1])) and current_key:
             if stripped:
                 multiline.append(stripped)
@@ -132,4 +159,18 @@ def _frontmatter(content: str) -> tuple[str | None, str | None]:
                 current_key = None
     if current_key and multiline:
         values[current_key] = " ".join(multiline)
-    return values.get("name"), values.get("description")
+    return values.get("name"), values.get("description"), tuple(dict.fromkeys(requires))
+
+
+def _parse_requires_value(value: str) -> tuple[str, ...]:
+    if value.startswith("[") and value.endswith("]"):
+        value = value[1:-1]
+        items = value.split(",") if value.strip() else []
+    elif "," not in value:
+        items = [value]
+    else:
+        raise ValueError("invalid requires frontmatter")
+    result = tuple(item.strip().strip('"').strip("'") for item in items)
+    if any(not item for item in result):
+        raise ValueError("invalid requires frontmatter")
+    return result

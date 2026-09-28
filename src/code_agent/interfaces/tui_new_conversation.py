@@ -8,4 +8,6 @@ def reset_conversation(app: object) -> None:
     app.state = TerminalState()
     app.current_thread_id = None
     app.active_task_id = None
+    app._pending_skill_id = None
+    app._pending_skill_ids = None
     app._flushed_entries = 0
