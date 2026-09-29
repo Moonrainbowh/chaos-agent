@@ -49,7 +49,7 @@ Chaos Agent 属于完全独立的净室实现。在架构设计上，它批判�
 | `src/code_agent/workspace`           |       130       |      18,387      | CAS 文件系统、原子批次变更、逆向回滚、崩溃对齐恢复                |
 | `src/code_agent/interfaces`          |       123       |      13,958      | 终端 UI 组件、Command Picker、Diff 查看器、输入缓冲               |
 | `src/code_agent/sessions`            |       94       |      13,566      | SQLite WAL 事件溯源、会话状态机、数据模型、数据迁移               |
-| `code_agent_win`                     |       80       |      10,816      | Windows 终端宿主集成、应用启动器、CLI 入口、ACP 适配              |
+| `chaos_agent`                     |       80       |      10,816      | Windows 终端宿主集成、应用启动器、CLI 入口、ACP 适配              |
 | `src/code_agent/context`             |       50       |       7,243       | 20k Token 预算引擎、分级仓库地图、Python AST 语义切片             |
 | `src/code_agent/runtime`             |       35       |       5,404       | Win32 Job Object、PowerShell 双引擎包装、`run_process_v1`       |
 | `src/code_agent/core`                |       45       |       5,295       | Agent 主循环引擎、回合驱动、取消树、任务状态持久化                |
@@ -443,7 +443,7 @@ Chaos Agent 属于完全独立的净室实现。在架构设计上，它批判�
 
 #### 4.7.3 受控只读子 Agent 委派（Subagents）
 
-当配置为 `team` 架构时，主 Agent 可使用 `delegate_agent` 派发子任务（位于 `code_agent_win/subagents.py`）：
+当配置为 `team` 架构时，主 Agent 可使用 `delegate_agent` 派发子任务（位于 `chaos_agent/subagents.py`）：
 
 - **Oracle（架构先知）**：挂载顶尖强思考模型，仅授予只读工具权限，用于高难度设计方案论证与逻辑推导；
 - **Review（独立审查员）**：对已产生的文件变更补丁进行反思审查，排查边缘用例与编码漏洞；
@@ -466,7 +466,7 @@ Chaos Agent 属于完全独立的净室实现。在架构设计上，它批判�
 
 #### 4.8.2 同机多 TUI 会话通信网格（Same-Machine Peer Mesh）
 
-Chaos Agent 具备一项独特能力（位于 `src/code_agent/peers` 与 `code_agent_win/peer_runtime.py`）：允许同一台电脑上的不同终端 Agent 互相协作：
+Chaos Agent 具备一项独特能力（位于 `src/code_agent/peers` 与 `chaos_agent/peer_runtime.py`）：允许同一台电脑上的不同终端 Agent 互相协作：
 
 - **无主发现**：各 Agent 实例通过共享本地会话数据库注册自身在线心跳。
 - **通信指令**：通过 `/会话 在线` 发现对端，通过 `/会话 发送 <id> <text>` 发起单向协作通信。
@@ -481,7 +481,7 @@ Chaos Agent 具备一项独特能力（位于 `src/code_agent/peers` 与 `code_a
 
 #### 4.9.1 ACP (Agent Client Protocol v1) 编辑器适配器
 
-实现位于 `src/code_agent/acp` 与 `code_agent_win/acp_cli.py`：
+实现位于 `src/code_agent/acp` 与 `chaos_agent/acp_cli.py`：
 
 - 支持作为子进程挂载于支持 ACP 规范的现代编辑器（如 VS Code 扩展等）。
 - 通过标准输入输出（Stdio）进行 JSON-RPC 通信：
@@ -509,9 +509,9 @@ Chaos Agent 具备一项独特能力（位于 `src/code_agent/peers` 与 `code_a
 
 ---
 
-### 4.10 Windows 终端原生交互与 TUI 引擎 (`interfaces` & `code_agent_win`)
+### 4.10 Windows 终端原生交互与 TUI 引擎 (`interfaces` & `chaos_agent`)
 
-在 `src/code_agent/interfaces` 与 `code_agent_win/app_ui.py` 中，Chaos Agent 打造了兼具现代感与极度克制的交互体验（参考 `tui_design_showcase.html`）。
+在 `src/code_agent/interfaces` 与 `chaos_agent/app_ui.py` 中，Chaos Agent 打造了兼具现代感与极度克制的交互体验（参考 `tui_design_showcase.html`）。
 
 #### 4.10.1 追加式转录模式（Append-Only Transcript）
 

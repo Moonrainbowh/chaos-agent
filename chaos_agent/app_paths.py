@@ -5,7 +5,7 @@ from pathlib import Path
 
 from code_agent.sessions.legacy_migration import migrate_legacy_session_database
 from code_agent.workspace.windows_paths import require_supported_windows_path
-from code_agent_win.windows_storage_paths import resolve_managed_storage_root
+from chaos_agent.windows_storage_paths import resolve_managed_storage_root
 
 
 _DIGEST_SENTINEL = "0" * 64

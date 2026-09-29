@@ -17,8 +17,8 @@ from code_agent.core.limits import EngineLimits
 from code_agent.core.models import ActionResult,ToolDefinition
 from code_agent.sessions.repository import SQLiteSessionRepository
 from code_agent.capabilities import CapabilityStrategy
-from code_agent_win.context_experiment_host import ExperimentDispatcher
-from code_agent_win.runtime_support import model_client
+from chaos_agent.context_experiment_host import ExperimentDispatcher
+from chaos_agent.runtime_support import model_client
 folder=OUT/case/arm; folder.mkdir(parents=True,exist_ok=False); workspace=folder/'workspace'; workspace.mkdir()
 base=Path('F:/code-ai-chaos/context-ab-baseline-20260909')
 tokens=(base/'src/code_agent/context/tokens.py').read_text(encoding='utf-8')

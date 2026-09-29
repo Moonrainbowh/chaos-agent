@@ -14,8 +14,8 @@ from code_agent.runtime.models import (
 )
 from code_agent.runtime.output_codec import OutputEncoding
 
-from code_agent_win.action_support import text_argument
-from code_agent_win.tool_support import command_action_result
+from chaos_agent.action_support import text_argument
+from chaos_agent.tool_support import command_action_result
 
 
 CacheInvalidator = Callable[[Sequence[str]], None]

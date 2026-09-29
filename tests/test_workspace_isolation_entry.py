@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 from code_agent.core.task import TaskStatus
 from code_agent.workspace.git import GitWorkspace
-from code_agent_win.workspace_policy import isolated_tasks
+from chaos_agent.workspace_policy import isolated_tasks
 from tests.agent_app_test_support import (
     _configured_application,
     _init_git_source,

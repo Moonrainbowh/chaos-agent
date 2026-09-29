@@ -20,11 +20,11 @@ from code_agent.workspace.files import WorkspaceFiles
 from code_agent.workspace.ignore import IgnoreRules
 from code_agent.workspace.paths import WorkspacePathGuard
 from code_agent.workspace.snapshot_store import WorkspaceSnapshotStore
-from code_agent_win.edit_plan_store import EditPlanStoreError
-from code_agent_win.rewind_capture import RewindCaptureCoordinator
-from code_agent_win.rewind_gate import WorkspaceMutationGate
-from code_agent_win.task_dispatcher import TaskScopedDispatcher
-from code_agent_win.workspace_mutation_pool import WorkspaceMutationPool
+from chaos_agent.edit_plan_store import EditPlanStoreError
+from chaos_agent.rewind_capture import RewindCaptureCoordinator
+from chaos_agent.rewind_gate import WorkspaceMutationGate
+from chaos_agent.task_dispatcher import TaskScopedDispatcher
+from chaos_agent.workspace_mutation_pool import WorkspaceMutationPool
 
 
 class _RepoIndex:

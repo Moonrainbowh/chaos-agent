@@ -179,13 +179,13 @@
 ### 任务 7：完成 Windows typed-tool、模式与 policy 集成
 
 **文件：**
-- 修改：`code_agent_win/tool_schema.py`
-- 修改：`code_agent_win/tools.py`
-- 修改：`code_agent_win/workspace_actions.py`
-- 修改：`code_agent_win/agent_modes.py`
-- 修改：`code_agent_win/subagents.py`
-- 修改：`code_agent_win/runtime_support.py`
-- 修改：`code_agent_win/AGENTS.md`
+- 修改：`chaos_agent/tool_schema.py`
+- 修改：`chaos_agent/tools.py`
+- 修改：`chaos_agent/workspace_actions.py`
+- 修改：`chaos_agent/agent_modes.py`
+- 修改：`chaos_agent/subagents.py`
+- 修改：`chaos_agent/runtime_support.py`
+- 修改：`chaos_agent/AGENTS.md`
 - 修改：`src/code_agent/policy/classifier.py`
 - 修改：`src/code_agent/policy/tests/test_classifier.py`
 - 修改：`tests/test_tool_schemas.py`
@@ -210,14 +210,14 @@
 **文件：**
 - 修改：`src/code_agent/context/AGENTS.md`
 - 修改：`src/code_agent/workspace/AGENTS.md`
-- 修改：`code_agent_win/AGENTS.md`
+- 修改：`chaos_agent/AGENTS.md`
 - 修改：`docs/research/incremental-repo-map-design.md`
 - 修改：本设计与计划文档（仅机械同步最终接口名）
 
 **结果：** 文档与实际三层模型、Tier、安全边界一致，旧阶段 3 改为 Python Tiered Context，持久化仅为延期项。
 
 - [x] 更新契约并删除旧的“持久化阶段”和 L0–L4 路线
-- [x] 运行：`rg -n "阶段 3|持久化|File Facts|Direct Semantic Graph|Request-derived Context|L0|read_code_slices|UNTRUSTED" docs/research/incremental-repo-map-design.md src/code_agent/context/AGENTS.md src/code_agent/workspace/AGENTS.md code_agent_win/AGENTS.md`
+- [x] 运行：`rg -n "阶段 3|持久化|File Facts|Direct Semantic Graph|Request-derived Context|L0|read_code_slices|UNTRUSTED" docs/research/incremental-repo-map-design.md src/code_agent/context/AGENTS.md src/code_agent/workspace/AGENTS.md chaos_agent/AGENTS.md`
       预期：所有边界与实现一致。
 
 ### 任务 9：完整回归、审查与唯一最终提交

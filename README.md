@@ -698,10 +698,10 @@ observations; Workflow edges never grant thread access.
 
 ## Development Status
 
-Windows 10/11 is the primary and best-validated target. The core protocol and
-adapters are portable and also run on Linux and macOS, but Linux/macOS end-to-end
-terminal/runtime support is newer, exercised mainly through the automated suites,
-and has not received equivalent manual validation.
+Chaos Agent is a cross-platform project. Windows 10/11, Linux, macOS, and WSL2
+use platform-specific runtime adapters while sharing the same core protocol,
+policy, workspace, and application layers. Windows uses PowerShell and Job
+Objects; POSIX systems use `/bin/sh` and process groups.
 
 ## License And Acknowledgements
 

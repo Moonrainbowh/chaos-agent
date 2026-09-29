@@ -11,8 +11,8 @@ from code_agent.workspace.files import WorkspaceFiles
 from code_agent.workspace.ignore import IgnoreRules
 from code_agent.workspace.paths import WorkspacePathGuard
 
-from code_agent_win.tool_support import discover_git_workspace
-from code_agent_win.workspace_models import WorkspaceServices
+from chaos_agent.tool_support import discover_git_workspace
+from chaos_agent.workspace_models import WorkspaceServices
 
 
 def build_workspace_services(

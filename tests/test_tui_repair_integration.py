@@ -10,7 +10,7 @@ from code_agent.config.loader import RuntimeConfig
 from code_agent.core.models import ModelEvent, ModelEventKind
 from code_agent.core.task import TaskStatus
 from code_agent.policy.models import ApprovalMode
-from code_agent_win.app import create_application
+from chaos_agent.app import create_application
 from tests.test_runtime_selection import _profiles
 
 
@@ -39,8 +39,8 @@ def application_fixture():
             ("_workspace_storage_path", container / "managed-workspaces"),
             ("load_runtime_config", config),
         ):
-            stack.enter_context(patch("code_agent_win.app." + name, return_value=value))
-        stack.enter_context(patch("code_agent_win.app._model_client", side_effect=lambda _: ReplyModel()))
+            stack.enter_context(patch("chaos_agent.app." + name, return_value=value))
+        stack.enter_context(patch("chaos_agent.app._model_client", side_effect=lambda _: ReplyModel()))
         app = create_application(root)
         app.tui._write = lambda _: None
         app.tui.play_sound = lambda **_: None

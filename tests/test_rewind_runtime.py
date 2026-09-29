@@ -20,7 +20,7 @@ from code_agent.workspace.edits import SnapshotEntry, WorkspaceEditor, Workspace
 from code_agent.workspace.paths import WorkspacePathGuard
 from code_agent.workspace.rewind_state import WorkspaceFileState
 from code_agent.workspace.snapshot_store import WorkspaceSnapshotStore
-from code_agent_win.rewind_runtime import RewindRuntime
+from chaos_agent.rewind_runtime import RewindRuntime
 NOW = datetime(2026, 7, 19, tzinfo=timezone.utc)
 def digest(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
@@ -230,7 +230,7 @@ class RewindRuntimeOwnershipTests(RuntimeHarness, unittest.IsolatedAsyncioTestCa
         stable = WorkspaceFileState(
             "note.txt", True, digest(b"after"), len(b"after"))
         with patch(
-            "code_agent_win.rewind_runtime.observe_file_states",
+            "chaos_agent.rewind_runtime.observe_file_states",
             side_effect=((moved,), (stable,)),
         ):
             preview = await runtime.preview("thread", "cp", RewindKind.CODE)
@@ -283,7 +283,7 @@ class RewindRuntimeOwnershipTests(RuntimeHarness, unittest.IsolatedAsyncioTestCa
         item = observation(
             self.fingerprint, head=heads(mutations=2), mutations=records[::-1])
         with patch(
-            "code_agent_win._rewind_runtime_validation.os.path.normcase",
+            "chaos_agent._rewind_runtime_validation.os.path.normcase",
             side_effect=lambda value: value.lower(),
         ):
             preview = await self.runtime((item, item)).preview(

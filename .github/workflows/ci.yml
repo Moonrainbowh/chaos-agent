@@ -29,7 +29,7 @@ jobs:
       - run: python -m venv .ci-venv
       - run: .\.ci-venv\Scripts\python -m pip install --no-index --find-links .ci-dist chaos-agent
       - run: .\.ci-venv\Scripts\python -m pip check
-      - run: .\.ci-venv\Scripts\python -c "import code_agent_win.app; import code_agent.verification.python_adapter"
+      - run: .\.ci-venv\Scripts\python -c "import chaos_agent.app; import code_agent.verification.python_adapter"
 
   portable:
     name: ${{ matrix.os }} Python ${{ matrix.python-version }}
@@ -51,5 +51,5 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install --upgrade pip "build>=1.2" "packaging>=24.2" "setuptools>=77" wheel
       - run: python -m pip install .
-      - run: python -m compileall -q src code_agent_win
+      - run: python -m compileall -q src chaos_agent
       - run: python scripts/run_tests.py --suite-timeout 600

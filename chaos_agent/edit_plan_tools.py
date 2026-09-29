@@ -4,7 +4,7 @@ from collections.abc import Mapping, Sequence
 
 from code_agent.core.models import ToolDefinition
 
-from code_agent_win.tool_schema import (
+from chaos_agent.tool_schema import (
     nonempty_text_schema,
     object_schema,
     text_schema,

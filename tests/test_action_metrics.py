@@ -10,7 +10,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from code_agent.core.models import ActionRequest, ActionResult  # noqa: E402
-from code_agent_win.action_metrics import ActionMetricsCollector  # noqa: E402
+from chaos_agent.action_metrics import ActionMetricsCollector  # noqa: E402
 
 
 class ActionMetricsTests(unittest.TestCase):

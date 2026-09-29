@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+
 from .errors import SessionPersistenceError
 from .events import AgentEvent, EventKind
 from .models import ActionRequest, ActionResult, Message
@@ -14,6 +16,7 @@ from .limits import (
 from .protocols import SessionRepository
 from .task_state import TaskState
 from .task import TaskRecord, TaskStatus
+from .debug_trace import trace_event
 
 
 class SessionJournal:
@@ -40,12 +43,30 @@ class SessionJournal:
     async def append_message(self, thread_id: str, message: Message) -> None:
         try:
             await self._repository.append_message(thread_id, message)
+            trace_event(
+                "durable.message",
+                "appended",
+                thread_id=thread_id,
+                role=message.role,
+                content_chars=len(message.content),
+                content_digest=hashlib.sha256(message.content.encode("utf-8")).hexdigest()[:16],
+                tool_calls=tuple(call.name for call in message.tool_calls),
+            )
         except Exception:
             raise SessionPersistenceError("could not persist message") from None
 
     async def append_event(self, thread_id: str, event: AgentEvent) -> None:
         try:
             await self._repository.append_event(thread_id, event)
+            trace_event(
+                "durable.event",
+                "appended",
+                thread_id=thread_id,
+                event_kind=event.kind.value,
+                event_turn=event.payload.get("turn"),
+                event_sequence=event.payload.get("sequence"),
+                payload_keys=tuple(sorted(event.payload)[:16]),
+            )
         except Exception:
             raise SessionPersistenceError("could not persist event") from None
 

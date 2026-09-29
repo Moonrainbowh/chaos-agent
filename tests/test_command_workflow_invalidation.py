@@ -18,7 +18,7 @@ from code_agent.workflows.observations import (  # noqa: E402
     VerificationObservation,
 )
 from code_agent.workflows.service import WorkflowService  # noqa: E402
-from code_agent_win.foreground_tasks import IntegratedForegroundTaskController  # noqa: E402
+from chaos_agent.foreground_tasks import IntegratedForegroundTaskController  # noqa: E402
 
 
 class _MemoryWorkflowStore:

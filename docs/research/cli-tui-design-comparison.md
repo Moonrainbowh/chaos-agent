@@ -85,7 +85,7 @@ CodeWhale 是独立社区项目，不是 DeepSeek 官方产品。另一个 <code
 | Claude Code | 滚动模式 + 可选 fullscreen + Transcript Viewer | 长任务、后台工作、checkpoint、回溯 | Ctrl+O Transcript、Ctrl+B 后台、双 Esc rewind | 功能和配置面复杂；fullscreen 仍属预览 |
 | uv-agent | ANSI 单列 Transcript + 底部 Composer + 全屏面板 | 单一 Python 出口、可审计脚本、渐进上下文 | run_python 记录、Thread / Skill / MCP mention | 文档与源码漂移；任意 Python 边界过宽 |
 | CodeWhale | Ratatui Header / Transcript / Composer / Sidebar / Footer | 开放模型优先、责任与证据、回滚、Provider 路由 | Plan / Agent / YOLO；side-git / restore | 功能面过宽；YOLO、daemon / fleet 的治理成本 |
-| Chaos4 当前工作树 | Windows 原生滚屏、单列 Transcript、底部动态尾部 | Windows-first、typed tools、任务真相、显式审批 | CommandRegistry、前台任务、steering 证据、semantic checkpoint 与只读 rewind preview | 无 OS 沙箱；无 rewind apply / restore |
+| Chaos4 当前工作树 | 跨平台终端滚屏、单列 Transcript、底部动态尾部 | 跨平台 typed tools、任务真相、显式审批 | CommandRegistry、前台任务、steering 证据、semantic checkpoint 与只读 rewind preview | 无 OS 沙箱；无 rewind apply / restore |
 
 ### 3.2 共同交互闭环
 
@@ -402,7 +402,7 @@ CodeWhale 当前以 Rust / Ratatui 构建终端 Agent Harness，强调 Provider 
 
 ### 6.1 版本与证据边界
 
-- <code>pyproject.toml</code> 当前声明版本 1.0.2，入口是 <code>chaos-agent = code_agent_win.cli:main</code>。[项目清单](../../pyproject.toml)
+- <code>pyproject.toml</code> 当前声明版本 1.0.2，入口是 <code>chaos-agent = chaos_agent.cli:main</code>。[项目清单](../../pyproject.toml)
 - 当前工作树在研究开始前已有大量未提交修改和未跟踪文件。本报告保留这些用户工作，不把工作树能力冒充已发布 1.0.2 契约。
 - [Amp-inspired Runtime 记录](../amp-inspired-runtime.md) 分别保留 2026-07-15 的 554 项历史自动化测试快照和 2026-07-19 的 P0 recovery 验收。
 - [Terminal Capabilities 验证记录](../releases/1.1.0-terminal-capabilities-validation.md) 是另一个针对终端 / Profile / Skills / MCP 的验收切片。两份计数口径不同，不能直接相加。
@@ -426,7 +426,7 @@ CodeWhale 当前以 Rust / Ratatui 构建终端 Agent Harness，强调 Provider 
 | Context | 真实 `ContextRequest(thread_id, revision, ...)`、数值预算、source-anchored compaction | 已接 Runtime，不伪造 Thread 身份 |
 | Rewind | checkpoint candidate 分页；conversation / code / both 双观测只读 preview | P0 仅预览；无 apply / restore |
 
-本表的本地事实来自 [README](../../README.md)、[interfaces Feature 契约](../../src/code_agent/interfaces/AGENTS.md)、[Windows Integration 契约](../../code_agent_win/AGENTS.md)、[CommandRegistry](../../src/code_agent/interfaces/command_registry.py)、[P0 Recovery Plan](../superpowers/plans/2026-07-16-cli-tui-p0-recovery-review-plan.md) 和 [Amp-inspired Runtime 记录](../amp-inspired-runtime.md)。
+本表的本地事实来自 [README](../../README.md)、[interfaces Feature 契约](../../src/code_agent/interfaces/AGENTS.md)、[Windows Integration 契约](../../chaos_agent/AGENTS.md)、[CommandRegistry](../../src/code_agent/interfaces/command_registry.py)、[P0 Recovery Plan](../superpowers/plans/2026-07-16-cli-tui-p0-recovery-review-plan.md) 和 [Amp-inspired Runtime 记录](../amp-inspired-runtime.md)。
 
 ### 6.3 P0 交付与剩余缺口
 
@@ -915,7 +915,7 @@ flowchart TB
 
 ### 阶段 D：集成
 
-只在集成阶段修改 <code>code_agent_win</code> 入口和根配置：
+只在集成阶段修改 <code>chaos_agent</code> 入口和根配置：
 
 - 把新 ViewModel 接到 Windows TUI。
 - 把 checkpoint / diff / child 事件接到 JSONL。

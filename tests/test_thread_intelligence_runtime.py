@@ -25,10 +25,10 @@ from code_agent.thread_intelligence.models import anchor_message
 from code_agent.workspace.files import WorkspaceFiles
 from code_agent.workspace.ignore import IgnoreRules
 from code_agent.workspace.paths import WorkspacePathGuard
-from code_agent_win.application_context import RuntimeContextFactory
-from code_agent_win.application_context import _ThreadRootContextBuilder
-from code_agent_win.runtime_extensions import BoundSkillContextBuilder
-from code_agent_win.runtime_extensions import ModelSemanticSummarizer, ThreadRuntimeBinding
+from chaos_agent.application_context import RuntimeContextFactory
+from chaos_agent.application_context import _ThreadRootContextBuilder
+from chaos_agent.runtime_extensions import BoundSkillContextBuilder
+from chaos_agent.runtime_extensions import ModelSemanticSummarizer, ThreadRuntimeBinding
 
 
 class _SummaryModel:

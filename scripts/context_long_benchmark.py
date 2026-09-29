@@ -25,9 +25,9 @@ from code_agent.core.models import Message, ActionResult
 from code_agent.evaluation.long_context_cases import long_context_cases, pilot_case, history_documents, _public_input
 from code_agent.evaluation.long_context_metrics import usage_metrics, paired_summary
 from code_agent.sessions.repository import SQLiteSessionRepository
-from code_agent_win.context_experiment_host import ExperimentDispatcher, seed_history, verify_source, immutable_manifest
-from code_agent_win.managed_context import configured_counter
-from code_agent_win.runtime_support import model_client
+from chaos_agent.context_experiment_host import ExperimentDispatcher, seed_history, verify_source, immutable_manifest
+from chaos_agent.managed_context import configured_counter
+from chaos_agent.runtime_support import model_client
 
 
 async def run_case(case, arm, profile, options, documents):

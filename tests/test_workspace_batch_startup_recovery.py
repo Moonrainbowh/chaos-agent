@@ -7,8 +7,8 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from code_agent.workspace.edits import BatchApplyResult, BatchApplyStatus
-from code_agent_win.workspace_runtime import ManagedWorkspaceRuntime
-from code_agent_win.workspace_startup_recovery import (
+from chaos_agent.workspace_runtime import ManagedWorkspaceRuntime
+from chaos_agent.workspace_startup_recovery import (
     WorkspaceBatchRecoveryConflict,
     recover_workspace_edit_batches,
 )

@@ -12,8 +12,8 @@ SRC_ROOT = ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-import code_agent_win.workspace_context as workspace_context  # noqa: E402
-from code_agent_win.workspace_context import workspace_uses_repo_map  # noqa: E402
+import chaos_agent.workspace_context as workspace_context  # noqa: E402
+from chaos_agent.workspace_context import workspace_uses_repo_map  # noqa: E402
 
 
 class WorkspaceContextModeTests(unittest.TestCase):

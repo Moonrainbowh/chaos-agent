@@ -12,12 +12,12 @@ from code_agent.sessions.edit_batch_models import EditBatchState
 from code_agent.sessions.rewind_repository import RewindSessionRepository
 from code_agent.workspace.edits import BatchApplyStatus, WorkspaceEditor
 from code_agent.workspace.snapshot_store import WorkspaceSnapshotStore
-from code_agent_win.rewind_capture import RewindCaptureCoordinator
-from code_agent_win.rewind_edit_batch import _persist_post_identities
-from code_agent_win.rewind_edit_batch_models import prepare_request
-from code_agent_win.rewind_gate import WorkspaceMutationGate
-from code_agent_win.workspace_mutation_pool import WorkspaceMutationPool
-from code_agent_win.workspace_startup_recovery import (
+from chaos_agent.rewind_capture import RewindCaptureCoordinator
+from chaos_agent.rewind_edit_batch import _persist_post_identities
+from chaos_agent.rewind_edit_batch_models import prepare_request
+from chaos_agent.rewind_gate import WorkspaceMutationGate
+from chaos_agent.workspace_mutation_pool import WorkspaceMutationPool
+from chaos_agent.workspace_startup_recovery import (
     WorkspaceBatchRecoveryConflict, recover_workspace_edit_batches,
 )
 from tests.test_task_scoped_mutations import _service

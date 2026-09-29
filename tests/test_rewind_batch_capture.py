@@ -33,7 +33,7 @@ from code_agent.workspace.edits import (
 )
 from code_agent.workspace.paths import WorkspacePathGuard
 from code_agent.workspace.snapshot_store import WorkspaceSnapshotStore
-from code_agent_win.rewind_capture import RewindCaptureCoordinator
+from chaos_agent.rewind_capture import RewindCaptureCoordinator
 
 
 class _Lease:
@@ -243,10 +243,10 @@ class RewindBatchCaptureTests(unittest.IsolatedAsyncioTestCase):
         """Apply a batch and drop the process before the batch settles."""
         context, request = self._identity(request_id)
         with patch(
-            "code_agent_win.rewind_edit_batch._persist_apply_result",
+            "chaos_agent.rewind_edit_batch._persist_apply_result",
             side_effect=RuntimeError("injected crash"),
         ), patch(
-            "code_agent_win.rewind_edit_batch._recover_record",
+            "chaos_agent.rewind_edit_batch._recover_record",
             side_effect=RuntimeError("process is gone"),
         ):
             with self.assertRaises(RuntimeError):

@@ -7,8 +7,8 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from code_agent.acp import ChaosAcpAgent
-from code_agent_win.acp_adapter import serve_acp
-from code_agent_win.cli import _ACP_HELP, _HELP, run
+from chaos_agent.acp_adapter import serve_acp
+from chaos_agent.cli import _ACP_HELP, _HELP, run
 
 
 class FakeApplication:
@@ -29,7 +29,7 @@ class AcpIntegrationTests(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as temporary:
             application = FakeApplication(Path(temporary).resolve())
             with patch(
-                "code_agent_win.acp_adapter.run_agent", new=AsyncMock()
+                "chaos_agent.acp_adapter.run_agent", new=AsyncMock()
             ) as run_agent:
                 await serve_acp(application)
 
@@ -44,8 +44,8 @@ class AcpIntegrationTests(unittest.IsolatedAsyncioTestCase):
             application = FakeApplication(Path(temporary).resolve())
             serve = AsyncMock()
             with patch(
-                "code_agent_win.cli.create_application", return_value=application
-            ), patch("code_agent_win.cli.serve_acp", serve):
+                "chaos_agent.cli.create_application", return_value=application
+            ), patch("chaos_agent.cli.serve_acp", serve):
                 status = await run(("acp", "--profile", "fast"))
 
         self.assertEqual(status, 0)
@@ -54,7 +54,7 @@ class AcpIntegrationTests(unittest.IsolatedAsyncioTestCase):
         application.aclose.assert_awaited_once()
 
     async def test_acp_rejects_positional_arguments_before_application(self) -> None:
-        with patch("code_agent_win.cli.create_application") as create:
+        with patch("chaos_agent.cli.create_application") as create:
             status = await run(("acp", "unexpected"))
 
         self.assertEqual(status, 2)

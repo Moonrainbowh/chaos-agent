@@ -22,8 +22,8 @@ from code_agent.orchestration.models import (
 )
 from code_agent.orchestration.modes import ModeRegistry, standard_mode_definitions
 from code_agent.providers.config import ApiProtocol, ModelProfile, ProviderConfig
-from code_agent_win import agent_modes
-from code_agent_win.subagents import (
+from chaos_agent import agent_modes
+from chaos_agent.subagents import (
     EngineChildRunner,
     SubagentRuntime,
     SubagentTool,

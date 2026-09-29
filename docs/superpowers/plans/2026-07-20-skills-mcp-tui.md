@@ -132,9 +132,9 @@
 ### Task 9: 根级 Skills/MCP 集成
 
 **Files:**
-- Modify: `code_agent_win/app.py`
-- Modify: `code_agent_win/app_ui.py`
-- Modify: `code_agent_win/action_dispatcher.py`
+- Modify: `chaos_agent/app.py`
+- Modify: `chaos_agent/app_ui.py`
+- Modify: `chaos_agent/action_dispatcher.py`
 - Modify: `tests/test_agent_app.py`
 - Modify: `tests/test_command_integration.py`
 

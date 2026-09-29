@@ -101,7 +101,7 @@
 - Thread Intelligence 的摘要和检索结果始终是不可信派生上下文。
 - Plugin Proposal 必须经过 Host 投影、策略和交互边界。
 - Interfaces 只渲染并委托控制器，不直接操作数据库、MCP 进程或插件动作。
-- 根级 `code_agent_win` 只组合 Feature 公开接口，不重写 Feature 行为。
+- 根级 `chaos_agent` 只组合 Feature 公开接口，不重写 Feature 行为。
 
 ## Thread Intelligence
 
@@ -347,11 +347,11 @@ Plugin mode 以 namespaced ID 作为内置 mode 的附加选择。它继承 `bas
 4. Plugin command/mode/agent/event/interaction Host-neutral 能力。
 5. Skills/MCP Controller 与动态 Picker 能力。
 
-Feature 阶段不修改根级 `code_agent_win`。
+Feature 阶段不修改根级 `chaos_agent`。
 
 ### 阶段 3：应用集成
 
-在 `code_agent_win` 中：
+在 `chaos_agent` 中：
 
 - 把 thread ID 和 cancellation 传入 Context Builder。
 - 使用当前冻结 profile 构造摘要服务并累计任务 Usage。

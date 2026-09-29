@@ -192,8 +192,8 @@ Expected: all pass.
 ### Task 5: Share one index across main and child agents
 
 **Files:**
-- Modify: `code_agent_win/app.py`
-- Modify: `code_agent_win/AGENTS.md`
+- Modify: `chaos_agent/app.py`
+- Modify: `chaos_agent/AGENTS.md`
 - Modify: `tests/test_agent_app.py`
 - Modify: `tests/test_app_dispatcher.py`
 
@@ -231,7 +231,7 @@ Expected: all pass.
 
 **Files:**
 - Modify: `src/code_agent/context/AGENTS.md`
-- Modify: `code_agent_win/AGENTS.md`
+- Modify: `chaos_agent/AGENTS.md`
 
 - [x] **Step 1: Record implemented Units**
 

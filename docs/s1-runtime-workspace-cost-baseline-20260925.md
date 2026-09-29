@@ -227,9 +227,9 @@ python -m unittest discover -s tests -p test_workspace_mode_lifecycle.py -v
 - `src/code_agent/workspace/snapshot_store.py`；
 - `src/code_agent/workspace/_snapshot_*`；
 - `src/code_agent/workspace/git.py`；
-- `code_agent_win/local_workspace_lineage.py`；
-- `code_agent_win/workspace_seeding.py`；
-- `code_agent_win/workspace_checkpoint_runtime.py`；
+- `chaos_agent/local_workspace_lineage.py`；
+- `chaos_agent/workspace_seeding.py`；
+- `chaos_agent/workspace_checkpoint_runtime.py`；
 - `src/code_agent/checkpoints/`；
 - `src/code_agent/workspace/inventory.py`、`edits.py`、`rewind_state.py`；
 - 相关 sessions workspace/checkpoint 模型、repository 和测试；
@@ -241,9 +241,9 @@ python -m unittest discover -s tests -p test_workspace_mode_lifecycle.py -v
 
 重点范围：
 
-- `code_agent_win/action_support.py`；
-- `code_agent_win/action_dispatcher.py`；
-- `code_agent_win/task_verification.py`；
+- `chaos_agent/action_support.py`；
+- `chaos_agent/action_dispatcher.py`；
+- `chaos_agent/task_verification.py`；
 - task/session/evaluation metrics 相关模块；
 - benchmark 和报告脚本。
 

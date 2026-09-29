@@ -20,10 +20,10 @@ from code_agent.workspace.edits import WorkspaceEditor
 from code_agent.workspace.paths import WorkspacePathGuard
 from code_agent.workspace.snapshot_store import WorkspaceSnapshotStore
 
-from code_agent_win.rewind_capture import RewindCaptureCoordinator
-from code_agent_win.rewind_gate import WorkspaceMutationGate
-from code_agent_win.subagents import RestrictedDispatcher
-from code_agent_win.task_verification import TaskScopedVerificationService
+from chaos_agent.rewind_capture import RewindCaptureCoordinator
+from chaos_agent.rewind_gate import WorkspaceMutationGate
+from chaos_agent.subagents import RestrictedDispatcher
+from chaos_agent.task_verification import TaskScopedVerificationService
 
 
 _Result = TypeVar("_Result")

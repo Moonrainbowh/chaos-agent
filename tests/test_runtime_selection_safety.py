@@ -11,7 +11,7 @@ from code_agent.orchestration.models import ModeSnapshot
 from code_agent.policy.models import ApprovalMode
 from code_agent.providers.anthropic import AnthropicClient
 from code_agent.providers.config import ApiProtocol, ModelProfile, ProviderConfig
-from code_agent_win.app import create_application
+from chaos_agent.app import create_application
 
 
 def _profile(name: str, api: ApiProtocol) -> ModelProfile:
@@ -46,16 +46,16 @@ def _application(
     root.mkdir()
     state.mkdir()
     patches = (
-        patch("code_agent_win.app._session_path", return_value=state / "sessions.sqlite3"),
-        patch("code_agent_win.app._product_state_root", return_value=state),
+        patch("chaos_agent.app._session_path", return_value=state / "sessions.sqlite3"),
+        patch("chaos_agent.app._product_state_root", return_value=state),
         patch(
-            "code_agent_win.app._workspace_storage_path",
+            "chaos_agent.app._workspace_storage_path",
             return_value=container / "managed-workspaces",
         ),
-        patch("code_agent_win.app.load_runtime_config", return_value=_runtime(profiles)),
+        patch("chaos_agent.app.load_runtime_config", return_value=_runtime(profiles)),
     )
     client = (
-        patch("code_agent_win.app._model_client", side_effect=lambda _: object())
+        patch("chaos_agent.app._model_client", side_effect=lambda _: object())
         if not real_client
         else None
     )

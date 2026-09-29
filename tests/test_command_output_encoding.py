@@ -19,12 +19,12 @@ from code_agent.runtime.models import (  # noqa: E402
     StreamName,
     TerminationReason,
 )
-from code_agent_win.process_actions import (  # noqa: E402
+from chaos_agent.process_actions import (  # noqa: E402
     run_powershell_action,
     run_process_action,
 )
-from code_agent_win.tool_support import command_action_result  # noqa: E402
-from code_agent_win.tools import validate_tool_arguments  # noqa: E402
+from chaos_agent.tool_support import command_action_result  # noqa: E402
+from chaos_agent.tools import validate_tool_arguments  # noqa: E402
 
 
 def command_result(

@@ -14,7 +14,7 @@
 3. 闭合多模型 profile 的配置、切换、资源释放、任务审计和旧会话迁移生命周期。
 4. 直接读取用户和工作区 `.agents/skills` 中的本地 Skills，并保持显式信任和上下文预算边界。
 5. 使用成熟 MCP Python SDK 接通首批 `stdio` 服务，实现健康检查、工具发现、命名空间、调用、取消和 `ActionPolicy` 映射。
-6. 最后在 `code_agent_win` 完成组合、CLI、配置、依赖和文档集成，并通过真实 Windows Terminal 验收。
+6. 最后在 `chaos_agent` 完成组合、CLI、配置、依赖和文档集成，并通过真实 Windows Terminal 验收。
 
 ## 已确认的产品决策
 
@@ -43,7 +43,7 @@
 - 严格遵循“需求 -> 实现 -> 集成”顺序。
 - 需求阶段只更新相关 Feature `AGENTS.md` 的目标和边界，不新增实现或 Units。
 - 实现阶段只修改对应 `src/code_agent/<feature>/` 目录及其 Feature 测试。
-- 集成阶段只修改 `code_agent_win/`、根配置、README 和根测试，不回头修改 Feature 源码。
+- 集成阶段只修改 `chaos_agent/`、根配置、README 和根测试，不回头修改 Feature 源码。
 - `windows_tui.py` 与 `terminal_state.py` 已接近 300 行上限；新增行为必须拆到小模块，不继续扩张两个聚合文件。
 - 所有模型、工具、MCP 和配置错误必须脱敏；不得把 API key、认证头、完整配置文件或密钥后缀写入会话和日志。
 - 所有终端输出继续经过控制字符清理；ANSI 只能由可信本地显示事件生成。
@@ -394,10 +394,10 @@ Agent 预算字段继续支持显式覆盖。非空 profile 缺少协议、URL �
 
 ### 允许修改
 
-- `code_agent_win/app.py`
-- `code_agent_win/cli.py`
-- `code_agent_win/tools.py`
-- `code_agent_win/tool_support.py`（如 MCP typed result 需要）
+- `chaos_agent/app.py`
+- `chaos_agent/cli.py`
+- `chaos_agent/tools.py`
+- `chaos_agent/tool_support.py`（如 MCP typed result 需要）
 - `pyproject.toml`
 - `README.md`
 - `tests/`
@@ -481,7 +481,7 @@ git diff --check
 3. 阶段 3 完成后评审 profile 配置、任务固定和迁移证据。
 4. 阶段 4 完成后评审 Skill 发现、冲突和信任行为。
 5. 阶段 5 连接真实 server 前评审 MCP 配置 schema 与风险映射。
-6. 所有 Feature 通过后才允许修改 `code_agent_win` 集成层。
+6. 所有 Feature 通过后才允许修改 `chaos_agent` 集成层。
 7. Windows Terminal 人工验收全部有证据后才宣称计划完成。
 
 ## 建议提交拆分

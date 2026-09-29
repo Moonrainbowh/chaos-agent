@@ -1,5 +1,5 @@
-# Windows Application Integration
-组合各 Feature 成为 Windows TUI、CLI 和 JSON 模式共用的可运行代理。
+# Cross-Platform Application Integration
+组合各 Feature 成为 Windows、Linux 和 macOS 上的 TUI、CLI 与 JSON 模式共用的可运行代理。
 
 ## 边界
 - 负责：CSV continuity 评测的独立进程宿主，组合生产 AgentEngine、PersistentContextBuilder、SQLite History/Notes 和受限 Workspace 工具；D 组退出并重启相同持久 thread，保留真实回执与版本验证。离线 scripted model 仅用于接线测试，不计 API 成绩；不等同完整 TUI 前台 TaskRecord 生命周期验收。
@@ -8,7 +8,7 @@
 - 负责：按宿主声明 Windows/PowerShell 或 POSIX sh 执行契约，按工作区能力注册 Git 工具，并把方言不匹配、非零退出码和已知 Git 故障转换为可修复的结构化 tool result。
 - 负责：在基础 Provider 提示中声明克制的 Markdown 可读性约定，要求结果前置、短层级和有意义的重点标粗，不以装饰性格式虚构重要性。
 - 负责：把 TUI Semantic Insights 控制器绑定到当前 thread 对应 workspace 的共享 `RepoIndexService`，后台刷新同一快照后只读生成用户报告。
-- 负责：发布 Chaos Agent 的 `chaos-agent` 命令与本地数据目录，并在迁移期保持旧 `agent` 命令和本地状态可用。
+- 负责：发布 Chaos Agent 的 `chaos-agent` 命令与本地数据目录，并保持旧 `agent` 命令和本地状态可用。
 - 不负责：重写 policy、workspace 或 runtime 的底层安全规则。
 - 不负责：自动翻译任意 Shell 脚本、自动初始化 Git 仓库或把失败命令报告为成功。
 - 不负责：为 Repo Map、bug 定位或 dead-code 分析另建扫描缓存，也不因展示分析结果执行文件修改或验证命令。
@@ -29,6 +29,8 @@
 - Windows 路径能力在启动、`/状态` 和 Provider prompt 中可见；入口必须在 `Path.resolve()`、storage mkdir 或进程启动前检查 legacy/extended 预算，不能以“目录不存在”掩盖长路径策略缺失。
 - `list_action_result(...)`、`with_action_duration(...)`: Git 工作区根优先使用 tracked/non-ignored-untracked 快速候选清单并再次经过 Workspace 可见性过滤，同时为工具结果补充单调耗时 | Git/文件读取 | 普通目录和显式子目录保留受保护递归扫描；`list_files` 默认返回 25 条、最大 50 条，截断时以 `next_cursor` 继续
 - `ActionMetricsCollector.record(...)`、`snapshot(...)`: 按 task 聚合已完成 typed action 的数量、错误、p50/p95、分类耗时、重复读取和重复 action 尝试 | 仅进程内指标内存 | 不保存参数、输出或路径正文；没有 task context 的 action 归入 `unscoped`，不改变调度结果
+- `configure_runtime_trace()`: 启动时自动安装有界 JSONL runtime trace sink | 本地日志文件 | 默认写入 `logs/runtime-trace.jsonl`；设置 `CHAOS_DEBUG_TRACE=0` 显式关闭，路径由 `CHAOS_DEBUG_TRACE_PATH` 指定
+- `Application.startup()`、`Application._warmup_repo_index()`: 对启用 Repo Map 的交互工作区后台预热共享 Repo Index，并在关闭前等待预热线程收尾 | 线程池/本地索引 | 不阻塞启动界面；预热失败保留按需构建路径并写入 trace
 - `create_application(workspace_root, model_name, profile_name, mode_name): Application`: 在任何 Provider 副作用前真实探测并冻结共享 PowerShell Runtime，再组合模式/profile/model、能力披露策略、权限策略、workspace、会话、插件、子 Agent、provider、TUI 与 CLI | 创建或替换 provider、本地状态和有界子运行时 | source/worktree、主/子 Agent 和 runtime 切换共用同一方言与配置的 capability strategy；Provider 提示不泄露 executable 全路径，本地 `/状态` 可审查完整探测信息；活动任务不可切换
 - `ManagedWorkspaceRuntime.close()`、`Application.aclose()`: 在子 Agent、provider 与 MCP 停止后释放所有已物化 workspace 的进程内 Repo Index | 关闭 SQLite 内存连接并清空服务缓存 | 幂等关闭，不删除工作区或持久状态
 - `profile_model_factory(...)`、共享 `AttachmentStore` / `AttachmentIngestor`: 将当前 profile 的显式输入模态和产品状态附件 resolver 注入主、子与切换后 provider，并在创建客户端时读取动态注册的内存 profile | 创建有界本地附件仓库 | 测试/自定义单参数 factory 保持旧调用契约；不在集成层解析 blob 或推断模型能力
@@ -69,7 +71,7 @@
 - `SemanticGraphControl.analyze(...)`：按活动 thread 解析 source/worktree root，并在线程外请求该 root 共享 `RepoIndexService` reconcile 后生成 Semantic Insights 报告，query/FTS 与图取自同代快照 | 只读 Repo Index 与 workspace 绑定 | 不实例化第二索引；未绑定 thread 回退 source root；报告明示 root、generation 与索引上限，支持分页但不改变分析范围
 - `configure_product_controls(...)`、`configure_product_ui(...)`：组合 runtime、cost、doctor、semantic graph 与 TUI/foreground 控件 | 创建进程内依赖 | 从 app.py 抽离产品组合，不复制任何 Feature 行为
 - `PeerToolAdapter`、`PEER_TOOL_DEFINITIONS`: 独立暴露 `list_agents`、`send_message`、`rename_agent` typed tools | 仅委托已注册的 PeerMessagingService | 本 Unit 不接 Root dispatcher/UI，错误输出不回显正文，peer 输入仍不具有用户授权
-- `PeerRuntime`、`PeerDeliveryBuffer`、`PeerContextBuilder`: 仅随 Windows TUI 注册本机实例，续租并投递 queued 消息、提示 held 消息，把 PEER 正文以有界不可信 JSON 注入主上下文 | SQLite/模型回合/TUI 元数据 | task-owned thread 不后台恢复；taskless peer 回合只开放 list/send；失败指数退避，runtime 切换与 peer wake 共用 activity lock
+- `PeerRuntime`、`PeerDeliveryBuffer`、`PeerContextBuilder`: 随交互式 TUI 注册本机实例，续租并投递 queued 消息、提示 held 消息，把 PEER 正文以有界不可信 JSON 注入主上下文 | SQLite/模型回合/TUI 元数据 | task-owned thread 不后台恢复；taskless peer 回合只开放 list/send；失败指数退避，runtime 切换与 peer wake 共用 activity lock
 
 - BoundSkillContextBuilder / PeerContextBuilder 追加系统文本后仅刷新本地 `prompt_estimated_tokens`，不改变 Skills、peer、历史检索或 Harness 执行流程。
 

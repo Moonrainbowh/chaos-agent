@@ -27,8 +27,8 @@ from code_agent.thread_intelligence.models import SummaryRequest, anchor_message
 from code_agent.workspace.files import WorkspaceFiles
 from code_agent.workspace.ignore import IgnoreRules
 from code_agent.workspace.paths import WorkspacePathGuard
-from code_agent_win.application_context import _profile_prompt_budget
-from code_agent_win.runtime_extensions import ModelSemanticSummarizer
+from chaos_agent.application_context import _profile_prompt_budget
+from chaos_agent.runtime_extensions import ModelSemanticSummarizer
 
 
 class _RecordingModel:

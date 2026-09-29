@@ -5,8 +5,8 @@ from types import SimpleNamespace
 import tempfile
 import unittest
 
-from code_agent_win.continuity_run import run_arm
-from code_agent_win.continuity_dispatcher import ContinuityDispatcher
+from chaos_agent.continuity_run import run_arm
+from chaos_agent.continuity_dispatcher import ContinuityDispatcher
 from code_agent.core.cancellation import CancellationToken
 from code_agent.core.models import ToolCall
 

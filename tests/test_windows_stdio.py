@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 from unittest.mock import Mock, patch
 
-from code_agent_win.stdio import configure_windows_utf8_stdio
+from chaos_agent.stdio import configure_windows_utf8_stdio
 
 
 class WindowsStdioTests(unittest.TestCase):
@@ -11,7 +11,7 @@ class WindowsStdioTests(unittest.TestCase):
         stdout = Mock()
         stderr = Mock()
 
-        with patch("code_agent_win.stdio.os.name", "nt"):
+        with patch("chaos_agent.stdio.os.name", "nt"):
             configure_windows_utf8_stdio(stdout, stderr)
 
         stdout.reconfigure.assert_called_once_with(
@@ -23,9 +23,9 @@ class WindowsStdioTests(unittest.TestCase):
 
     def test_non_windows_and_streams_without_reconfigure_are_safe(self) -> None:
         stream = object()
-        with patch("code_agent_win.stdio.os.name", "posix"):
+        with patch("chaos_agent.stdio.os.name", "posix"):
             configure_windows_utf8_stdio(stream, stream)
-        with patch("code_agent_win.stdio.os.name", "nt"):
+        with patch("chaos_agent.stdio.os.name", "nt"):
             configure_windows_utf8_stdio(stream, stream)
 
 

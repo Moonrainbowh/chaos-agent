@@ -8,11 +8,11 @@ from pathlib import PureWindowsPath
 from code_agent.core.models import ToolDefinition
 from code_agent.runtime.models import PowerShellRuntimeInfo, ShellDialect
 from code_agent.runtime.output_codec import OutputEncoding
-from code_agent_win.edit_plan_tools import (
+from chaos_agent.edit_plan_tools import (
     EDIT_PLAN_TOOL_DEFINITIONS,
     validate_edit_plan_tool_arguments,
 )
-from code_agent_win.tool_schema import (
+from chaos_agent.tool_schema import (
     integer_schema as _integer_schema,
     matches_schema as _matches_schema,
     nonempty_text_schema as _nonempty_text_schema,

@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from threading import RLock
+from time import perf_counter
 
 from code_agent.workspace.errors import WorkspaceError
 from code_agent.workspace.files import WorkspaceFiles
@@ -16,6 +17,7 @@ from .repo_search import RepoLexicalRanks, SQLiteRepoSearch
 from .repo_search_documents import bound_search_facts
 from .repo_semantic_graph import UnifiedSemanticGraph
 from .repo_snapshot import publish_entries, strip_search_text
+from code_agent.core.debug_trace import trace_event
 
 
 _MAX_SEARCH_BODY_BYTES = 16_000_000
@@ -98,6 +100,8 @@ class RepoIndexService:
                 self._dirty.difference_update(dirty)
                 self._reconcile_requested = False
                 current = dict(self._records)
+            started_at = perf_counter()
+            trace_event("repo_index.refresh", "started", initialized=initialized, dirty_count=len(dirty), reconcile=reconcile)
             try:
                 if not initialized:
                     updated = self._refresh(self._scan_all(), dirty)
@@ -107,7 +111,12 @@ class RepoIndexService:
                     )
                 else:
                     updated = self._refresh(current, dirty)
-            except Exception:
+            except Exception as error:
+                trace_event(
+                    "repo_index.refresh", "failed",
+                    duration_ms=min(86_400_000, max(0, int((perf_counter() - started_at) * 1000))),
+                    error_type=type(error).__name__,
+                )
                 with self._state_lock:
                     self._dirty.update(dirty)
                     self._reconcile_requested = (
@@ -126,6 +135,11 @@ class RepoIndexService:
                         publish_entries(indexed),
                     )
                 self._initialized = True
+                trace_event(
+                    "repo_index.refresh", "completed",
+                    duration_ms=min(86_400_000, max(0, int((perf_counter() - started_at) * 1000))),
+                    files=len(self._records), generation=self._snapshot.generation,
+                )
                 return self._snapshot
 
     def query_for_turn(

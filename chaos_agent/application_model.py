@@ -4,7 +4,10 @@ import shlex
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import asyncio
+
 from code_agent.context.repo_index import RepoIndexService
+from code_agent.core.debug_trace import trace_event
 from code_agent.interfaces.controller import AgentController
 from code_agent.interfaces.task_controller import ForegroundTaskController
 from code_agent.interfaces.terminal_display import DisplayKind
@@ -12,10 +15,10 @@ from code_agent.mcp.registry import McpController
 from code_agent.orchestration.models import ModeSnapshot
 from code_agent.plugins.registry import PluginHost
 from code_agent.workflows.service import WorkflowService
-from code_agent_win.action_dispatcher import RootActionDispatcher
-from code_agent_win.app_ui import ModeAwareWindowsTerminalApp
-from code_agent_win.rewind_runtime import RewindRuntime
-from code_agent_win.subagents import SubagentRuntime
+from chaos_agent.action_dispatcher import RootActionDispatcher
+from chaos_agent.app_ui import ModeAwareWindowsTerminalApp
+from chaos_agent.rewind_runtime import RewindRuntime
+from chaos_agent.subagents import SubagentRuntime
 
 
 @dataclass
@@ -31,6 +34,7 @@ class Application:
     subagents: SubagentRuntime | None = None
     rewind: RewindRuntime | None = None
     repo_index: RepoIndexService | None = None
+    repo_index_warmup: bool = False
     workflows: WorkflowService | None = None
     workspace_runtime: object | None = None
     attachment_store: object | None = None
@@ -44,15 +48,48 @@ class Application:
     restore_model_selection: bool = False
     _closed: bool = field(default=False, init=False, repr=False)
     _model_selection_restored: bool = field(default=False, init=False, repr=False)
+    _repo_index_warmup_task: asyncio.Task[None] | None = field(
+        default=None, init=False, repr=False
+    )
 
     async def startup(self) -> None:
         if self.workspace_runtime is not None:
             await self.workspace_runtime.startup()
+        if self.repo_index_warmup and self.repo_index is not None:
+            self._repo_index_warmup_task = asyncio.create_task(
+                self._warmup_repo_index(), name="chaos-agent-repo-index-warmup"
+            )
         if self.restore_model_selection and not self._model_selection_restored:
             self._model_selection_restored = True
             message, warning = await self._restore_model_selection()
             if message:
                 self.tui._append(DisplayKind.WARNING if warning else DisplayKind.METADATA, message)
+
+    async def _warmup_repo_index(self) -> None:
+        trace_event("repo_index.warmup", "started")
+        started_at = asyncio.get_running_loop().time()
+        try:
+            snapshot = await asyncio.to_thread(self.repo_index.snapshot_for_turn)
+        except Exception as error:
+            trace_event(
+                "repo_index.warmup",
+                "failed",
+                duration_ms=max(
+                    0,
+                    int((asyncio.get_running_loop().time() - started_at) * 1000),
+                ),
+                error_type=type(error).__name__,
+            )
+            return
+        trace_event(
+            "repo_index.warmup",
+            "completed",
+            duration_ms=max(
+                0, int((asyncio.get_running_loop().time() - started_at) * 1000)
+            ),
+            generation=snapshot.generation,
+            files=len(snapshot.entries),
+        )
 
     async def _restore_model_selection(self) -> tuple[str | None, bool]:
         preferences = self.model_preferences
@@ -112,6 +149,13 @@ class Application:
                 continue
             try:
                 await close()
+            except BaseException as error:
+                if first_error is None:
+                    first_error = error
+        warmup = self._repo_index_warmup_task
+        if warmup is not None and not warmup.done():
+            try:
+                await asyncio.shield(warmup)
             except BaseException as error:
                 if first_error is None:
                     first_error = error

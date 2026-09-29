@@ -20,7 +20,7 @@
 - `TrustedTraceRecorder.record_user_interventions`, `record_retries`, `record_model_tokens`: 接收生产适配器提供的可选真实用量和交互事实；未采集保持 unknown，不以 0 冒充真实用量。
 - `continuity_v2_fixture/plan/driver/selfcheck/metrics`：冻结读取器 tuple→Record 改版、四阶段权限和 A/B 自然记忆、C/D 显式笔记探针对照 | 隔离阶段快照与隐藏行为验收 | 最终正确与挑战覆盖分开；已兼容实现必须得到未覆盖；笔记写入/读取/变化仅证明生命周期，语义仍需审阅
 - `continuity_fixture`、`continuity_oracle.scenario`: 冻结 CSV 任务、外部读取器补丁和独立验收 | 生成公开 fixture | 参考修复和隐藏测试仅供隔离自检
-- `continuity_plan.events/manifest`、`continuity_driver.drive`: A/B/C/D 固定阶段和宿主适配器协议 | 受信控制器在工具组落盘后换窗/改版/重启 | receipt 必须来自真实宿主；生产进程适配器由 code_agent_win/continuity_* 组合，离线 double、真实宿主脚本模型与真实 API 分别报告
+- `continuity_plan.events/manifest`、`continuity_driver.drive`: A/B/C/D 固定阶段和宿主适配器协议 | 受信控制器在工具组落盘后换窗/改版/重启 | receipt 必须来自真实宿主；生产进程适配器由 chaos_agent/continuity_* 组合，离线 double、真实宿主脚本模型与真实 API 分别报告
 - `continuity_selfcheck.selfcheck`: 复用 ScenarioRunner、DeterministicGrader 和子进程 verifier 验证参考实现及错误变体 | 临时工作区与子进程 | 所有成绩标记 offline-scripted-reference，API/History/Notes 指标为 null
 - `long_context_cases`: 固定 10 个不同代码契约与长历史恢复现场 | 生成隔离 fixture | 前史为确定性现场，后续 AgentEngine/API 实跑；不可宣称从零端到端长任务成绩
 - `long_context_metrics`: 分别核算主请求/交接/缓存、稳定内容重复读取、边界后注入错误恢复与独立验收 | 读取受信日志/最终文件 | 无边界或 API 失败保留为无效/失败，不补成功分数

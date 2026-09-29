@@ -39,7 +39,7 @@ from code_agent.workspace.errors import WorkspaceError
 from code_agent.workspace.git import GitWorkspace
 from code_agent.workspace.worktrees import WorktreeManager
 
-from code_agent_win.workspace_models import task_branch_name
+from chaos_agent.workspace_models import task_branch_name
 
 
 @dataclass(frozen=True)

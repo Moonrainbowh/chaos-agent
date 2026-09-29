@@ -20,9 +20,9 @@ from code_agent.workspace.edits import (
 from code_agent.workspace.files import WorkspaceFiles
 from code_agent.workspace.ignore import IgnoreRules
 from code_agent.workspace.paths import WorkspacePathGuard
-from code_agent_win.action_dispatcher import RootActionDispatcher
-from code_agent_win.edit_plan_store import WorkspaceEditPlanStore
-from code_agent_win.edit_plan_store import StoredPlanStatus
+from chaos_agent.action_dispatcher import RootActionDispatcher
+from chaos_agent.edit_plan_store import WorkspaceEditPlanStore
+from chaos_agent.edit_plan_store import StoredPlanStatus
 
 
 _FINGERPRINT = "a" * 64

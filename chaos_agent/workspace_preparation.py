@@ -8,7 +8,7 @@ from code_agent.sessions.workspace_models import WorkspaceLineageRecord
 from code_agent.workspace._worktree_leases import UnclaimedWorktreeLease
 from code_agent.workspace.worktrees import WorktreeManager
 
-from code_agent_win.workspace_models import TaskWorkspace
+from chaos_agent.workspace_models import TaskWorkspace
 
 
 _T = TypeVar("_T")

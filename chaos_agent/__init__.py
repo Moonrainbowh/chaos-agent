@@ -1,1 +1,1 @@
-"""Windows-first application composition for the code agent."""
+"""Cross-platform application composition for Chaos Agent."""

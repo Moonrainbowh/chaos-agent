@@ -5,8 +5,8 @@ from pathlib import Path
 
 from code_agent.workspace.errors import WorkspaceError
 
-from code_agent_win.local_workspace_lineage import attach_local_lineage
-from code_agent_win.workspace_policy import (
+from chaos_agent.local_workspace_lineage import attach_local_lineage
+from chaos_agent.workspace_policy import (
     NO_ISOLATION,
     WorkspaceIsolationRequest,
     adaptive_isolation,
@@ -30,7 +30,7 @@ def resolve_task_workspace_plan(
     without probing Git, so no task startup enumerates or copies a dirty
     workspace. Only a plan that actually asks for isolation may read Git.
     """
-    from code_agent_win.tool_support import discover_git_workspace
+    from chaos_agent.tool_support import discover_git_workspace
 
     return plan_workspace(
         lambda: discover_git_workspace(root) is not None,

@@ -8,7 +8,7 @@ from pathlib import Path
 from code_agent.core.task import TaskStatus
 from code_agent.workspace.git import GitWorkspace
 from code_agent.workspace.worktrees import WorktreeManager
-from code_agent_win.workspace_models import task_branch_name
+from chaos_agent.workspace_models import task_branch_name
 from tests.agent_app_test_support import (
     _configured_application,
     _git,

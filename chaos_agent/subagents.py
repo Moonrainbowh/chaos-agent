@@ -25,9 +25,9 @@ from code_agent.orchestration.plugin_extensions import PluginAgentCatalog
 from code_agent.orchestration.supervisor import ChildRunSupervisor
 from code_agent.plugins.registry import PluginHost
 from code_agent.providers.config import ModelProfile
-from code_agent_win.agent_modes import child_mode_for_role
-from code_agent_win.child_runner import EngineChildRunner
-from code_agent_win.restricted_dispatcher import RestrictedDispatcher
+from chaos_agent.agent_modes import child_mode_for_role
+from chaos_agent.child_runner import EngineChildRunner
+from chaos_agent.restricted_dispatcher import RestrictedDispatcher
 
 _READ_ONLY_ROLES = {
     AgentRole.ORACLE,

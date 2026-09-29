@@ -18,17 +18,17 @@ from code_agent.orchestration.modes import (
 from code_agent.policy.models import ApprovalMode
 from code_agent.providers.config import ModelProfile
 from code_agent.providers.runtime_manager import ProviderRuntimeManager
-from code_agent_win.agent_modes import runtime_effort_for_mode
-from code_agent_win.app_ui import ModeAwareWindowsTerminalApp, PluginModeControl
-from code_agent_win.application_context import engine_for
-from code_agent_win.runtime_dispatcher_factory import RuntimeDispatcherFactory
-from code_agent_win.runtime_provider_controls import ProviderControls
-from code_agent_win.runtime_selection_control import (
+from chaos_agent.agent_modes import runtime_effort_for_mode
+from chaos_agent.app_ui import ModeAwareWindowsTerminalApp, PluginModeControl
+from chaos_agent.application_context import engine_for
+from chaos_agent.runtime_dispatcher_factory import RuntimeDispatcherFactory
+from chaos_agent.runtime_provider_controls import ProviderControls
+from chaos_agent.runtime_selection_control import (
     RuntimeSelectionControl,
     RuntimeSelectionSummary,
     validate_profile_reasoning,
 )
-from code_agent_win.subagents import SubagentRuntime
+from chaos_agent.subagents import SubagentRuntime
 
 
 __all__ = (

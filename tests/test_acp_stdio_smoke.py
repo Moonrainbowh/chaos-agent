@@ -52,7 +52,7 @@ class AcpStdioSmokeTests(unittest.IsolatedAsyncioTestCase):
                 SmokeClient(),
                 sys.executable,
                 "-m",
-                "code_agent_win.acp_cli",
+                "chaos_agent.acp_cli",
                 env=environment,
                 cwd=workspace,
             ) as (connection, process):

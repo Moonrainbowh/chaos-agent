@@ -13,7 +13,7 @@ from code_agent.interfaces.windows_tui import WindowsTerminalApp
 from code_agent.workspace.files import WorkspaceFiles
 from code_agent.workspace.ignore import IgnoreRules
 from code_agent.workspace.paths import WorkspacePathGuard
-from code_agent_win.semantic_insights import SemanticGraphControl
+from chaos_agent.semantic_insights import SemanticGraphControl
 
 
 class LiveSemanticIndexTests(unittest.IsolatedAsyncioTestCase):

@@ -6,7 +6,7 @@
 
 **Goal:** 按同一设计交付 Thread Intelligence、Workflow DAG、Plugin Host 接线以及 Skills/MCP TUI 控制面，同时保持 Feature 边界、TDD 和现有安全完成门。
 
-**Architecture:** 四条子计划共享 Sessions 迁移、两级线程身份和动态 Host snapshot，但分别完成 Feature 代码及定向测试。所有 `src/code_agent/**` 工作完成并验证后，才进入 `code_agent_win/**` 根级集成；任何局部失败均回退到现有确定性上下文或禁用单个贡献。
+**Architecture:** 四条子计划共享 Sessions 迁移、两级线程身份和动态 Host snapshot，但分别完成 Feature 代码及定向测试。所有 `src/code_agent/**` 工作完成并验证后，才进入 `chaos_agent/**` 根级集成；任何局部失败均回退到现有确定性上下文或禁用单个贡献。
 
 **Tech Stack:** Python 3.10、asyncio、SQLite、unittest、MCP Python SDK、Windows Terminal。
 
@@ -41,16 +41,16 @@
 - 修改：`src/code_agent/**`
 - 创建：`src/code_agent/workflows/**`
 
-阶段 2 不修改 `code_agent_win/**`、根入口、README 或打包配置。
+阶段 2 不修改 `chaos_agent/**`、根入口、README 或打包配置。
 
 ### 阶段 3：应用集成
 
-- 修改：`code_agent_win/app.py`
-- 修改：`code_agent_win/action_dispatcher.py`
-- 修改：`code_agent_win/agent_modes.py`
-- 修改：`code_agent_win/plugin_runtime.py`
-- 修改：`code_agent_win/subagents.py`
-- 修改：`code_agent_win/tools.py`
+- 修改：`chaos_agent/app.py`
+- 修改：`chaos_agent/action_dispatcher.py`
+- 修改：`chaos_agent/agent_modes.py`
+- 修改：`chaos_agent/plugin_runtime.py`
+- 修改：`chaos_agent/subagents.py`
+- 修改：`chaos_agent/tools.py`
 - 修改：根级 `tests/**`
 - 修改：`README.md`
 
@@ -119,7 +119,7 @@ foreach ($dir in $testDirs) {
 
 ### Task 7: 根级应用集成
 
-- [ ] 按四份子计划的 Integration Task 修改 `code_agent_win/**`。
+- [ ] 按四份子计划的 Integration Task 修改 `chaos_agent/**`。
 - [ ] 保证 Dispatcher 从执行上下文绑定 caller thread。
 - [ ] 保证 mode/MCP/Plugin snapshot 只在安全边界重建 runner。
 - [ ] 保证主/子 Agent 共享持久 ThreadAuthorization 和 Workflow Service。

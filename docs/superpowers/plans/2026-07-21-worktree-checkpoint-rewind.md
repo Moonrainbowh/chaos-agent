@@ -18,7 +18,7 @@
 - Preserve old messages, events, checkpoints, and audit records; conversation rewind is a non-destructive fork.
 - Rewind never resets cumulative budget usage.
 - Files remain at most 300 lines, functions at most 50 lines, and each Feature stays within 10 principal Units.
-- Follow requirement → Feature implementation → root integration phases; never modify `code_agent_win` during Feature implementation.
+- Follow requirement → Feature implementation → root integration phases; never modify `chaos_agent` during Feature implementation.
 
 ---
 
@@ -44,8 +44,8 @@
 - Modify `src/code_agent/core/task.py`: terminal `TaskStatus.SUPERSEDED`.
 - Create `src/code_agent/interfaces/checkpoint_control.py`: UI-neutral checkpoint/rewind controller.
 - Modify command registry, parser, Picker, TUI delegation, and their tests.
-- Create `code_agent_win/workspace_runtime.py`: root integration owner for lineage and workspace-scoped service composition.
-- Modify `code_agent_win/app.py`, `code_agent_win/host_composition.py`, `code_agent_win/application_context.py`, `code_agent_win/app_ui.py`, and root integration tests.
+- Create `chaos_agent/workspace_runtime.py`: root integration owner for lineage and workspace-scoped service composition.
+- Modify `chaos_agent/app.py`, `chaos_agent/host_composition.py`, `chaos_agent/application_context.py`, `chaos_agent/app_ui.py`, and root integration tests.
 
 ### Task 1: Lock cross-Feature requirement contracts
 
@@ -735,11 +735,11 @@ git commit -m "增加 Checkpoint Rewind 控制面" -m "- 变更内容：接入 c
 ### Task 8: Integrate managed workspace runtime at the application root
 
 **Files:**
-- Create: `code_agent_win/workspace_runtime.py`
-- Modify: `code_agent_win/app.py`
-- Modify: `code_agent_win/host_composition.py`
-- Modify: `code_agent_win/application_context.py`
-- Modify: `code_agent_win/app_ui.py`
+- Create: `chaos_agent/workspace_runtime.py`
+- Modify: `chaos_agent/app.py`
+- Modify: `chaos_agent/host_composition.py`
+- Modify: `chaos_agent/application_context.py`
+- Modify: `chaos_agent/app_ui.py`
 - Modify: `tests/test_agent_app.py`
 - Modify: `tests/test_command_integration.py`
 
@@ -834,7 +834,7 @@ Run: `uv run --with regex python -m unittest tests.test_agent_app tests.test_com
 Expected: all selected integration tests pass.
 
 ```powershell
-git add -- code_agent_win/workspace_runtime.py code_agent_win/app.py code_agent_win/host_composition.py code_agent_win/application_context.py code_agent_win/app_ui.py tests/test_agent_app.py tests/test_command_integration.py tests/test_subagent_integration.py
+git add -- chaos_agent/workspace_runtime.py chaos_agent/app.py chaos_agent/host_composition.py chaos_agent/application_context.py chaos_agent/app_ui.py tests/test_agent_app.py tests/test_command_integration.py tests/test_subagent_integration.py
 git commit -m "集成任务 Worktree 与 Rewind" -m "- 变更内容：所有工作区服务绑定任务 root，并接通 checkpoint、恢复和启动对账。" -m "- 变更原因：让代码恢复进入真实应用链且保护 source worktree。" -m "- 验证情况：根级任务、命令与子 Agent 集成测试通过。"
 ```
 
@@ -887,7 +887,7 @@ Expected: all tests pass.
 
 - [ ] **Step 4: Run syntax, packaging, and diff validation**
 
-Run: `uv run python -m compileall -q src code_agent_win`
+Run: `uv run python -m compileall -q src chaos_agent`
 
 Expected: exit code 0.
 

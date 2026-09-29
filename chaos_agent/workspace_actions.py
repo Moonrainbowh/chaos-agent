@@ -10,7 +10,7 @@ from code_agent.context.repo_paths import canonical_path_key
 from code_agent.workspace.errors import CodeSliceStaleError, SearchTimeoutError
 from code_agent.workspace.files import CodeSliceRequest
 
-from code_agent_win.action_support import (
+from chaos_agent.action_support import (
     edit_plan,
     list_action_result,
     ok_result,
@@ -18,7 +18,7 @@ from code_agent_win.action_support import (
     text_argument,
     text_format_fields,
 )
-from code_agent_win.rewind_capture_support import is_external_plan
+from chaos_agent.rewind_capture_support import is_external_plan
 
 
 async def execute_workspace_action(

@@ -142,7 +142,7 @@ Provider、Core 和 Sessions 不需要协议变更。
 
 1. 需求：更新 `src/code_agent/interfaces/AGENTS.md` 的边界，不填写新 Unit。
 2. 实现：在 Interfaces Feature 内按测试驱动完成状态、渲染和 App 内部协作 Unit，并更新 Units。
-3. 集成：若根级组合无需新依赖，不修改 `code_agent_win`；仅运行现有入口集成测试。
+3. 集成：若根级组合无需新依赖，不修改 `chaos_agent`；仅运行现有入口集成测试。
 4. 验证：定向 Interfaces 测试、根级 TUI 集成测试、完整回归与人工 Windows Terminal 烟测。
 
 ## 完成定义

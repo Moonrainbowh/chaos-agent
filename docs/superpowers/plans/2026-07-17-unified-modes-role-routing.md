@@ -14,7 +14,7 @@
 
 **Files:**
 - Modify: `src/code_agent/orchestration/AGENTS.md`
-- Modify: `code_agent_win/AGENTS.md`
+- Modify: `chaos_agent/AGENTS.md`
 
 - [x] **Step 1: Record the requirements**
 
@@ -22,7 +22,7 @@ Document that mode never changes tool availability or hard limits, and that chil
 
 - [x] **Step 2: Check contract consistency**
 
-Run: `rg -n "工具|预算|角色|profile" src/code_agent/orchestration/AGENTS.md code_agent_win/AGENTS.md`
+Run: `rg -n "工具|预算|角色|profile" src/code_agent/orchestration/AGENTS.md chaos_agent/AGENTS.md`
 
 Expected: both contracts describe the shared envelope and role routing without granting permission.
 
@@ -32,8 +32,8 @@ Expected: both contracts describe the shared envelope and role routing without g
 - Modify: `src/code_agent/orchestration/tests/test_modes.py`
 - Modify: `src/code_agent/orchestration/modes.py`
 - Modify: `tests/test_agent_app.py`
-- Modify: `code_agent_win/agent_modes.py`
-- Modify: `code_agent_win/app.py`
+- Modify: `chaos_agent/agent_modes.py`
+- Modify: `chaos_agent/app.py`
 
 - [x] **Step 1: Write failing tests**
 
@@ -59,9 +59,9 @@ Expected: all selected tests pass.
 
 **Files:**
 - Modify: `tests/test_subagent_integration.py`
-- Modify: `code_agent_win/agent_modes.py`
-- Modify: `code_agent_win/subagents.py`
-- Modify: `code_agent_win/app.py`
+- Modify: `chaos_agent/agent_modes.py`
+- Modify: `chaos_agent/subagents.py`
+- Modify: `chaos_agent/app.py`
 
 - [x] **Step 1: Write failing role-routing tests**
 

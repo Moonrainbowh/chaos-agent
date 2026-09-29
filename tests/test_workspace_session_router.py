@@ -7,8 +7,8 @@ from pathlib import Path
 
 from code_agent.core._json import JSONValue
 from code_agent.sessions.rewind_repository import RewindSessionRepository
-from code_agent_win.rewind_sessions import CoordinatedSessionRepository
-from code_agent_win.workspace_session_router import WorkspaceSessionRouter
+from chaos_agent.rewind_sessions import CoordinatedSessionRepository
+from chaos_agent.workspace_session_router import WorkspaceSessionRouter
 
 
 class _RecordingCoordinated(CoordinatedSessionRepository):

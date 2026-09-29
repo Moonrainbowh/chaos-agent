@@ -18,10 +18,10 @@ from code_agent.workspace.edits import WorkspaceEditor
 from code_agent.workspace.files import WorkspaceFiles
 from code_agent.workspace.ignore import IgnoreRules
 from code_agent.workspace.paths import WorkspacePathGuard
-from code_agent_win.action_dispatcher import RootActionDispatcher
+from chaos_agent.action_dispatcher import RootActionDispatcher
 from code_agent.workflows.service import WorkflowService
-from code_agent_win.app_ui import IntegratedForegroundTaskController
-from code_agent_win.plugin_runtime import PluginProposalActionExecutor
+from chaos_agent.app_ui import IntegratedForegroundTaskController
+from chaos_agent.plugin_runtime import PluginProposalActionExecutor
 
 
 class _Engine:

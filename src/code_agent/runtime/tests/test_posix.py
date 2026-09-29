@@ -11,8 +11,8 @@ from code_agent.core.cancellation import CancellationToken
 from code_agent.core.models import ActionRequest
 from code_agent.runtime.models import CommandSpec, ShellDialect, ShellScript, TerminationReason
 from code_agent.runtime.posix import PosixLocalRuntime
-from code_agent_win.process_actions import run_powershell_action
-from code_agent_win.tools import tool_definitions
+from chaos_agent.process_actions import run_powershell_action
+from chaos_agent.tools import tool_definitions
 
 
 @unittest.skipUnless(os.name == "posix", "POSIX runtime required")

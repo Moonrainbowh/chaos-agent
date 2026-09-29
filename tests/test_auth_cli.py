@@ -17,8 +17,8 @@ from code_agent.config.loader import load_runtime_config
 from code_agent.core.models import Message, ModelEventKind
 from code_agent.providers.errors import ProviderError
 from code_agent.providers.openai_responses import OpenAIResponsesClient
-from code_agent_win.cli import run
-from code_agent_win.runtime_support import model_client, replace_model
+from chaos_agent.cli import run
+from chaos_agent.runtime_support import model_client, replace_model
 
 
 class AuthCliTests(unittest.IsolatedAsyncioTestCase):
@@ -39,7 +39,7 @@ class AuthCliTests(unittest.IsolatedAsyncioTestCase):
             return await run(("auth", *arguments))
 
     async def test_first_run_login_configure_inference_logout_without_application_startup(self):
-        with patch("code_agent_win.cli.create_application", side_effect=AssertionError("should not start workspace")):
+        with patch("chaos_agent.cli.create_application", side_effect=AssertionError("should not start workspace")):
             self.assertEqual(await self.command("login", "openai", "--api-key-env", "TEST_AUTH_KEY"), 0)
             self.assertEqual(await self.command("configure", "openai", "offline-model", "--profile", "test",
                                                  "--context-window", "16000", "--max-output-tokens", "512"), 0)

@@ -31,13 +31,13 @@ Keymap remapping, `@`/`@@` pickers, Transcript Inspector, background jobs, daemo
 | `src/code_agent/core/engine.py` | Construct requests from real thread and turn state |
 | `src/code_agent/context/builder.py` | Build bounded context from a request and optional anchored compactor |
 | `src/code_agent/thread_intelligence/deterministic_summary.py` | Deterministic bounded summarizer used without hidden provider calls |
-| `code_agent_win/context_runtime.py` | Persist semantic checkpoints through Sessions and adapt mode/permission facts |
+| `chaos_agent/context_runtime.py` | Persist semantic checkpoints through Sessions and adapt mode/permission facts |
 | `src/code_agent/workspace/git.py` | Bounded staged/unstaged/untracked Git facts |
 | `src/code_agent/interfaces/diff_view.py` | Scope-aware immutable diff documents and navigation |
 | `src/code_agent/workspace/snapshot_store.py` | Product-state snapshot persistence and integrity checks |
 | `src/code_agent/sessions/_records.py` | Checkpoint message/event bounds and lookup |
 | `src/code_agent/interfaces/rewind_view.py` | Side-effect-free rewind preview |
-| `code_agent_win/app.py`, `code_agent_win/app_ui.py` | Integration only after Feature Units pass |
+| `chaos_agent/app.py`, `chaos_agent/app_ui.py` | Integration only after Feature Units pass |
 
 ### Task 0: Isolate ambient mode bindings in the integration test
 
@@ -63,12 +63,12 @@ Wrap the existing `create_application(root)` block with:
 
 ```python
 with patch.dict("os.environ", {}, clear=True):
-    with patch("code_agent_win.app._model_client", return_value=object()):
+    with patch("chaos_agent.app._model_client", return_value=object()):
         with patch(
-            "code_agent_win.app._session_path",
+            "chaos_agent.app._session_path",
             return_value=root / "sessions.sqlite3",
         ):
-            with patch("code_agent_win.app.load_runtime_config", return_value=runtime):
+            with patch("chaos_agent.app.load_runtime_config", return_value=runtime):
                 application = create_application(root)
 ```
 
@@ -231,9 +231,9 @@ git commit -m "feat: carry real context request identity"
 - Modify: `src/code_agent/context/AGENTS.md`
 - Modify: `src/code_agent/context/tests/test_builder.py`
 - Modify: `src/code_agent/core/models.py`
-- Create: `code_agent_win/context_runtime.py`
-- Modify: `code_agent_win/AGENTS.md`
-- Modify: `code_agent_win/app.py`
+- Create: `chaos_agent/context_runtime.py`
+- Modify: `chaos_agent/AGENTS.md`
+- Modify: `chaos_agent/app.py`
 - Create: `tests/test_context_runtime.py`
 - Test: `tests/test_agent_app.py`
 
@@ -340,7 +340,7 @@ The payload contains stable IDs, source range/digest, model, usage, and version.
 ```powershell
 git add src/code_agent/thread_intelligence src/code_agent/context src/code_agent/core/models.py
 git commit -m "feat: build source anchored context checkpoints"
-git add code_agent_win tests/test_context_runtime.py
+git add chaos_agent tests/test_context_runtime.py
 git commit -m "feat: persist semantic checkpoint facts"
 ```
 
@@ -579,10 +579,10 @@ and `617313b`.
 - Create: `src/code_agent/interfaces/rewind_view.py`
 - Modify: `src/code_agent/interfaces/AGENTS.md`
 - Create: `src/code_agent/interfaces/tests/test_rewind_view.py`
-- Create: `code_agent_win/rewind_runtime.py`
-- Modify: `code_agent_win/AGENTS.md`
-- Modify: `code_agent_win/app.py`
-- Modify: `code_agent_win/app_ui.py`
+- Create: `chaos_agent/rewind_runtime.py`
+- Modify: `chaos_agent/AGENTS.md`
+- Modify: `chaos_agent/app.py`
+- Modify: `chaos_agent/app_ui.py`
 - Modify: `tests/test_agent_app.py`
 
 - [x] **Step 1: Write failing preview tests**
@@ -623,7 +623,7 @@ matching current workspace tip. Any unknown writer first records a durable
 .\.venv\Scripts\python.exe -m unittest tests.test_agent_app -v
 git add src/code_agent/interfaces
 git commit -m "feat: add safe rewind previews"
-git add code_agent_win tests/test_agent_app.py
+git add chaos_agent tests/test_agent_app.py
 git commit -m "feat: integrate diff and rewind projections"
 ```
 
@@ -635,7 +635,7 @@ git commit -m "feat: integrate diff and rewind projections"
 - Modify: `README.md`
 - Modify: `docs/amp-inspired-runtime.md`
 - Modify: `docs/research/cli-tui-design-comparison.md`
-- Modify: `code_agent_win/AGENTS.md`
+- Modify: `chaos_agent/AGENTS.md`
 - Test: all Feature and root suites
 
 - [x] **Step 1: Update only verified user-facing claims**
@@ -669,7 +669,7 @@ total was 693 run, with 689 passing and 4 skipped.
 - [x] **Step 3: Run structural checks**
 
 ```powershell
-python -m compileall -q src code_agent_win tests
+python -m compileall -q src chaos_agent tests
 git diff --check
 git status --short
 ```
@@ -679,7 +679,7 @@ Expected: compile success, no whitespace errors, and only plan-related branch ch
 - [x] **Step 4: Commit integration docs**
 
 ```powershell
-git add README.md docs/amp-inspired-runtime.md docs/research/cli-tui-design-comparison.md code_agent_win/AGENTS.md
+git add README.md docs/amp-inspired-runtime.md docs/research/cli-tui-design-comparison.md chaos_agent/AGENTS.md
 git commit -m "docs: record p0 cli tui recovery delivery"
 ```
 

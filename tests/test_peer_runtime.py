@@ -16,7 +16,7 @@ from code_agent.interfaces.terminal_state import TerminalState
 from code_agent.peers.models import PeerInboundPolicy, PeerMessageStatus
 from code_agent.peers.service import PeerMessagingService, PeerServiceLimits
 from code_agent.sessions.repository import SQLiteSessionRepository
-from code_agent_win.peer_runtime import (
+from chaos_agent.peer_runtime import (
     PeerContextBuilder,
     PeerDeliveryBuffer,
     PeerRuntime,

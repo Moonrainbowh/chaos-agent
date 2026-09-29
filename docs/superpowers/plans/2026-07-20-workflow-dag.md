@@ -121,9 +121,9 @@ if source == target or self._reachable(target, source):
 ### Task 8: 根级 Workflow 集成
 
 **Files:**
-- Modify: `code_agent_win/app.py`
-- Modify: `code_agent_win/app_ui.py`
-- Modify: `code_agent_win/subagents.py`
+- Modify: `chaos_agent/app.py`
+- Modify: `chaos_agent/app_ui.py`
+- Modify: `chaos_agent/subagents.py`
 - Modify: `tests/test_agent_app.py`
 - Modify: `tests/test_subagent_integration.py`
 

@@ -31,6 +31,7 @@ from .task import TaskRecord, TaskStatus
 from .task_supervisor import TaskSupervisor
 from .exploration_repeat import ExplorationRepeatObserver, ToolOnlyConvergenceGuard
 from .runtime_timing import phase_duration_ms, phase_started_at
+from .debug_trace import trace_event
 
 
 @dataclass(slots=True)
@@ -245,13 +246,17 @@ class AgentEngineRunMixin:
                 budget_lease=budget_lease(state.budget),
                 task_facts={**mode_snapshot, **self._context_permission_snapshot},
             )
+            trace_event("context.build", "started", thread_id=state.thread_id)
+            started_at = phase_started_at()
             bundle = await _invoke_context_builder(self._context, request)
+            trace_event("context.build", "completed", thread_id=state.thread_id, duration_ms=phase_duration_ms(started_at))
             if not isinstance(bundle, ContextBundle):
                 raise TypeError("context builder returned an invalid bundle")
             return bundle
         except (CancellationError, EngineLimitError):
             raise
         except Exception as error:
+            trace_event("context.build", "failed", thread_id=state.thread_id, error_type=type(error).__name__)
             # Preserve the causal chain for trusted diagnostics.  The public
             # event still carries only the bounded ContextBuildError label;
             # terminal rendering decides whether/how to summarize the cause.
@@ -263,6 +268,7 @@ class AgentEngineRunMixin:
         completed = False
         context_accepted = False
         model_started_at = phase_started_at()
+        trace_event("model.stream", "started", thread_id=state.thread_id, turn=turn.number)
         try:
             stream = self._model.stream(
                 bundle.system_prompt, bundle.messages, turn.tools
@@ -299,6 +305,7 @@ class AgentEngineRunMixin:
         except (AgentEngineError, CancellationError):
             raise
         except Exception as exc:
+            trace_event("model.stream", "failed", thread_id=state.thread_id, turn=turn.number, error_type=type(exc).__name__)
             raise ModelStreamError("model stream failed") from exc
         if not completed:
             raise ModelStreamError("model stream ended before completion")
@@ -311,6 +318,7 @@ class AgentEngineRunMixin:
             },
         )
         await self._journal.append_event(state.thread_id, timing)
+        trace_event("model.stream", "completed", thread_id=state.thread_id, turn=turn.number, duration_ms=timing.payload["duration_ms"])
         yield timing
 
     async def _record_model_usage(

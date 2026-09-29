@@ -8,9 +8,9 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT), str(ROOT / "src")]
-from code_agent_win.continuity_run import run_arm
-from code_agent_win.continuity_runtime import selected_profile
-from code_agent_win.continuity_process import verify_freeze
+from chaos_agent.continuity_run import run_arm
+from chaos_agent.continuity_runtime import selected_profile
+from chaos_agent.continuity_process import verify_freeze
 
 
 def arguments():
@@ -39,7 +39,7 @@ async def main(options):
                 "task_tokens": options.task_tokens, "output_tokens": 8192, "work_tokens": 64000,
                 "safety_tokens": 2000, "context_strategy": "persistent", "repeats": 1,
                 "purpose": "pilot; no promotion or general performance claim"}
-    sources = [*ROOT.glob("code_agent_win/continuity_*.py"),
+    sources = [*ROOT.glob("chaos_agent/continuity_*.py"),
                *ROOT.glob("src/code_agent/evaluation/continuity_*.py"), Path(__file__)]
     metadata["source_versions"] = {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
                                   for path in sorted(set(sources))}

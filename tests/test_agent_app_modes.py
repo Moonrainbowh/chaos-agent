@@ -11,9 +11,9 @@ from code_agent.core.cancellation import CancellationToken
 from code_agent.core.models import ActionRequest
 from code_agent.sessions.rewind_models import RewindBaseline
 from code_agent.sessions.rewind_repository import RewindSessionRepository
-from code_agent_win import agent_modes
-from code_agent_win.app import create_application
-from code_agent_win.rewind_runtime import RewindRuntime
+from chaos_agent import agent_modes
+from chaos_agent.app import create_application
+from chaos_agent.rewind_runtime import RewindRuntime
 from tests.agent_app_test_support import _configured_application
 
 
@@ -32,9 +32,9 @@ class ModeSwitchIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 f"CHAOS_MODE_{mode.value.upper()}_PROFILE": runtime.profile
                 for mode in agent_modes.AgentMode
             }
-            with patch("code_agent_win.app._model_client", side_effect=lambda _: object()):
-                with patch("code_agent_win.app._session_path", return_value=root / "sessions.sqlite3"):
-                    with patch("code_agent_win.app.load_runtime_config", return_value=runtime):
+            with patch("chaos_agent.app._model_client", side_effect=lambda _: object()):
+                with patch("chaos_agent.app._session_path", return_value=root / "sessions.sqlite3"):
+                    with patch("chaos_agent.app.load_runtime_config", return_value=runtime):
                         with patch.dict("os.environ", mode_env):
                             application = create_application(root)
 
@@ -78,9 +78,9 @@ class ModeSwitchIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 f"CHAOS_MODE_{mode.value.upper()}_PROFILE": runtime.profile
                 for mode in agent_modes.AgentMode
             }
-            with patch("code_agent_win.app._model_client", side_effect=lambda _: object()):
-                with patch("code_agent_win.app._session_path", return_value=root / "sessions.sqlite3"):
-                    with patch("code_agent_win.app.load_runtime_config", return_value=runtime):
+            with patch("chaos_agent.app._model_client", side_effect=lambda _: object()):
+                with patch("chaos_agent.app._session_path", return_value=root / "sessions.sqlite3"):
+                    with patch("chaos_agent.app.load_runtime_config", return_value=runtime):
                         with patch.dict("os.environ", mode_env):
                             application = create_application(root)
 
@@ -146,7 +146,7 @@ class ModeSwitchIntegrationTests(unittest.IsolatedAsyncioTestCase):
 
     def test_application_uses_keyword_construction(self) -> None:
         with tempfile.TemporaryDirectory() as temporary, patch(
-            "code_agent_win.app.Application"
+            "chaos_agent.app.Application"
         ) as application_type:
             _configured_application(Path(temporary).resolve())
         args, kwargs = application_type.call_args

@@ -14,19 +14,19 @@ from code_agent.sessions.errors import SessionNotFound
 from code_agent.workspace._worktree_leases import UnclaimedWorktreeLease
 from code_agent.workspace.worktrees import WorktreeManager
 
-from code_agent_win.windows_storage_paths import resolve_managed_storage_root
-from code_agent_win.workspace_preparation import PreparedWorkspaceCoordinator
-from code_agent_win.workspace_reclamation import reclaim_worktrees
-from code_agent_win.workspace_seeding import seed_source_changes
-from code_agent_win.workspace_service_factory import build_workspace_services
-from code_agent_win.workspace_models import TaskWorkspace, WorkspaceServices, task_branch_name
-from code_agent_win.workspace_checkpoint_runtime import (
+from chaos_agent.windows_storage_paths import resolve_managed_storage_root
+from chaos_agent.workspace_preparation import PreparedWorkspaceCoordinator
+from chaos_agent.workspace_reclamation import reclaim_worktrees
+from chaos_agent.workspace_seeding import seed_source_changes
+from chaos_agent.workspace_service_factory import build_workspace_services
+from chaos_agent.workspace_models import TaskWorkspace, WorkspaceServices, task_branch_name
+from chaos_agent.workspace_checkpoint_runtime import (
     CheckpointRouter,
     StableQuiescer,
     checkpoint_control,
     noop_invalidate_verification,
 )
-from code_agent_win.workspace_startup_recovery import (
+from chaos_agent.workspace_startup_recovery import (
     recover_workspace_edit_batches,
 )
 

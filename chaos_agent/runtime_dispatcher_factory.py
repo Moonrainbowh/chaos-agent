@@ -13,11 +13,11 @@ from code_agent.orchestration.models import (
     ModeSnapshot,
 )
 from code_agent.providers.config import ModelProfile
-from code_agent_win.agent_modes import main_tools_for_mode
-from code_agent_win.application_context import engine_for
-from code_agent_win.host_composition import compose_subagents
-from code_agent_win.runtime_client_cleanup import schedule_partial_client_close
-from code_agent_win.subagents import RestrictedDispatcher, SubagentRuntime
+from chaos_agent.agent_modes import main_tools_for_mode
+from chaos_agent.application_context import engine_for
+from chaos_agent.host_composition import compose_subagents
+from chaos_agent.runtime_client_cleanup import schedule_partial_client_close
+from chaos_agent.subagents import RestrictedDispatcher, SubagentRuntime
 
 
 class RuntimeDispatcherFactory:

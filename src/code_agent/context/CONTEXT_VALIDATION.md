@@ -82,14 +82,14 @@ $env:PYTHONUTF8='1'
 | src/code_agent/context/selection_debug.py | 最终 L0/L1/L2、实际正文范围、选择原因、预算淘汰与降级报告 |
 | src/code_agent/core/models.py | 仅扩充 ContextBundle 数值计数字段白名单 |
 | src/code_agent/skills/registry.py | Skills 追加后同步新估计 |
-| code_agent_win/runtime_extensions.py | 当前线程 Skills/交互模式追加后同步新估计 |
-| code_agent_win/peer_context.py | peer 系统文本追加后同步新估计 |
+| chaos_agent/runtime_extensions.py | 当前线程 Skills/交互模式追加后同步新估计 |
+| chaos_agent/peer_context.py | peer 系统文本追加后同步新估计 |
 | src/code_agent/context_windows/builder.py | 完成窗口组装后刷新新预算/估计字段 |
 | src/code_agent/context_windows/persistent_builder.py | 完成 persistent 组装后刷新同一计数字段 |
 | src/code_agent/context/tests/test_final_context_selection.py | 新增 12 项最终构建测试 |
 | src/code_agent/context_windows/tests/test_windows.py | 既有窗口最终构建测试增加预算与计数断言 |
 | src/code_agent/context_windows/tests/test_persistent.py | 既有 persistent 最终构建测试增加相同断言 |
-| src/code_agent/context/AGENTS.md、src/code_agent/core/AGENTS.md、src/code_agent/skills/AGENTS.md、src/code_agent/context_windows/AGENTS.md、code_agent_win/AGENTS.md | 同步上述计数和调试契约 |
+| src/code_agent/context/AGENTS.md、src/code_agent/core/AGENTS.md、src/code_agent/skills/AGENTS.md、src/code_agent/context_windows/AGENTS.md、chaos_agent/AGENTS.md | 同步上述计数和调试契约 |
 | src/code_agent/context/CONTEXT_VALIDATION.md、src/code_agent/context/context_selection_example.json | 验证说明及实际本地构建示例 |
 
 ## 本次实际验证结果

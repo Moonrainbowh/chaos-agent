@@ -12,13 +12,13 @@ from code_agent.policy.engine import ActionPolicy
 from code_agent.policy.models import ApprovalMode
 from code_agent.workspace.edits import WorkspaceEditor
 
-from code_agent_win.action_dispatcher import RootActionDispatcher
-from code_agent_win.action_metrics import ActionMetricsCollector
-from code_agent_win.workspace_mutation_pool import WorkspaceMutationPool
-from code_agent_win.workspace_models import WorkspaceServices
+from chaos_agent.action_dispatcher import RootActionDispatcher
+from chaos_agent.action_metrics import ActionMetricsCollector
+from chaos_agent.workspace_mutation_pool import WorkspaceMutationPool
+from chaos_agent.workspace_models import WorkspaceServices
 
 if TYPE_CHECKING:
-    from code_agent_win.workspace_runtime import ManagedWorkspaceRuntime
+    from chaos_agent.workspace_runtime import ManagedWorkspaceRuntime
 
 
 class TaskScopedDispatcher:

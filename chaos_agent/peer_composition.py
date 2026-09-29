@@ -8,8 +8,8 @@ import psutil
 
 from code_agent.peers.models import PeerInboundPolicy, PeerSessionStatus
 from code_agent.peers.service import PeerMessagingService
-from code_agent_win.peer_runtime import PeerRuntime
-from code_agent_win.peer_tools import PeerToolAdapter
+from chaos_agent.peer_runtime import PeerRuntime
+from chaos_agent.peer_tools import PeerToolAdapter
 
 
 def compose_peers(

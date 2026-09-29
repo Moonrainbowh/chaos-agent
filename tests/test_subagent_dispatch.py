@@ -5,7 +5,7 @@ import unittest
 from code_agent.core.action_execution import ActionExecutionContext
 from code_agent.core.cancellation import CancellationToken
 from code_agent.core.models import ActionRequest, ActionResult, ToolDefinition
-from code_agent_win.subagents import RestrictedDispatcher
+from chaos_agent.subagents import RestrictedDispatcher
 
 
 class RestrictedDispatcherTests(unittest.IsolatedAsyncioTestCase):
@@ -120,7 +120,7 @@ class RestrictedDispatcherTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(inner.context, context)
 
     def test_distill_subagent_summary_bounds_excessive_output(self) -> None:
-        from code_agent_win.subagents import distill_subagent_summary
+        from chaos_agent.subagents import distill_subagent_summary
 
         short_text = "Analysis completed. 2 files checked."
         self.assertEqual(distill_subagent_summary(short_text, max_chars=100), short_text)

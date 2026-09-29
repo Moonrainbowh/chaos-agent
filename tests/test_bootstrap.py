@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 
-from code_agent_win import bootstrap
+from chaos_agent import bootstrap
 
 
 class BootstrapTests(unittest.TestCase):
@@ -15,7 +15,7 @@ class BootstrapTests(unittest.TestCase):
         with patch.object(bootstrap, "StartupSplash") as splash, patch(
             "sys.argv", ["chaos-agent"]
         ), patch("sys.stdin.isatty", return_value=True), patch(
-            "code_agent_win.cli.main", side_effect=KeyboardInterrupt
+            "chaos_agent.cli.main", side_effect=KeyboardInterrupt
         ):
             self.assertEqual(bootstrap.main(), 130)
         splash.return_value.start.assert_called_once()

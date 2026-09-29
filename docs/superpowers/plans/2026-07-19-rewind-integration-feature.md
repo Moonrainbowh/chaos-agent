@@ -19,7 +19,7 @@ coordinated façade; capture and preview use the base repository. Child actions
 inherit immutable root lineage. The TUI subclass delegates only to the
 Interfaces read-only handler.
 
-**Stage boundary:** Create or modify only `code_agent_win/`, root `tests/`,
+**Stage boundary:** Create or modify only `chaos_agent/`, root `tests/`,
 root documentation/configuration, and this plan. Every command must prove:
 
 ```powershell
@@ -41,7 +41,7 @@ $python = ".venv\Scripts\python.exe"
 2. `CoordinatedSessionRepository` stores the workspace fingerprint and calls
    `ensure_rewind_coverage()` inside the gate for each checkpoint. It must not
    retain a possibly stale `CoverageToken`.
-3. Frozen Sessions snapshot handles are thawed in `code_agent_win` to an exact
+3. Frozen Sessions snapshot handles are thawed in `chaos_agent` to an exact
    `dict` with a `list` `paths` value before `SnapshotHandle.from_dict()`.
 4. Legacy checkpoints (`checkpoint_fact is None`) use a second
    `observe_rewind()` and compare only conversation/checkpoint facts. They do
@@ -86,12 +86,12 @@ the already-landed `execution_context` protocol break.
 
 **Files:**
 
-- Create: `code_agent_win/app_factory.py`
-- Create: `code_agent_win/app_models.py`
-- Create: `code_agent_win/subagent_runner.py`
-- Modify: `code_agent_win/app.py`
-- Modify: `code_agent_win/action_dispatcher.py`
-- Modify: `code_agent_win/subagents.py`
+- Create: `chaos_agent/app_factory.py`
+- Create: `chaos_agent/app_models.py`
+- Create: `chaos_agent/subagent_runner.py`
+- Modify: `chaos_agent/app.py`
+- Modify: `chaos_agent/action_dispatcher.py`
+- Modify: `chaos_agent/subagents.py`
 - Modify: `tests/test_app_dispatcher.py`
 - Modify: `tests/test_subagent_integration.py`
 - Modify: `tests/test_agent_app.py`
@@ -181,9 +181,9 @@ Do not silently retry the old signature.
 - Split dispatcher authorization and execution branches into private helpers;
   preserve returned `ActionResult` values.
 
-Tests that patch `code_agent_win.app._model_client`,
-`code_agent_win.app._session_path`, and
-`code_agent_win.app.load_runtime_config` must continue to work.
+Tests that patch `chaos_agent.app._model_client`,
+`chaos_agent.app._session_path`, and
+`chaos_agent.app.load_runtime_config` must continue to work.
 
 ### Step 0.4: Verify and commit
 
@@ -194,7 +194,7 @@ Tests that patch `code_agent_win.app._model_client`,
   tests.test_app_dispatcher `
   tests.test_subagent_integration -v
 & $python -m unittest discover -s tests -p 'test_*.py' -v
-& $python -m compileall -q code_agent_win tests
+& $python -m compileall -q chaos_agent tests
 git diff --check
 git diff --name-only -- src
 ```
@@ -206,7 +206,7 @@ names under `tests.test_agent_app_full_stack.FullStackTests`:
 - `test_foreground_task_repairs_a_failed_test_then_checkpoints_completion`
 - `test_current_verification_evidence_expires_after_a_later_write`
 
-Run the AST structure gate across all `code_agent_win/*.py` and
+Run the AST structure gate across all `chaos_agent/*.py` and
 `tests/test_*.py`.
 
 Commit:
@@ -221,7 +221,7 @@ Commit:
 
 **Files:**
 
-- Create: `code_agent_win/rewind_gate.py`
+- Create: `chaos_agent/rewind_gate.py`
 - Create: `tests/test_rewind_gate.py`
 
 ### Step 1.1: Write the complete RED suite
@@ -244,7 +244,7 @@ Required tests:
 & $python -m unittest tests.test_rewind_gate -v
 ```
 
-Expected RED: `code_agent_win.rewind_gate` is missing.
+Expected RED: `chaos_agent.rewind_gate` is missing.
 
 ### Step 1.2: Implement the gate
 
@@ -323,7 +323,7 @@ database.
 
 ```powershell
 & $python -m unittest tests.test_rewind_gate -v
-& $python -m compileall -q code_agent_win/rewind_gate.py tests/test_rewind_gate.py
+& $python -m compileall -q chaos_agent/rewind_gate.py tests/test_rewind_gate.py
 git diff --check
 git diff --name-only -- src
 ```
@@ -340,8 +340,8 @@ Commit:
 
 **Files:**
 
-- Create: `code_agent_win/rewind_capture.py`
-- Modify: `code_agent_win/action_dispatcher.py`
+- Create: `chaos_agent/rewind_capture.py`
+- Modify: `chaos_agent/action_dispatcher.py`
 - Create: `tests/test_rewind_capture.py`
 - Modify: `tests/test_app_dispatcher.py`
 - Create: `tests/test_rewind_plugin_integration.py`
@@ -561,7 +561,7 @@ production guard or claim that branch is currently reachable.
   tests.test_rewind_plugin_integration `
   tests.test_app_dispatcher `
   tests.test_agent_app_full_stack -v
-& $python -m compileall -q code_agent_win tests
+& $python -m compileall -q chaos_agent tests
 git diff --check
 git diff --name-only -- src
 ```
@@ -578,12 +578,12 @@ Commit:
 
 **Files:**
 
-- Create: `code_agent_win/rewind_sessions.py`
-- Modify: `code_agent_win/action_dispatcher.py`
-- Modify: `code_agent_win/app.py`
-- Modify: `code_agent_win/subagent_runner.py`
-- Modify: `code_agent_win/subagents.py`
-- Modify: `code_agent_win/app_factory.py`
+- Create: `chaos_agent/rewind_sessions.py`
+- Modify: `chaos_agent/action_dispatcher.py`
+- Modify: `chaos_agent/app.py`
+- Modify: `chaos_agent/subagent_runner.py`
+- Modify: `chaos_agent/subagents.py`
+- Modify: `chaos_agent/app_factory.py`
 - Modify: `tests/test_agent_app.py`
 - Create: `tests/test_rewind_checkpoint_ordering.py`
 - Create: `tests/test_rewind_lineage_integration.py`
@@ -675,7 +675,7 @@ be GREEN. The actual lineage RED tests are:
 parent `ActionExecutionContext` to
 `SubagentRuntime.dispatch(..., execution_context=execution_context)`, but does
 not journal the delegate itself. This change belongs to Task 3 and is covered
-by `code_agent_win/action_dispatcher.py` in the allowlist.
+by `chaos_agent/action_dispatcher.py` in the allowlist.
 
 `EngineChildRunner` owns a task-local `ContextVar` and exposes token/reset
 helpers. `SubagentRuntime.dispatch` binds the parent context around the awaited
@@ -710,7 +710,7 @@ repository.
 
 Task 3 also establishes the production write-side composition:
 
-- add patchable `_product_state_root()` in `code_agent_win.app`, defaulting to
+- add patchable `_product_state_root()` in `chaos_agent.app`, defaulting to
   `%LOCALAPPDATA%\chaos-agent`, and forward that exact `Path` into
   `app_factory`;
 - re-export it from `app.py` so existing patch-based tests can isolate state;
@@ -737,7 +737,7 @@ Task 5 reuses this graph and adds only runtime/TUI read-side wiring.
   tests.test_subagent_integration `
   tests.test_context_runtime `
   tests.test_agent_app_full_stack -v
-& $python -m compileall -q code_agent_win tests
+& $python -m compileall -q chaos_agent tests
 git diff --check
 git diff --name-only -- src
 ```
@@ -754,9 +754,9 @@ Commit:
 
 **Files:**
 
-- Create: `code_agent_win/rewind_runtime.py`
-- Create: `code_agent_win/_rewind_runtime_projection.py`
-- Create: `code_agent_win/_rewind_runtime_validation.py`
+- Create: `chaos_agent/rewind_runtime.py`
+- Create: `chaos_agent/_rewind_runtime_projection.py`
+- Create: `chaos_agent/_rewind_runtime_validation.py`
 - Create: `tests/test_rewind_runtime.py`
 - Create: `tests/test_rewind_runtime_integrity.py`
 - Create: `tests/test_rewind_runtime_asof.py`
@@ -814,7 +814,7 @@ Commit:
   tests.test_rewind_runtime_asof -v
 ```
 
-Expected RED: `code_agent_win.rewind_runtime` is missing.
+Expected RED: `chaos_agent.rewind_runtime` is missing.
 
 ### Step 4.2: Implement public runtime API
 
@@ -1003,7 +1003,7 @@ selected and the checkpoint fact belongs to the current workspace.
 & $python -m unittest discover -s src/code_agent/sessions/tests -p 'test_*.py' -v
 & $python -m unittest discover -s src/code_agent/workspace/tests -p 'test_*.py' -v
 & $python -m unittest discover -s src/code_agent/interfaces/tests -p 'test_*.py' -v
-& $python -m compileall -q code_agent_win tests
+& $python -m compileall -q chaos_agent tests
 git diff --check
 git diff --name-only -- src
 ```
@@ -1020,11 +1020,11 @@ Commit:
 
 **Files:**
 
-- Modify: `code_agent_win/app.py`
-- Modify: `code_agent_win/app_factory.py`
-- Modify: `code_agent_win/app_models.py`
-- Modify: `code_agent_win/app_ui.py`
-- Modify: `code_agent_win/AGENTS.md`
+- Modify: `chaos_agent/app.py`
+- Modify: `chaos_agent/app_factory.py`
+- Modify: `chaos_agent/app_models.py`
+- Modify: `chaos_agent/app_ui.py`
+- Modify: `chaos_agent/AGENTS.md`
 - Modify: `tests/test_agent_app.py`
 - Create: `tests/test_rewind_tui_integration.py`
 
@@ -1075,7 +1075,7 @@ Complete this construction order:
 11. TUI with runtime.
 
 The `_product_state_root()` helper introduced in Task 3 remains patchable from
-`code_agent_win.app` tests.
+`chaos_agent.app` tests.
 Application tests must use a sibling product-state directory outside their
 workspace; do not weaken Workspace safety.
 
@@ -1150,7 +1150,7 @@ Document side effects and the no-apply boundary.
   tests.test_command_integration `
   tests.test_subagent_integration `
   tests.test_context_runtime -v
-& $python -m compileall -q code_agent_win tests
+& $python -m compileall -q chaos_agent tests
 git diff --check
 git diff --name-only -- src
 ```
@@ -1171,7 +1171,7 @@ Commit:
 - Modify: `README.md`
 - Modify: `docs/amp-inspired-runtime.md`
 - Modify: `docs/research/cli-tui-design-comparison.md`
-- Modify: `code_agent_win/AGENTS.md` only if final contract correction is needed
+- Modify: `chaos_agent/AGENTS.md` only if final contract correction is needed
 
 ### Step 6.1: Update only verified claims
 
@@ -1209,7 +1209,7 @@ foreach ($tests in $featureTests) {
 ```powershell
 & $python -m unittest discover -s tests -p 'test_*.py' -v
 if ($LASTEXITCODE -ne 0) { throw 'failed root integration suite' }
-& $python -m compileall -q src code_agent_win tests
+& $python -m compileall -q src chaos_agent tests
 if ($LASTEXITCODE -ne 0) { throw 'compileall failed' }
 git diff --check
 git diff --name-only -- src

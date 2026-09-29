@@ -195,7 +195,7 @@ TUI/CLI 选择 checkpoint 后读取 manifest 与当前 inventory，生成：
 
 ### 根级集成
 
-- `code_agent_win` 创建 lineage/worktree，再以 worktree root 组合所有 workspace-scoped 服务。
+- `chaos_agent` 创建 lineage/worktree，再以 worktree root 组合所有 workspace-scoped 服务。
 - `CheckpointService` 协调 Sessions 与 Workspace capture。
 - `RewindCoordinator` 协调停止 Runtime、恢复 Workspace、会话分叉和 lease 转交。
 - 根级不重复 Feature 内部的路径、Git、快照或数据库规则。
@@ -254,7 +254,7 @@ TUI/CLI 选择 checkpoint 后读取 manifest 与当前 inventory，生成：
 
 1. 需求：更新 Workspace、Sessions、Core、Interfaces Feature 的目标与边界；不填写新增 Units。
 2. 实现：依次完成 Workspace inventory/blob/worktree、Sessions schema/repository、Core invalidation、Interfaces Controller/Picker；每个 Feature 内更新 Units 并定向验证。
-3. 集成：只在根级 `code_agent_win` 组合 worktree、checkpoint 和 rewind 服务，不再修改 Feature 源码。
+3. 集成：只在根级 `chaos_agent` 组合 worktree、checkpoint 和 rewind 服务，不再修改 Feature 源码。
 4. 验证：Feature 测试、根级集成测试、完整回归和真实 Windows/Git 人工故障演练。
 
 ## 完成定义

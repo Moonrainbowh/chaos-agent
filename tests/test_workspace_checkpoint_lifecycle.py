@@ -16,9 +16,9 @@ from code_agent.sessions.errors import SessionNotFound
 from code_agent.sessions.models import CheckpointRecord
 from code_agent.sessions.repository import SQLiteSessionRepository
 from code_agent.workflows.service import WorkflowService
-from code_agent_win.foreground_tasks import IntegratedForegroundTaskController
-from code_agent_win.workspace_checkpoint_runtime import _ListedCheckpointService
-from code_agent_win.workspace_runtime import ManagedWorkspaceRuntime
+from chaos_agent.foreground_tasks import IntegratedForegroundTaskController
+from chaos_agent.workspace_checkpoint_runtime import _ListedCheckpointService
+from chaos_agent.workspace_runtime import ManagedWorkspaceRuntime
 
 
 class _BlockingRunner:

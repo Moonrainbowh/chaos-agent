@@ -8,8 +8,8 @@ from pathlib import Path
 from code_agent.orchestration.models import AgentDefinition, AgentMode, AgentRole
 from code_agent.orchestration.modes import ModeRegistry, standard_mode_definitions
 from code_agent.providers.config import ApiProtocol, ModelProfile, ProviderConfig
-from code_agent_win.runtime_dispatcher_factory import RuntimeDispatcherFactory
-from code_agent_win.runtime_provider_controls import ProviderControls
+from chaos_agent.runtime_dispatcher_factory import RuntimeDispatcherFactory
+from chaos_agent.runtime_provider_controls import ProviderControls
 
 
 class _Client:

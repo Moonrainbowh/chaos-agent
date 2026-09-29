@@ -4,11 +4,11 @@ from typing import Any
 
 from code_agent.interfaces.cost_control import TaskCostControl
 from code_agent.interfaces.task_mode_control import TaskModeControl
-from code_agent_win.multimodal_ui import build_attachment_draft
-from code_agent_win.runtime_controls import compose_runtime_controls
-from code_agent_win.semantic_insights import SemanticGraphControl
-from code_agent_win.system_diagnostics import SystemDoctor
-from code_agent_win.ui_composition import compose_ui
+from chaos_agent.multimodal_ui import build_attachment_draft
+from chaos_agent.runtime_controls import compose_runtime_controls
+from chaos_agent.semantic_insights import SemanticGraphControl
+from chaos_agent.system_diagnostics import SystemDoctor
+from chaos_agent.ui_composition import compose_ui
 
 
 def configure_product_controls(host: Any) -> None:
@@ -30,8 +30,8 @@ def configure_product_controls(host: Any) -> None:
         activity_lock=host.activity_lock,
     )
     host.snapshot = host.controls.runtime_selection.snapshot
-    from code_agent_win.auth_runtime_control import AuthenticationRuntimeControl
-    from code_agent_win.model_selection_preference import ModelSelectionPreferenceStore
+    from chaos_agent.auth_runtime_control import AuthenticationRuntimeControl
+    from chaos_agent.model_selection_preference import ModelSelectionPreferenceStore
     host.authentication = AuthenticationRuntimeControl(host.profiles, host.controls.register_profile)
     host.model_preferences = ModelSelectionPreferenceStore(host.product_state_root)
     host.controls.set_profile_restorer(host.authentication.restore_profile)

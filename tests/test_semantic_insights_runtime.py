@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from code_agent.context.models import RepoEntry
 from code_agent.context.repo_index import RepoIndexSnapshot
 from code_agent.context.repo_search import RepoLexicalRanks
-from code_agent_win.semantic_insights import SemanticGraphControl
+from chaos_agent.semantic_insights import SemanticGraphControl
 
 
 class _Index:

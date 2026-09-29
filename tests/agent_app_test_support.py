@@ -34,8 +34,8 @@ from code_agent.workspace.files import WorkspaceFiles  # noqa: E402
 from code_agent.workspace.git import GitWorkspace  # noqa: E402
 from code_agent.workspace.ignore import IgnoreRules  # noqa: E402
 from code_agent.workspace.paths import WorkspacePathGuard  # noqa: E402
-from code_agent_win import agent_modes  # noqa: E402
-from code_agent_win.app import RootActionDispatcher, create_application  # noqa: E402
+from chaos_agent import agent_modes  # noqa: E402
+from chaos_agent.app import RootActionDispatcher, create_application  # noqa: E402
 from tests.test_agent_app_full_stack import FakeModel  # noqa: E402
 
 
@@ -86,11 +86,11 @@ def _isolated_application(
             "LOCALAPPDATA": str(container / "localappdata"),
             "PATH": os.environ.get("PATH", ""),
         }, clear=True),
-        patch("code_agent_win.app._model_client", return_value=object()),
-        patch("code_agent_win.app._session_path",
+        patch("chaos_agent.app._model_client", return_value=object()),
+        patch("chaos_agent.app._session_path",
               return_value=product / "sessions.sqlite3"),
-        patch("code_agent_win.app._product_state_root", return_value=product),
-        patch("code_agent_win.app.load_runtime_config", return_value=runtime),
+        patch("chaos_agent.app._product_state_root", return_value=product),
+        patch("chaos_agent.app.load_runtime_config", return_value=runtime),
     )
     with patches[0], patches[1], patches[2], patches[3], patches[4]:
         return create_application(workspace), workspace, product
@@ -114,13 +114,13 @@ def _workspace_application(
         for mode in agent_modes.AgentMode
     }
     patches = (
-        patch("code_agent_win.app._model_client", side_effect=lambda _: object()),
-        patch("code_agent_win.app._session_path", return_value=state / "sessions.sqlite3"),
+        patch("chaos_agent.app._model_client", side_effect=lambda _: object()),
+        patch("chaos_agent.app._session_path", return_value=state / "sessions.sqlite3"),
         patch(
-            "code_agent_win.app._workspace_storage_path",
+            "chaos_agent.app._workspace_storage_path",
             return_value=state / workspace_storage_name,
         ),
-        patch("code_agent_win.app.load_runtime_config", return_value=runtime),
+        patch("chaos_agent.app.load_runtime_config", return_value=runtime),
         patch.dict("os.environ", mode_env),
     )
     stack = contextlib.ExitStack()

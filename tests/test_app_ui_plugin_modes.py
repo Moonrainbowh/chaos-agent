@@ -12,7 +12,7 @@ from code_agent.orchestration.models import (
     ReasoningEffort,
 )
 from code_agent.orchestration.plugin_extensions import PluginModeSnapshot
-from code_agent_win.app_ui import PluginModeControl
+from chaos_agent.app_ui import PluginModeControl
 
 
 class _BaseModes:

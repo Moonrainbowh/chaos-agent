@@ -6,8 +6,8 @@ import unittest
 from pathlib import Path
 
 from code_agent.interfaces.tests.test_command_navigation import Runtime, make_app
-from code_agent_win.application_model import Application
-from code_agent_win.model_selection_preference import (
+from chaos_agent.application_model import Application
+from chaos_agent.model_selection_preference import (
     ModelSelectionPreference,
     ModelSelectionPreferenceStore,
 )

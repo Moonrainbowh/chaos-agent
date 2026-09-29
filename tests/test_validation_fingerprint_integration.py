@@ -5,7 +5,7 @@ import unittest
 from code_agent.core.engine_actions import _validation_fingerprint
 from code_agent.core.models import ActionRequest
 from code_agent.runtime.models import CommandResult, TerminationReason
-from code_agent_win.tool_support import command_action_result
+from chaos_agent.tool_support import command_action_result
 
 
 def failed_result(stderr: bytes) -> CommandResult:

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import os  # Compatibility export for callers patching code_agent_win.app.os.
+import os  # Compatibility export for callers patching chaos_agent.app.os.
 from dataclasses import replace
 from pathlib import Path
 
@@ -23,27 +23,27 @@ from code_agent.workspace.ignore import IgnoreRules
 from code_agent.workspace.paths import WorkspacePathGuard
 from code_agent.workspace.edits import WorkspaceEditor
 
-from code_agent_win.application_context import RuntimeContextFactory
-from code_agent_win.application_model import Application
-from code_agent_win.context_runtime import build_context_runtime
-from code_agent_win.action_dispatcher import RootActionDispatcher
-from code_agent_win.host_composition import compose_host
-from code_agent_win.peer_composition import compose_peers
-from code_agent_win.agent_modes import build_mode_registry, freeze_mode
-from code_agent_win.runtime_support import model_client, profile_model_factory, replace_model
-from code_agent_win.runtime_extensions import SkillApprovalAdapter, ThreadRuntimeBinding
-from code_agent_win.rewind_runtime import RewindRuntime
-from code_agent_win.rewind_sessions import build_rewind_write_side
-from code_agent_win.tool_support import discover_git_workspace
-from code_agent_win.workspace_runtime import ManagedWorkspaceRuntime
-from code_agent_win.workspace_mutation_pool import WorkspaceMutationPool
-from code_agent_win.workspace_session_router import WorkspaceSessionRouter
-from code_agent_win.workspace_context import workspace_uses_repo_map
-from code_agent_win.application_product import (
+from chaos_agent.application_context import RuntimeContextFactory
+from chaos_agent.application_model import Application
+from chaos_agent.context_runtime import build_context_runtime
+from chaos_agent.action_dispatcher import RootActionDispatcher
+from chaos_agent.host_composition import compose_host
+from chaos_agent.peer_composition import compose_peers
+from chaos_agent.agent_modes import build_mode_registry, freeze_mode
+from chaos_agent.runtime_support import model_client, profile_model_factory, replace_model
+from chaos_agent.runtime_extensions import SkillApprovalAdapter, ThreadRuntimeBinding
+from chaos_agent.rewind_runtime import RewindRuntime
+from chaos_agent.rewind_sessions import build_rewind_write_side
+from chaos_agent.tool_support import discover_git_workspace
+from chaos_agent.workspace_runtime import ManagedWorkspaceRuntime
+from chaos_agent.workspace_mutation_pool import WorkspaceMutationPool
+from chaos_agent.workspace_session_router import WorkspaceSessionRouter
+from chaos_agent.workspace_context import workspace_uses_repo_map
+from chaos_agent.application_product import (
     configure_product_controls,
     configure_product_ui,
 )
-from code_agent_win.app_paths import product_state_root as _product_state_root, session_path as _session_path, workspace_storage_path as _workspace_storage_path
+from chaos_agent.app_paths import product_state_root as _product_state_root, session_path as _session_path, workspace_storage_path as _workspace_storage_path
 
 
 _model_client = model_client
@@ -124,6 +124,7 @@ class _ApplicationComposer:
         self._configure_peers()
         self._configure_context()
         self._configure_host()
+        self.skills.set_capability_snapshot(self.dispatcher.tools)
         self._configure_controls()
         self._configure_ui()
         return self._finish()
@@ -253,6 +254,7 @@ class _ApplicationComposer:
             subagents=self.controls.subagents,
             rewind=self.rewind,
             repo_index=self.repo_index,
+            repo_index_warmup=self.repo_map_enabled,
             workflows=self.workflows,
             workspace_runtime=self.workspace_runtime,
             attachment_store=self.attachment_store,

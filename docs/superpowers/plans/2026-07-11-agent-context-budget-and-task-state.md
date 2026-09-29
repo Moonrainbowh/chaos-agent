@@ -59,8 +59,8 @@ If a 2,000-token message minimum would not fit, the repo map shrinks first. If i
 | `src/code_agent/core/engine.py` | Obtain tools/state before context build and emit bounded usage metrics. |
 | `src/code_agent/sessions/_database.py` | Migration for task-state persistence. |
 | `src/code_agent/sessions/repository.py` | Read, atomically update, and reduce persistent task state. |
-| `code_agent_win/tools.py` | Single source of truth for tool schemas and typed argument validation. |
-| `code_agent_win/app.py` | Wire schemas, state updates, cache invalidation, and context dependencies. |
+| `chaos_agent/tools.py` | Single source of truth for tool schemas and typed argument validation. |
+| `chaos_agent/app.py` | Wire schemas, state updates, cache invalidation, and context dependencies. |
 | `README.md` | Document budgets, configuration, cache behavior, and locally stored metrics. |
 | Feature `AGENTS.md` files | Record each new public unit and its boundary. |
 
@@ -241,7 +241,7 @@ git commit -m "feat: build model contexts from dynamic budgets"
 - Modify: `src/code_agent/context/AGENTS.md`
 - Create: `src/code_agent/context/tests/test_cache.py`
 - Modify: `src/code_agent/context/tests/test_repo_map.py`
-- Modify: `code_agent_win/app.py`
+- Modify: `chaos_agent/app.py`
 - Modify: `tests/test_agent_app.py`
 
 - [ ] **Step 1: Write cache correctness tests.**
@@ -302,7 +302,7 @@ Expected: PASS, and the test double proves no second parse for an unchanged file
 - [ ] **Step 6: Commit repository-map caching.**
 
 ```powershell
-git add src/code_agent/context/cache.py src/code_agent/context/repo_map.py src/code_agent/context/builder.py src/code_agent/context/AGENTS.md src/code_agent/context/tests src/code_agent_win/app.py tests/test_agent_app.py
+git add src/code_agent/context/cache.py src/code_agent/context/repo_map.py src/code_agent/context/builder.py src/code_agent/context/AGENTS.md src/code_agent/context/tests src/chaos_agent/app.py tests/test_agent_app.py
 git commit -m "feat: cache repository map parsing"
 ```
 
@@ -404,8 +404,8 @@ git commit -m "feat: persist structured agent task state"
 ## Task 5: Define and Validate Tool Schemas
 
 **Files:**
-- Create: `code_agent_win/tools.py`
-- Modify: `code_agent_win/app.py`
+- Create: `chaos_agent/tools.py`
+- Modify: `chaos_agent/app.py`
 - Modify: `src/code_agent/policy/classifier.py`
 - Modify: `src/code_agent/policy/AGENTS.md`
 - Modify: `tests/test_agent_app.py`
@@ -433,11 +433,11 @@ async def test_task_state_update_is_persisted_without_workspace_approval() -> No
     self.assertIn("working_notes", (await sessions.load_task_state(thread_id)).to_dict())
 ```
 
-- [ ] **Step 2: Make `code_agent_win/tools.py` the single source of truth.**
+- [ ] **Step 2: Make `chaos_agent/tools.py` the single source of truth.**
 
 Expose:
 
-Expose `tool_definitions()`, which returns an immutable sequence of `ToolDefinition`, and `parse_tool_arguments(name, arguments)`, which returns a JSON-safe argument mapping, from `code_agent_win.tools`.
+Expose `tool_definitions()`, which returns an immutable sequence of `ToolDefinition`, and `parse_tool_arguments(name, arguments)`, which returns a JSON-safe argument mapping, from `chaos_agent.tools`.
 
 Define JSON Schemas with `additionalProperties: false` for exactly these names: `read_file`, `list_files`, `search_text`, `write_file`, `replace_text`, `git_status`, `git_diff`, `run_command`, and `update_task_state`.
 
@@ -479,7 +479,7 @@ Expected: PASS. Confirm malformed tool calls do not create a file, spawn a proce
 - [ ] **Step 6: Commit schema-driven tools.**
 
 ```powershell
-git add code_agent_win/tools.py code_agent_win/app.py src/code_agent/policy/classifier.py src/code_agent/policy/AGENTS.md tests/test_agent_app.py tests/test_tool_schemas.py
+git add chaos_agent/tools.py chaos_agent/app.py src/code_agent/policy/classifier.py src/code_agent/policy/AGENTS.md tests/test_agent_app.py tests/test_tool_schemas.py
 git commit -m "feat: validate agent tool schemas"
 ```
 
@@ -491,7 +491,7 @@ git commit -m "feat: validate agent tool schemas"
 - Modify: `src/code_agent/core/AGENTS.md`
 - Modify: `src/code_agent/context/AGENTS.md`
 - Modify: `src/code_agent/sessions/AGENTS.md`
-- Modify: `code_agent_win/app.py`
+- Modify: `chaos_agent/app.py`
 - Modify: `README.md`
 - Modify: `tests/test_agent_app.py`
 - Modify: `src/code_agent/core/tests/test_engine_run.py`
@@ -541,7 +541,7 @@ Use the existing fake-model integration harness to run this deterministic sequen
 - [ ] **Step 6: Commit measurement and documentation work.**
 
 ```powershell
-git add src/code_agent/core/events.py src/code_agent/core/engine.py src/code_agent/core/AGENTS.md src/code_agent/context/AGENTS.md src/code_agent/sessions/AGENTS.md code_agent_win/app.py README.md tests/test_agent_app.py src/code_agent/core/tests/test_engine_run.py
+git add src/code_agent/core/events.py src/code_agent/core/engine.py src/code_agent/core/AGENTS.md src/code_agent/context/AGENTS.md src/code_agent/sessions/AGENTS.md chaos_agent/app.py README.md tests/test_agent_app.py src/code_agent/core/tests/test_engine_run.py
 git commit -m "docs: document bounded agent context operations"
 ```
 

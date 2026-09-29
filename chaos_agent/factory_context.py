@@ -7,9 +7,9 @@ from code_agent.context.repo_map import RepoMapBuilder
 from code_agent.context.rules import RuleLoader
 from code_agent.orchestration.models import ModeSnapshot
 
-from code_agent_win.agent_modes import mode_prompt
-from code_agent_win.app_models import FactoryHost
-from code_agent_win.tool_support import windows_system_prompt
+from chaos_agent.agent_modes import mode_prompt
+from chaos_agent.app_models import FactoryHost
+from chaos_agent.tool_support import windows_system_prompt
 
 
 def build_factory_context(

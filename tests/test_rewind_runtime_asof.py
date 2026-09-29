@@ -22,7 +22,7 @@ from tests.test_rewind_runtime import (
     NOW, FakeSessions, RuntimeHarness, checkpoint, heads, observation,
 )
 from tests.test_rewind_runtime_integrity import IntegrityHarness
-from code_agent_win._rewind_runtime_validation import CodeProjection
+from chaos_agent._rewind_runtime_validation import CodeProjection
 LATER = datetime(2026, 7, 20, tzinfo=timezone.utc)
 def _assert_disabled_facts(test, facts, item, conversation_reason, code_reason):
     code_head = (
@@ -60,7 +60,7 @@ class RewindRuntimeAsOfTests(
     async def test_second_current_state_overflow_maps_preview_limit(self):
         item = observation(self.fingerprint)
         with patch(
-            "code_agent_win.rewind_runtime.observe_file_states",
+            "chaos_agent.rewind_runtime.observe_file_states",
             side_effect=FileTooLargeError("second observation too large"),
         ):
             preview = await self.runtime((item, item)).preview(
@@ -94,7 +94,7 @@ class RewindRuntimeAsOfTests(
         runtime = self.runtime(values)
         runtime.clock = lambda: calls.append(LATER) or LATER
         with patch(
-            "code_agent_win.rewind_runtime.build_rewind_preview",
+            "chaos_agent.rewind_runtime.build_rewind_preview",
             side_effect=lambda kind, facts: (
                 captured.append(facts) or build_rewind_preview(kind, facts)),
         ):
@@ -151,7 +151,7 @@ class RewindRuntimeAsOfTests(
             captured.append(facts)
             return build_rewind_preview(kind, facts)
 
-        with patch("code_agent_win.rewind_runtime.build_rewind_preview",
+        with patch("chaos_agent.rewind_runtime.build_rewind_preview",
                    side_effect=build):
             preview = await self.runtime((item, item)).preview(
                 "thread", "cp", RewindKind.BOTH
@@ -197,12 +197,12 @@ class RewindRuntimeAsOfTests(
             with self.subTest(code_reason=code_reason):
                 captured = []
                 projection = (
-                    patch("code_agent_win.rewind_runtime.project_code",
+                    patch("chaos_agent.rewind_runtime.project_code",
                           return_value=CodeProjection((), (), None, forced))
                     if forced else nullcontext()
                 )
                 with projection, patch(
-                    "code_agent_win.rewind_runtime.build_rewind_preview",
+                    "chaos_agent.rewind_runtime.build_rewind_preview",
                     side_effect=lambda kind, facts: (
                         captured.append(facts) or build_rewind_preview(kind, facts)
                     ),
@@ -225,7 +225,7 @@ class RewindRuntimeAsOfTests(
         runtime.clock = clock
         captured = []
         with patch(
-            "code_agent_win.rewind_runtime.build_rewind_preview",
+            "chaos_agent.rewind_runtime.build_rewind_preview",
             side_effect=lambda kind, facts: (
                 captured.append(facts) or build_rewind_preview(kind, facts)),
         ):

@@ -25,7 +25,7 @@ Pi 快照列出 39 家，但 URI 当前可运行协议过滤不包含 `amazon-be
 
 ## 使用
 
-Antigravity 需要在启动进程的环境中配置 `ANTIGRAVITY_OAUTH_CLIENT_ID` 和 `ANTIGRAVITY_OAUTH_CLIENT_SECRET`，使用有权使用的 OAuth 应用配置。仓库不再内置这两项值；缺失或空白时，登录和刷新会在打开浏览器或发送请求前停止，并提示缺失的变量名。已保存登录的刷新也需要相同应用配置；环境变量只从当前进程读取，不写入仓库。
+Antigravity 默认使用 URI Agent 的公开 OAuth 应用配置，普通用户无需手动设置环境变量即可通过浏览器登录。需要使用自有 OAuth 应用时，可在启动进程中设置 `ANTIGRAVITY_OAUTH_CLIENT_ID` 和 `ANTIGRAVITY_OAUTH_CLIENT_SECRET` 覆盖默认值；已保存登录的刷新会继续使用当前配置的应用身份。
 
 在交互式 TUI 中输入 `/login` 并按 Enter，选择平台和登录方式。OAuth 按浏览器/设备码提示完成；API Key 在隐藏输入框中输入，Enter 确认、Esc 取消。不要把密钥直接写在命令后面。
 

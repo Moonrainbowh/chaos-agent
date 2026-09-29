@@ -18,7 +18,7 @@ if str(SRC_ROOT) not in sys.path:
 
 from code_agent.workspace.edits import WorkspaceEditor  # noqa: E402
 from code_agent.sessions.errors import SessionNotFound  # noqa: E402
-from code_agent_win.workspace_runtime import ManagedWorkspaceRuntime  # noqa: E402
+from chaos_agent.workspace_runtime import ManagedWorkspaceRuntime  # noqa: E402
 from tests.agent_app_test_support import _init_git_source  # noqa: E402
 
 

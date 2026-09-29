@@ -138,7 +138,7 @@ CI 覆盖 Linux fmt/clippy/test/check，以及 Windows、macOS 测试；release 
 | MCP | 丰富的 lazy bridge，支持更多 transport | approved stdio、generation snapshot、policy bridge | 合并两者优势 |
 | IDE 互操作 | 已实现 ACP v1 | 未见 ACP 适配 | Chaos 明显缺口 |
 | 插件灵活性 | 原生 + WASM + resident | 声明式、不可直接执行任意代码 | URI 更灵活，Chaos 更安全 |
-| 跨平台 | Rust 单二进制，多平台发布 | Windows-first，共享 Python 核心 + 少量 OS 适配 | 不构成重写 Rust 的理由 |
+| 跨平台 | Rust 单二进制，多平台发布 | 跨平台共享 Python 核心 + 平台 Runtime 适配 | 不构成重写 Rust 的理由 |
 
 结论不是谁“更先进”，而是两者优化目标不同：URI Agent 追求**统一与扩展性**，Chaos Agent 追求**高权限操作的可控性、可恢复性和可证明性**。最佳组合应保留后者的执行内核，只把前者的发现层和互操作层引入。
 

@@ -16,7 +16,7 @@ from code_agent.workspace.edits import WorkspaceEditor
 from code_agent.workspace.files import WorkspaceFiles
 from code_agent.workspace.ignore import IgnoreRules
 from code_agent.workspace.paths import WorkspacePathGuard
-from code_agent_win.action_dispatcher import RootActionDispatcher
+from chaos_agent.action_dispatcher import RootActionDispatcher
 from tests.test_rewind_capture import CaptureHarness, _blocking_observation, _prepared
 
 
@@ -222,7 +222,7 @@ class CaptureCancellationTests(CaptureHarness, unittest.IsolatedAsyncioTestCase)
         started, finish, observe = _blocking_observation(
             self.calls, _prepared().before)
         with self.patches(), unittest.mock.patch(
-            "code_agent_win.rewind_capture.observe_file_states", observe
+            "chaos_agent.rewind_capture.observe_file_states", observe
         ):
             task = asyncio.create_task(
                 self.coordinator.apply_edit(self.context, self.request, self.plan)

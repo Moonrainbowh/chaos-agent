@@ -30,23 +30,23 @@ from code_agent.workspace.files import WorkspaceFiles  # noqa: E402
 from code_agent.workspace.git import GitWorkspace  # noqa: E402
 from code_agent.workspace.ignore import IgnoreRules  # noqa: E402
 from code_agent.workspace.paths import WorkspacePathGuard  # noqa: E402
-from code_agent_win.app import RootActionDispatcher  # noqa: E402
-from code_agent_win.tool_support import (  # noqa: E402
+from chaos_agent.app import RootActionDispatcher  # noqa: E402
+from chaos_agent.tool_support import (  # noqa: E402
     discover_git_workspace,
     windows_system_prompt,
 )
-from code_agent_win.tools import (  # noqa: E402
+from chaos_agent.tools import (  # noqa: E402
     powershell_compatibility_error,
     tool_definitions,
 )
-from code_agent_win.cli import _split_global_options  # noqa: E402
+from chaos_agent.cli import _split_global_options  # noqa: E402
 from code_agent.plugins.models import PluginRisk, ToolContribution  # noqa: E402
 from code_agent.plugins.registry import (  # noqa: E402
     ContributionSnapshot,
     PluginHost,
     RegisteredContribution,
 )
-from code_agent_win.plugin_runtime import (  # noqa: E402
+from chaos_agent.plugin_runtime import (  # noqa: E402
     PluginToolBridge,
 )
 

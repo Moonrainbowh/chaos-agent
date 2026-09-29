@@ -207,10 +207,10 @@ return await inner.build(thread_id, result.messages, user_input, tools, task_sta
 ### Task 9: 根级集成
 
 **Files:**
-- Modify: `code_agent_win/app.py`
-- Modify: `code_agent_win/action_dispatcher.py`
-- Modify: `code_agent_win/subagents.py`
-- Modify: `code_agent_win/tools.py`
+- Modify: `chaos_agent/app.py`
+- Modify: `chaos_agent/action_dispatcher.py`
+- Modify: `chaos_agent/subagents.py`
+- Modify: `chaos_agent/tools.py`
 - Modify: `tests/test_agent_app.py`
 - Modify: `tests/test_subagent_integration.py`
 - Modify: `tests/test_tool_schemas.py`

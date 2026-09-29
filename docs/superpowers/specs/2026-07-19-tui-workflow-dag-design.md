@@ -153,7 +153,7 @@ src/code_agent/workflows/
 - `orchestration`：把子 Agent 生命周期投影为节点状态。
 - `verification`：把 Evidence 绑定到验证节点。
 - `interfaces`：渲染流程快照、节点详情和命令结果。
-- `code_agent_win`：组合 Workflow Service 与现有 TUI、任务和子 Agent Runtime。
+- `chaos_agent`：组合 Workflow Service 与现有 TUI、任务和子 Agent Runtime。
 
 ## 数据模型
 

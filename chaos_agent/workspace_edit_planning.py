@@ -13,7 +13,7 @@ from code_agent.workspace._secure_io import canonical_path_key
 from code_agent.workspace.edits import WorkspaceEditor
 from code_agent.workspace.git import GitWorkspace
 
-from code_agent_win.edit_plan_store import (
+from chaos_agent.edit_plan_store import (
     StoredWorkspaceEditPlan,
     WorkspaceEditPlanStore,
 )

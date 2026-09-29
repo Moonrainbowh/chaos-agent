@@ -9,11 +9,11 @@ from code_agent.workspace.edits import WorkspaceEditor
 from code_agent.workspace.paths import WorkspacePathGuard
 from code_agent.workspace.snapshot_store import WorkspaceSnapshotStore
 
-from code_agent_win.edit_plan_preview import default_workspace_fingerprint
-from code_agent_win.edit_plan_store import WorkspaceEditPlanStore
-from code_agent_win.rewind_capture import RewindCaptureCoordinator
-from code_agent_win.rewind_gate import WorkspaceMutationGate
-from code_agent_win.rewind_sessions import CoordinatedSessionRepository
+from chaos_agent.edit_plan_preview import default_workspace_fingerprint
+from chaos_agent.edit_plan_store import WorkspaceEditPlanStore
+from chaos_agent.rewind_capture import RewindCaptureCoordinator
+from chaos_agent.rewind_gate import WorkspaceMutationGate
+from chaos_agent.rewind_sessions import CoordinatedSessionRepository
 
 
 @dataclass(frozen=True)

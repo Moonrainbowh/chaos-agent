@@ -14,15 +14,15 @@ from code_agent.core.attachments import AttachmentRef
 from code_agent.interfaces.attachment_input import DEFAULT_ATTACHMENT_PROMPT
 from code_agent.interfaces.commands import CommandKind
 from code_agent.orchestration.models import AgentDefinition, AgentRole
-from code_agent_win import agent_modes
-from code_agent_win.app import Application, _workspace_storage_path, create_application
-from code_agent_win.cli import (
+from chaos_agent import agent_modes
+from chaos_agent.app import Application, _workspace_storage_path, create_application
+from chaos_agent.cli import (
     _split_attachment_options,
     _split_global_options,
     _split_mode_option,
     run,
 )
-from code_agent_win.rewind_sessions import CoordinatedSessionRepository
+from chaos_agent.rewind_sessions import CoordinatedSessionRepository
 from tests.agent_app_test_support import _configured_application
 
 
@@ -52,8 +52,8 @@ class CliFailureTests(unittest.IsolatedAsyncioTestCase):
     async def test_help_and_version_do_not_require_provider_configuration(self) -> None:
         stdout = StringIO()
 
-        with patch("code_agent_win.cli.create_application") as create, patch(
-            "code_agent_win.cli.package_version", return_value="1.2.3"
+        with patch("chaos_agent.cli.create_application") as create, patch(
+            "chaos_agent.cli.package_version", return_value="1.2.3"
         ), patch("sys.stdout", stdout):
             self.assertEqual(await run(("--help",)), 0)
             self.assertEqual(await run(("--version",)), 0)
@@ -65,7 +65,7 @@ class CliFailureTests(unittest.IsolatedAsyncioTestCase):
     async def test_subcommand_help_is_available_before_application_startup(self) -> None:
         stdout = StringIO()
 
-        with patch("code_agent_win.cli.create_application") as create, patch(
+        with patch("chaos_agent.cli.create_application") as create, patch(
             "sys.stdout", stdout
         ):
             for command in (("ask", "--help"), ("run", "--help"), ("resume", "--help"), ("task", "--help")):
@@ -80,7 +80,7 @@ class CliFailureTests(unittest.IsolatedAsyncioTestCase):
         stderr = StringIO()
 
         with patch(
-            "code_agent_win.cli.create_application",
+            "chaos_agent.cli.create_application",
             side_effect=LocalConfigError("base_url must be non-empty text"),
         ), patch("sys.stderr", stderr):
             status = await run(("task", "list"))
@@ -124,7 +124,7 @@ class CliFailureTests(unittest.IsolatedAsyncioTestCase):
         stderr = StringIO()
 
         with patch(
-            "code_agent_win.cli.create_application",
+            "chaos_agent.cli.create_application",
             side_effect=RuntimeError("secret detail"),
         ):
             with patch("sys.stderr", stderr):
@@ -154,9 +154,9 @@ class CliFailureTests(unittest.IsolatedAsyncioTestCase):
                 execute = AsyncMock(return_value=0)
                 caller = threading.get_ident()
                 with patch(
-                    "code_agent_win.cli.create_application",
+                    "chaos_agent.cli.create_application",
                     return_value=application,
-                ), patch("code_agent_win.cli.execute_command", execute):
+                ), patch("chaos_agent.cli.execute_command", execute):
                     self.assertEqual(await run(arguments), 0)
 
                 command = execute.await_args.args[0]
@@ -168,7 +168,7 @@ class CliFailureTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_attachment_is_rejected_before_unsupported_command_ingestion(self) -> None:
         stderr = StringIO()
-        with patch("code_agent_win.cli.create_application") as create:
+        with patch("chaos_agent.cli.create_application") as create:
             with patch("sys.stderr", stderr):
                 status = await run(
                     ("task", "list", "--attach", r"C:\workspace\note.txt")
@@ -180,8 +180,8 @@ class CliFailureTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_interactive_startup_restores_only_without_explicit_model_override(self) -> None:
         execute = AsyncMock(return_value=0)
-        with patch("code_agent_win.cli.create_application", side_effect=_CliApplication) as create, patch(
-            "code_agent_win.cli.execute_command", execute
+        with patch("chaos_agent.cli.create_application", side_effect=_CliApplication) as create, patch(
+            "chaos_agent.cli.execute_command", execute
         ):
             self.assertEqual(await run(()), 0)
             self.assertTrue(create.call_args.kwargs["restore_model_selection"])

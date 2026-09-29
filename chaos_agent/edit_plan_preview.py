@@ -11,7 +11,7 @@ from code_agent.workspace._batch_models import BatchEditPlan, DeletePlan, MovePl
 from code_agent.workspace._edit_plan import EditPlan
 from code_agent.workspace.edits import WorkspaceEditor
 
-from code_agent_win.edit_plan_store import StoredWorkspaceEditPlan
+from chaos_agent.edit_plan_store import StoredWorkspaceEditPlan
 
 
 def default_workspace_fingerprint(editor: WorkspaceEditor) -> str:

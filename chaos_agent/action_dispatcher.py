@@ -20,37 +20,37 @@ from code_agent.workspace.files import WorkspaceFiles
 from code_agent.workspace.git import GitCommandError, GitWorkspace
 from code_agent.web_access import WebAccessService
 
-from code_agent_win.edit_plan_dispatch import WorkspaceEditPlanActions
-from code_agent_win.edit_plan_preview import default_workspace_fingerprint
-from code_agent_win.edit_plan_store import EditPlanStoreError, WorkspaceEditPlanStore
-from code_agent_win.plugin_runtime import PluginToolBridge
-from code_agent_win.permission_dispatch import (
+from chaos_agent.edit_plan_dispatch import WorkspaceEditPlanActions
+from chaos_agent.edit_plan_preview import default_workspace_fingerprint
+from chaos_agent.edit_plan_store import EditPlanStoreError, WorkspaceEditPlanStore
+from chaos_agent.plugin_runtime import PluginToolBridge
+from chaos_agent.permission_dispatch import (
     attach_permission_metadata,
     authorize_action,
     bind_process_rule,
     match_process_rule,
 )
-from code_agent_win.process_actions import run_powershell_action, run_process_action
-from code_agent_win.rewind_capture_support import (
+from chaos_agent.process_actions import run_powershell_action, run_process_action
+from chaos_agent.rewind_capture_support import (
     mcp_requires_gap,
     plugin_requires_gap,
     record_unknown_gap,
 )
-from code_agent_win.subagents import SubagentRuntime, SubagentTool
-from code_agent_win.tool_support import git_error_result
-from code_agent_win.tools import tool_definitions
+from chaos_agent.subagents import SubagentRuntime, SubagentTool
+from chaos_agent.tool_support import git_error_result
+from chaos_agent.tools import tool_definitions
 from code_agent.thread_intelligence.tools import ThreadIntelligenceTools
-from code_agent_win.action_support import (
+from chaos_agent.action_support import (
     error_result as _error,
     exception_result as _exception,
     ok_result as _ok,
     preflight_action,
     with_action_duration,
 )
-from code_agent_win.action_metrics import ActionMetricsCollector
-from code_agent_win.thread_actions import execute_thread_action
-from code_agent_win.verification_action import run_verification_action
-from code_agent_win.workspace_actions import execute_workspace_action
+from chaos_agent.action_metrics import ActionMetricsCollector
+from chaos_agent.thread_actions import execute_thread_action
+from chaos_agent.verification_action import run_verification_action
+from chaos_agent.workspace_actions import execute_workspace_action
 
 
 class RootActionDispatcher:

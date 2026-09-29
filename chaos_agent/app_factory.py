@@ -16,32 +16,32 @@ from code_agent.workspace.files import WorkspaceFiles
 from code_agent.workspace.ignore import IgnoreRules
 from code_agent.workspace.windows_paths import require_supported_windows_path
 from code_agent.workspace.paths import WorkspacePathGuard
-from code_agent_win.agent_modes import (
+from chaos_agent.agent_modes import (
     build_mode_registry,
     freeze_mode,
 )
-from code_agent_win.app_models import Application, FactoryExecution, FactoryHost
-from code_agent_win.app_presentation import (
+from chaos_agent.app_models import Application, FactoryExecution, FactoryHost
+from chaos_agent.app_presentation import (
     build_application_tui,
     build_foreground,
     build_main_dispatcher,
     capability_view,
 )
-from code_agent_win.factory_context import build_factory_context as _context_for
-from code_agent_win.factory_host import build_host_integrations
-from code_agent_win.app_ui import ModeAwareWindowsTerminalApp
-from code_agent_win.rewind_runtime import RewindRuntime
-from code_agent_win.runtime_support import (
+from chaos_agent.factory_context import build_factory_context as _context_for
+from chaos_agent.factory_host import build_host_integrations
+from chaos_agent.app_ui import ModeAwareWindowsTerminalApp
+from chaos_agent.rewind_runtime import RewindRuntime
+from chaos_agent.runtime_support import (
     profile_model_factory,
     replace_model,
 )
-from code_agent_win.rewind_sessions import (
+from chaos_agent.rewind_sessions import (
     build_child_engine_factory,
     build_engine,
 )
-from code_agent_win.subagents import EngineChildRunner, SubagentRuntime
-from code_agent_win.tool_support import discover_git_workspace
-from code_agent_win.workspace_context import workspace_uses_repo_map
+from chaos_agent.subagents import EngineChildRunner, SubagentRuntime
+from chaos_agent.tool_support import discover_git_workspace
+from chaos_agent.workspace_context import workspace_uses_repo_map
 def create_application(
     workspace_root: Path | None,
     *,
@@ -109,6 +109,7 @@ def _application(
         subagents=execution.subagents,
         rewind=rewind,
         repo_index=host.repo_index,
+        repo_index_warmup=host.repo_map_enabled,
         attachment_store=host.attachment_store,
         attachment_ingestor=host.attachment_ingestor,
         sessions=host.sessions,

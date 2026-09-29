@@ -11,7 +11,7 @@ from pathlib import Path
 from code_agent.core.cancellation import CancellationToken
 from code_agent.core.models import ActionRequest
 from code_agent.runtime.local import WindowsLocalRuntime
-from code_agent_win.process_actions import run_process_action
+from chaos_agent.process_actions import run_process_action
 
 
 def windows_code_page(*, oem: bool) -> int:

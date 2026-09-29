@@ -10,10 +10,10 @@ from code_agent.mcp.registry import McpController
 from code_agent.orchestration.models import ModeSnapshot
 from code_agent.plugins.registry import PluginHost
 
-from code_agent_win.action_dispatcher import RootActionDispatcher
-from code_agent_win.app_ui import ModeAwareWindowsTerminalApp
-from code_agent_win.rewind_runtime import RewindRuntime
-from code_agent_win.subagents import SubagentRuntime
+from chaos_agent.action_dispatcher import RootActionDispatcher
+from chaos_agent.app_ui import ModeAwareWindowsTerminalApp
+from chaos_agent.rewind_runtime import RewindRuntime
+from chaos_agent.subagents import SubagentRuntime
 
 
 @dataclass

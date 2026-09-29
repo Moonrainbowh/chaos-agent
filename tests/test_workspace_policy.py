@@ -3,11 +3,11 @@ from __future__ import annotations
 import unittest
 from unittest.mock import Mock
 
-from code_agent_win.cli_options import (
+from chaos_agent.cli_options import (
     _split_isolation_option,
     _split_reclaim_option,
 )
-from code_agent_win.workspace_policy import (
+from chaos_agent.workspace_policy import (
     DEFAULT_MODE,
     ENV_VARIABLE,
     EXPLICIT_ISOLATION,

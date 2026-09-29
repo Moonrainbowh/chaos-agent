@@ -10,8 +10,8 @@ from code_agent.orchestration.models import AgentMode
 from code_agent.orchestration.modes import ModeRegistry, standard_mode_definitions
 from code_agent.policy.models import ApprovalMode
 from code_agent.providers.config import ApiProtocol, ModelProfile, ProviderConfig
-from code_agent_win.app import create_application
-from code_agent_win.runtime_controls import RuntimeSelectionControl
+from chaos_agent.app import create_application
+from chaos_agent.runtime_controls import RuntimeSelectionControl
 
 
 def _profiles() -> dict[str, ModelProfile]:
@@ -134,17 +134,17 @@ class RuntimeSelectionApplicationTests(unittest.IsolatedAsyncioTestCase):
             state = container / "state"
             state.mkdir()
             with patch(
-                "code_agent_win.app._model_client", side_effect=lambda _: object()
+                "chaos_agent.app._model_client", side_effect=lambda _: object()
             ), patch(
-                "code_agent_win.app._session_path",
+                "chaos_agent.app._session_path",
                 return_value=state / "sessions.sqlite3",
             ), patch(
-                "code_agent_win.app._product_state_root", return_value=state
+                "chaos_agent.app._product_state_root", return_value=state
             ), patch(
-                "code_agent_win.app._workspace_storage_path",
+                "chaos_agent.app._workspace_storage_path",
                 return_value=container / "managed-workspaces",
             ), patch(
-                "code_agent_win.app.load_runtime_config", return_value=runtime
+                "chaos_agent.app.load_runtime_config", return_value=runtime
             ):
                 application = create_application(root)
 

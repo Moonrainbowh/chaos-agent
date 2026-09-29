@@ -13,9 +13,9 @@ from code_agent.verification.models import (
     VerificationUnavailable,
 )
 
-from code_agent_win.action_support import error_result, text_argument
-from code_agent_win.rewind_capture_support import record_unknown_gap
-from code_agent_win.tool_support import command_action_result
+from chaos_agent.action_support import error_result, text_argument
+from chaos_agent.rewind_capture_support import record_unknown_gap
+from chaos_agent.tool_support import command_action_result
 
 
 async def run_verification_action(

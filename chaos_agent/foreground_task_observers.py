@@ -6,7 +6,7 @@ from code_agent.core.cancellation import CancellationToken
 from code_agent.core.task import TaskStatus
 from code_agent.workflows.observations import TaskCreatedObservation
 
-from code_agent_win.foreground_task_support import settle_despite_cancellation
+from chaos_agent.foreground_task_support import settle_despite_cancellation
 
 
 _INTERRUPT_ATTEMPTS = 3

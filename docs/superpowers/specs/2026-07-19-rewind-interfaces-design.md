@@ -69,7 +69,7 @@ flowchart LR
 ```
 
 依赖方向只能从命令层指向纯模型和纯 view。Interfaces 不导入 Sessions 或
-Workspace 的 rewind 实现；后续 `code_agent_win` runtime 显式完成层间映射。
+Workspace 的 rewind 实现；后续 `chaos_agent` runtime 显式完成层间映射。
 
 ## 组件
 

@@ -6,7 +6,7 @@ from dataclasses import asdict
 from pathlib import Path
 import sys
 
-from code_agent_win.continuity_runtime import ContinuityRuntime
+from chaos_agent.continuity_runtime import ContinuityRuntime
 
 
 async def serve(options):

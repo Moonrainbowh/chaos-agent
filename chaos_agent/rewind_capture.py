@@ -18,7 +18,7 @@ from code_agent.workspace.rewind_state import (
     prepare_edit_state,
 )
 from code_agent.workspace.snapshot_store import WorkspaceSnapshotStore
-from code_agent_win.rewind_gate import WorkspaceMutationGate
+from chaos_agent.rewind_gate import WorkspaceMutationGate
 
 
 _Result = TypeVar("_Result")
@@ -110,14 +110,14 @@ class RewindCaptureCoordinator:
         cancellation: CancellationToken | None = None,
     ) -> object:
         _validate_identity(context, request)
-        from code_agent_win.rewind_edit_batch import apply_edit_plan
+        from chaos_agent.rewind_edit_batch import apply_edit_plan
 
         return await apply_edit_plan(
             self, context, request, plan, stored_plan_id, cancellation
         )
 
     async def recover_edit_batches(self) -> tuple[object, ...]:
-        from code_agent_win.rewind_edit_batch import recover_edit_batches
+        from chaos_agent.rewind_edit_batch import recover_edit_batches
 
         return await recover_edit_batches(self)
 

@@ -18,7 +18,7 @@ from code_agent.context.models import RepoEntry
 from code_agent.context.repo_index import RepoIndexSnapshot
 from code_agent.sessions.repository import SQLiteSessionRepository
 from code_agent.verification.evidence import EvidenceProvenance
-from code_agent_win.task_verification import TaskScopedVerificationService
+from chaos_agent.task_verification import TaskScopedVerificationService
 
 
 def _completed() -> ModelEvent:

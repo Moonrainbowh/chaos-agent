@@ -9,7 +9,7 @@ from code_agent.authentication.models import AuthError, Credential
 from code_agent.authentication.store import CredentialStore
 from code_agent.providers.config import ApiProtocol, ModelProfile, ProviderConfig
 from code_agent.providers.runtime_manager import ProviderRuntime, ProviderRuntimeManager
-from code_agent_win.auth_runtime_control import AuthenticationRuntimeControl
+from chaos_agent.auth_runtime_control import AuthenticationRuntimeControl
 
 
 class AuthRuntimeTests(unittest.IsolatedAsyncioTestCase):

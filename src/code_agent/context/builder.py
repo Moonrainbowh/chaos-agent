@@ -9,6 +9,7 @@ from code_agent.core.context_request import ContextRequest
 from code_agent.core.models import ContextBundle, Message, ToolDefinition
 from code_agent.core.cancellation import CancellationToken
 from code_agent.core.task_state import TaskState
+from code_agent.core.debug_trace import trace_event
 from code_agent.thread_intelligence.compaction import SemanticCompactionResult
 
 from .budget import PromptAllocation
@@ -96,11 +97,20 @@ class WorkspaceContextBuilder:
         request = self._request_from_arguments(
             thread_id, messages, user_input, tools, task_state, cancellation
         )
+        started_at = asyncio.get_running_loop().time()
+        trace_event("context.prepare", "started", thread_id=request.thread_id)
         plan = await asyncio.to_thread(self._prepare_sync, request)
+        trace_event("context.prepare", "completed", thread_id=request.thread_id, duration_ms=max(0, int((asyncio.get_running_loop().time() - started_at) * 1000)))
+        semantic_started = asyncio.get_running_loop().time()
+        trace_event("context.semantic", "started", thread_id=request.thread_id, enabled=self.semantic_compactor is not None)
         semantic = await self._compact_semantic(request, plan)
+        trace_event("context.semantic", "completed", thread_id=request.thread_id, duration_ms=max(0, int((asyncio.get_running_loop().time() - semantic_started) * 1000)))
+        finish_started = asyncio.get_running_loop().time()
+        trace_event("context.finish", "started", thread_id=request.thread_id)
         bundle = await asyncio.to_thread(
             self._finish_sync, request, plan, semantic
         )
+        trace_event("context.finish", "completed", thread_id=request.thread_id, duration_ms=max(0, int((asyncio.get_running_loop().time() - finish_started) * 1000)))
         request.cancellation.raise_if_cancelled()
         return bundle
 

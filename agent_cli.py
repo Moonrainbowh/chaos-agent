@@ -1,6 +1,6 @@
 """Backward-compatible local launcher for the packaged console entry point."""
 
-from code_agent_win.cli import main, run
+from chaos_agent.cli import main, run
 
 __all__ = ["main", "run"]
 

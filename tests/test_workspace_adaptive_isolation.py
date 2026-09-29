@@ -13,7 +13,7 @@ import unittest
 from pathlib import Path
 
 from code_agent.sessions.errors import SessionNotFound, SessionStorageError
-from code_agent_win.local_workspace_lineage import _duplicate_worktree_root
+from chaos_agent.local_workspace_lineage import _duplicate_worktree_root
 from tests.agent_app_test_support import (
     _assert_no_worktree,
     _configured_application,

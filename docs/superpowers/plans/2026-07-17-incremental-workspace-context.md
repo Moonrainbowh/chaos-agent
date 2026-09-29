@@ -13,7 +13,7 @@
 **Files:**
 - Modify: `src/code_agent/context/AGENTS.md`
 - Modify: `src/code_agent/workspace/AGENTS.md`
-- Modify: `code_agent_win/AGENTS.md`
+- Modify: `chaos_agent/AGENTS.md`
 
 1. Record that automatic repo maps are conditional and greetings do not trigger them.
 2. Record the bounded in-process inventory cache and explicit invalidation contract.
@@ -25,7 +25,7 @@
 - Modify: `src/code_agent/workspace/tests/test_files.py`
 - Modify: `src/code_agent/workspace/files.py`
 - Modify: `tests/test_app_dispatcher.py`
-- Modify: `code_agent_win/action_dispatcher.py`
+- Modify: `chaos_agent/action_dispatcher.py`
 
 1. Add failing tests proving equal bounded listings reuse one traversal and invalidation forces a refresh.
 2. Add a thread-safe, TTL-bounded cache for workspace-root listings only; explicit external-root listings remain uncached.
@@ -55,9 +55,9 @@
 ## Task 5: Classify project directories at integration time
 
 **Files:**
-- Create: `code_agent_win/workspace_context.py`
+- Create: `chaos_agent/workspace_context.py`
 - Create: `tests/test_workspace_context.py`
-- Modify: `code_agent_win/app.py`
+- Modify: `chaos_agent/app.py`
 
 1. Add failing tests for Git worktrees, direct manifest markers, ordinary folders, and home/disk roots.
 2. Implement bounded direct-child marker detection with no recursive scan.

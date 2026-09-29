@@ -9,7 +9,7 @@ SRC_ROOT = ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from code_agent_win.tools import validate_tool_arguments  # noqa: E402
+from chaos_agent.tools import validate_tool_arguments  # noqa: E402
 
 
 class ToolArgumentValidationTests(unittest.TestCase):

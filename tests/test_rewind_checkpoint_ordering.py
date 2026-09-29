@@ -4,7 +4,7 @@ import asyncio
 import unittest
 from types import SimpleNamespace
 
-from code_agent_win.rewind_sessions import CoordinatedSessionRepository
+from chaos_agent.rewind_sessions import CoordinatedSessionRepository
 
 
 class _Lease:

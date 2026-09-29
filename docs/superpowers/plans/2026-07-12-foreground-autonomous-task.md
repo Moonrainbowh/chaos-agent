@@ -26,7 +26,7 @@ The worktree already contains uncommitted, in-progress foundations that this pla
 - `core/task_state.py` persists bounded facts and is injected into context.
 - `core/limits.py`, `sessions/repository.py`, and schema v4 persist model-round/tool-call task budgets.
 - `docs/superpowers/plans/2026-07-11-agent-context-budget-and-task-state.md` describes the companion context-budget/task-state work.
-- `src/code_agent/config/` and `code_agent_win/cli.py` contain concurrent local API configuration work; do not revert it or overwrite its composition API.
+- `src/code_agent/config/` and `chaos_agent/cli.py` contain concurrent local API configuration work; do not revert it or overwrite its composition API.
 
 Before implementation, capture the current revision and run the tests owned by those in-progress changes. If their public signatures differ from this plan, update this plan before writing code; do not force a stale plan over user changes.
 
@@ -69,8 +69,8 @@ Before implementation, capture the current revision and run the tests owned by t
 | `src/code_agent/interfaces/tests/test_terminal_state.py` | Modify | Validate task-event projection and bilingual UI state. |
 | `src/code_agent/interfaces/tests/test_windows_tui.py` | Modify | Validate TUI controls, rendering, and exit interruption. |
 | `src/code_agent/interfaces/tests/test_commands.py` | Modify | Validate task list/resume command behavior. |
-| `code_agent_win/app.py` | Modify in integration phase only | Assemble the task repository, task contract factory, task-aware dispatcher, controller, and TUI. |
-| `code_agent_win/cli.py` | Modify in integration phase only | Preserve existing profile/model option behavior while routing task commands. |
+| `chaos_agent/app.py` | Modify in integration phase only | Assemble the task repository, task contract factory, task-aware dispatcher, controller, and TUI. |
+| `chaos_agent/cli.py` | Modify in integration phase only | Preserve existing profile/model option behavior while routing task commands. |
 | `tests/test_agent_app.py` | Modify in integration phase only | Exercise the complete foreground task loop in a temporary workspace. |
 | `README.md` | Modify in integration phase only | Document task lifecycle, Chinese UI choice, controls, budgets, and explicit non-goals. |
 
@@ -90,7 +90,7 @@ Run:
 
 ```powershell
 git status --short
-git diff -- src/code_agent/core src/code_agent/context src/code_agent/sessions src/code_agent/config code_agent_win
+git diff -- src/code_agent/core src/code_agent/context src/code_agent/sessions src/code_agent/config chaos_agent
 ```
 
 Expected: identify all pre-existing user changes. Do not revert, stage, amend, or reformat unrelated work.
@@ -120,7 +120,7 @@ Expected: pass, or any existing failure is recorded as a pre-existing blocker be
 
 - [ ] **Step 4: Resolve composition API drift as a prerequisite, not as part of task semantics.**
 
-Verify that `code_agent_win.cli.run()` calls the current `create_application()` signature and that `tests/test_agent_app.py` imports only live symbols. If concurrent local API configuration work is unfinished, finish or merge that work first; do not introduce a second configuration path in this plan.
+Verify that `chaos_agent.cli.run()` calls the current `create_application()` signature and that `tests/test_agent_app.py` imports only live symbols. If concurrent local API configuration work is unfinished, finish or merge that work first; do not introduce a second configuration path in this plan.
 
 Expected: `python -m unittest tests.test_agent_app -v` reaches task setup without `TypeError` from stale `create_application` arguments or imports of absent symbols.
 
@@ -159,7 +159,7 @@ Expected: `python -m unittest tests.test_agent_app -v` reaches task setup withou
 
 - [ ] **Step 4: Review the four contracts together.**
 
-Expected: core owns pure lifecycle semantics; sessions owns persistence; policy owns permission evaluation; interfaces owns presentation and controls. `code_agent_win/` remains untouched until the integration phase.
+Expected: core owns pure lifecycle semantics; sessions owns persistence; policy owns permission evaluation; interfaces owns presentation and controls. `chaos_agent/` remains untouched until the integration phase.
 
 ## Phase 2: Core And Session Units
 
@@ -774,9 +774,9 @@ git commit -m "feat: add Chinese foreground task controls"
 ### Task 9: Compose The Foreground Task System In The Windows Application
 
 **Files:**
-- Modify: `code_agent_win/AGENTS.md`
-- Modify: `code_agent_win/app.py`
-- Modify: `code_agent_win/cli.py`
+- Modify: `chaos_agent/AGENTS.md`
+- Modify: `chaos_agent/app.py`
+- Modify: `chaos_agent/cli.py`
 - Modify: `tests/test_agent_app.py`
 - Modify: `README.md`
 
@@ -862,7 +862,7 @@ Expected: all suites pass and `dist/` contains an installable wheel and source d
 - [ ] **Step 8: Commit only the completed integration slice.**
 
 ```powershell
-git add code_agent_win tests README.md src/code_agent/interfaces/AGENTS.md
+git add chaos_agent tests README.md src/code_agent/interfaces/AGENTS.md
 git commit -m "feat: add foreground autonomous task workflow"
 ```
 
@@ -881,4 +881,4 @@ git commit -m "feat: add foreground autonomous task workflow"
 - **Coverage:** lifecycle, persistence, budget/stall safety, authorization, foreground controls, localization, integration, test and manual acceptance are mapped to Tasks 3-9.
 - **No-overlap rule:** existing `TaskState`, task-budget, context-budget, and local API configuration work are explicit prerequisites and must be reused, not replaced.
 - **Scope:** daemon, mobile, cloud, worktrees, automatic commit/push, and concurrency are excluded from all tasks.
-- **Boundary discipline:** Phase 2 tasks modify only their corresponding feature directories; `code_agent_win/`, root tests, and README change only in Phase 3.
+- **Boundary discipline:** Phase 2 tasks modify only their corresponding feature directories; `chaos_agent/`, root tests, and README change only in Phase 3.

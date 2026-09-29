@@ -24,9 +24,9 @@ from code_agent.core.events import EventKind
 from code_agent.core.limits import EngineLimits
 from code_agent.evaluation.continuity_driver import Receipt
 from code_agent.sessions.repository import SQLiteSessionRepository
-from code_agent_win.continuity_dispatcher import ContinuityDispatcher
-from code_agent_win.managed_context import configured_counter
-from code_agent_win.runtime_support import model_client
+from chaos_agent.continuity_dispatcher import ContinuityDispatcher
+from chaos_agent.managed_context import configured_counter
+from chaos_agent.runtime_support import model_client
 
 
 def selected_profile(options):
@@ -63,7 +63,7 @@ class ContinuityRuntime:
     def _compose(self):
         options = self.options
         if options.mode == "offline":
-            from code_agent_win.continuity_offline_model import OfflineContinuityModel
+            from chaos_agent.continuity_offline_model import OfflineContinuityModel
             client, capacity = OfflineContinuityModel(), 400000
         else:
             profile = selected_profile(options)

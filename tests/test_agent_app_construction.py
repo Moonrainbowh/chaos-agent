@@ -15,16 +15,16 @@ from code_agent.interfaces.attachment_input import DEFAULT_ATTACHMENT_PROMPT
 from code_agent.interfaces.commands import CommandKind
 from code_agent.orchestration.models import AgentDefinition, AgentRole
 from code_agent.plugins.models import PluginRisk
-from code_agent_win import agent_modes
-from code_agent_win.app import Application, _workspace_storage_path, create_application
-from code_agent_win.cli import (
+from chaos_agent import agent_modes
+from chaos_agent.app import Application, _workspace_storage_path, create_application
+from chaos_agent.cli import (
     _split_attachment_options,
     _split_global_options,
     _split_mode_option,
     run,
 )
-from code_agent_win.workspace_session_router import WorkspaceSessionRouter
-from code_agent_win.runtime_support import host_risks
+from chaos_agent.workspace_session_router import WorkspaceSessionRouter
+from chaos_agent.runtime_support import host_risks
 from tests.agent_app_test_support import _configured_application
 
 
@@ -74,12 +74,12 @@ class ApplicationConstructionTests(unittest.TestCase):
                 "CHAOS_BASE_URL": "https://api.example.test", "CHAOS_MODEL": "test",
                 "CHAOS_API_KEY_ENV": "KEY",
             })
-            with patch("code_agent_win.app._model_client", return_value=object()):
+            with patch("chaos_agent.app._model_client", return_value=object()):
                 with patch(
-                    "code_agent_win.app._session_path",
+                    "chaos_agent.app._session_path",
                     return_value=root / "sessions.sqlite3",
                 ):
-                    with patch("code_agent_win.app.load_runtime_config", return_value=runtime):
+                    with patch("chaos_agent.app.load_runtime_config", return_value=runtime):
                         mode_env = {
                             f"CHAOS_MODE_{mode.value.upper()}_PROFILE": runtime.profile
                             for mode in agent_modes.AgentMode

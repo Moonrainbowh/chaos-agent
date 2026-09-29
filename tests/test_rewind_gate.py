@@ -13,7 +13,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest.mock import patch
 
-from code_agent_win.rewind_gate import (
+from chaos_agent.rewind_gate import (
     WorkspaceGateTimeout,
     WorkspaceMutationGate,
 )
@@ -24,7 +24,7 @@ _HOLDER = """
 import asyncio
 import sys
 from pathlib import Path
-from code_agent_win.rewind_gate import WorkspaceMutationGate
+from chaos_agent.rewind_gate import WorkspaceMutationGate
 
 async def main():
     gate = WorkspaceMutationGate(Path(sys.argv[1]), sys.argv[2])
@@ -107,7 +107,7 @@ class WorkspaceMutationGateTests(unittest.IsolatedAsyncioTestCase):
             )
 
         try:
-            with patch("code_agent_win.rewind_gate.asyncio.to_thread", alternating):
+            with patch("chaos_agent.rewind_gate.asyncio.to_thread", alternating):
                 gate = WorkspaceMutationGate(self.state_root, _FINGERPRINT)
                 lease = await gate.acquire()
                 await lease.release()
@@ -120,7 +120,7 @@ class WorkspaceMutationGateTests(unittest.IsolatedAsyncioTestCase):
     async def test_failed_acquire_releases_the_in_process_lock(self) -> None:
         gate = WorkspaceMutationGate(self.state_root, _FINGERPRINT)
         with patch(
-            "code_agent_win.rewind_gate._open_transaction",
+            "chaos_agent.rewind_gate._open_transaction",
             side_effect=RuntimeError("failed open"),
         ):
             with self.assertRaises(RuntimeError):
@@ -131,7 +131,7 @@ class WorkspaceMutationGateTests(unittest.IsolatedAsyncioTestCase):
     async def test_cancelled_acquire_settles_worker_and_leaks_no_lock(self) -> None:
         started = threading.Event()
         proceed = threading.Event()
-        from code_agent_win import rewind_gate
+        from chaos_agent import rewind_gate
 
         original = rewind_gate._open_transaction
 
@@ -141,7 +141,7 @@ class WorkspaceMutationGateTests(unittest.IsolatedAsyncioTestCase):
             return original(*args)
 
         gate = WorkspaceMutationGate(self.state_root, _FINGERPRINT)
-        with patch("code_agent_win.rewind_gate._open_transaction", delayed):
+        with patch("chaos_agent.rewind_gate._open_transaction", delayed):
             acquiring = asyncio.create_task(gate.acquire(timeout_s=5.0))
             self.assertTrue(await asyncio.to_thread(started.wait, 2))
             acquiring.cancel()
@@ -163,7 +163,7 @@ class WorkspaceMutationGateTests(unittest.IsolatedAsyncioTestCase):
             return result
 
         gate = WorkspaceMutationGate(self.state_root, _FINGERPRINT)
-        with patch("code_agent_win.rewind_gate.asyncio.wait", cancel_after_grant):
+        with patch("chaos_agent.rewind_gate.asyncio.wait", cancel_after_grant):
             with self.assertRaises(asyncio.CancelledError):
                 await gate.acquire(timeout_s=1.0)
         lease = await gate.acquire(timeout_s=1.0)
@@ -178,7 +178,7 @@ class WorkspaceMutationGateTests(unittest.IsolatedAsyncioTestCase):
         await reacquired.release()
 
     async def test_cancelled_release_settles_worker_before_unlock(self) -> None:
-        from code_agent_win import rewind_gate
+        from chaos_agent import rewind_gate
 
         gate = WorkspaceMutationGate(self.state_root, _FINGERPRINT)
         lease = await gate.acquire()
@@ -191,7 +191,7 @@ class WorkspaceMutationGateTests(unittest.IsolatedAsyncioTestCase):
             proceed.wait(5)
             original(connection)
 
-        with patch("code_agent_win.rewind_gate._rollback_close", delayed):
+        with patch("chaos_agent.rewind_gate._rollback_close", delayed):
             releasing = asyncio.create_task(lease.release())
             self.assertTrue(await asyncio.to_thread(started.wait, 2))
             releasing.cancel()
@@ -219,7 +219,7 @@ class WorkspaceMutationGateTests(unittest.IsolatedAsyncioTestCase):
         await lease.release()
 
     def test_extended_busy_codes_are_lock_contention(self) -> None:
-        from code_agent_win.rewind_gate import _is_lock_contention
+        from chaos_agent.rewind_gate import _is_lock_contention
 
         error = sqlite3.OperationalError("busy snapshot")
         error.sqlite_errorcode = 5 | (2 << 8)

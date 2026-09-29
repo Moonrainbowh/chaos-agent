@@ -91,7 +91,7 @@ plan_workspace(probe, mode=workspace_mode(), isolation)   # 只有需要隔离�
 运行时不总能在选工作区的那一刻**证明**任务是隔离的。知道这件事的调用方，在自己启动的工作期间声明它：
 
 ```python
-from code_agent_win.workspace_policy import isolated_tasks
+from chaos_agent.workspace_policy import isolated_tasks
 
 with isolated_tasks("explicit"):     # chaos-agent --isolated
     await foreground_tasks.start(prompt)
@@ -189,16 +189,16 @@ head_commit   = git rev-parse --verify HEAD
 
 | 文件 | 作用 |
 | --- | --- |
-| `code_agent_win/workspace_policy.py` | 纯策略：模式解析、`adaptive_isolation()`、隔离作用域（`isolated_tasks` / `request_task_isolation` / `task_isolation_request`）、计划解析、是否需要探测 Git |
-| `code_agent_win/foreground_workspace_setup.py` | 把事实映射成隔离请求（`task_workspace_isolation()` / `isolation_available()` / `require_isolation()`），必要时才 `prepare_task`，以及 bind / abort |
-| `code_agent_win/local_workspace_lineage.py` | 本地任务的 worktree-free lineage：`build_local_lineage()` / `attach_local_lineage()` |
-| `code_agent_win/foreground_tasks.py` | 一次 `task_workspace_isolation(...)` 得到隔离请求，其余调用链不变 |
-| `code_agent_win/workspace_seeding.py` | 唯一会枚举并复制 dirty workspace 的地方：`seed_source_changes()` |
-| `code_agent_win/workspace_reclamation.py` | 回收判定与执行：`reclaim_worktrees()` / `candidate_worktrees()` / `ReclamationReport` |
-| `code_agent_win/workspace_runtime.py` | `checkpoint_available()` 区分隔离 / 本地；`reclaim_workspaces()` 在 `startup()` 跑一次；worktree 创建、dirty seed、lineage、cleanup 全部保留 |
-| `code_agent_win/cli_options.py` | CLI 选项解析（`--isolated` / `--reclaim-workspaces` 等），从 `cli.py` 抽出以满足单文件行数规范 |
-| `code_agent_win/cli.py` | `--isolated` → `explicit` 作用域；`--reclaim-workspaces` → 显式回收并打印清单 |
-| `code_agent_win/workspace_startup_recovery.py` | `recover_workspace_edit_batches()` 跳过已不存在的 task/thread root（回收后的 lineage 指向已删目录，否则启动会被 `WorkspacePathGuard` 打断） |
+| `chaos_agent/workspace_policy.py` | 纯策略：模式解析、`adaptive_isolation()`、隔离作用域（`isolated_tasks` / `request_task_isolation` / `task_isolation_request`）、计划解析、是否需要探测 Git |
+| `chaos_agent/foreground_workspace_setup.py` | 把事实映射成隔离请求（`task_workspace_isolation()` / `isolation_available()` / `require_isolation()`），必要时才 `prepare_task`，以及 bind / abort |
+| `chaos_agent/local_workspace_lineage.py` | 本地任务的 worktree-free lineage：`build_local_lineage()` / `attach_local_lineage()` |
+| `chaos_agent/foreground_tasks.py` | 一次 `task_workspace_isolation(...)` 得到隔离请求，其余调用链不变 |
+| `chaos_agent/workspace_seeding.py` | 唯一会枚举并复制 dirty workspace 的地方：`seed_source_changes()` |
+| `chaos_agent/workspace_reclamation.py` | 回收判定与执行：`reclaim_worktrees()` / `candidate_worktrees()` / `ReclamationReport` |
+| `chaos_agent/workspace_runtime.py` | `checkpoint_available()` 区分隔离 / 本地；`reclaim_workspaces()` 在 `startup()` 跑一次；worktree 创建、dirty seed、lineage、cleanup 全部保留 |
+| `chaos_agent/cli_options.py` | CLI 选项解析（`--isolated` / `--reclaim-workspaces` 等），从 `cli.py` 抽出以满足单文件行数规范 |
+| `chaos_agent/cli.py` | `--isolated` → `explicit` 作用域；`--reclaim-workspaces` → 显式回收并打印清单 |
+| `chaos_agent/workspace_startup_recovery.py` | `recover_workspace_edit_batches()` 跳过已不存在的 task/thread root（回收后的 lineage 指向已删目录，否则启动会被 `WorkspacePathGuard` 打断） |
 | `src/code_agent/workspace/_git_worktrees.py` | 新增有界命令 `is_ancestor()`，用于证明任务分支没有自己的提交 |
 | `src/code_agent/sessions/_workspace_snapshots.py` | `lineage_has_workspace_snapshots()`：回收的默认快照门槛 |
 | `src/code_agent/core/task.py` | `TaskStatus.is_terminal`：终态判定的公共入口 |

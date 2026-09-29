@@ -15,7 +15,7 @@ from code_agent.workspace.paths import WorkspacePathGuard
 from code_agent.workspace.files import WorkspaceFiles
 from code_agent.workspace.ignore import IgnoreRules
 from code_agent.workspace.edits import WorkspaceEditor
-from code_agent_win.action_dispatcher import RootActionDispatcher
+from chaos_agent.action_dispatcher import RootActionDispatcher
 
 
 CHECK_CODE = '''import json,runpy,sys

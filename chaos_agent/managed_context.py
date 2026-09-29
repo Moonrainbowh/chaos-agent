@@ -9,7 +9,7 @@ from code_agent.context_windows.policy import ApiContextLimits
 from code_agent.context_windows.tools import WindowToolService
 from code_agent.context_windows.persistent_builder import PersistentContextBuilder
 from code_agent.context_windows.persistent_tools import PersistentToolService
-from code_agent_win.runtime_extensions import BoundSkillContextBuilder
+from chaos_agent.runtime_extensions import BoundSkillContextBuilder
 
 
 def build_managed_context(config, rules, repo_map, skills, sessions, binding, client, profile, *,

@@ -8,7 +8,7 @@ from code_agent.authentication.catalog import CatalogModel
 from code_agent.authentication.models import Credential
 from code_agent.authentication.store import CredentialStore
 from code_agent.interfaces.tests.test_command_navigation import Runtime, make_app
-from code_agent_win.auth_runtime_control import AuthenticationRuntimeControl
+from chaos_agent.auth_runtime_control import AuthenticationRuntimeControl
 
 
 class WorkBuddyModelSelectionTests(unittest.IsolatedAsyncioTestCase):

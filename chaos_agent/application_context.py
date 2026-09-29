@@ -15,16 +15,16 @@ from code_agent.core.limits import EngineLimits
 from code_agent.orchestration.models import ModeSnapshot
 from code_agent.providers.config import ModelProfile
 from code_agent.runtime._powershell_runtime import PowerShellRuntimeResolver
-from code_agent_win.agent_modes import mode_prompt
-from code_agent_win.peer_context import PEER_CONTEXT_RESERVE_TOKENS
-from code_agent_win.context_runtime import build_context_runtime
-from code_agent_win.runtime_extensions import (
+from chaos_agent.agent_modes import mode_prompt
+from chaos_agent.peer_context import PEER_CONTEXT_RESERVE_TOKENS
+from chaos_agent.context_runtime import build_context_runtime
+from chaos_agent.runtime_extensions import (
     BoundSkillContextBuilder,
     ModelSemanticSummarizer,
 )
-from code_agent_win.tool_support import windows_system_prompt
-from code_agent_win.task_verification import TaskScopedVerificationService
-from code_agent_win.managed_context import build_managed_context, wire_managed_engine
+from chaos_agent.tool_support import windows_system_prompt
+from chaos_agent.task_verification import TaskScopedVerificationService
+from chaos_agent.managed_context import build_managed_context, wire_managed_engine
 
 
 class RuntimeContextFactory:

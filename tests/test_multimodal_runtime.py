@@ -17,7 +17,7 @@ from code_agent.providers.config import (
 )
 from code_agent.providers.anthropic import AnthropicClient
 from code_agent.providers.openai_responses import OpenAIResponsesClient
-from code_agent_win.runtime_support import (
+from chaos_agent.runtime_support import (
     model_client,
     profile_model_factory,
     replace_model,

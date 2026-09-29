@@ -4,7 +4,7 @@ import unittest
 from types import SimpleNamespace
 
 from code_agent.interfaces._diff_parser import DiffScope
-from code_agent_win.app_ui import GitDiffAdapter, TaskScopedGitDiffAdapter
+from chaos_agent.app_ui import GitDiffAdapter, TaskScopedGitDiffAdapter
 
 
 class _Git:

@@ -12,9 +12,9 @@ from code_agent.sessions.rewind_repository import RewindSessionRepository
 from code_agent.workspace.edits import BatchApplyStatus, WorkspaceEditor
 from code_agent.workspace.paths import WorkspacePathGuard
 from code_agent.workspace.snapshot_store import WorkspaceSnapshotStore
-from code_agent_win.rewind_capture import RewindCaptureCoordinator
-from code_agent_win.rewind_edit_batch import _persist_post_identities
-from code_agent_win.rewind_edit_batch_models import prepare_request
+from chaos_agent.rewind_capture import RewindCaptureCoordinator
+from chaos_agent.rewind_edit_batch import _persist_post_identities
+from chaos_agent.rewind_edit_batch_models import prepare_request
 
 
 class _Lease:

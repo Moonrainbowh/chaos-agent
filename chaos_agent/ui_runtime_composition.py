@@ -11,13 +11,13 @@ from code_agent.interfaces.terminal_display import DisplayKind
 from code_agent.policy.models import ApprovalMode
 from code_agent.workspace.windows_paths import windows_path_support
 from code_agent.workflows.service import WorkflowService
-from code_agent_win.app_ui import (
+from chaos_agent.app_ui import (
     GitDiffAdapter,
     ModeAwareWindowsTerminalApp,
     TaskScopedGitDiffAdapter,
 )
-from code_agent_win.foreground_tasks import IntegratedForegroundTaskController
-from code_agent_win.plugin_runtime import (
+from chaos_agent.foreground_tasks import IntegratedForegroundTaskController
+from chaos_agent.plugin_runtime import (
     PluginCommandController,
     PluginEventCoordinator,
 )

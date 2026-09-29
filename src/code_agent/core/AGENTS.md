@@ -42,6 +42,7 @@
 - `validation_fingerprint(...)`、`circuit_breaker_result(...)`、`duplicate_failed_call_result(...)`、`build_diagnostic_reflection(...)`、`is_validation_failure(...)`、`is_in_flight_failure(...)`: 将结构化失败归一为监督器可比较的有界身份，识别重复动作/同态失败调用与校验失败阻断信号；在同态失败或熔断时注入结构化诊断反思脚手架（根因反思、假设检验与替代方案引导） | 无副作用 | 对上一轮完全相同且失败的调用直接阻断并回显错误与反思引导；优先使用 Host 生成的失败摘要，不泄露任意长度输出
 - `ExplorationRepeatObserver`、`ToolOnlyConvergenceGuard`：分别检测精确只读重复与连续无正文、无写入/验证/换窗动作的工具回合 | 无副作用 | 区分只读探索与参数校验纠错计数（参数校验失败不消耗 exploration_count，连续三次校验失败触发收敛防死循环）；tool-only guard 连续五回合探索仍无进展时，在尚无用户可见回答时请求总结回合，否则直接停止；主动换窗重置计数，不把多步只读调查误判为停滞
 - `phase_started_at(...)`、`phase_duration_ms(...)`：生成单调、非负且有界的 context/model/action 计时 | 无副作用 | 仅用于 `PHASE_COMPLETED` durable 事件，不计入任务 active-time 预算
+- `enable_trace`、`trace_event`、`trace_span`：由 Host 启动时开启后输出有界 JSON trace 事件，覆盖回合、上下文、Repo Index、模型、工具以及 durable journal 写入 | 仅调用 logging sink | 集成层默认自动开启，`CHAOS_DEBUG_TRACE=0` 可关闭；不写入 prompt、源码正文、凭据或完整路径；消息使用长度和短 digest 与 TUI 投影关联
 - `AgentEngineConvergenceMixin`：在 assistant/tool 配对闭合后持久化 runtime developer notice；连续无正文、无写入/验证进展达到门限时，在本次运行尚无用户可见回答时请求一个无工具总结回合，错误请求工具时仅重试一次，仍无正文则发布可见错误后按当前证据进入完成/验证门 | 写入消息/事件并更新暂停状态 | notice 只进入下一模型 payload 一次；已有非空无工具回答时直接停止，避免重复总结；分析任务的最终预算回合不调用 dispatcher，而修改任务保留一次工具执行机会后进入完成/验证门
 - `AgentEngineDispatchMixin`：执行模型工具调用、持久化成对 tool 结果并保留 exact-repeat 反馈 | 调用 dispatcher、写入动作消息与事件 | 仅作为回合协调器的工具执行支撑，不改变工具预算和验证顺序
 - `AgentEngine._run_verification_call(...)`: 持久化并执行 Host 规划的 milestone/final verifier tool call | 消耗任务 tool budget、追加成对 assistant/tool 消息和事件 | L0 失败后的同批调用必须被拒绝；关键风险 final gate 按 tests→build 顺序补齐

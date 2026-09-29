@@ -20,6 +20,7 @@ from .completion_contract import TaskIntent
 from .task import TaskRecord, TaskStatus
 from .task_supervisor import SupervisionKind
 from ._tool_feedback import tool_failure
+from .debug_trace import trace_event
 
 
 class AgentEngineTurnMixin(AgentEngineConvergenceMixin, AgentEngineDispatchMixin):
@@ -201,6 +202,7 @@ class AgentEngineTurnMixin(AgentEngineConvergenceMixin, AgentEngineDispatchMixin
             EventKind.TURN_STARTED, {"turn": turn.number}
         )
         await self._journal.append_event(state.thread_id, started)
+        trace_event("turn", "started", thread_id=state.thread_id, turn=turn.number)
         yield started
         context_started_at = phase_started_at()
         bundle = await self._build_turn_context(state, turn, user_input)
@@ -214,6 +216,7 @@ class AgentEngineTurnMixin(AgentEngineConvergenceMixin, AgentEngineDispatchMixin
             },
         )
         await self._journal.append_event(state.thread_id, timing)
+        trace_event("context.phase", "completed", thread_id=state.thread_id, turn=turn.number, duration_ms=timing.payload["duration_ms"])
         yield timing
         built = AgentEvent(
             EventKind.CONTEXT_BUILT,

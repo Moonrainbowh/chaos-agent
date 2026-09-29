@@ -17,6 +17,7 @@ from .task_supervisor import SupervisionKind, TaskSupervisor
 from .task_verification import InFlightValidationError
 from .limits import BudgetReserveStatus, TaskBudget
 from .runtime_timing import phase_duration_ms, phase_started_at
+from .debug_trace import trace_event
 from .validation_feedback import validation_fingerprint as _validation_fingerprint
 class AgentEngineActionMixin:
     """Internal action dispatch helpers separated from the model turn loop."""
@@ -49,6 +50,7 @@ class AgentEngineActionMixin:
                 thread_id, call.id, task
             )
             action_started_at = phase_started_at()
+            trace_event("action.dispatch", "started", thread_id=thread_id, action=call.name)
             result = await self._invoke_action(
                 request, call, token, task, execution_context
             )
@@ -61,6 +63,11 @@ class AgentEngineActionMixin:
                 },
             )
             await self._journal.append_event(thread_id, timing)
+            trace_event(
+                "action.dispatch", "completed", thread_id=thread_id,
+                action=call.name, duration_ms=timing.payload["duration_ms"],
+                is_error=result.is_error,
+            )
             yield timing
         if task is not None and _requires_decision(result):
             waiting = await self._journal.transition_task(task.id, TaskStatus.WAITING_DECISION, "approval required")

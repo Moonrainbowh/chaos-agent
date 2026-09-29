@@ -17,8 +17,8 @@ from code_agent.core.engine_turn_feedback import (  # noqa: E402
 )
 from code_agent.core.exploration_repeat import ToolOnlyConvergenceGuard  # noqa: E402
 from code_agent.core.models import ActionRequest, ActionResult, ToolCall  # noqa: E402
-from code_agent_win.action_support import preflight_action  # noqa: E402
-from code_agent_win.tools import validate_tool_arguments  # noqa: E402
+from chaos_agent.action_support import preflight_action  # noqa: E402
+from chaos_agent.tools import validate_tool_arguments  # noqa: E402
 
 
 class AgentArgumentSelfCorrectionTests(unittest.TestCase):

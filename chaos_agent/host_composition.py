@@ -13,19 +13,19 @@ from code_agent.policy.engine import ActionPolicy, PolicyConfig
 from code_agent.plugins.registry import ContributionSnapshot, PluginHost
 from code_agent.thread_intelligence.authorization import ThreadAuthorization
 from code_agent.thread_intelligence.tools import ThreadIntelligenceTools
-from code_agent_win.child_runner import EngineChildRunner
-from code_agent_win.plugin_runtime import (
+from chaos_agent.child_runner import EngineChildRunner
+from chaos_agent.plugin_runtime import (
     PluginToolBridge,
     load_plugins,
     plugin_event_risks,
 )
-from code_agent_win.runtime_support import host_risks
-from code_agent_win.subagents import RestrictedDispatcher, SubagentRuntime
-from code_agent_win.tools import tool_definitions
-from code_agent_win.task_dispatcher import TaskScopedDispatcher
-from code_agent_win.workspace_mutation_pool import WorkspaceMutationPool
-from code_agent_win.workspace_models import WorkspaceServices
-from code_agent_win.workspace_runtime import ManagedWorkspaceRuntime
+from chaos_agent.runtime_support import host_risks
+from chaos_agent.subagents import RestrictedDispatcher, SubagentRuntime
+from chaos_agent.tools import tool_definitions
+from chaos_agent.task_dispatcher import TaskScopedDispatcher
+from chaos_agent.workspace_mutation_pool import WorkspaceMutationPool
+from chaos_agent.workspace_models import WorkspaceServices
+from chaos_agent.workspace_runtime import ManagedWorkspaceRuntime
 
 
 PluginDiscovery = Callable[

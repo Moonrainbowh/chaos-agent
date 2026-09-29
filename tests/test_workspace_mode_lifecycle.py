@@ -167,7 +167,7 @@ class DirtyWorkspaceStartupCostTests(unittest.IsolatedAsyncioTestCase):
             source_before = _tree_digest(root)
 
             with patch(
-                "code_agent_win.workspace_seeding.GitWorkspace",
+                "chaos_agent.workspace_seeding.GitWorkspace",
                 self._constrained_git_workspace(),
             ):
                 application = _configured_application(root)
@@ -190,7 +190,7 @@ class DirtyWorkspaceStartupCostTests(unittest.IsolatedAsyncioTestCase):
 
             with workspace_mode_scope("managed"):
                 with patch(
-                    "code_agent_win.workspace_seeding.GitWorkspace",
+                    "chaos_agent.workspace_seeding.GitWorkspace",
                     self._constrained_git_workspace(),
                 ):
                     application = _configured_application(root)

@@ -18,14 +18,14 @@ from code_agent.workspace.edits import (
 )
 from code_agent.workspace.snapshot_store import SnapshotHandle
 
-from code_agent_win.rewind_edit_async import (
+from chaos_agent.rewind_edit_async import (
     ordered,
     take,
     thread,
     thread_until_token,
     value,
 )
-from code_agent_win.rewind_edit_batch_models import (
+from chaos_agent.rewind_edit_batch_models import (
     prepare_request,
     recovery_operation,
     thaw,

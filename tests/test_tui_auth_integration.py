@@ -9,7 +9,7 @@ from unittest.mock import patch
 from code_agent.authentication.store import CredentialStore
 from code_agent.config.loader import RuntimeConfig
 from code_agent.policy.models import ApprovalMode
-from code_agent_win.app import create_application
+from chaos_agent.app import create_application
 from tests.test_runtime_selection import _profiles
 
 
@@ -31,8 +31,8 @@ class TuiAuthIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 ("_workspace_storage_path", container / "managed-workspaces"),
                 ("load_runtime_config", runtime),
             ):
-                stack.enter_context(patch("code_agent_win.app." + target, return_value=value))
-            stack.enter_context(patch("code_agent_win.app._model_client", side_effect=lambda _: object()))
+                stack.enter_context(patch("chaos_agent.app." + target, return_value=value))
+            stack.enter_context(patch("chaos_agent.app._model_client", side_effect=lambda _: object()))
             stack.enter_context(patch.dict("os.environ", {"CHAOS_AUTH_FILE": str(state / "credentials.dat")}))
             application = create_application(root)
             try:

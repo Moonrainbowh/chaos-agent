@@ -37,9 +37,9 @@ from code_agent.workspace.edits import WorkspaceEditor
 from code_agent.workspace.files import WorkspaceFiles
 from code_agent.workspace.ignore import IgnoreRules
 from code_agent.workspace.paths import WorkspacePathGuard
-from code_agent_win.action_dispatcher import RootActionDispatcher
-from code_agent_win.app_factory import _build_execution
-from code_agent_win.subagents import (
+from chaos_agent.action_dispatcher import RootActionDispatcher
+from chaos_agent.app_factory import _build_execution
+from chaos_agent.subagents import (
     EngineChildRunner,
     RestrictedDispatcher,
     SubagentRuntime,
@@ -285,10 +285,10 @@ class RewindLineageTests(unittest.IsolatedAsyncioTestCase):
             verifications.append(sessions)
             return object()
 
-        with patch("code_agent_win.app_factory._context_for",
+        with patch("chaos_agent.app_factory._context_for",
                    side_effect=context_for), patch(
-            "code_agent_win.rewind_sessions.AgentEngine", BuiltEngine
-        ), patch("code_agent_win.rewind_sessions.LedgerTaskVerificationService",
+            "chaos_agent.rewind_sessions.AgentEngine", BuiltEngine
+        ), patch("chaos_agent.rewind_sessions.LedgerTaskVerificationService",
                  side_effect=verification):
             execution = _build_execution(host, lambda provider: object(), object())
             await execution.subagents.dispatch(

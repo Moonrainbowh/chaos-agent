@@ -5,7 +5,7 @@ from pathlib import Path
 
 from code_agent.core._json import JSONValue, validate_json_mapping
 from code_agent.sessions.rewind_repository import RewindSessionRepository
-from code_agent_win.rewind_sessions import CoordinatedSessionRepository
+from chaos_agent.rewind_sessions import CoordinatedSessionRepository
 
 
 RootForThread = Callable[[str], Path | None]

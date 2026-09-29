@@ -19,8 +19,8 @@ from code_agent.sessions.repository import SQLiteSessionRepository
 from code_agent.workspace.paths import WorkspacePathGuard
 from code_agent.workspace.files import WorkspaceFiles
 from code_agent.workspace.ignore import IgnoreRules
-from code_agent_win.managed_context import build_managed_context, wire_managed_engine
-from code_agent_win.runtime_extensions import ThreadRuntimeBinding
+from chaos_agent.managed_context import build_managed_context, wire_managed_engine
+from chaos_agent.runtime_extensions import ThreadRuntimeBinding
 
 
 class Skills:

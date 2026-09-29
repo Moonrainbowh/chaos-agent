@@ -27,7 +27,7 @@ $env:GITHUB_ACTIONS='true'
 .venv-regression/Scripts/python -m venv .venv-regression/final-install
 .venv-regression/final-install/Scripts/python -m pip install --no-index --find-links .venv-regression/dist .venv-regression/final-dist/chaos_agent-1.0.3-py3-none-any.whl
 .venv-regression/final-install/Scripts/python -m pip check
-.venv-regression/final-install/Scripts/python -I -c "import code_agent_win.app; import code_agent.verification.python_adapter"
+.venv-regression/final-install/Scripts/python -I -c "import chaos_agent.app; import code_agent.verification.python_adapter"
 ```
 
 以上实际执行并通过。依赖 wheel 已按 CI 的 `pip download --only-binary=:all:` 预取；安装阶段无网络索引。隔离导入确认来自新环境的 `site-packages`。第一轮全量也通过；最终轮在代码定稿后执行。

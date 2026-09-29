@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import tempfile
 import unittest
 
-from code_agent_win.continuity_run import run_arm, durable_stats
+from chaos_agent.continuity_run import run_arm, durable_stats
 from code_agent.core.limits import EngineLimits
 from code_agent.evaluation.long_context_metrics import usage_metrics
 from code_agent.sessions.repository import SQLiteSessionRepository

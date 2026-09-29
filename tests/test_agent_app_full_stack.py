@@ -36,7 +36,7 @@ from code_agent.workspace.edits import WorkspaceEditor  # noqa: E402
 from code_agent.workspace.files import WorkspaceFiles  # noqa: E402
 from code_agent.workspace.ignore import IgnoreRules  # noqa: E402
 from code_agent.workspace.paths import WorkspacePathGuard  # noqa: E402
-from code_agent_win.app import RootActionDispatcher  # noqa: E402
+from chaos_agent.app import RootActionDispatcher  # noqa: E402
 
 
 class FakeModel:

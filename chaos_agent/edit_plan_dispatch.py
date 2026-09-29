@@ -18,16 +18,16 @@ from code_agent.workspace.errors import (
     CrossVolumeMoveError,
 )
 
-from code_agent_win.action_support import error_result, ok_result
-from code_agent_win.edit_plan_store import (
+from chaos_agent.action_support import error_result, ok_result
+from chaos_agent.edit_plan_store import (
     EditPlanStoreError,
     StoredPlanStatus,
     StoredWorkspaceEditPlan,
     WorkspaceEditPlanStore,
 )
-from code_agent_win.edit_plan_preview import approval_view, bounded_diff
-from code_agent_win.edit_plan_results import apply_result, mutation_result
-from code_agent_win.workspace_edit_planning import (
+from chaos_agent.edit_plan_preview import approval_view, bounded_diff
+from chaos_agent.edit_plan_results import apply_result, mutation_result
+from chaos_agent.workspace_edit_planning import (
     WorkspaceEditPlanningError,
     create_stored_edit_plan,
 )

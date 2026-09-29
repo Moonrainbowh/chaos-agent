@@ -8,7 +8,7 @@ import time
 from code_agent.core.models import ActionResult, ToolDefinition
 from code_agent.evaluation.observation import manifest_digest, workspace_manifest
 from code_agent.evaluation.verifier import process_group_options, terminate_process_tree
-from code_agent_win.context_experiment_host import ExperimentDispatcher
+from chaos_agent.context_experiment_host import ExperimentDispatcher
 
 
 def digest(root):

@@ -42,9 +42,9 @@
 ### Task 3: Windows 运行时切换集成
 
 **Files:**
-- Modify: `code_agent_win/app.py`
-- Modify: `code_agent_win/app_ui.py`
-- Modify: `code_agent_win/AGENTS.md`
+- Modify: `chaos_agent/app.py`
+- Modify: `chaos_agent/app_ui.py`
+- Modify: `chaos_agent/AGENTS.md`
 - Modify: `src/code_agent/interfaces/AGENTS.md`
 - Test: `tests/test_agent_app.py`
 

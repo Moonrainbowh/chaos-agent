@@ -8,8 +8,8 @@ from pathlib import Path
 from code_agent.workspace.edits import WorkspaceEditor
 from code_agent.workspace.git import GitWorkspace
 from code_agent.workspace.paths import WorkspacePathGuard
-from code_agent_win.edit_plan_store import WorkspaceEditPlanStore
-from code_agent_win.workspace_edit_planning import (
+from chaos_agent.edit_plan_store import WorkspaceEditPlanStore
+from chaos_agent.workspace_edit_planning import (
     WorkspaceEditPlanningError,
     create_stored_edit_plan,
 )

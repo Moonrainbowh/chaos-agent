@@ -14,8 +14,8 @@ from code_agent.workflows.observations import (
     EvidenceInvalidatedObservation,
 )
 from code_agent.workflows.service import WorkflowService
-from code_agent_win.app_ui import ModeAwareWindowsTerminalApp
-from code_agent_win.ui_runtime_composition import (
+from chaos_agent.app_ui import ModeAwareWindowsTerminalApp
+from chaos_agent.ui_runtime_composition import (
     UiComposition,
     compose_ui_runtime,
 )

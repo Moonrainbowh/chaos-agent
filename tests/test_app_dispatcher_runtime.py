@@ -11,7 +11,7 @@ SRC_ROOT = ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from code_agent_win.app import RootActionDispatcher  # noqa: E402
+from chaos_agent.app import RootActionDispatcher  # noqa: E402
 from code_agent.core.cancellation import CancellationToken  # noqa: E402
 from code_agent.core.models import ActionRequest, ActionResult  # noqa: E402
 from code_agent.core.task import TaskAuthorization  # noqa: E402

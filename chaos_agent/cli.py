@@ -84,6 +84,8 @@ async def serve_acp(application):
 
 
 async def run(arguments: Sequence[str], *, splash=None) -> int:
+    from .debug_trace import configure_runtime_trace
+    configure_runtime_trace()
     if arguments and arguments[0] == "auth":
         if splash is not None:
             splash.stop()

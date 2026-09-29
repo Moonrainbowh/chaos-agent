@@ -18,7 +18,7 @@ from code_agent.sessions.rewind_models import (
 from code_agent.workspace.edits import EditPlan, SnapshotEntry, WorkspaceSnapshot
 from code_agent.workspace.rewind_state import PreparedEditState, WorkspaceFileState
 from code_agent.workspace.snapshot_store import SnapshotHandle
-from code_agent_win.rewind_capture import RewindCaptureCoordinator
+from chaos_agent.rewind_capture import RewindCaptureCoordinator
 
 
 FINGERPRINT = "a" * 64
@@ -171,7 +171,7 @@ class CaptureHarness:
             return (self.observed,)
 
         return patch.multiple(
-            "code_agent_win.rewind_capture",
+            "chaos_agent.rewind_capture",
             prepare_edit_state=prepare,
             observe_file_states=observe,
         )
@@ -284,7 +284,7 @@ class RewindCaptureTests(CaptureHarness, unittest.IsolatedAsyncioTestCase):
         started, finish, observe = _blocking_observation(
             self.calls, _prepared().after)
         with patch.multiple(
-            "code_agent_win.rewind_capture",
+            "chaos_agent.rewind_capture",
             prepare_edit_state=lambda editor, plan: _prepared(),
             observe_file_states=observe,
         ):

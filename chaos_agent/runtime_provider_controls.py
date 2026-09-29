@@ -22,11 +22,11 @@ from code_agent.policy.engine import ActionPolicy
 from code_agent.policy.models import ApprovalMode
 from code_agent.providers.config import ModelProfile
 from code_agent.providers.runtime_manager import ProviderRuntime, ProviderRuntimeManager
-from code_agent_win.app_ui import ModeAwareWindowsTerminalApp, PluginModeControl
-from code_agent_win.application_context import engine_for
-from code_agent_win.runtime_dispatcher_factory import RuntimeDispatcherFactory
-from code_agent_win.runtime_client_cleanup import close_partial_client
-from code_agent_win.runtime_selection_control import (
+from chaos_agent.app_ui import ModeAwareWindowsTerminalApp, PluginModeControl
+from chaos_agent.application_context import engine_for
+from chaos_agent.runtime_dispatcher_factory import RuntimeDispatcherFactory
+from chaos_agent.runtime_client_cleanup import close_partial_client
+from chaos_agent.runtime_selection_control import (
     RuntimeSelectionControl,
     validate_profile_reasoning,
 )

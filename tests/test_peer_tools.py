@@ -16,7 +16,7 @@ from code_agent.core.cancellation import CancellationToken  # noqa: E402
 from code_agent.core.models import ActionRequest  # noqa: E402
 from code_agent.peers.service import PeerMessagingService  # noqa: E402
 from code_agent.sessions.repository import SQLiteSessionRepository  # noqa: E402
-from code_agent_win.peer_tools import (  # noqa: E402
+from chaos_agent.peer_tools import (  # noqa: E402
     PeerToolAdapter,
     validate_peer_tool_arguments,
 )

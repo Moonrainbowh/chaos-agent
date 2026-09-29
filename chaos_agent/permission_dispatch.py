@@ -10,8 +10,8 @@ from code_agent.policy.command_rules import ProcessRuleMatch, ProcessRuleStore
 from code_agent.policy.engine import ActionPolicy
 from code_agent.policy.models import DecisionOutcome
 
-from code_agent_win.action_support import error_result
-from code_agent_win.edit_plan_dispatch import EditPlanAuthorization
+from chaos_agent.action_support import error_result
+from chaos_agent.edit_plan_dispatch import EditPlanAuthorization
 
 
 def match_process_rule(

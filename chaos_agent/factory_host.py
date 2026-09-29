@@ -22,12 +22,12 @@ from code_agent.skills.registry import SkillActivation, SkillRegistry
 from code_agent.verification.local_adapter import LocalVerificationAdapter
 from code_agent.workspace.edits import WorkspaceEditor
 
-from code_agent_win.action_dispatcher import RootActionDispatcher
-from code_agent_win.app_models import FactoryHost
-from code_agent_win.plugin_runtime import PluginToolBridge, load_plugins
-from code_agent_win.rewind_sessions import build_rewind_write_side
-from code_agent_win.runtime_support import host_risks
-from code_agent_win.tools import tool_definitions
+from chaos_agent.action_dispatcher import RootActionDispatcher
+from chaos_agent.app_models import FactoryHost
+from chaos_agent.plugin_runtime import PluginToolBridge, load_plugins
+from chaos_agent.rewind_sessions import build_rewind_write_side
+from chaos_agent.runtime_support import host_risks
+from chaos_agent.tools import tool_definitions
 
 
 @dataclass(frozen=True)

@@ -136,12 +136,12 @@ class ProposalExecutor(Protocol):
 ### Task 9: 根级 PluginRuntime 集成
 
 **Files:**
-- Modify: `code_agent_win/plugin_runtime.py`
-- Modify: `code_agent_win/app.py`
-- Modify: `code_agent_win/action_dispatcher.py`
-- Modify: `code_agent_win/agent_modes.py`
-- Modify: `code_agent_win/subagents.py`
-- Modify: `code_agent_win/tools.py`
+- Modify: `chaos_agent/plugin_runtime.py`
+- Modify: `chaos_agent/app.py`
+- Modify: `chaos_agent/action_dispatcher.py`
+- Modify: `chaos_agent/agent_modes.py`
+- Modify: `chaos_agent/subagents.py`
+- Modify: `chaos_agent/tools.py`
 - Modify: `tests/test_agent_app.py`
 - Modify: `tests/test_command_integration.py`
 - Modify: `tests/test_subagent_integration.py`

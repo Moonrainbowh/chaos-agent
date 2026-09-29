@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def source_paths():
     paths = []
-    for directory in ("src", "code_agent_win"):
+    for directory in ("src", "chaos_agent"):
         paths.extend(path for path in (ROOT / directory).rglob("*") if path.is_file()
                      and not {"__pycache__", "tests"}.intersection(path.parts)
                      and path.suffix in (".py", ".json", ".txt"))

@@ -12,7 +12,7 @@
 
 ## Scope and invariants
 
-- 本计划只实现 `src/code_agent/core/` Feature；不修改 `code_agent_win/`、其他 Feature 或根级集成文件。
+- 本计划只实现 `src/code_agent/core/` Feature；不修改 `chaos_agent/`、其他 Feature 或根级集成文件。
 - root engine：`owner_thread_id == origin_thread_id == 当前 thread_id`，`task_id` 取当前 `TaskRecord.id`（若无任务则为 `None`），`parent_request_id=None`。
 - child engine：`origin_thread_id` 始终取当前 child thread；owner/task/parent request 原样继承构造器收到的 `ActionLineage`。
 - 每个存在的 identifier 必须是非空白、最多 256 字符的字符串；模型不可变。

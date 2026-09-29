@@ -20,17 +20,17 @@ from code_agent.plugins.registry import (
     RegisteredContribution,
 )
 from code_agent.policy.engine import ActionPolicy, PolicyConfig
-from code_agent_win.host_composition import (
+from chaos_agent.host_composition import (
     PluginRuntimeBindings,
     _configured_mcp_targets,
 )
-from code_agent_win.plugin_runtime import (
+from chaos_agent.plugin_runtime import (
     PluginCommandController,
     PluginToolBridge,
     plugin_event_risks,
 )
-from code_agent_win.subagents import RestrictedDispatcher
-from code_agent_win.ui_composition import (
+from chaos_agent.subagents import RestrictedDispatcher
+from chaos_agent.ui_composition import (
     plugin_command_registry,
     refresh_plugin_surfaces,
 )

@@ -31,12 +31,12 @@ from code_agent.thread_intelligence.models import (
 from code_agent.workspace.files import WorkspaceFiles
 from code_agent.workspace.ignore import IgnoreRules
 from code_agent.workspace.paths import WorkspacePathGuard
-from code_agent_win.app import create_application
-from code_agent_win.context_runtime import (
+from chaos_agent.app import create_application
+from chaos_agent.context_runtime import (
     PersistingAnchoredCompactor,
     build_context_runtime,
 )
-from code_agent_win.runtime_extensions import ModelSemanticSummarizer
+from chaos_agent.runtime_extensions import ModelSemanticSummarizer
 
 
 def _checkpoint(thread_id: str = "thread-a") -> SemanticCheckpoint:
@@ -223,12 +223,12 @@ class ContextRuntimeFactoryTests(unittest.TestCase):
                 "USERPROFILE": str(container / "profile"),
                 "LOCALAPPDATA": str(container / "localappdata"),
             }, clear=True):
-                with patch("code_agent_win.app._model_client", return_value=object()), patch(
-                    "code_agent_win.app._session_path", return_value=product / "sessions.sqlite3"
+                with patch("chaos_agent.app._model_client", return_value=object()), patch(
+                    "chaos_agent.app._session_path", return_value=product / "sessions.sqlite3"
                 ), patch(
-                    "code_agent_win.app._product_state_root", return_value=product
-                ), patch("code_agent_win.app.load_runtime_config", return_value=runtime), patch(
-                    "code_agent_win.app.build_context_runtime", side_effect=recording_factory
+                    "chaos_agent.app._product_state_root", return_value=product
+                ), patch("chaos_agent.app.load_runtime_config", return_value=runtime), patch(
+                    "chaos_agent.app.build_context_runtime", side_effect=recording_factory
                 ):
                     application = create_application(root)
 

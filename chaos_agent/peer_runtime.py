@@ -14,8 +14,8 @@ from code_agent.peers.models import (
     PeerSessionStatus,
 )
 from code_agent.peers.service import PeerMessagingService
-from code_agent_win.peer_context import PeerContextBuilder, PeerDeliveryBuffer
-from code_agent_win.peer_runtime_support import peer_preview, thread_is_task_owned
+from chaos_agent.peer_context import PeerContextBuilder, PeerDeliveryBuffer
+from chaos_agent.peer_runtime_support import peer_preview, thread_is_task_owned
 
 
 _POLL_SECONDS = 0.5

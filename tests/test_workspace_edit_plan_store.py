@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from code_agent_win.edit_plan_store import (
+from chaos_agent.edit_plan_store import (
     EditPlanStoreError,
     StoredPlanStatus,
     WorkspaceEditPlanStore,

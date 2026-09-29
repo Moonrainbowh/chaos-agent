@@ -7,7 +7,7 @@ import unittest
 from code_agent.plugins.models import PluginContributions, PluginManifest
 from code_agent.plugins.registry import ContributionSnapshot, PluginHost
 from code_agent.plugins.status import PluginReloadState
-from code_agent_win.plugin_runtime import PluginCommandController
+from chaos_agent.plugin_runtime import PluginCommandController
 
 
 def _snapshot(revision: str) -> ContributionSnapshot:

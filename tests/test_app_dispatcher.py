@@ -13,7 +13,7 @@ SRC_ROOT = ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from code_agent_win.app import RootActionDispatcher, create_application  # noqa: E402
+from chaos_agent.app import RootActionDispatcher, create_application  # noqa: E402
 from code_agent.config.loader import load_runtime_config  # noqa: E402
 from code_agent.core.action_execution import ActionExecutionContext  # noqa: E402
 from code_agent.core.cancellation import CancellationToken  # noqa: E402
@@ -197,13 +197,13 @@ class RootActionDispatcherTests(unittest.IsolatedAsyncioTestCase):
             "USERPROFILE": str(self.root / "profile"),
             "LOCALAPPDATA": str(self.root / "localappdata"),
         }, clear=True), patch(
-            "code_agent_win.app._model_client", return_value=object()
+            "chaos_agent.app._model_client", return_value=object()
         ), patch(
-            "code_agent_win.app._session_path",
+            "chaos_agent.app._session_path",
             return_value=self.root / "sessions.sqlite3",
         ), patch(
-            "code_agent_win.app._product_state_root", return_value=product_state,
-        ), patch("code_agent_win.app.load_runtime_config", return_value=runtime):
+            "chaos_agent.app._product_state_root", return_value=product_state,
+        ), patch("chaos_agent.app.load_runtime_config", return_value=runtime):
             application = create_application(self.root)
         self.addAsyncCleanup(application.aclose)
         result = await application.dispatcher.dispatch(

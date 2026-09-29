@@ -103,7 +103,7 @@ class RewindRuntimeIntegrityTests(
         for record in (malformed, mismatch, wrong_path, aliases):
             with self.subTest(record=record.mutation_id):
                 with patch(
-                    "code_agent_win._rewind_runtime_validation.os.path.normcase",
+                    "chaos_agent._rewind_runtime_validation.os.path.normcase",
                     side_effect=lambda value: value.lower(),
                 ):
                     preview = await self.preview_records((record,))
@@ -150,7 +150,7 @@ class RewindRuntimeIntegrityTests(
             sequence=2, owner="foreign",
         )
         with patch(
-            "code_agent_win._rewind_runtime_validation.os.path.normcase",
+            "chaos_agent._rewind_runtime_validation.os.path.normcase",
             side_effect=lambda value: value.lower(),
         ):
             preview = await self.preview_records((owned, foreign))

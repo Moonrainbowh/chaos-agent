@@ -9,7 +9,7 @@ from code_agent.interfaces.controller import AgentController
 from code_agent.interfaces.terminal_state import ApprovalBroker
 from code_agent.interfaces.terminal_theme import Theme
 from code_agent.interfaces.tests._support import FakeEngine
-from code_agent_win.app_ui import ModeAwareWindowsTerminalApp
+from chaos_agent.app_ui import ModeAwareWindowsTerminalApp
 
 
 class AppearanceIntegrationTests(unittest.IsolatedAsyncioTestCase):

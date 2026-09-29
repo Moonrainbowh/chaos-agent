@@ -6,8 +6,8 @@ from pathlib import Path
 
 from code_agent.config.loader import load_runtime_config
 from code_agent.core.models import Message
-from code_agent_win.managed_context import configured_counter
-from code_agent_win.runtime_support import model_client
+from chaos_agent.managed_context import configured_counter
+from chaos_agent.runtime_support import model_client
 
 
 async def main():

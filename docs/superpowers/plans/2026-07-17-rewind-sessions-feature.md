@@ -35,7 +35,7 @@ All implementation and test changes stay under `src/code_agent/sessions/**`.
 | `src/code_agent/sessions/tests/test_rewind_observations.py` | Create | Thread-filtered bounds, limits, heads, ordering, and pagination tests | ≤ 235 |
 | `src/code_agent/sessions/AGENTS.md` | Modify | Append only implemented Sessions Units | ≤ 45 |
 
-Do not modify `src/code_agent/sessions/repository.py`, `src/code_agent/sessions/_records.py`, Workspace, Core, Interfaces, `code_agent_win`, root tests, or root configuration. Run every command from the repository root. Before the first command, resolve the interpreter once:
+Do not modify `src/code_agent/sessions/repository.py`, `src/code_agent/sessions/_records.py`, Workspace, Core, Interfaces, `chaos_agent`, root tests, or root configuration. Run every command from the repository root. Before the first command, resolve the interpreter once:
 
 ```powershell
 $python = (Get-Command python).Source

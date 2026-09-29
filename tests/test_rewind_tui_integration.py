@@ -13,7 +13,7 @@ if str(SRC_ROOT) not in sys.path:
 
 from code_agent.interfaces.checkpoint_tui import RewindStage  # noqa: E402
 from code_agent.sessions.models import CheckpointRecord  # noqa: E402
-from code_agent_win.app_ui import ModeAwareWindowsTerminalApp  # noqa: E402
+from chaos_agent.app_ui import ModeAwareWindowsTerminalApp  # noqa: E402
 
 
 NOW = datetime(2026, 7, 22, 10, tzinfo=timezone.utc)

@@ -100,7 +100,7 @@ if [ -d "$WS" ]; then
   echo "  目录总数：$dirs"
   echo "  Glob 需遍历全部条目；万级规模即会撞上 30s 硬超时，且会反复重试。"
   echo "  主要贡献者："
-  for d in artifacts src build tests code_agent_win context-ab-20260909; do
+  for d in artifacts src build tests chaos_agent context-ab-20260909; do
     [ -d "$WS/$d" ] && printf '    %-24s %s files\n' "$d" "$(find "$WS/$d" -type f 2>/dev/null | wc -l)"
   done
   if [ -f "$WS/.gitignore" ]; then

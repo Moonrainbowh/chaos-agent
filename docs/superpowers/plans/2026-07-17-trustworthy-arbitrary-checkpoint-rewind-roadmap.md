@@ -62,10 +62,10 @@ $python = '.\.venv\Scripts\python.exe'
 | `src/code_agent/interfaces/rewind_models.py` | Pure preview and candidate models |
 | `src/code_agent/interfaces/rewind_view.py` | Pure projection and bounded safe rendering |
 | `src/code_agent/interfaces/tui_rewind_commands.py` | Read-only `/rewind` argument handling and delegation |
-| `code_agent_win/rewind_gate.py` | Cross-process workspace mutation/checkpoint lock |
-| `code_agent_win/rewind_capture.py` | Known-edit two-phase capture and unknown-writer invalidation |
-| `code_agent_win/rewind_sessions.py` | Checkpoint-ordering repository wrapper |
-| `code_agent_win/rewind_runtime.py` | Snapshot/chain/current-state validation and as-of retry |
+| `chaos_agent/rewind_gate.py` | Cross-process workspace mutation/checkpoint lock |
+| `chaos_agent/rewind_capture.py` | Known-edit two-phase capture and unknown-writer invalidation |
+| `chaos_agent/rewind_sessions.py` | Checkpoint-ordering repository wrapper |
+| `chaos_agent/rewind_runtime.py` | Snapshot/chain/current-state validation and as-of retry |
 
 ## Task 0: Freeze Feature requirement boundaries
 
@@ -1595,13 +1595,13 @@ git commit -m "新增回溯界面：提供纯预览与只读命令"
 **Stage:** Integration
 
 **Files:**
-- Create: `code_agent_win/rewind_gate.py`
-- Create: `code_agent_win/rewind_capture.py`
-- Create: `code_agent_win/rewind_sessions.py`
-- Modify: `code_agent_win/action_dispatcher.py`
-- Modify: `code_agent_win/subagents.py`
-- Modify: `code_agent_win/app.py`
-- Modify: `code_agent_win/AGENTS.md`
+- Create: `chaos_agent/rewind_gate.py`
+- Create: `chaos_agent/rewind_capture.py`
+- Create: `chaos_agent/rewind_sessions.py`
+- Modify: `chaos_agent/action_dispatcher.py`
+- Modify: `chaos_agent/subagents.py`
+- Modify: `chaos_agent/app.py`
+- Modify: `chaos_agent/AGENTS.md`
 - Create: `tests/test_rewind_gate.py`
 - Create: `tests/test_rewind_capture.py`
 - Create: `tests/test_rewind_checkpoint_ordering.py`
@@ -1646,7 +1646,7 @@ async def test_release_may_run_on_a_different_worker_thread(self) -> None:
 
     try:
         with patch(
-            "code_agent_win.rewind_gate.asyncio.to_thread",
+            "chaos_agent.rewind_gate.asyncio.to_thread",
             side_effect=alternating_to_thread,
         ):
             gate = WorkspaceMutationGate(self.state_root, "a" * 64)
@@ -1665,7 +1665,7 @@ async def test_release_may_run_on_a_different_worker_thread(self) -> None:
 & $python -m unittest tests.test_rewind_gate -v
 ```
 
-Expected: import failure for `code_agent_win.rewind_gate`.
+Expected: import failure for `chaos_agent.rewind_gate`.
 
 - [ ] **Step 3: Implement the independent SQLite gate**
 
@@ -1705,7 +1705,7 @@ mutation/checkpoint commits while the gate is held.
 ```powershell
 & $python -m unittest tests.test_rewind_gate -v
 git diff --check
-git add code_agent_win/rewind_gate.py tests/test_rewind_gate.py
+git add chaos_agent/rewind_gate.py tests/test_rewind_gate.py
 git commit -m "新增工作区门闩：跨进程序列化回溯写入"
 ```
 
@@ -1801,7 +1801,7 @@ Require a non-`None` execution context for every write/gap path.
 ```powershell
 & $python -m unittest tests.test_rewind_capture tests.test_app_dispatcher -v
 git diff --check
-git add code_agent_win/rewind_capture.py code_agent_win/action_dispatcher.py tests/test_rewind_capture.py tests/test_app_dispatcher.py
+git add chaos_agent/rewind_capture.py chaos_agent/action_dispatcher.py tests/test_rewind_capture.py tests/test_app_dispatcher.py
 git commit -m "捕获工作区变更：持久化已知写入与覆盖缺口"
 ```
 
@@ -1964,9 +1964,9 @@ workspace coverage; read-only children may run without creating mutation facts.
 
 ```powershell
 & $python -m unittest tests.test_rewind_gate tests.test_rewind_capture tests.test_rewind_checkpoint_ordering tests.test_rewind_lineage_integration tests.test_app_dispatcher -v
-& $python -m compileall -q code_agent_win tests
+& $python -m compileall -q chaos_agent tests
 git diff --check
-git add code_agent_win tests/test_rewind_gate.py tests/test_rewind_capture.py tests/test_rewind_checkpoint_ordering.py tests/test_rewind_lineage_integration.py tests/test_app_dispatcher.py
+git add chaos_agent tests/test_rewind_gate.py tests/test_rewind_capture.py tests/test_rewind_checkpoint_ordering.py tests/test_rewind_lineage_integration.py tests/test_app_dispatcher.py
 git commit -m "接入回溯捕获：串行化变更与检查点"
 ```
 
@@ -1975,9 +1975,9 @@ git commit -m "接入回溯捕获：串行化变更与检查点"
 **Stage:** Integration
 
 **Files:**
-- Create: `code_agent_win/rewind_runtime.py`
-- Modify: `code_agent_win/app.py`
-- Modify: `code_agent_win/AGENTS.md`
+- Create: `chaos_agent/rewind_runtime.py`
+- Modify: `chaos_agent/app.py`
+- Modify: `chaos_agent/AGENTS.md`
 - Create: `tests/test_rewind_runtime.py`
 - Create: `tests/test_rewind_tui_integration.py`
 
@@ -2102,7 +2102,7 @@ Create these additional exact test methods:
 & $python -m unittest tests.test_rewind_runtime -v
 ```
 
-Expected: import failure for `code_agent_win.rewind_runtime`.
+Expected: import failure for `chaos_agent.rewind_runtime`.
 
 - [ ] **Step 3: Implement `RewindRuntime`**
 
@@ -2291,7 +2291,7 @@ whether the ID belongs to another thread.
 ```powershell
 & $python -m unittest tests.test_rewind_runtime -v
 git diff --check
-git add code_agent_win/rewind_runtime.py tests/test_rewind_runtime.py
+git add chaos_agent/rewind_runtime.py tests/test_rewind_runtime.py
 git commit -m "验证回溯观测：生成可信只读预览"
 ```
 
@@ -2334,9 +2334,9 @@ to keyword arguments to prevent positional-field drift.
 ```powershell
 & $python -m unittest discover -s tests -p 'test_rewind_*.py' -v
 & $python -m unittest tests.test_agent_app tests.test_command_integration tests.test_subagent_integration -v
-& $python -m compileall -q code_agent_win tests
+& $python -m compileall -q chaos_agent tests
 git diff --check
-git add code_agent_win tests/test_rewind_runtime.py tests/test_rewind_tui_integration.py tests/test_rewind_plugin_integration.py
+git add chaos_agent tests/test_rewind_runtime.py tests/test_rewind_tui_integration.py tests/test_rewind_plugin_integration.py
 git commit -m "集成回溯预览：验证快照链并接通 TUI"
 ```
 
@@ -2349,7 +2349,7 @@ git commit -m "集成回溯预览：验证快照链并接通 TUI"
 - Modify: `README.md`
 - Modify: `docs/amp-inspired-runtime.md`
 - Modify: `docs/research/cli-tui-design-comparison.md`
-- Modify: `code_agent_win/AGENTS.md`
+- Modify: `chaos_agent/AGENTS.md`
 
 - [ ] **Step 1: Run every Feature suite**
 
@@ -2373,7 +2373,7 @@ Expected: zero failures/errors; platform skips remain explicit.
 ```powershell
 & $python -m unittest discover -s tests -p 'test_*.py' -v
 if ($LASTEXITCODE -ne 0) { throw 'failed root integration suite' }
-& $python -m compileall -q src code_agent_win tests
+& $python -m compileall -q src chaos_agent tests
 if ($LASTEXITCODE -ne 0) { throw 'compileall failed' }
 git diff --check
 git status --short
@@ -2403,7 +2403,7 @@ suite result.
 - [ ] **Step 4: Commit documentation reconciliation**
 
 ```powershell
-git add docs/superpowers/plans/2026-07-16-cli-tui-p0-recovery-review-plan.md README.md docs/amp-inspired-runtime.md docs/research/cli-tui-design-comparison.md code_agent_win/AGENTS.md
+git add docs/superpowers/plans/2026-07-16-cli-tui-p0-recovery-review-plan.md README.md docs/amp-inspired-runtime.md docs/research/cli-tui-design-comparison.md chaos_agent/AGENTS.md
 git commit -m "对齐回溯交付：记录 P0 可信预览边界"
 ```
 

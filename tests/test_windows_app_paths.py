@@ -13,9 +13,9 @@ from code_agent.workspace.windows_paths import (
     LEGACY_SAFE_PATH_CHARS,
     windows_path_support,
 )
-from code_agent_win.app_paths import product_state_root
-from code_agent_win.app import create_application
-from code_agent_win.workspace_runtime import ManagedWorkspaceRuntime
+from chaos_agent.app_paths import product_state_root
+from chaos_agent.app import create_application
+from chaos_agent.workspace_runtime import ManagedWorkspaceRuntime
 
 
 @unittest.skipUnless(os.name == "nt", "Windows path limits are Windows-only")
@@ -124,14 +124,14 @@ class WindowsApplicationPathTests(unittest.TestCase):
             failure = WindowsLongPathError("application product state is too long")
 
             with patch(
-                "code_agent_win.app._product_state_root", side_effect=failure
+                "chaos_agent.app._product_state_root", side_effect=failure
             ), patch(
-                "code_agent_win.app._session_path",
+                "chaos_agent.app._session_path",
                 return_value=root / "state" / "sessions.sqlite3",
             ), patch(
-                "code_agent_win.app.load_runtime_config", return_value=runtime
+                "chaos_agent.app.load_runtime_config", return_value=runtime
             ), patch(
-                "code_agent_win.app.resolved_powershell_runtime"
+                "chaos_agent.app.resolved_powershell_runtime"
             ) as resolve_powershell:
                 with self.assertRaises(WindowsLongPathError):
                     create_application(root)
@@ -147,13 +147,13 @@ class WindowsApplicationPathTests(unittest.TestCase):
             failure = WindowsLongPathError("workspace storage is too long")
 
             with patch(
-                "code_agent_win.app._product_state_root", return_value=state
+                "chaos_agent.app._product_state_root", return_value=state
             ), patch(
-                "code_agent_win.app._workspace_storage_path", side_effect=failure
+                "chaos_agent.app._workspace_storage_path", side_effect=failure
             ), patch(
-                "code_agent_win.app.load_runtime_config", return_value=runtime
+                "chaos_agent.app.load_runtime_config", return_value=runtime
             ), patch(
-                "code_agent_win.app.resolved_powershell_runtime"
+                "chaos_agent.app.resolved_powershell_runtime"
             ) as resolve_powershell:
                 with self.assertRaises(WindowsLongPathError):
                     create_application(root)
@@ -170,9 +170,9 @@ class WindowsApplicationPathTests(unittest.TestCase):
             runtime = _runtime_config(base)
 
             with self._legacy_paths(), patch(
-                "code_agent_win.app.load_runtime_config", return_value=runtime
+                "chaos_agent.app.load_runtime_config", return_value=runtime
             ), patch(
-                "code_agent_win.app.resolved_powershell_runtime"
+                "chaos_agent.app.resolved_powershell_runtime"
             ) as resolve_powershell:
                 with self.assertRaisesRegex(WindowsLongPathError, "workspace root"):
                     create_application(alias)

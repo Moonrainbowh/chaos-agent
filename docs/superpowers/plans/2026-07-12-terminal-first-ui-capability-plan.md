@@ -278,7 +278,7 @@ tool.
 **Goal:** Wire completed Feature APIs into the Windows application and give
 users accurate documentation.
 
-- Update `code_agent_win` composition only after Feature contracts and tests
+- Update `chaos_agent` composition only after Feature contracts and tests
   are complete.
 - Update CLI help and README with the terminal-first behavior, palette,
   safe model boundary, Skill trust model, MCP status semantics, and optional

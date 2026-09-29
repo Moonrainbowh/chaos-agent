@@ -19,9 +19,9 @@ from code_agent.runtime.models import (
 )
 from code_agent.runtime.errors import RuntimeUnavailable
 from code_agent.interfaces.capability_view import ModePermissionView, PermissionSummary
-from code_agent_win.cli import run
-from code_agent_win.tool_support import windows_system_prompt
-from code_agent_win.tools import tool_definitions
+from chaos_agent.cli import run
+from chaos_agent.tool_support import windows_system_prompt
+from chaos_agent.tools import tool_definitions
 from tests.agent_app_test_support import _isolated_application
 
 
@@ -129,7 +129,7 @@ class PowerShellCliTests(unittest.IsolatedAsyncioTestCase):
     async def test_unavailable_explicit_dialect_has_actionable_diagnostic(self) -> None:
         stderr = io.StringIO()
         with patch(
-            "code_agent_win.cli.create_application",
+            "chaos_agent.cli.create_application",
             side_effect=RuntimeUnavailable(
                 "configured PowerShell dialect powershell_7 is unavailable"
             ),

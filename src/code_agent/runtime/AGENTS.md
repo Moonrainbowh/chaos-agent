@@ -2,7 +2,7 @@
 在策略授权后执行可流式、可超时、可取消的命令，并隔离宿主环境中的非必要能力。
 
 ## 边界
-- 负责：以 Windows 10/11、PowerShell 7 和 Windows Terminal 为首版验收基线，实现本机 Runtime；Linux/macOS/WSL2 使用 POSIX 本机 Runtime。
+- 负责：在 Windows、Linux、macOS 和 WSL2 上提供平台适配的本机 Runtime；Windows 使用 PowerShell 7/Job Object，POSIX 系统使用 process group 与 `/bin/sh`。
 - 负责：环境变量净化、输出限额、超时、取消，以及由 Windows Job Object 持有的进程树终止。
 - 负责：根进程以 `CREATE_SUSPENDED` 创建，在恢复前加入启用 `KILL_ON_JOB_CLOSE` 的匿名 Job；分配失败必须保持挂起、清理并失败闭合，不得 breakaway 或降级为未纳管执行。
 - 负责：通过正式依赖 `psutil` 持有进程对象，并以 PID 与 `create_time` 共同验证待终止进程身份；该路径是 Job API 失败后的补充清理，不是正常终止主路径。
@@ -31,5 +31,5 @@
 - `resume_process_identity(identity, process_api): None`: 复核启动身份后恢复挂起进程 | 恢复宿主进程执行 | 必须在 DirectoryLease 释放前同步完成
 - `WindowsJob.create()`、`assign(pid)`、`terminate()`、`close()`: 创建并独占一个不可继承的匿名 Job，设置 `KILL_ON_JOB_CLOSE`，用最小进程权限分配挂起根进程并统一终止后代 | 调用 Kernel32 Job API | Windows 10/11 可嵌套 Job；AccessDenied 或受限宿主 Job 不得静默回退，所有句柄显式关闭
 - `terminate_process_tree(process, process_wait, root_identity, job): None`: 运行中根进程先同步终止所属 Job；正常根退出则只在 Job 尚有后代时终止，并有界等待 `ActiveProcesses == 0`；Job API 失败或根进程逾期才使用身份绑定的 psutil 树做补充清理 | 终止宿主进程 | fallback 即使清净也必须报告原始 Job 控制面失败；最多跟踪 1024 个身份
-- `WindowsLocalRuntime.run(spec, cancellation, on_output): CommandResult`: 在净化环境中以 `DEVNULL` stdin 挂起启动、捕获身份、加入 Job 后恢复 Windows 进程，再处理流、deadline、取消、PowerShell/native 退出状态与进程树终止 | 启动和终止宿主进程 | Job 归零并关闭后，两个 pipe reader 还必须在有界时间内到达 EOF 才可返回成功；Windows-first；本机执行不是 OS 级沙箱
+- `WindowsLocalRuntime.run(spec, cancellation, on_output): CommandResult`: 在净化环境中以 `DEVNULL` stdin 挂起启动、捕获身份、加入 Job 后恢复 Windows 进程，再处理流、deadline、取消、PowerShell/native 退出状态与进程树终止 | 启动和终止宿主进程 | Job 归零并关闭后，两个 pipe reader 还必须在有界时间内到达 EOF 才可返回成功；Windows 平台实现；本机执行不是 OS 级沙箱
 - `PosixLocalRuntime.run(spec, cancellation, on_output)`、`build_local_runtime(...)`: 在 POSIX 中以独立 process group、净化环境、`DEVNULL` stdin 和 `/bin/sh -lc` 运行 argv 或 `posix_sh`；由平台工厂选择，不把 POSIX 伪装成 Windows Runtime | 启动和终止宿主进程 | 超时、取消与输出超限先发送 SIGTERM、再有界 SIGKILL；本机执行不是 OS 级沙箱

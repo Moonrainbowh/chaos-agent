@@ -25,15 +25,15 @@ from code_agent.workflows.observations import (
     VerificationObservation,
 )
 from code_agent.sessions.errors import SessionNotFound
-from code_agent_win.foreground_checkpoint_lifecycle import ForegroundCheckpointLifecycle
-from code_agent_win.foreground_task_observers import observe_task_created
-from code_agent_win.foreground_task_support import (
+from chaos_agent.foreground_checkpoint_lifecycle import ForegroundCheckpointLifecycle
+from chaos_agent.foreground_task_observers import observe_task_created
+from chaos_agent.foreground_task_support import (
     active_task,
     plugin_event_fields,
     plugin_event_kind,
     same_path,
 )
-from code_agent_win.foreground_workspace_setup import (
+from chaos_agent.foreground_workspace_setup import (
     abort_prepared_workspace,
     bind_workspace,
     prepare_workspace,

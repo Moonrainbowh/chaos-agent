@@ -17,7 +17,7 @@ from code_agent.interfaces.task_controller import ForegroundTaskController
 from code_agent.sessions.repository import SQLiteSessionRepository
 from code_agent.verification.task_service import LedgerTaskVerificationService
 from code_agent.workspace.errors import SensitivePathError
-from code_agent_win.app import _product_state_root, _session_path
+from chaos_agent.app import _product_state_root, _session_path
 from tests.agent_app_test_support import (
     FakeModel,
     _BlockingRuntime,
@@ -91,7 +91,7 @@ class ApplicationGuardTests(unittest.IsolatedAsyncioTestCase):
             finally:
                 connection.close()
 
-            with patch("code_agent_win.app.os.getenv", return_value=str(root)):
+            with patch("chaos_agent.app.os.getenv", return_value=str(root)):
                 current = _session_path()
 
             self.assertEqual(
@@ -105,7 +105,7 @@ class ApplicationGuardTests(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
 
-            with patch("code_agent_win.app.os.getenv", return_value=str(root)):
+            with patch("chaos_agent.app.os.getenv", return_value=str(root)):
                 current = _session_path()
 
             self.assertEqual(
@@ -117,7 +117,7 @@ class ApplicationGuardTests(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
 
-            with patch("code_agent_win.app.os.getenv", return_value=str(root)):
+            with patch("chaos_agent.app.os.getenv", return_value=str(root)):
                 current = _product_state_root()
 
             self.assertEqual(

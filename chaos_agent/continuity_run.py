@@ -14,7 +14,7 @@ from code_agent.evaluation.models import ScenarioResult
 from code_agent.evaluation.runner import ScenarioRunner
 from code_agent.core.limits import EngineLimits
 from code_agent.sessions.repository import SQLiteSessionRepository
-from code_agent_win.continuity_process import ProcessContinuityAdapter
+from chaos_agent.continuity_process import ProcessContinuityAdapter
 
 
 def _write(path, value):

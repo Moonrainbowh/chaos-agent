@@ -10,8 +10,8 @@ from code_agent.workspace.edits import WorkspaceEditor
 from code_agent.workspace.errors import WindowsFileBusyError
 from code_agent.workspace._text_codec import TextFileFormat
 from code_agent.workspace.git import GitWorkspace
-from code_agent_win.peer_tools import validate_peer_tool_arguments
-from code_agent_win.tools import (
+from chaos_agent.peer_tools import validate_peer_tool_arguments
+from chaos_agent.tools import (
     powershell_compatibility_error,
     process_compatibility_error,
     validate_tool_arguments,

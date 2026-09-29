@@ -3,8 +3,8 @@ from __future__ import annotations
 from code_agent.core.models import ActionRequest, ActionResult
 from code_agent.workspace._batch_models import BatchApplyResult, BatchApplyStatus
 
-from code_agent_win.action_support import error_result, ok_result
-from code_agent_win.edit_plan_store import (
+from chaos_agent.action_support import error_result, ok_result
+from chaos_agent.edit_plan_store import (
     StoredPlanStatus,
     StoredWorkspaceEditPlan,
     WorkspaceEditPlanStore,

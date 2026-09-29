@@ -22,7 +22,7 @@ class ProcessContinuityAdapter:
     async def start(self):
         root = Path(__file__).resolve().parents[1]
         verify_freeze(root, required=self.options.mode == "api")
-        args = [sys.executable, "-X", "utf8", "-B", "-u", "-m", "code_agent_win.continuity_worker",
+        args = [sys.executable, "-X", "utf8", "-B", "-u", "-m", "chaos_agent.continuity_worker",
                 "--workspace", str(self.workspace), "--state", str(self.state)]
         for flag in ("mode", "profile", "model", "effort", "task_tokens"):
             args.extend(("--" + flag.replace("_", "-"), str(getattr(self.options, flag))))

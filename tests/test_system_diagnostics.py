@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from code_agent.interfaces.diagnostic_view import format_diagnostics
-from code_agent_win.system_diagnostics import SystemDoctor
+from chaos_agent.system_diagnostics import SystemDoctor
 
 
 class _PowerShell:
@@ -24,7 +24,7 @@ class SystemDoctorTests(unittest.IsolatedAsyncioTestCase):
                 git=object(),
                 base_url="https://api.example.test/v1",
             )
-            with patch("code_agent_win.system_diagnostics._tcp_probe") as probe:
+            with patch("chaos_agent.system_diagnostics._tcp_probe") as probe:
                 checks = await doctor.run()
 
         endpoint = next(item for item in checks if item.name == "Provider endpoint")
@@ -41,7 +41,7 @@ class SystemDoctorTests(unittest.IsolatedAsyncioTestCase):
                 base_url="http://offline.example.test:8080",
             )
             with patch(
-                "code_agent_win.system_diagnostics._tcp_probe",
+                "chaos_agent.system_diagnostics._tcp_probe",
                 side_effect=OSError("offline"),
             ):
                 checks = await doctor.run()
