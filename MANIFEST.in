@@ -1,0 +1,1 @@
+recursive-include chaos_agent/remote/static *.html

@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#151b25">
+<title>Chaos Agent</title>
+<style>
+body{margin:0;background:#11151b;color:#e8edf5;font:16px system-ui,sans-serif}
+main{max-width:680px;margin:auto;padding:20px;min-height:100vh;display:flex;flex-direction:column;gap:14px}
+header{display:flex;justify-content:space-between;align-items:center}h1{font-size:20px;margin:0}.muted{color:#92a0b4;font-size:13px}
+.messages{flex:1;display:flex;flex-direction:column;gap:10px}.bubble{padding:12px;border-radius:14px;max-width:88%;white-space:pre-wrap}.user{align-self:flex-end;background:#2c5d73}.agent{background:#202a39}.tool{border-left:3px solid #e2ad62;background:#25211b;padding:9px;color:#bac7d8}
+.bar{display:flex;gap:8px}.bar textarea{flex:1;resize:none;padding:12px;border:1px solid #43516a;border-radius:12px;background:#10151d;color:#fff}.bar button,button{border:0;border-radius:10px;padding:10px 14px;background:#66dfa5;color:#08110d;font-weight:700}.stop{background:#f07d7d}
+#pair{display:flex;gap:8px}#pair input{flex:1;padding:12px;background:#10151d;color:#fff;border:1px solid #43516a;border-radius:10px}
+</style>
+</head>
+<body>
+<main>
+<header><h1>Chaos Agent</h1><span id="state" class="muted">未配对</span></header>
+<section id="pair"><input id="token" placeholder="输入电脑端 Token"><button id="pairButton">配对</button></section>
+<section id="messages" class="messages"></section>
+<div class="bar"><textarea id="prompt" rows="2" placeholder="输入任务……"></textarea><button id="send">发送</button><button id="stop" class="stop">停止</button></div>
+<div class="muted">电脑端任务在手机断线后仍会继续。</div>
+</main>
+<script>
+const state=document.querySelector('#state'),messages=document.querySelector('#messages'),token=document.querySelector('#token');let credential=localStorage.getItem('chaos-device'),task=null,socket=null,lastSequence=0,reconnectTimer=null;
+const add=(text,kind='agent')=>{const el=document.createElement('div');el.className='bubble '+kind;el.textContent=text;messages.append(el);messages.scrollTop=messages.scrollHeight;return el};
+async function pair(){const r=await fetch('/pair',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({token:token.value})});const data=await r.json();if(!r.ok){state.textContent=data.error;return}credential=data.device_credential;localStorage.setItem('chaos-device',credential);document.querySelector('#pair').hidden=true;state.textContent='● 在线';connect()}
+async function send(){if(!credential||task)return;const input=document.querySelector('#prompt');if(!input.value.trim())return;add(input.value,'user');const r=await fetch('/sessions/current/messages',{method:'POST',headers:{authorization:'Bearer '+credential,'content-type':'application/json'},body:JSON.stringify({prompt:input.value})});const data=await r.json();input.value='';if(!r.ok){add(data.error);return}task=data.task_id;state.textContent='● 执行中';connect()}
+async function stop(){if(!task)return;await fetch('/tasks/'+task+'/stop',{method:'POST',headers:{authorization:'Bearer '+credential}})}
+function connect(){if(!credential||socket&&socket.readyState===1)return;const url=(location.protocol==='https:'?'wss':'ws')+'://'+location.host+'/sessions/current/events?since='+lastSequence;socket=new WebSocket(url);socket.onopen=()=>socket.send('auth:'+credential);socket.onmessage=e=>{const data=JSON.parse(e.data);lastSequence=Math.max(lastSequence,data.sequence||0);if(data.event==='assistant_delta')add(data.data.text);if(data.event==='tool_started')add('工具：'+(data.data.name||'执行中'),'tool');if(data.event==='task_started')task=data.task_id;if(data.event==='task_completed'){state.textContent='● 已完成';task=null}if(data.event==='task_failed'){state.textContent='任务失败';task=null}if(data.event==='task_stopped'){state.textContent='已停止';task=null}};socket.onclose=()=>{if(credential){state.textContent='等待重连';if(task&&!reconnectTimer)reconnectTimer=setTimeout(()=>{reconnectTimer=null;connect()},1000)}}}
+async function sync(){if(!credential)return;const r=await fetch('/status',{headers:{authorization:'Bearer '+credential}});if(!r.ok){localStorage.removeItem('chaos-device');credential=null;document.querySelector('#pair').hidden=false;state.textContent='未配对';return}const data=await r.json();task=data.task_id;if(task)state.textContent='● 执行中';connect()}
+document.querySelector('#pairButton').onclick=pair;document.querySelector('#send').onclick=send;document.querySelector('#stop').onclick=stop;if(credential){document.querySelector('#pair').hidden=true;state.textContent='连接中';sync()}
+</script>
+</body>
+</html>

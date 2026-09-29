@@ -40,6 +40,7 @@ _HELP = """Usage: chaos-agent [global options] [command]
 Commands:
   auth <command>               Login, API keys, model catalog and configuration
   acp                          Serve ACP v1 over stdio for editor clients
+  host                         Serve the mobile PWA over the local/Tailscale network
   ask <prompt>                 Run one request and print the result
   resume <thread-id> [prompt]  Resume a saved task or open it in the TUI
   run --json <prompt>          Stream machine-readable JSON events
@@ -83,6 +84,11 @@ async def serve_acp(application):
     return await serve(application)
 
 
+async def serve_host(application, arguments):
+    from .remote_cli import serve_host as serve
+    return await serve(application, arguments)
+
+
 async def run(arguments: Sequence[str], *, splash=None) -> int:
     from .debug_trace import configure_runtime_trace
     configure_runtime_trace()
@@ -107,7 +113,8 @@ async def run(arguments: Sequence[str], *, splash=None) -> int:
             print(meta_output)
             return 0
         is_acp = command_arguments == ("acp",)
-        if is_acp and attachment_paths:
+        is_host = bool(command_arguments and command_arguments[0] == "host")
+        if (is_acp or is_host) and attachment_paths:
             raise ValueError("--attach is not supported by acp")
         if (
             not is_acp
@@ -117,6 +124,9 @@ async def run(arguments: Sequence[str], *, splash=None) -> int:
             raise ValueError("acp does not accept positional arguments")
         if is_acp:
             command = None
+        elif is_host:
+            command = None
+            _validate_host_arguments(command_arguments[1:])
         else:
             command_arguments = _default_attachment_prompt(
                 command_arguments, bool(attachment_paths)
@@ -150,6 +160,8 @@ async def run(arguments: Sequence[str], *, splash=None) -> int:
         if reclaim:
             return await _report_reclamation(application)
         if command is None:
+            if is_host:
+                return await serve_host(application, command_arguments[1:])
             await serve_acp(application)
             return 0
         application.dispatcher.interactive = command.kind is CommandKind.TUI
@@ -217,6 +229,23 @@ def main(*, splash=None) -> int:
     finally:
         if splash is not None:
             splash.stop()
+
+
+def _validate_host_arguments(arguments: Sequence[str]) -> None:
+    allowed = {"--bind", "--port"}
+    index = 0
+    while index < len(arguments):
+        value = arguments[index]
+        if value not in allowed or index + 1 >= len(arguments):
+            raise ValueError("host accepts only --bind <address> and --port <1..65535>")
+        if value == "--port":
+            try:
+                port = int(arguments[index + 1])
+            except ValueError as error:
+                raise ValueError("host port must be an integer") from error
+            if not 1 <= port <= 65535:
+                raise ValueError("host port must be between 1 and 65535")
+        index += 2
 
 
 async def _report_reclamation(application) -> int:

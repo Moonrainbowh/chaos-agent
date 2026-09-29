@@ -7,7 +7,7 @@ setup(
         include=["code_agent*"],
         exclude=["code_agent.*.tests", "code_agent.*.tests.*"],
     )
-    + ["chaos_agent"],
+    + ["chaos_agent", "chaos_agent.remote"],
     package_dir={"": "src", "chaos_agent": "chaos_agent"},
-    include_package_data=False,
+    include_package_data=True,
 )
