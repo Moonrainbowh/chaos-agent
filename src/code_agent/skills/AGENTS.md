@@ -17,6 +17,7 @@
 - `resolve_skill_request`: 将显式 `/skill`、直接 `/<skill-id>` 和 `+` 组合解析为结构化请求 | 纯字符串与 Skill ID 校验 | 不执行 Skill、不做自然语言自动匹配、不编排组合顺序
 - `match_skill`: 按 Skill ID/description 对普通自然语言任务做确定性高置信度匹配 | 纯内存评分 | 低置信度和近分候选返回空，不激活、不执行、不调用网络
 - `check_capabilities`: 将 Skill 的 `requires` 声明与 Host 提供的只读 ToolDefinition 快照比较 | 纯内存 | 只报告缺失能力，不注册工具、不调用 MCP、不改变 ActionPolicy 或审批
+- `SkillController.enable_many`：在 Skill 激活和持久化前对整个有序组合执行能力闸门 | Skill/Sessions I/O | 任一 Skill 缺少当前能力时整组拒绝，且不触发审批、不保存部分激活；能力通过不替代 ActionPolicy
 - `SkillRequest.skill_ids` 与 TUI 有序激活链：按用户声明顺序把组合 Skill 绑定到同一 Thread | Sessions/上下文注入 | 仅支持线性组合，不推导 DAG 或工具权限
 
 - SkillContextBuilder 追加指令后同步本地 `prompt_estimated_tokens`，保留旧度量与 Prompt 内容。

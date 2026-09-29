@@ -5,7 +5,9 @@ import unittest
 from pathlib import Path
 
 from code_agent.sessions.repository import SQLiteSessionRepository
+from code_agent.core.models import ToolDefinition
 from code_agent.skills.controller import SkillController
+from code_agent.skills.capabilities import SkillCapabilityError
 
 
 class Approval:
@@ -19,6 +21,58 @@ class Approval:
 
 
 class SkillControllerTests(unittest.IsolatedAsyncioTestCase):
+    async def test_missing_capability_blocks_activation_before_approval_or_persistence(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            skill_dir = root / ".agents" / "skills" / "review"
+            skill_dir.mkdir(parents=True)
+            (skill_dir / "SKILL.md").write_text(
+                "---\nname: review\nrequires:\n  - read_workspace\n---\nReview.",
+                encoding="utf-8",
+            )
+            sessions = SQLiteSessionRepository(root / "sessions.sqlite3")
+            thread_id = await sessions.create_thread()
+            approval = Approval()
+            controller = SkillController(
+                root,
+                sessions,
+                approval,
+                capability_snapshot=lambda: (),
+            )
+
+            with self.assertRaises(SkillCapabilityError) as raised:
+                await controller.enable(thread_id, "review")
+
+            self.assertEqual(raised.exception.checks[0].missing, ("read_workspace",))
+            self.assertEqual(approval.calls, [])
+            self.assertEqual(await sessions.list_skill_activations(thread_id), ())
+
+    async def test_combined_activation_checks_all_skills_before_enabling_any(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for identifier, requirement in (("review", "read_workspace"), ("report", "report_exporter")):
+                skill_dir = root / ".agents" / "skills" / identifier
+                skill_dir.mkdir(parents=True)
+                (skill_dir / "SKILL.md").write_text(
+                    f"---\nname: {identifier}\nrequires: [{requirement}]\n---\nUse it.",
+                    encoding="utf-8",
+                )
+            sessions = SQLiteSessionRepository(root / "sessions.sqlite3")
+            thread_id = await sessions.create_thread()
+            controller = SkillController(
+                root,
+                sessions,
+                Approval(),
+                capability_snapshot=lambda: (
+                    ToolDefinition("read_workspace", "read", {}),
+                ),
+            )
+
+            with self.assertRaises(SkillCapabilityError):
+                await controller.enable_many(thread_id, ("review", "report"))
+
+            self.assertEqual(await sessions.list_skill_activations(thread_id), ())
+
     async def test_enable_restore_disable_and_digest_drift(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

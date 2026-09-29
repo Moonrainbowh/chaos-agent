@@ -22,6 +22,19 @@ class CapabilityCheck:
         return not self.missing
 
 
+class SkillCapabilityError(PermissionError):
+    """Raised when a Skill cannot run with the current tool snapshot."""
+
+    def __init__(self, checks: tuple[CapabilityCheck, ...]) -> None:
+        self.checks = checks
+        missing = ", ".join(
+            f"{check.skill_id}: {', '.join(check.missing)}"
+            for check in checks
+            if check.missing
+        )
+        super().__init__(f"Skill capabilities unavailable ({missing})")
+
+
 def check_capabilities(
     skill: SkillManifest,
     tools: Iterable[ToolDefinition],

@@ -1,12 +1,19 @@
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Protocol
 
 from code_agent.sessions.models import SkillActivationRecord
 
 from .registry import SkillActivation, SkillManifest, SkillRegistry
-from .capabilities import CapabilityCheck, check_capabilities
+from code_agent.core.models import ToolDefinition
+
+from .capabilities import (
+    CapabilityCheck,
+    SkillCapabilityError,
+    check_capabilities,
+)
 
 
 class SkillApproval(Protocol):
@@ -40,14 +47,22 @@ class SkillController:
         *,
         user_root: Path | None = None,
         max_chars: int = 64_000,
+        capability_snapshot: Callable[[], Iterable[ToolDefinition]] | None = None,
     ) -> None:
         self._workspace = Path(workspace)
         self._user_root = user_root
         self._store = store
         self._approval = approval
         self._max_chars = max_chars
+        self._capability_snapshot = capability_snapshot
         self._registry = SkillRegistry.discover(self._workspace, user_root)
         self._activations: dict[str, SkillActivation] = {}
+
+    def set_capability_snapshot(
+        self, provider: Callable[[], Iterable[ToolDefinition]]
+    ) -> None:
+        """Bind the current Host tool snapshot provider after composition."""
+        self._capability_snapshot = provider
 
     def list(self) -> tuple[SkillManifest, ...]:
         return self._registry.list()
@@ -81,21 +96,39 @@ class SkillController:
     async def enable(
         self, thread_id: str, identifier: str
     ) -> SkillManifest:
-        skill = self.info(identifier)
-        approved = skill.trusted
-        if not approved:
-            approved = await self._approval.approve(
-                skill.identifier, skill.source, skill.digest
+        return (await self.enable_many(thread_id, (identifier,)))[0]
+
+    async def enable_many(
+        self, thread_id: str, identifiers: tuple[str, ...]
+    ) -> tuple[SkillManifest, ...]:
+        if not identifiers or len(set(identifiers)) != len(identifiers):
+            raise ValueError("Skill activation requires unique identifiers")
+        skills = tuple(self.info(identifier) for identifier in identifiers)
+        if self._capability_snapshot is not None:
+            snapshot = tuple(self._capability_snapshot())
+            checks = tuple(
+                check_capabilities(skill, snapshot) for skill in skills
             )
-        if not approved:
-            raise PermissionError("workspace skill activation was rejected")
-        activated = self.activation(thread_id).activate(
-            identifier, approved=True
-        )
-        await self._store.save_skill_activation(
-            thread_id, identifier, activated.source, activated.digest
-        )
-        return activated
+            if any(not check.satisfied for check in checks):
+                raise SkillCapabilityError(checks)
+
+        activated: list[SkillManifest] = []
+        for skill in skills:
+            approved = skill.trusted
+            if not approved:
+                approved = await self._approval.approve(
+                    skill.identifier, skill.source, skill.digest
+                )
+            if not approved:
+                raise PermissionError("workspace skill activation was rejected")
+            item = self.activation(thread_id).activate(
+                skill.identifier, approved=True
+            )
+            await self._store.save_skill_activation(
+                thread_id, skill.identifier, item.source, item.digest
+            )
+            activated.append(item)
+        return tuple(activated)
 
     async def disable(self, thread_id: str, identifier: str) -> bool:
         self.activation(thread_id).deactivate(identifier)
