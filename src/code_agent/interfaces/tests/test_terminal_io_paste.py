@@ -3,11 +3,17 @@ from __future__ import annotations
 import unittest
 from unittest.mock import patch
 
-from code_agent.interfaces.terminal_io import read_key
+from code_agent.interfaces.terminal_io import _mouse_key, read_key
+from code_agent.interfaces.posix_terminal_io import _mouse_key as posix_mouse_key
 from code_agent.interfaces.posix_terminal_io import read_key as read_posix_key
 
 
 class TerminalPasteInputTests(unittest.TestCase):
+    def test_sgr_mouse_wheel_maps_to_history_scroll(self) -> None:
+        self.assertEqual(_mouse_key("\x1b[<64;20;10M"), "scroll_up")
+        self.assertEqual(posix_mouse_key("\x1b[<65;20;10M"), "scroll_down")
+        self.assertEqual(_mouse_key("\x1b[<0;20;10M"), "")
+
     def test_empty_bracketed_paste_is_preserved_as_an_input_event(self) -> None:
         class ConsoleInput:
             def __init__(self) -> None:

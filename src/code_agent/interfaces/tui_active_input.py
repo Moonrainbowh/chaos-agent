@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from code_agent.core.attachments import AttachmentRef
+from code_agent.core.debug_trace import trace_event
 from code_agent.core.events import AgentEvent, EventKind
 
 from .steering_view import SteeringKind, SteeringStage
@@ -32,11 +33,16 @@ async def queue_followup(
     instruction: str,
     attachments: tuple[AttachmentRef, ...] = (),
 ) -> None:
+    trace_event(
+        "queue.followup", "started", task_id=task_id,
+        attachment_count=len(attachments),
+    )
     identifier = (
         await app.tasks.queue(task_id, instruction, attachments=attachments)
         if attachments
         else await app.tasks.queue(task_id, instruction)
     )
+    trace_event("queue.followup", "completed", task_id=task_id)
     interactions.steering.queue(
         instruction or "apply attached user input",
         identifier,

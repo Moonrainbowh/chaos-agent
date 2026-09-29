@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import unittest
 import tempfile
 from pathlib import Path
@@ -7,10 +8,14 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 from code_agent.interfaces.runtime_picker import runtime_picker_items
+from code_agent.interfaces.tui_new_conversation import reset_conversation
 from code_agent.interfaces.task_controller import ForegroundTaskController
 from code_agent.sessions.repository import SQLiteSessionRepository
 from code_agent.interfaces.terminal_display import DisplayKind
 from code_agent.interfaces.tests.test_command_navigation import Runtime, make_app
+from code_agent.core.cancellation import CancellationToken
+from code_agent.core.events import AgentEvent, EventKind
+from code_agent.core.models import Message
 
 
 class RuntimeNewConversationTests(unittest.IsolatedAsyncioTestCase):
@@ -117,6 +122,37 @@ class RuntimeNewConversationTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(app.active_task_id)
         self.assertEqual(app.state.transcript, [])
         self.assertEqual(runtime.calls, [])
+
+    async def test_events_from_previous_projection_cannot_enter_new_conversation(self):
+        app, _ = self.saved_app(active=False)
+        app.current_thread_id = "old-thread"
+        app.state.thread_id = None
+        gate = asyncio.Event()
+        started = asyncio.Event()
+
+        async def ask(prompt, **kwargs):
+            started.set()
+            yield AgentEvent(EventKind.RUN_STARTED, {"thread_id": "old-thread"})
+            await gate.wait()
+            yield AgentEvent(
+                EventKind.MESSAGE_ADDED,
+                {"message": Message("assistant", "stale old answer").to_dict()},
+            )
+
+        app.controller.ask = ask
+        consumer = asyncio.create_task(
+            app._consume("old prompt", CancellationToken())
+        )
+        await started.wait()
+        await asyncio.sleep(0)
+
+        reset_conversation(app)
+        gate.set()
+        await consumer
+
+        self.assertEqual(app.current_thread_id, None)
+        self.assertEqual(app.state.transcript, [])
+        self.assertNotIn("stale old answer", "\n".join(app.state.transcript))
 
     async def test_saved_task_survives_switch_and_new_task_freezes_new_settings(self):
         with tempfile.TemporaryDirectory() as directory:

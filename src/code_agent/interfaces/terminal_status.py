@@ -112,6 +112,8 @@ def status_context(
     task_limit: int | None = None,
     task_reserved: int = 0,
     phase_durations: Mapping[str, int] | None = None,
+    completed_at: float | None = None,
+    completed_duration_ms: int | None = None,
 ) -> str:
     parts = [model] if model else []
     if branch:
@@ -136,7 +138,36 @@ def status_context(
     if started_at is not None:
         elapsed = int(now - started_at)
         parts.append(f"{elapsed // 60:02d}:{elapsed % 60:02d}")
+    if completed_duration_ms is not None and completed_at is not None:
+        parts.append(
+            (f"耗时 {_format_duration(completed_duration_ms)} · "
+             f"{_format_relative_age(max(0, now - completed_at))}")
+        )
     return " · ".join(parts)
+
+
+def _format_duration(duration_ms: int) -> str:
+    seconds = max(0, round(duration_ms / 1_000))
+    minutes, seconds = divmod(seconds, 60)
+    hours, minutes = divmod(minutes, 60)
+    if hours:
+        return f"{hours}小时{minutes}分" if minutes else f"{hours}小时"
+    if minutes:
+        return f"{minutes}分{seconds}秒" if seconds else f"{minutes}分"
+    return f"{seconds}秒"
+
+
+def _format_relative_age(age_seconds: float) -> str:
+    minutes = int(age_seconds // 60)
+    if minutes < 1:
+        return "刚刚"
+    hours, minutes = divmod(minutes, 60)
+    if hours < 1:
+        return f"{minutes}分钟前"
+    days, hours = divmod(hours, 24)
+    if days < 1:
+        return f"{hours}小时前"
+    return f"{days}天前"
 
 
 def _phase_timing_context(phase_durations: Mapping[str, int] | None) -> str:

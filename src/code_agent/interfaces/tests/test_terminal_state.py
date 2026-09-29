@@ -110,6 +110,17 @@ class TerminalStateTests(unittest.TestCase):
         state.apply(AgentEvent(EventKind.RUN_STARTED, {}))
         self.assertEqual(state.phase_durations, {})
 
+    def test_finish_run_records_duration_and_begin_run_clears_previous_completion(self) -> None:
+        state = TerminalState()
+        state.begin_run()
+        state.finish_run(10.0, 12.345)
+        self.assertEqual(state.completed_at, 12.345)
+        self.assertEqual(state.completed_duration_ms, 2345)
+
+        state.begin_run()
+        self.assertIsNone(state.completed_at)
+        self.assertIsNone(state.completed_duration_ms)
+
     def test_action_request_takes_precedence_over_waiting_for_model(self) -> None:
         state = TerminalState()
         state.apply(AgentEvent(EventKind.MODEL_STARTED, {}))
@@ -278,6 +289,54 @@ class TerminalStateTests(unittest.TestCase):
         self.assertEqual(
             len([entry for entry in state.entries if entry.kind is DisplayKind.AGENT]),
             1,
+        )
+
+    def test_restored_three_question_history_does_not_replay_last_answer(self) -> None:
+        question_one = Message(role="user", content="nihao")
+        answer_one = Message(role="assistant", content="你好")
+        question_two = Message(role="user", content="这个项目历史有多少次提交？")
+        answer_two = Message(role="assistant", content="当前项目历史共有 286 次提交。")
+        question_three = Message(
+            role="user", content="项目是从哪天开始的，那天的提交最多"
+        )
+        answer_three = Message(role="assistant", content="项目从 2026-07-10 开始。")
+        state = TerminalState()
+        state.restore(
+            RestoredThread(
+                thread_id="thread-1",
+                messages=(
+                    question_one,
+                    answer_one,
+                    question_two,
+                    answer_two,
+                    question_three,
+                    answer_three,
+                ),
+                events=(),
+                goals=(),
+                checkpoints=(),
+            )
+        )
+
+        # A restore/replay path may deliver the last durable MESSAGE_ADDED
+        # once more. It must not append the already-restored answer again.
+        state.apply(
+            AgentEvent(
+                EventKind.MESSAGE_ADDED,
+                {"message": answer_three.to_dict()},
+            )
+        )
+
+        self.assertEqual(
+            state.transcript,
+            [
+                "user: nihao",
+                "assistant: 你好",
+                "user: 这个项目历史有多少次提交？",
+                "assistant: 当前项目历史共有 286 次提交。",
+                "user: 项目是从哪天开始的，那天的提交最多",
+                "assistant: 项目从 2026-07-10 开始。",
+            ],
         )
 
     def test_non_adjacent_duplicate_assistant_messages_are_preserved(self) -> None:

@@ -41,6 +41,8 @@ class TerminalState:
         self.task_stop_reason: Optional[str] = None
         self.task_budget_line: Optional[str] = None
         self.phase_durations: dict[str, int] = {}
+        self.completed_at: float | None = None
+        self.completed_duration_ms: int | None = None
         self.pending_decision: Optional[str] = None
         self.token_rate = TokenRateTracker()
         self.total_tokens: int = 0
@@ -94,8 +96,16 @@ class TerminalState:
         self._action_requests = {}
         self.active_action = None
         self.execution_summary = ""
+        self.completed_at = None
+        self.completed_duration_ms = None
         self.token_rate.reset()
         self.phase_durations = {}
+
+    def finish_run(self, started_at: float | None, finished_at: float) -> None:
+        """Freeze this run's duration while keeping its completion age live."""
+        self.completed_at = finished_at
+        if started_at is not None:
+            self.completed_duration_ms = max(0, round((finished_at - started_at) * 1000))
 
     def apply(self, event: AgentEvent) -> None:
         self.timeline.append(_timeline_line(event))

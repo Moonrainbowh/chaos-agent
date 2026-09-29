@@ -29,6 +29,20 @@ def _presentation_terminal_size(fallback=(100, 30)):
 class TerminalPresentation:
     """Visual projection shared by the terminal app; owns no task transitions."""
 
+    def scroll_viewport(self, delta: int) -> None:
+        """Move the history viewport without changing the input draft."""
+        if delta:
+            self._viewport_offset = max(0, self._viewport_offset + delta)
+            self._viewport_needs_full_redraw = True
+
+    def scroll_to_history_start(self) -> None:
+        self._viewport_offset = 1_000_000
+        self._viewport_needs_full_redraw = True
+
+    def scroll_to_bottom(self) -> None:
+        self._viewport_offset = 0
+        self._viewport_needs_full_redraw = True
+
     def _current_tail_geometry(self, size):
         previous = self._tail_geometry
         if previous is not None and self._drawn_size != (size.columns, size.lines):
@@ -109,7 +123,13 @@ class TerminalPresentation:
         # next frame. Incremental cursor movement then has no reliable anchor
         # and leaves stacked input boxes behind. Repaint the visible screen
         # from durable transcript state once, then resume incremental updates.
-        previous = None if resized else self._current_tail_geometry(size)
+        scrolling = bool(getattr(self, "_viewport_offset", 0))
+        full_scrolled_redraw = (scrolling or getattr(self, "_viewport_needs_full_redraw", False)) and (
+            resized
+            or getattr(self, "_viewport_needs_full_redraw", False)
+            or self._tail_geometry is None
+        )
+        previous = None if resized or full_scrolled_redraw else self._current_tail_geometry(size)
         if resized:
             # Keep the reflowed old tail available for the next append. The
             # full-screen repaint below replaces it visually, but an append
@@ -176,6 +196,8 @@ class TerminalPresentation:
                 task_limit=self.state.context_budget.task_token_limit,
                 task_reserved=self.state.context_budget.task_tokens_reserved,
                 phase_durations=self.state.phase_durations,
+                completed_at=self.state.completed_at,
+                completed_duration_ms=self.state.completed_duration_ms,
                 branch=self._git_branch() if design_for(self.theme) is None else None,
             ),
             previous=previous,
@@ -183,6 +205,22 @@ class TerminalPresentation:
             motion_progress=progress, exiting=self.motion.exiting, active=active,
             expanded=getattr(self, "composer_expanded", True),
         )
+        if full_scrolled_redraw:
+            prefix = self._render_scrolled_view(frame, size)
+            self._write("\x1b[?25l" + prefix + "\x1b[?25h")
+            self._tail_geometry = frame.geometry
+            self._viewport_needs_full_redraw = False
+            self._redraw_dirty = False
+            self._drawn_draft_revision = self.state.draft_revision
+            self._drawn_size = (size.columns, size.lines)
+            return
+        if scrolling:
+            self._write("\x1b[?25l" + frame.text + "\x1b[?25h")
+            self._tail_geometry = frame.geometry
+            self._redraw_dirty = False
+            self._drawn_draft_revision = self.state.draft_revision
+            self._drawn_size = (size.columns, size.lines)
+            return
         # Hide intermediate cursor moves; erase and replacement share one flush.
         prefix = ""
         if resized:
@@ -199,6 +237,24 @@ class TerminalPresentation:
             prefix = "\x1b[3J\x1b[2J\x1b[H" + (transcript + "\n\r" if transcript else "")
         self._write(prefix + "\x1b[?25l" + frame.text + "\x1b[?25h")
         self._tail_geometry = frame.geometry; self._redraw_dirty = False; self._drawn_draft_revision = self.state.draft_revision; self._drawn_size = (size.columns, size.lines)
+
+    def _render_scrolled_view(self, frame, size) -> str:
+        """Render the transcript and composer inside one fixed viewport."""
+        transcript = render_entries(
+            self.state.entries, size.columns, theme=self.theme, color=self.color,
+        )
+        lines = transcript.splitlines() if transcript else []
+        history_height = max(0, size.lines - frame.geometry.height)
+        max_offset = max(0, len(lines) - history_height)
+        self._viewport_offset = min(self._viewport_offset, max_offset)
+        end = len(lines) - self._viewport_offset
+        start = max(0, end - history_height)
+        visible = lines[start:end]
+        visible = [""] * max(0, history_height - len(visible)) + visible
+        history = "\n\r".join(visible)
+        if history:
+            history += "\n\r"
+        return "\x1b[2J\x1b[H" + history + frame.text
 
     def _git_branch(self) -> str | None:
         try:

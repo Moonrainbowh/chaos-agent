@@ -3,9 +3,9 @@ from __future__ import annotations
 import asyncio
 import re
 import unittest
-from unittest.mock import patch
 
 from code_agent.interfaces.controller import AgentController
+from code_agent.interfaces.terminal_display import DisplayKind, text_entry
 from code_agent.interfaces.terminal_renderer import ColorMode, Theme
 from code_agent.interfaces.terminal_tail import render_live_tail_frame
 from code_agent.interfaces.terminal_state import ApprovalBroker
@@ -84,14 +84,18 @@ class CollapsedComposerTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(app.composer_expanded)
         self.assertEqual(app.input.text, "")
 
-    async def test_space_keeps_scrollback_view_when_not_at_bottom(self) -> None:
+    async def test_space_expands_while_scrolled_and_preserves_viewport(self) -> None:
         app = self.make_app()
         app.composer_expanded = False
+        app.state.entries.extend(
+            text_entry(DisplayKind.AGENT, f"history {index}") for index in range(20)
+        )
+        app._viewport_offset = 2
 
-        with patch("code_agent.interfaces.windows_tui.viewport_at_bottom", return_value=False):
-            await app.handle_key(" ")
+        await app.handle_key(" ")
 
-        self.assertFalse(app.composer_expanded)
+        self.assertTrue(app.composer_expanded)
+        self.assertEqual(app._viewport_offset, 2)
 
     async def test_escape_event_does_not_reopen_a_collapsed_composer(self) -> None:
         app = self.make_app()

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 import time
+import re
 from collections import deque
 from collections.abc import Callable
 import os
@@ -17,6 +18,11 @@ from .terminal_state import TerminalState
 
 BRACKETED_PASTE_ENABLE = "\x1b[?2004h"
 BRACKETED_PASTE_DISABLE = "\x1b[?2004l"
+# Button-event mode includes wheel reports without flooding the input stream
+# with every pointer motion (1003/all-motion mode is too expensive for TUI
+# full-viewport redraws).
+MOUSE_REPORT_ENABLE = "\x1b[?1000h\x1b[?1006h"
+MOUSE_REPORT_DISABLE = "\x1b[?1000l\x1b[?1006l"
 _EXTENDED_KEYS = {
     "K": "left",
     "M": "right",
@@ -35,6 +41,7 @@ _VT_KEYS = {
     "\x1bOA": "up", "\x1bOB": "down", "\x1bOC": "right", "\x1bOD": "left",
     "\x1bOH": "home", "\x1bOF": "end",
 }
+_SGR_MOUSE = re.compile(r"\x1b\[<(\d+);(\d+);(\d+)([Mm])$")
 
 
 _pending: deque[str] = deque()
@@ -195,7 +202,8 @@ def read_key(*, timeout: float | None = None) -> str | None:
                 break
         if sequence == _PASTE_START:
             return _read_bracketed_paste(msvcrt)
-        return _VT_KEYS.get(sequence, "") or _enter_sequence(sequence)
+        mouse = _mouse_key(sequence)
+        return mouse or _VT_KEYS.get(sequence, "") or _enter_sequence(sequence)
     if key in {"\x00", "\xe0"}:
         suffix = msvcrt.getwch()
         if suffix == "/":  # Windows console Alt+V scan code (VK_V -> 0x2f).
@@ -208,6 +216,17 @@ def read_key(*, timeout: float | None = None) -> str | None:
     if key.isprintable():
         return _read_text_burst(msvcrt, key)
     return key
+
+
+def _mouse_key(sequence: str) -> str:
+    """Map SGR vertical wheel reports to application scroll commands."""
+    match = _SGR_MOUSE.fullmatch(sequence)
+    if not match:
+        return ""
+    button = int(match.group(1))
+    if button & 64:
+        return "scroll_up" if button & 1 == 0 else "scroll_down"
+    return ""
 
 
 def _read_bracketed_paste(console: object) -> str:

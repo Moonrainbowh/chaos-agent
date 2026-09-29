@@ -5,6 +5,7 @@ import codecs
 import os
 import select
 import sys
+import re
 from collections import deque
 
 from .input_events import MAX_PASTE_BYTES
@@ -17,6 +18,7 @@ _VT_KEYS = {
     "\x1bOA": "up", "\x1bOB": "down", "\x1bOC": "right", "\x1bOD": "left",
     "\x1bOH": "home", "\x1bOF": "end",
 }
+_SGR_MOUSE = re.compile(r"\x1b\[<(\d+);(\d+);(\d+)([Mm])$")
 _PASTE_START = "\x1b[200~"
 _PASTE_END = "\x1b[201~"
 _decoder = codecs.getincrementaldecoder("utf-8")("replace")
@@ -54,7 +56,19 @@ def _read_escape_sequence() -> str:
             break
     if sequence == _PASTE_START:
         return _read_bracketed_paste()
-    return _VT_KEYS.get(sequence, "") or _enter_sequence(sequence)
+    mouse = _mouse_key(sequence)
+    return mouse or _VT_KEYS.get(sequence, "") or _enter_sequence(sequence)
+
+
+def _mouse_key(sequence: str) -> str:
+    """Map SGR vertical wheel reports to application scroll commands."""
+    match = _SGR_MOUSE.fullmatch(sequence)
+    if not match:
+        return ""
+    button = int(match.group(1))
+    if button & 64:
+        return "scroll_up" if button & 1 == 0 else "scroll_down"
+    return ""
 
 
 def _read_character(timeout: float | None) -> str | None:

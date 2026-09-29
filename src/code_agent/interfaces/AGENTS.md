@@ -93,7 +93,7 @@
 - 窗口缩放：尾部几何记录每行可见列宽与编辑光标列；按新宽度重算旧尾部折行后的物理行数，重画、追加消息、折叠与恢复会话均使用统一几何清理入口，使用当前窗口高度 | 不清空历史或输入草稿；用真实 ConPTY 字符格检查缩放后追加消息仍只有一个输入框。
 - `render_entry`、`render_streaming_markdown_rows`：历史用户消息使用正文区域宽度的深蓝底，逐行恢复背景并在消息后重置；无颜色模式不填充背景；引用用浅色正文并在折行前解析强调；默认 Slate 主题采用 Antigravity 现代单栏流式 Markdown 排版，粗体加粗亮白，行内代码天蓝，标题独立成行自然呼吸，代码块全宽且不添加人造缩进 | 无副作用 | 不改变正文宽度、输入高度或历史存储。
 - Ctrl+C 原生读取：轮询时先检查控制台 KEY_EVENT，再调用 CRT kbhit/getwch；Ctrl+C 的 UnicodeChar 或 Ctrl+C 修饰键记录归一为 `\x03`，失败状态与命令草稿仍使用双击退出逻辑；关闭清理失败也必须恢复控制台模式。
-- `reset_conversation`、`set_model`、`set_effort`：`/new` 和模型/思考深度切换共用空对话重置，兼容复合命令委托同一入口 | 只重置界面会话绑定并委托运行时控件 | 同值不重建，验证或应用失败保留旧会话，旧 task 契约和消息不修改。
+- `reset_conversation`、`set_model`、`set_effort`：`/new` 和模型/思考深度切换共用空对话重置，兼容复合命令委托同一入口 | 清理终端投影、重置 projection epoch、界面会话绑定并委托运行时控件 | 同值不重建，验证或应用失败保留旧会话，旧 task 契约和消息不修改；旧 epoch 的迟到事件不得进入新会话。
 - `ForegroundTaskController.restore_runtime_settings`：恢复历史对话前委托恢复该 task 冻结的运行时 | 读取 task 并委托 resolver | 恢复失败不替换当前会话，避免 Picker 用上一对话设置误判同值。
 - `read_key`、`_read_bracketed_paste`、`posix_terminal_io.read_key`：Windows 通过控制台 KEY_EVENT 识别 Alt+V 与扩展扫描码；Linux 通过 raw TTY 解析 UTF-8、CSI 导航和 bracketed paste，超限仍排空标记 | 控制台读取 | 不把粘贴 CR/LF 作为提交键，退出恢复原始 TTY 模式。
 - `InputDocument`、`InputAtom`：用不可变编辑单元区分原文、长粘贴块与图片引用，投影可见标记和光标位置 | 无副作用 | 用户手输相同标记是普通文字，发送不包含内部占位字符；历史保留粘贴边界且不恢复旧图片。
@@ -128,7 +128,7 @@
 - `render_streaming_markdown_rows(...)`、`style_inline_markdown(...)`：将增量/最终正文中的结构标记转换为本地可信语义样式，并按终端列宽安全折行 | 无副作用 | 增量允许未闭合粗体和代码标记，自动强调仅限短标签；任何输入 ANSI 均先清洗
 - `handle_semantic_insight_command(...)`、`format_semantic_insight(...)`：解析 `:map` 二级动作并把 generation、分区、分数、置信类型和静态限制渲染到终端 | 只委托注入的只读控制器 | 保留带空格的引号路径与动作别名；支持 `--limit=1..50`、`--offset=0..100000` 和 `--` 后的字面参数，分页明示 total；异常只显示有界错误，不回退成 Agent 自述
 - `TokenRateTracker`: 从首个文本增量开始统计当前模型回合的平均输出速度，并在 usage 到达后以真实 `output_tokens` 校准 | 读取可注入单调时钟 | 不把首字等待时间或输入 token 计入速度
-- `WindowsTerminalApp`: 追加完成条目、继续当前未终结前台任务并维护输入/状态尾部 | 终端 I/O | 模型增量以 dirty/revision 合并重绘；完成后仅在存在工具明细时重绘折叠转录；可恢复的任务启动竞争显示为带内错误
+- `WindowsTerminalApp`: 追加完成条目、继续当前未终结前台任务并维护输入/状态尾部 | 终端 I/O、受控 runtime trace | 模型增量以 dirty/revision 合并重绘；完成后仅在存在工具明细时重绘折叠转录；thread 切换以 projection epoch 丢弃迟到 event，并记录 durable/event→apply→render 的有界关联事实；可恢复的任务启动竞争显示为带内错误
 - `tui_lifecycle`：以确定性帧判定管理最高 30fps 动画、审批/交互监听与关闭清理 | 异步任务/终端重绘 | 关闭先请求 token 取消并完整等待持久 interrupt/checkpoint，再有界等待 runner，把残留草稿本地固化一次
 - `EditPlanApprovalView`、`ApprovalBroker`、`load_thread_history`: 提供严格有界且不可变的本地计划摘要/Diff、可取消审批和已保存会话读取 | 异步/SQLite 读取 | 计划预览只能作为 Host 构造的 typed field 注入，模型参数不能伪造；不伪造会话摘要
 - `approval_card_rows(request, selected)`: 渲染动作、风险、真实命令/路径目标、原因和一次性选择 | 无副作用 | 所有不可信字段单行化并有界截断，默认拒绝
