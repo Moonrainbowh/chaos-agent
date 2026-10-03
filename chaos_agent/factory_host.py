@@ -28,6 +28,8 @@ from chaos_agent.plugin_runtime import PluginToolBridge, load_plugins
 from chaos_agent.rewind_sessions import build_rewind_write_side
 from chaos_agent.runtime_support import host_risks
 from chaos_agent.tools import tool_definitions
+from chaos_agent.verification_mode import structured_verification_enabled
+from code_agent.web_access import WebAccessService
 
 
 @dataclass(frozen=True)
@@ -125,6 +127,8 @@ def _dispatcher(
         git=git,
         runtime=WindowsLocalRuntime(root, powershell=powershell),
         verification=LocalVerificationAdapter(root),
+        web_access=WebAccessService(),
+        enable_structured_verification=structured_verification_enabled(),
         mcp=extensions.mcp,
         plugins=extensions.bridge,
         capture=rewind_write.capture,

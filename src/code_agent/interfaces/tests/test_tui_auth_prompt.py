@@ -107,6 +107,22 @@ class AuthInputTests(unittest.IsolatedAsyncioTestCase):
         finally:
             await cancel_auth_input(app)
 
+    async def test_long_api_key_is_not_truncated_and_length_is_visible(self):
+        app = self.make_app()
+        task = await self.start_prompt(app)
+        key = "sk-ws-" + "x" * 100
+        try:
+            await app.handle_key("\x1b[200~" + key + "\x1b[201~")
+            masked, cursor, hints = auth_input_view(app)
+            self.assertEqual(len(app._auth_prompt.characters), len(key))
+            self.assertEqual(masked, "*" * 64)
+            self.assertEqual(cursor, 64)
+            self.assertIn(f"已输入 {len(key)} 个字符", hints[1])
+            await app.handle_key("\r")
+            self.assertEqual(await task, key)
+        finally:
+            await cancel_auth_input(app)
+
     async def test_app_close_cancels_prompt_and_releases_private_buffer(self):
         app = self.make_app()
         task = await self.start_prompt(app)

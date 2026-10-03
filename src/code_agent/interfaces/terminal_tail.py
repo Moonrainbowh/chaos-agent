@@ -8,6 +8,7 @@ from .terminal_tail_geometry import (
     _layout_input, _visible_input_rows, _rewrite_tail, _wrap_plain,
 )
 from .terminal_tail_content import _render_draft
+from .terminal_layout import LayoutMode
 from .terminal_tail_legacy import _normal_frame
 
 
@@ -69,6 +70,10 @@ def render_live_tail_frame(
     exiting: bool = False,
     active: bool = False,
     expanded: bool = True,
+    layout: LayoutMode = LayoutMode.WIDE,
+    palette_actions: tuple[str, ...] = (),
+    modal: bool = False,
+    submit_label: str = "排队",
 ) -> LiveTailFrame:
     """Rewrite only the previous dynamic tail and return its new cursor geometry."""
     safe_width = max(1, width)
@@ -76,6 +81,14 @@ def render_live_tail_frame(
     if safe_width < 7 or safe_height < 4:
         return _compact_frame(
             input_text, status, safe_width, safe_height, cursor_index, previous
+        )
+    if layout.resolve(safe_width) is LayoutMode.COMPACT:
+        from .terminal_mobile import render_mobile_frame
+        return render_mobile_frame(
+            input_text, status, safe_width, safe_height, cursor_index,
+            assistant_draft, color, tuple(palette), status_context, previous,
+            expanded=expanded, active=active, palette_actions=palette_actions, modal=modal,
+            submit_label=submit_label,
         )
     if design_for(theme) is not None:
         from .terminal_composer import render_designed_frame

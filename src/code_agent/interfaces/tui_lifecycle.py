@@ -166,6 +166,8 @@ async def close_tasks(app: object) -> None:
 
 
 async def _await_durable_interrupt(app: object) -> None:
+    if getattr(app, "_user_command_running", False):
+        return
     if not app.tasks or not app.active_task_id:
         return
     await app.tasks.interrupt(app.active_task_id, "TUI closed")

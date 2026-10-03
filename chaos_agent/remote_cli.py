@@ -1,22 +1,20 @@
 from __future__ import annotations
 
-import shutil
-import subprocess
 from collections.abc import Sequence
 
+from .remote.pairing import PairingStore
 from .remote.server import create_host_app
 
 
 async def serve_host(application: object, arguments: Sequence[str]) -> int:
     bind, port = _parse(arguments)
-    if bind is None:
-        bind = _tailscale_address() or "127.0.0.1"
+    bind = bind or "127.0.0.1"
     app, pairing = create_host_app(application)
     token = pairing.issue_token()
     print(f"Chaos Agent Host listening on http://{bind}:{port}")
     print(f"Pairing token: {token}")
     if bind == "127.0.0.1":
-        print("Tailscale address not found; use --bind <tailscale-ip> for phone access.")
+        print("Localhost-only mode; use --lan for same-Wi-Fi phone access.")
     try:
         import uvicorn
     except ImportError as error:
@@ -27,36 +25,40 @@ async def serve_host(application: object, arguments: Sequence[str]) -> int:
     return 0
 
 
+def revoke_device() -> int:
+    PairingStore().revoke()
+    print("Chaos Agent Host device revoked.")
+    print("Restart Host to display a new single-use pairing token.")
+    return 0
+
+
 def _parse(arguments: Sequence[str]) -> tuple[str | None, int]:
     bind = None
     port = 8787
+    seen: set[str] = set()
     index = 0
     while index < len(arguments):
         option = arguments[index]
-        value = arguments[index + 1]
+        if option not in {"--bind", "--port", "--lan"} or option in seen:
+            raise ValueError("host accepts --lan, --bind <address>, --port <1..65535>, or revoke-device")
+        if option in {"--bind", "--lan"} and seen & {"--bind", "--lan"}:
+            raise ValueError("host --lan cannot be combined with --bind")
+        seen.add(option)
+        if option != "--lan" and (index + 1 >= len(arguments) or not arguments[index + 1] or arguments[index + 1].startswith("--")):
+            raise ValueError("host option requires a value")
         if option == "--bind":
+            value = arguments[index + 1]
             bind = value
+            index += 2
         elif option == "--port":
+            value = arguments[index + 1]
             port = int(value)
-        index += 2
+            if not 1 <= port <= 65535:
+                raise ValueError("host port must be between 1 and 65535")
+            index += 2
+        elif option == "--lan":
+            bind = "0.0.0.0"
+            index += 1
+        else:
+            raise ValueError(f"unknown host option: {option}")
     return bind, port
-
-
-def _tailscale_address() -> str | None:
-    if shutil.which("tailscale") is None:
-        return None
-    try:
-        result = subprocess.run(
-            ["tailscale", "ip", "-4"],
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=2,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return None
-    for line in result.stdout.splitlines():
-        value = line.strip()
-        if value:
-            return value
-    return None

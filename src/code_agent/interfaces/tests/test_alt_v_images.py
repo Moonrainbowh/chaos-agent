@@ -6,7 +6,7 @@ from code_agent.core.events import AgentEvent, EventKind
 from code_agent.core.models import Message
 from code_agent.interfaces.attachment_input import AttachmentDraft
 from code_agent.interfaces.controller import AgentController
-from code_agent.interfaces.terminal_io import read_key
+from code_agent.interfaces.terminal_io import Win32Input, read_key
 from code_agent.interfaces.terminal_state import ApprovalBroker
 from code_agent.interfaces.tests._support import FakeEngine
 from code_agent.interfaces.tests.test_attachment_tui import _Ingestor, _image_ref
@@ -31,6 +31,59 @@ class AltVImageTests(unittest.IsolatedAsyncioTestCase):
                 with patch.dict("sys.modules", {"msvcrt": Console(sequence + "x")}):
                     self.assertEqual(read_key(), "alt+v")
                     self.assertEqual(read_key(), "x")
+
+    def test_native_windows_decoder_does_not_promote_bare_alt_to_image_paste(self):
+        class NativeConsole:
+            __name__ = "msvcrt"
+
+            def __init__(self):
+                self.chars = deque(("\x1b", "v"))
+
+            def kbhit(self):
+                return bool(self.chars)
+
+            def getwch(self):
+                return self.chars.popleft()
+
+        console = NativeConsole()
+        with patch.dict("sys.modules", {"msvcrt": console}):
+            with patch("code_agent.interfaces.terminal_io.Win32Input", Win32Input):
+                self.assertEqual(read_key(), "\x1b")
+                self.assertEqual(read_key(), "v")
+
+    def test_native_windows_decoder_does_not_promote_alt_scan_code_to_image_paste(self):
+        class NativeConsole:
+            __name__ = "msvcrt"
+
+            def __init__(self):
+                self.chars = deque(("\x00", "/"))
+
+            def kbhit(self):
+                return bool(self.chars)
+
+            def getwch(self):
+                return self.chars.popleft()
+
+        with patch.dict("sys.modules", {"msvcrt": NativeConsole()}):
+            with patch("code_agent.interfaces.terminal_io.Win32Input", Win32Input):
+                self.assertEqual(read_key(), "")
+
+    def test_native_windows_decoder_ignores_empty_bracketed_paste_frame(self):
+        class NativeConsole:
+            __name__ = "msvcrt"
+
+            def __init__(self):
+                self.chars = deque("\x1b[200~\x1b[201~")
+
+            def kbhit(self):
+                return bool(self.chars)
+
+            def getwch(self):
+                return self.chars.popleft()
+
+        with patch.dict("sys.modules", {"msvcrt": NativeConsole()}):
+            with patch("code_agent.interfaces.terminal_io.Win32Input", Win32Input):
+                self.assertEqual(read_key(), "")
 
     async def test_alt_v_shows_marker_and_sends_image_with_original_text(self):
         event = AgentEvent(EventKind.MESSAGE_ADDED, {"message": Message("user", "accepted").to_dict()})
@@ -97,3 +150,19 @@ class AltVImageTests(unittest.IsolatedAsyncioTestCase):
             await app.handle_key("\x16")
         errors = [entry for entry in app.state.entries if "clipboard does not contain" in entry.text]
         self.assertEqual(len(errors), 1)
+
+    async def test_empty_clipboard_replays_do_not_disarm_ctrl_c_exit_guard(self):
+        class EmptyIngestor(_Ingestor):
+            def ingest_clipboard_items(self, **kwargs):
+                return ()
+
+        app = WindowsTerminalApp(
+            AgentController(FakeEngine(())), ApprovalBroker(),
+            attachment_draft=AttachmentDraft(EmptyIngestor()), write=lambda _: None,
+        )
+        app.running = True
+        await app.handle_key("\x03")
+        for _ in range(3):
+            await app.handle_key("alt+v")
+        await app.handle_key("\x03")
+        self.assertFalse(app.running)

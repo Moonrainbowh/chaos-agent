@@ -89,3 +89,4 @@ def configure_product_ui(host: Any) -> None:
     )
     host.tui.authentication = host.authentication
     host.tui.model_preferences = host.model_preferences
+    host.tui.usage_profile = lambda: host.controls.manager.current.profile

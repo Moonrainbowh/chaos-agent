@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal
+from .usage_summary import UsageSummary, summarize_usage, usage_footer
 
 
 @dataclass(frozen=True)
@@ -21,6 +22,7 @@ class CostReport:
     lease_final_extension: bool
     input_cost: Decimal | None
     output_cost: Decimal | None
+    session_usage: UsageSummary | None = None
 
     @property
     def total_tokens(self) -> int:
@@ -51,11 +53,16 @@ class TaskCostControl:
         if task is None:
             raise RuntimeError("no durable task usage is available for this thread")
         budget = await self._sessions.load_task_budget(task.id)
+        usage_reader = getattr(self._sessions, "load_conversation_events", self._sessions.load_events)
+        usage = summarize_usage(await usage_reader(task.thread_id))
+        task_usage = summarize_usage(await self._sessions.load_events(task.thread_id))
         profile = self._profiles.get(task.contract.profile_id or "")
         input_rate = getattr(profile, "input_cost_per_million", None)
         output_rate = getattr(profile, "output_cost_per_million", None)
         input_cost = _cost(budget.input_tokens, input_rate)
         output_cost = _cost(budget.output_tokens, output_rate)
+        if task_usage.cache_read or task_usage.cache_write or task_usage.incomplete:
+            input_cost = None
         return CostReport(
             task_id=task.id,
             model=budget.model_name,
@@ -72,6 +79,7 @@ class TaskCostControl:
             lease_final_extension=budget.lease_final_extension,
             input_cost=input_cost,
             output_cost=output_cost,
+            session_usage=usage,
         )
 
 
@@ -104,7 +112,7 @@ def format_cost_report(report: CostReport) -> str:
         ),
     ]
     if report.total_cost is None:
-        lines.append("Cost: unavailable (profile pricing is not configured)")
+        lines.append("Cost: unavailable (pricing or complete cache usage is unavailable)")
     else:
         lines.extend(
             (
@@ -113,4 +121,6 @@ def format_cost_report(report: CostReport) -> str:
                 f"Estimated total: ${report.total_cost:.6f}",
             )
         )
+    if report.session_usage is not None:
+        lines.append("Recorded request usage: " + usage_footer(report.session_usage))
     return "\n".join(lines)

@@ -24,6 +24,7 @@ from chaos_agent.runtime_extensions import (
 )
 from chaos_agent.tool_support import windows_system_prompt
 from chaos_agent.task_verification import TaskScopedVerificationService
+from chaos_agent.verification_mode import structured_verification_enabled
 from chaos_agent.managed_context import build_managed_context, wire_managed_engine
 
 
@@ -298,6 +299,7 @@ def engine_for(
         profile.context_policy.task_tokens if profile.context_policy is not None else mode_limits.max_total_tokens,
         mode_limits.max_assistant_chars,
     )
+    verification_enabled = structured_verification_enabled()
     return AgentEngine(
         wire_managed_engine(model, context, dispatcher),
         context,
@@ -308,7 +310,9 @@ def engine_for(
         verification=TaskScopedVerificationService(
             sessions,
             getattr(context, "semantic_snapshot_for_root", None),
+            enable_structured_verification=verification_enabled,
         ),
+        require_verification=verification_enabled,
         peer_tool_names=("list_agents", "send_message"),
         capability_strategy=capability_strategy,
     )

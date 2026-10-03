@@ -42,6 +42,9 @@ class Application:
             await close()
         if self.mcp is not None:
             await self.mcp.aclose()
+        web = getattr(self.dispatcher, "web_access", None)
+        if web is not None:
+            await web.aclose()
 
 
 @dataclass

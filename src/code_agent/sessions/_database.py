@@ -21,13 +21,15 @@ from .errors import (
 )
 from ._schema_structure import validate_schema_structure
 from ._schema_validation import FOLLOWUP_MIGRATION, REQUIRED_COLUMNS
+from ._conversation_schema import CONVERSATION_MIGRATION
 
-SCHEMA_VERSION = 23
+SCHEMA_VERSION = 24
 _BUSY_TIMEOUT_MS = 5_000
 _SQLITE_CORRUPT = 11
 _SQLITE_NOTADB = 26
 _Result = TypeVar("_Result")
 _MIGRATIONS: dict[int, tuple[str, ...]] = {
+    24: CONVERSATION_MIGRATION,
     1: (
         "CREATE TABLE threads (id TEXT PRIMARY KEY, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)",
         "CREATE TABLE messages (sequence INTEGER PRIMARY KEY AUTOINCREMENT, thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE, payload TEXT NOT NULL, created_at TEXT NOT NULL)",

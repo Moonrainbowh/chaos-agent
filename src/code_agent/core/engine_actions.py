@@ -101,11 +101,12 @@ class AgentEngineActionMixin:
         task: TaskRecord | None,
         supervisor: TaskSupervisor | None,
     ) -> AgentEvent | None:
+        resolved = self._resolved_action(ActionRequest(call.id, call.name, call.arguments))
         external = {
             "write_file", "replace_text", "run_command", "run_process_v1",
             "run_verification", "apply_workspace_edit_plan_v1",
         }
-        if supervisor is None or call.name not in external:
+        if supervisor is None or resolved.name not in external:
             return None
         assert task is not None
         decision = supervisor.before_external_action()
@@ -195,6 +196,11 @@ class AgentEngineActionMixin:
         task: TaskRecord | None,
         supervisor: TaskSupervisor | None,
     ) -> AgentEvent | None:
+        resolved = self._resolved_action(request)
+        if resolved is not request:
+            request = resolved
+            call = ToolCall(request.id, request.name, request.arguments)
+            result = ActionResult(result.request_id, request.name, result.output, result.is_error, result.metadata)
         if call.name not in {
             "read_file", "list_files", "search_text", "write_file",
             "replace_text", "plan_workspace_edits_v1",
@@ -290,6 +296,9 @@ class AgentEngineActionMixin:
             tool.name for tool in self._actions.tools()
             if isinstance(tool, ToolDefinition)
         }
+        aliases = getattr(self._actions, "compatible_action_names", None)
+        if callable(aliases):
+            available_names.update(aliases(self._actions.tools()))
         events = (declared,) + tuple(
             [event async for event in self._dispatch(
                 thread_id,
@@ -316,13 +325,27 @@ class AgentEngineActionMixin:
         disclosed_tools: Mapping[str, str] | None = None,
         intent: object = None,
     ) -> tuple[tuple[ToolDefinition, ...], set[str]]:
-        return advertised_tools(
+        result = advertised_tools(
             self._actions,
             allowed_names,
             disclosed_tools or {},
             self._capability_strategy,
             intent=intent,
         )
+        self.last_advertised_tool_names = frozenset(tool.name for tool in result[0])
+        aliases = getattr(self._actions, "compatible_action_names", None)
+        if callable(aliases):
+            return result[0], result[1] | set(aliases(result[0]))
+        return result
+
+    def _resolved_action(self, request):
+        resolver = getattr(self._actions, "resolve_action", None)
+        if callable(resolver):
+            try:
+                return resolver(request)
+            except ValueError:
+                pass
+        return request
 
     @staticmethod
     def _disclosed_tool_from_event(

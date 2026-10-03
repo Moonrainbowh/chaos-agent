@@ -4,7 +4,7 @@ import html
 import re
 from dataclasses import dataclass
 from typing import Any
-from urllib.parse import quote_plus, urljoin
+from urllib.parse import quote_plus, urljoin, urlparse, parse_qs
 
 import httpx
 
@@ -44,9 +44,17 @@ class WebAccessService:
         url = "https://html.duckduckgo.com/html/?q=" + quote_plus(query)
         response = await self._get(url)
         text = self._decode(response)
+        if response.status_code != 200 or 'id="anomaly-form"' in text or 'id="challenge-form"' in text:
+            raise RuntimeError("search provider requires verification or returned an unsupported page; use web fetch/site or a configured MCP search")
         results: list[dict[str, Any]] = []
         for match in re.finditer(r'class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)</a>', text, re.I | re.S):
             href = html.unescape(match.group(1))
+            href = urljoin(url, href)
+            parsed = urlparse(href)
+            if parsed.hostname in {"duckduckgo.com", "html.duckduckgo.com"}:
+                href = parse_qs(parsed.query).get("uddg", [href])[0]
+            if urlparse(href).scheme not in {"http", "https"}:
+                continue
             title = re.sub(r"<[^>]+>", "", html.unescape(match.group(2))).strip()
             results.append({"title": title, "url": href, "source": "duckduckgo"})
             if len(results) >= max(1, min(max_results, 20)):
@@ -127,10 +135,19 @@ class WebAccessService:
         if self.client is None:
             self.client = httpx.AsyncClient(follow_redirects=False)
             self._owned_client = True
-        response = await self.client.get(url, headers=headers, timeout=httpx.Timeout(20.0, connect=10.0))
-        if 300 <= response.status_code < 400:
-            raise RuntimeError("redirect received; follow-up URL must be explicitly approved")
-        return response
+        async with self.client.stream("GET", url, headers=headers, timeout=httpx.Timeout(20.0, connect=10.0)) as response:
+            if 300 <= response.status_code < 400:
+                raise RuntimeError("redirect received; follow-up URL must be explicitly approved")
+            response.raise_for_status()
+            body = bytearray()
+            async for chunk in response.aiter_bytes():
+                body.extend(chunk[:self.max_bytes + 1 - len(body)])
+                if len(body) > self.max_bytes:
+                    break
+            decoded_headers = {key:value for key,value in response.headers.items()
+                               if key.lower() not in {"content-encoding","content-length","transfer-encoding"}}
+            return httpx.Response(response.status_code, headers=decoded_headers,
+                                  content=bytes(body), request=response.request)
 
     async def aclose(self) -> None:
         if self._owned_client and self.client is not None:

@@ -126,6 +126,8 @@ class _UsageState:
         self.input_tokens = 0
         self.output_tokens = 0
         self.cached_input_tokens = 0
+        self.cache_write_input_tokens = None
+        self.cache_read_known = False
 
     def update(self, value: object) -> ModelEvent:
         if not isinstance(value, dict):
@@ -134,6 +136,7 @@ class _UsageState:
             ("input_tokens", "input_tokens"),
             ("output_tokens", "output_tokens"),
             ("cache_read_input_tokens", "cached_input_tokens"),
+            ("cache_creation_input_tokens", "cache_write_input_tokens"),
         )
         for source, target in fields:
             if source in value:
@@ -141,12 +144,15 @@ class _UsageState:
                 if isinstance(count, bool) or not isinstance(count, int) or count < 0:
                     raise ProviderProtocolError("Anthropic usage has invalid token counts")
                 setattr(self, target, count)
+        self.cache_read_known |= "cache_read_input_tokens" in value
         return ModelEvent(
             kind=ModelEventKind.USAGE,
             usage=Usage(
-                input_tokens=self.input_tokens,
+                input_tokens=self.input_tokens + self.cached_input_tokens + (self.cache_write_input_tokens or 0),
                 output_tokens=self.output_tokens,
                 cached_input_tokens=self.cached_input_tokens,
+                cache_write_input_tokens=self.cache_write_input_tokens,
+                cache_read_known=self.cache_read_known,
             ),
         )
 

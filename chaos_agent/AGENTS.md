@@ -2,6 +2,8 @@
 组合各 Feature 成为 Windows、Linux 和 macOS 上的 TUI、CLI 与 JSON 模式共用的可运行代理。
 
 ## 边界
+- 模型侧默认通过 RestrictedDispatcher 收敛为 read/search/write/edit/execute 五个常用入口；保留 load_tool_contract 管理扩展发现，Web 统一为按需加载的 web。先过滤原工具权限再生成操作集合，具体请求仍由原 RootActionDispatcher 校验、审批、执行和记录恢复事实；原名兼容仅限已披露入口中的操作。
+- 普通 Host 和任务工作区启用 WebAccessService，TaskScopedDispatcher 的多个工作区分发器共享同一实例；应用退出关闭 HTTP 客户端。Web 启用不授予网络权限。
 - 负责：CSV continuity 评测的独立进程宿主，组合生产 AgentEngine、PersistentContextBuilder、SQLite History/Notes 和受限 Workspace 工具；D 组退出并重启相同持久 thread，保留真实回执与版本验证。离线 scripted model 仅用于接线测试，不计 API 成绩；不等同完整 TUI 前台 TaskRecord 生命周期验收。
 - 负责：显式选择 v2 时通过宿主 RPC 设置诊断/修复阶段，记录越界尝试；保存阶段快照、最终正确性、挑战覆盖及笔记生命周期，语义审阅未完成不得声称整链覆盖。v1 默认事件与预算保持不变。
 - 负责：创建共享依赖、调度 typed tools、把策略审批结果传递给文件和运行时 Feature。
@@ -14,6 +16,12 @@
 - 不负责：为 Repo Map、bug 定位或 dead-code 分析另建扫描缓存，也不因展示分析结果执行文件修改或验证命令。
 
 ## Units
+- `mobile_cli.run_mobile(...)`、`MobileCatalog`、`ProjectSessionView`：组合持久项目入口、来源目录恢复及项目内会话读取；跨项目关闭原应用并以明确 workspace_root 重建 | 项目目录/会话 I/O | 不依赖 cd，选择/恢复历史不调用模型，失败返回项目列表，手机使用显式 compact 布局。
+- `configure_conversation_controls`：组合用户命令、消息树和当前模型工具清单 | 注入现有 Sessions/Dispatcher/Task Controller | 不建立第二套运行时。
+- `UserCommandControl.run`：将显式用户命令通过既有 dispatcher 执行，写入带 origin 的事件和不可信用户结果；`!!` 不入库 | 进程/会话 I/O | 无模型请求，取消后先持久化真实结果。
+- `ConversationTreeControl.select`：核对所选节点、冻结原任务运行时并创建消息前缀分支 | 会话 I/O | 不复制任务状态，不恢复工作区文件。
+- `IntegratedForegroundTaskController.start(..., thread_id=..., source_thread_id=...)`: 为所选空会话创建首个任务，或在终态/旧会话历史上创建新目标的延续任务 | 会话/任务/工作区 I/O | 继承消息，不复制执行状态与预算；非终态使用原恢复路径，终态续聊先恢复原模型设置，拒绝跨项目误接入。
+- `ApiModelControl`: 为配置的 Responses/Chat Completions 服务提供显式模型发现、缓存二级选择和确定性内存 profile | 网络发现/注册 profile | 协议、认证、容量、模态及预算全部继承基础配置；失败保留旧目录，发现不切换、不写配置；恢复发现模型从原配置重建。
 - `continuity_runtime`、`continuity_dispatcher`：组合 AgentEngine、persistent context、SQLite History/Notes 与受限文件工具、真实公开 verifier | 工作区/会话/Provider I/O | 20 轮与 100 工具调用累计限制；阶段仅在完整工具组落盘后结束；不修改生产记忆策略
 - `continuity_worker`、`continuity_process`、`continuity_run`：有界控制器 RPC、真实进程退出重启、独立最终评分与失败用量回收 | 进程/SQLite/报告 I/O | 固定模型/profile/effort；模型输出不是宿主回执；unknown usage 保留预留；offline 模式的模型输出和 usage 均为脚本值
 - `AuthenticationRuntimeControl`：TUI 隐藏输入登录、缓存已登录模型选项、显式内存 profile 注册与凭据槽影响检查；保存开始后等待原子提交结果，目录刷新失败不伪报登录失败；WorkBuddy 无离线种子时仍通过统一 `/model` 加载账号模型，显式异步发现按认证类型缓存，重登清除该槽缓存，失败保留登录；Antigravity OAuth 只显示本地目录的二级入口，展开不联网且不混入首层；已保存登录 profile 可在恢复 task 或上次模型启动恢复时从同名平台/认证类型槽及模型目录重建，不写配置默认值。
@@ -58,7 +66,8 @@
 - `child_mode_for_role(...)`、`SubagentTool.dispatch(...)`、`EngineChildRunner.run(...)`：按 Search/Librarian→Low、Subagent→Medium、Review/Oracle→High 路由 profile，并把 `delegate_agent` 转换为受预算、取消和单写者约束的真实子 thread | provider/session/tool 调用 | 路由不依赖父模式；子结果始终 advisory，不产生 verification evidence。
 - `load_plugins(...)`、`PluginToolBridge`：发现可信 manifest 并把不可变工具贡献映射到 Host typed action | 读取 manifest/信任文件 | 插件风险与目标 action 风险必须分别通过中央策略。
 - `build_context_runtime(...)`、`PersistingAnchoredCompactor.compact(...)`：组合共享的本地确定性压缩器与语义压缩，并在 Host 持久化脱敏 checkpoint facts | 仅 Host 写入固定八项元数据 | Context Feature 不持久化；revision、summary、source text 和 messages 不进入 payload，持久化错误与取消原样传播。
-- `TaskScopedVerificationService`：按 task/workspace 复用验证事务，并从活动 Context 的同一 `RepoIndexSnapshot` 刷新 Planner | 维护进程内 task 到 service 绑定并触发 milestone/final verifier | workspace root 漂移失败闭合；不另建 RepoIndex，不接受模型伪造验证 scope
+- `TaskScopedVerificationService`：按 task/workspace 复用验证事务，并从活动 Context 的同一 `RepoIndexSnapshot` 刷新 Planner | 启用结构化验证时触发 milestone/final verifier；关闭时保留变更跟踪而不调度这两类验证 | workspace root 漂移失败闭合；不另建 RepoIndex，不接受模型伪造验证 scope
+- `structured_verification_enabled()`：生产环境默认关闭 `run_verification`，仅 `CHAOS_STRUCTURED_VERIFICATION=1` 时启用 | 读取启动环境 | 关闭时 Dispatcher 隐藏并拒绝该工具，Engine 不要求其验收证据；普通命令测试仍可运行
 - `WorkspaceEditPlanStore`、`create_stored_edit_plan(...)`、`WorkspaceEditPlanActions`、`edit_plan_results`：把模型提供的多文件意图转换为 Host 所有的不可变计划，以 ID/digest 分离 plan 与 apply，并显式编码工作区是否可能已变化及涉及路径 | 进程内保存有界计划、只读 Git tracked/dirty 状态和工作区预览 | apply 前重新 preflight；Git ignored/untracked 既有文件必须标记显式风险；计划只能消费一次，取消前不得进入 applying；完整回滚、预检冲突和拒绝不得宣称工作区变化，模型不能提交风险标志或可信 Diff
 - `WorkspaceMutationPool`：按 canonical workspace root 复用 editor、快照、gate、capture、计划仓库和 coordinated session facade | 延迟创建每个 source/task root 的持久状态依赖 | source 与 task worktree 绝不共用 mutation gate、snapshot 或计划；所有 facade 共用同一个基础 Sessions 仓库
 - `WorkspaceMutationPool.needs_edit_batch_recovery(root)`：在既有工作区身份对应的 mutation gate 内查询未闭合批次，无记录则不构建 Git/RepoIndex 等完整服务；有记录时进入原恢复流程重新加锁、重读 | SQLite 读取/门锁 | 不缓存结果、不跳过 conflicted，不改变批次先于 rewind 的顺序；查询/加锁失败阻止启动。

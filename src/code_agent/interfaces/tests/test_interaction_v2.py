@@ -91,7 +91,7 @@ class PickerStateTests(unittest.TestCase):
             (
                 "/clear", "/compact", "/cost", "/status",
                 "/doctor", "/exit", "/diff", "/map", "/review", "/test",
-                "/rewind", "/attach", "/login", "/model", "/mode", "/effort", "/permission",
+                "/rewind", "/attach", "/login", "/model", "/effort", "/permission",
                 "/mcp", "/plugin", "/tasks",
             ),
         )
@@ -112,22 +112,15 @@ class PickerStateTests(unittest.TestCase):
         self.assertIn("COMMANDS · Tab complete", panel[0])
         self.assertIn(":clear", "\n".join(panel))
 
-    def test_mode_is_a_root_parent_and_its_actions_inherit_unavailability(self) -> None:
+    def test_legacy_mode_and_its_actions_are_hidden(self) -> None:
         items = command_picker_items(REGISTRY.all(), set())
         modes = command_picker_items(
             REGISTRY.all(), set(), parent=REGISTRY.resolve("mode")
         )
 
-        self.assertEqual(tuple(item.label for item in items).count("/mode"), 1)
+        self.assertEqual(tuple(item.label for item in items).count("/mode"), 0)
         self.assertFalse(any(item.label.startswith("/mode ") for item in items))
-        self.assertEqual(
-            tuple(item.label for item in modes),
-            ("/mode auto", "/mode ask", "/mode code", "/mode plan"),
-        )
-        self.assertTrue(all(not item.enabled for item in modes))
-        self.assertTrue(
-            all(item.disabled_reason == "requires task_modes" for item in modes)
-        )
+        self.assertEqual(modes, ())
 
     def test_session_actions_are_service_scoped_without_changing_the_root(self) -> None:
         root = command_picker_items(REGISTRY.all(), {"sessions"})

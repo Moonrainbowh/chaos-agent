@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import re
+from .terminal_layout import TouchRegion
 from .terminal_display import clip_display, display_width, graphemes, grapheme_width, safe_text
 
 
@@ -32,6 +33,7 @@ def resized_tail_geometry(geometry: LiveTailGeometry, width: int) -> LiveTailGeo
 class LiveTailFrame:
     text: str
     geometry: LiveTailGeometry
+    touch_regions: tuple[TouchRegion, ...] = ()
 
 
 def _compact_frame(
@@ -89,9 +91,9 @@ def _layout_input(value: str, width: int, cursor_index: int) -> tuple[list[str],
     offset = 0
     for cluster in graphemes(value):
         source_length = len(cluster)
-        if offset <= cursor_index < offset + len(cluster):
-            cursor_row, cursor_column = len(rows) - 1, row_widths[-1]
         if cluster == "\n":
+            if offset <= cursor_index < offset + source_length:
+                cursor_row, cursor_column = len(rows) - 1, row_widths[-1]
             rows.append("")
             row_widths.append(0)
             offset += len(cluster)
@@ -105,6 +107,8 @@ def _layout_input(value: str, width: int, cursor_index: int) -> tuple[list[str],
         if rows[-1] and row_widths[-1] + cluster_width > width:
             rows.append("")
             row_widths.append(0)
+        if offset <= cursor_index < offset + source_length:
+            cursor_row, cursor_column = len(rows) - 1, row_widths[-1]
         visible = cluster if cluster_width <= width else "?"
         rows[-1] += visible
         row_widths[-1] += display_width(visible)

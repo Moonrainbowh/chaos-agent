@@ -89,7 +89,7 @@ class ImageAtomEditingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(output), 1)
         self.assertIn("\x1b[2K", output[0])
         self.assertTrue(output[0].startswith("\x1b[?25l"))
-        self.assertTrue(output[0].endswith("\x1b[22C\x1b[?25h"))
+        self.assertTrue(output[0].endswith("\x1b[23C\x1b[?25h"))
         self.assertIn("[image1]照片里面有", output[0])
         self.assertNotIn("照片里面有啥", output[0])
         await app.handle_key("home")
@@ -98,7 +98,7 @@ class ImageAtomEditingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(app.input.display[0], "照片里面有")
         self.assertEqual(len(output), 1)
         self.assertNotIn("[image1]", output[0])
-        self.assertTrue(output[0].endswith("\x1b[4C\x1b[?25h"))
+        self.assertTrue(output[0].endswith("\x1b[5C\x1b[?25h"))
 
     async def test_clear_removes_both_images_and_paste_atoms(self):
         app, draft, _, _ = self.make_app()

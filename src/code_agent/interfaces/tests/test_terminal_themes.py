@@ -26,6 +26,16 @@ def plain(value):
 
 
 class DesignedTailTests(unittest.TestCase):
+    def test_expanded_composer_and_footer_share_horizontal_bounds(self):
+        frame = render_live_tail_frame(
+            "中文", "已完成", 100, theme=Theme.SLATE, color=ColorMode.NEVER,
+            status_context="用量 92k\nmodel · 耗时 1分42秒",
+        )
+        rows = plain(frame.text).splitlines()
+        self.assertTrue(all(row.startswith(" ") for row in rows))
+        self.assertEqual([display_width(row) for row in rows[:-1]], [99] * (len(rows) - 1))
+        self.assertEqual(frame.geometry.cursor_column, 9)
+
     def test_resize_never_overflows_and_always_keeps_cursor_inside_tail(self):
         for theme in DESIGNS:
             for width in (8, 12, 24, 40, 80, 160):

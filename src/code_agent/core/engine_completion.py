@@ -21,6 +21,11 @@ class AgentEngineCompletionMixin:
                     "Requested modification produced no workspace file changes. "
                     "Continue with implementation or explain why no change is required.",
                 )
+            if not getattr(self, "_require_verification", True):
+                return await self._journal.transition_task(
+                    task.id, TaskStatus.COMPLETED,
+                    "task completed without structured verification",
+                )
         if self._verification is None:
             assessment = CompletionAssessment(CompletionKind.UNVERIFIED, ("verification evidence",))
             outcome = VerifierOutcome.NOT_RUN

@@ -66,8 +66,20 @@ class IntegratedForegroundTaskController(ForegroundTaskController):
         if workspace_runtime is not None:
             workspace_runtime.set_quiescer(self.quiesce)
 
-    async def start(self, prompt: str):
-        task = await self._create_managed_task(prompt)
+    async def start(
+        self, prompt: str, *, thread_id: str | None = None,
+        source_thread_id: str | None = None,
+    ):
+        """Start a new task, optionally in an empty or continued conversation.
+
+        A continuation inherits messages, not the old task's completion,
+        budget or authorization. Its objective and runtime are frozen anew.
+        Nonterminal tasks must use their existing recovery path instead.
+        """
+        await self._validate_conversation(thread_id, source_thread_id)
+        task = await self._create_managed_task(
+            prompt, thread_id=thread_id, source_thread_id=source_thread_id
+        )
         await observe_task_created(
             self.workflows,
             self._plugin_events,
@@ -77,20 +89,52 @@ class IntegratedForegroundTaskController(ForegroundTaskController):
         )
         return task
 
-    async def _create_managed_task(self, prompt: str):
+    async def _validate_conversation(
+        self, thread_id: str | None, source_thread_id: str | None,
+    ) -> None:
+        if thread_id is not None and source_thread_id is not None:
+            raise ValueError("select an empty thread or a source thread, not both")
+        identifier = thread_id if thread_id is not None else source_thread_id
+        if identifier is None:
+            return
+        if not isinstance(identifier, str) or not identifier.strip():
+            raise ValueError("conversation id must be non-blank text")
+        await self._sessions.load_thread_relation(identifier)
+        source_task = await self._sessions.load_task_for_thread(identifier)
+        if thread_id is not None:
+            if source_task is not None or await self._sessions.load_messages(identifier):
+                raise RuntimeError("only an empty conversation can receive a new task")
+        elif source_task is not None:
+            if not source_task.status.is_terminal:
+                raise RuntimeError("resume the existing task instead of creating a continuation")
+            source_root = await self._task_source_root(source_task)
+            if not same_path(source_root, Path(self._root)):
+                raise RuntimeError("conversation belongs to another project")
+            if self._tokens or await self._has_active_source_task():
+                raise RuntimeError("a foreground task is already active")
+            await self.restore_runtime_settings(source_task.id)
+
+    async def _create_managed_task(
+        self, prompt: str, *, thread_id: str | None = None,
+        source_thread_id: str | None = None,
+    ):
         isolation = await task_workspace_isolation(
             Path(self._root), self._has_active_source_task
         )
         task = None
         workspace = None
         try:
-            thread_id = await self._sessions.create_thread()
             workspace = await prepare_workspace(
                 self._workspace_runtime, Path(self._root), isolation=isolation
             )
             root = Path(workspace.worktree_root if workspace else self._root)
+            contract = self._contract(prompt, root)
+            if source_thread_id is not None:
+                thread_id = await self._sessions.create_thread_from_history(source_thread_id)
+            elif thread_id is None:
+                thread_id = await self._sessions.create_thread()
             task = await self._sessions.create_task(
-                thread_id, self._contract(prompt, root)
+                thread_id, contract
             )
             engine = self._controller._engine
             await self._sessions.get_or_create_task_budget(

@@ -194,6 +194,8 @@ class _UiComposer:
             workspace_root=parts.root,
         )
         self.tui.semantic_graph = parts.semantic_graph
+        from .conversation_controls import configure_conversation_controls
+        configure_conversation_controls(self.tui, parts.sessions, parts.dispatcher)
 
     def _finish(self) -> None:
         parts = self.parts

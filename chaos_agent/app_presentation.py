@@ -34,6 +34,7 @@ def build_main_dispatcher(
         tools,
         allow_delegation=mode.topology is AgentTopology.TEAM,
         allow_coordination=True,
+        compact_tools=True,
     )
 
 

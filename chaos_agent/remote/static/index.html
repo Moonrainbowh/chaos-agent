@@ -2,35 +2,255 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
 <meta name="theme-color" content="#151b25">
 <title>Chaos Agent</title>
 <style>
-body{margin:0;background:#11151b;color:#e8edf5;font:16px system-ui,sans-serif}
-main{max-width:680px;margin:auto;padding:20px;min-height:100vh;display:flex;flex-direction:column;gap:14px}
-header{display:flex;justify-content:space-between;align-items:center}h1{font-size:20px;margin:0}.muted{color:#92a0b4;font-size:13px}
-.messages{flex:1;display:flex;flex-direction:column;gap:10px}.bubble{padding:12px;border-radius:14px;max-width:88%;white-space:pre-wrap}.user{align-self:flex-end;background:#2c5d73}.agent{background:#202a39}.tool{border-left:3px solid #e2ad62;background:#25211b;padding:9px;color:#bac7d8}
-.bar{display:flex;gap:8px}.bar textarea{flex:1;resize:none;padding:12px;border:1px solid #43516a;border-radius:12px;background:#10151d;color:#fff}.bar button,button{border:0;border-radius:10px;padding:10px 14px;background:#66dfa5;color:#08110d;font-weight:700}.stop{background:#f07d7d}
-#pair{display:flex;gap:8px}#pair input{flex:1;padding:12px;background:#10151d;color:#fff;border:1px solid #43516a;border-radius:10px}
+:root{color-scheme:dark;--bg:#11151b;--panel:#181e28;--line:#2c3543;--text:#e8edf5;--muted:#96a4b7;--accent:#81d7b0}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 system-ui,sans-serif;overflow:hidden}button,input,textarea{font:inherit}button{cursor:pointer;min-height:40px;border:0;border-radius:7px;padding:8px 12px;background:var(--panel);color:var(--text)}button:disabled{opacity:.45;cursor:default}button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}[hidden]{display:none!important}
+main{width:100%;max-width:620px;margin:auto;height:100vh;height:100dvh;padding-top:env(safe-area-inset-top);display:flex;flex-direction:column;overflow:hidden}.app-header{min-height:54px;display:flex;gap:12px;align-items:center;padding:7px 14px;border-bottom:1px solid var(--line)}h1{font-size:16px;letter-spacing:.02em;margin:0;flex:1}.muted{color:var(--muted);font-size:12px}#state{white-space:nowrap;font-size:11px}#pair{padding:14px;display:flex;gap:8px}input,textarea{min-width:0;background:#111720;color:var(--text);border:1px solid var(--line);border-radius:7px;padding:10px;font-size:16px}#token{flex:1}.primary{background:var(--accent);color:#0c2118;font-weight:600}.notice{margin:0;padding:9px 14px;font-size:12px;color:#dbc391;background:#29251d;border-bottom:1px solid #443b2b}.active-banner{padding:5px 10px 5px 14px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line);background:#1b2926;font-size:12px}.active-banner span{flex:1}.active-banner button{color:var(--accent);background:transparent;padding:6px 8px}
+.screen{min-height:0;flex:1;display:flex;flex-direction:column}.navline{display:flex;align-items:center;gap:5px;padding:5px 10px;border-bottom:1px solid var(--line)}.tabs{display:flex;gap:4px;flex:1}.tabs button{background:transparent;color:var(--muted);padding:8px 15px}.tabs button[aria-selected=true]{color:var(--text);background:#283343}.icon-button{width:40px;padding:5px;background:transparent;font-size:20px}.identity{flex:1;min-width:0}.identity strong{display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:14px;font-weight:600}.identity small{display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:11px;color:var(--muted)}#newSession{font-size:12px;white-space:nowrap}.searchbar{padding:8px 14px;border-bottom:1px solid var(--line)}#search{width:100%;min-height:40px;padding:8px 10px}.scroll{min-height:0;flex:1;overflow-y:auto;overscroll-behavior:contain}.row{display:block;width:100%;min-height:68px;padding:10px 14px;border-radius:0;border-bottom:1px solid var(--line);background:transparent;text-align:left}.row:hover{background:#1b2430}.row-title{display:block;font-weight:600;font-size:14px;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}.row-preview{display:block;font-size:12px;color:#b0bdce;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;margin:2px 0}.row-meta{display:block;color:var(--muted);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.empty{padding:40px 20px;text-align:center;color:var(--muted);font-size:13px}.more{display:block;margin:8px auto 14px;background:transparent;color:var(--accent);font-size:12px;min-width:120px}
+.chat-header{padding:5px 10px;gap:5px}#chatState{font-size:11px;white-space:nowrap;max-width:110px;overflow:hidden;text-overflow:ellipsis}.messages{padding:12px 14px 18px;display:flex;flex-direction:column;gap:10px}.bubble{padding:9px 11px;border-radius:10px;max-width:94%;min-width:0;overflow-wrap:anywhere;white-space:pre-wrap;line-height:1.65;font-size:14px}.user{align-self:flex-end;background:#244a50;max-width:88%}.agent{align-self:flex-start;background:#1f2937;white-space:normal}.agent p{margin:0 0 8px;white-space:pre-wrap}.agent p:last-child{margin-bottom:0}.agent ul,.agent ol{margin:7px 0;padding-left:21px}.agent li{white-space:pre-wrap}.agent h2,.agent h3,.agent h4{margin:9px 0;font-size:1.08em}.agent code{font:.9em ui-monospace,monospace;background:#11151b;border-radius:4px;padding:2px 4px}.agent pre{max-width:100%;overflow:auto;padding:10px;border-radius:7px;background:#11151b;white-space:pre}.agent pre code{padding:0;background:none}#earlier{margin-bottom:0}.composer{display:flex;gap:7px;align-items:flex-end;padding:9px 12px calc(9px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--bg)}.composer textarea{flex:1;resize:none;min-height:44px;max-height:140px;line-height:1.4;padding:10px;font-size:16px}.composer button{min-width:48px;min-height:44px;padding:8px 10px}.stop{background:#df8a86;color:#231212}.catalog-footer{height:env(safe-area-inset-bottom);flex-shrink:0}#connectionHint{font-size:11px;color:var(--muted);padding:12px 14px}
+@media(min-width:620px){main{border-left:1px solid var(--line);border-right:1px solid var(--line)}}@media(max-width:350px){.app-header,.searchbar,.row{padding-left:10px;padding-right:10px}.messages{padding-left:10px;padding-right:10px}.bubble{max-width:98%}.composer{padding-left:8px;padding-right:8px}}
+</style>
+<style>
+:root{--bg:#181a1b;--panel:#222626;--line:#343a39;--text:#e7ece9;--muted:#9ba9a3;--accent:#83d4b6}
+main{position:relative}.app-header h1{font-family:Consolas,"SFMono-Regular",monospace;letter-spacing:.04em}.user{background:#1c3c33;align-self:stretch;max-width:100%;border-left:3px solid #71b79b;border-radius:5px}.agent{background:transparent;max-width:100%;padding-left:0}.messages{gap:18px;padding-top:18px}.tabs button[aria-selected=true]{background:#293b34}.row:hover{background:#222e28}
+.chat-header{flex-wrap:wrap}.chat-header .identity{min-width:130px}.header-actions{display:flex;gap:4px}.header-actions button{font-size:12px;min-height:44px;color:var(--accent)}
+.mobile-actions{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;padding:5px 10px calc(7px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:#1c2020}.mobile-actions button{min-height:52px;border-radius:5px;padding:3px;font-size:12px}.mobile-actions span{display:block;font-size:19px;color:var(--accent);line-height:1.4}.composer{padding-bottom:9px}.project-tools{display:flex;gap:8px;padding:9px 14px;border-bottom:1px solid var(--line)}.project-tools button{min-height:44px}.project-tools small{margin:auto 0;color:var(--muted);font-size:11px}
+.project-manager{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;background:var(--bg);padding-top:env(safe-area-inset-top)}.manager-header{display:flex;gap:8px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line)}.manager-header strong{flex:1}.manager-header button{min-height:44px}.manager-form{padding:14px;display:flex;flex-wrap:wrap;gap:8px}.manager-form label{width:100%;color:var(--muted);font-size:12px}.manager-form input{width:100%}.manager-form button{min-height:44px}.manager-path{padding:0 14px 10px;overflow-wrap:anywhere;color:var(--muted);font:12px/1.6 Consolas,monospace}.manager-error{padding:0 14px;color:#e5b59a}.manager-footer{padding:10px 14px calc(10px + env(safe-area-inset-bottom));border-top:1px solid var(--line);display:flex;gap:8px}.manager-footer button{flex:1;min-height:44px}.manage-row{display:flex;border-bottom:1px solid var(--line)}.manage-row .row{border:0;min-width:0;flex:1}.manage-row>button:last-child{margin:auto 10px;min-height:44px;flex-shrink:0;color:#e5b59a}.manager-confirm{padding:14px;background:#2b2721;border-top:1px solid #554936}.manager-confirm p{margin:0 0 12px;overflow-wrap:anywhere}.manager-confirm button{min-height:44px;margin-right:8px}
+@media(max-width:350px){.header-actions{width:100%}.header-actions button{flex:1}.project-tools small{display:none}}
 </style>
 </head>
 <body>
-<main>
-<header><h1>Chaos Agent</h1><span id="state" class="muted">未配对</span></header>
-<section id="pair"><input id="token" placeholder="输入电脑端 Token"><button id="pairButton">配对</button></section>
-<section id="messages" class="messages"></section>
-<div class="bar"><textarea id="prompt" rows="2" placeholder="输入任务……"></textarea><button id="send">发送</button><button id="stop" class="stop">停止</button></div>
-<div class="muted">电脑端任务在手机断线后仍会继续。</div>
+<main id="app">
+<header class="app-header"><h1>Chaos Agent</h1><span id="state" class="muted" role="status">未配对</span></header>
+<section id="pair"><input id="token" placeholder="输入电脑端 Token" aria-label="配对 Token" autocomplete="off"><button id="pairButton" class="primary">配对</button></section>
+<p id="notice" class="notice" role="status" hidden></p>
+<div id="activeBanner" class="active-banner" hidden><span id="activeText">另一个会话正在执行</span><button id="viewActive">查看任务 →</button></div>
+<section id="catalogScreen" class="screen" hidden>
+  <div id="homeNav" class="navline"><nav class="tabs" aria-label="导航"><button id="recentTab" aria-selected="true">最近</button><button id="projectsTab" aria-selected="false">项目</button></nav></div>
+  <div id="projectTools" class="project-tools" hidden><button id="addProject" class="primary">＋ 添加项目</button><button id="manageProjects">管理</button><small>与 SSH 共用项目目录</small></div>
+  <div id="projectNav" class="navline" hidden><button id="projectBack" class="icon-button" aria-label="返回项目列表">‹</button><div class="identity"><strong id="projectTitle"></strong><small id="projectSubtitle"></small></div><button id="newSession" class="primary">新建会话</button></div>
+  <div class="searchbar"><input id="search" type="search" placeholder="搜索会话与历史内容" aria-label="搜索会话与历史内容" autocomplete="off"></div>
+  <div class="scroll" id="catalogScroll"><div id="list" role="list"></div><p id="emptyList" class="empty" hidden></p><button id="loadMore" class="more" hidden>加载更多会话</button></div>
+  <div class="catalog-footer"></div>
+</section>
+<section id="chatScreen" class="screen" hidden>
+  <header class="navline chat-header"><button id="chatBack" class="icon-button" aria-label="返回会话列表">‹</button><div class="identity"><strong id="chatTitle">会话</strong><small id="chatProject"></small></div><div class="header-actions"><button id="chatProjects">项目</button><button id="chatSessions">会话</button></div><span id="chatState" class="muted" role="status"></span></header>
+  <div id="timeline" class="scroll"><button id="earlier" class="more" hidden>查看更早消息</button><section id="messages" class="messages" aria-label="聊天消息" aria-live="polite"></section></div>
+  <form id="composer" class="composer"><textarea id="prompt" rows="1" maxlength="1024" placeholder="输入任务……" aria-label="输入任务"></textarea><button id="send" class="primary" type="submit">发送</button><button id="stop" class="stop" type="button" hidden>停止</button></form>
+  <nav class="mobile-actions" aria-label="聊天操作"><button id="focusInput"><span aria-hidden="true">✎</span>输入</button><button id="actionSessions"><span aria-hidden="true">☰</span>会话</button><button id="latest"><span aria-hidden="true">↓</span>到底</button><button id="taskAction"><span id="taskActionIcon" aria-hidden="true">≡</span><b id="taskActionLabel">状态</b></button></nav>
+</section>
+<section id="projectManager" class="project-manager" role="dialog" aria-modal="true" aria-label="项目入口管理" hidden>
+  <header class="manager-header"><strong id="managerTitle">添加项目</strong><button id="closeManager">完成</button></header>
+  <form id="managerForm" class="manager-form"><label for="projectPath">电脑上的项目文件夹</label><input id="projectPath" placeholder="绝对路径，例如 F:\\my-project" autocomplete="off"><button id="saveProject" class="primary" type="submit">添加项目</button><button id="browseProjects" type="button">浏览文件夹</button></form>
+  <p id="managerPath" class="manager-path"></p><p id="managerError" class="manager-error" role="status" hidden></p>
+  <div id="directoryList" class="scroll" role="list"></div>
+  <div id="removeConfirm" class="manager-confirm" hidden><p id="removeText"></p><button id="cancelRemove">取消</button><button id="confirmRemove">移除入口</button></div>
+  <footer id="browseFooter" class="manager-footer" hidden><button id="browseParent">上一级</button><button id="chooseDirectory" class="primary">选此文件夹</button></footer>
+</section>
+<div id="connectionHint">配对后可查看项目和已有会话。</div>
 </main>
 <script>
-const state=document.querySelector('#state'),messages=document.querySelector('#messages'),token=document.querySelector('#token');let credential=localStorage.getItem('chaos-device'),task=null,socket=null,lastSequence=0,reconnectTimer=null;
-const add=(text,kind='agent')=>{const el=document.createElement('div');el.className='bubble '+kind;el.textContent=text;messages.append(el);messages.scrollTop=messages.scrollHeight;return el};
-async function pair(){const r=await fetch('/pair',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({token:token.value})});const data=await r.json();if(!r.ok){state.textContent=data.error;return}credential=data.device_credential;localStorage.setItem('chaos-device',credential);document.querySelector('#pair').hidden=true;state.textContent='● 在线';connect()}
-async function send(){if(!credential||task)return;const input=document.querySelector('#prompt');if(!input.value.trim())return;add(input.value,'user');const r=await fetch('/sessions/current/messages',{method:'POST',headers:{authorization:'Bearer '+credential,'content-type':'application/json'},body:JSON.stringify({prompt:input.value})});const data=await r.json();input.value='';if(!r.ok){add(data.error);return}task=data.task_id;state.textContent='● 执行中';connect()}
-async function stop(){if(!task)return;await fetch('/tasks/'+task+'/stop',{method:'POST',headers:{authorization:'Bearer '+credential}})}
-function connect(){if(!credential||socket&&socket.readyState===1)return;const url=(location.protocol==='https:'?'wss':'ws')+'://'+location.host+'/sessions/current/events?since='+lastSequence;socket=new WebSocket(url);socket.onopen=()=>socket.send('auth:'+credential);socket.onmessage=e=>{const data=JSON.parse(e.data);lastSequence=Math.max(lastSequence,data.sequence||0);if(data.event==='assistant_delta')add(data.data.text);if(data.event==='tool_started')add('工具：'+(data.data.name||'执行中'),'tool');if(data.event==='task_started')task=data.task_id;if(data.event==='task_completed'){state.textContent='● 已完成';task=null}if(data.event==='task_failed'){state.textContent='任务失败';task=null}if(data.event==='task_stopped'){state.textContent='已停止';task=null}};socket.onclose=()=>{if(credential){state.textContent='等待重连';if(task&&!reconnectTimer)reconnectTimer=setTimeout(()=>{reconnectTimer=null;connect()},1000)}}}
-async function sync(){if(!credential)return;const r=await fetch('/status',{headers:{authorization:'Bearer '+credential}});if(!r.ok){localStorage.removeItem('chaos-device');credential=null;document.querySelector('#pair').hidden=false;state.textContent='未配对';return}const data=await r.json();task=data.task_id;if(task)state.textContent='● 执行中';connect()}
-document.querySelector('#pairButton').onclick=pair;document.querySelector('#send').onclick=send;document.querySelector('#stop').onclick=stop;if(credential){document.querySelector('#pair').hidden=true;state.textContent='连接中';sync()}
+const $=id=>document.querySelector('#'+id),state=$('state'),messages=$('messages'),token=$('token'),timeline=$('timeline');
+const activeStatus=status=>['created','running','verifying'].includes(status),statusText=status=>({created:'执行中',running:'执行中',verifying:'验证中',completed:'已完成',failed:'失败',stopped:'已停止',interrupted:'已中断'}[status]||'可继续');
+let credential=localStorage.getItem('chaos-device'),task=null,cursorTask=null,socket=null,lastSequence=0,reconnectTimer=null;
+let screen='home',tab='recent',selectedProjectId=null,selectedSessionId=null,selectedSummary=null,projects=[],sessions=[],nextOffset=null,nextBefore=null;
+let globalRun={status:'idle',task_id:null,session_id:null,sequence:0},initialized=false,viewEpoch=0,listEpoch=0,historyRevision=0,historyJob=null,historyPending=false,syncJob=null,sending=false,searchTimer=null;
+let records=[],nodes=new Map(),assistantBubble=null,assistantRecord=null,assistantText='',liveIndex=0;
+let drafts={};try{const saved=JSON.parse(localStorage.getItem('chaos-drafts-v1')||'{}');if(saved&&typeof saved==='object'&&!Array.isArray(saved))drafts=saved}catch{}
+function draftKey(){return selectedSessionId?'session:'+selectedSessionId:selectedProjectId?'project:'+selectedProjectId:null}
+function persistDrafts(){try{localStorage.setItem('chaos-drafts-v1',JSON.stringify(drafts))}catch{notice('草稿暂存于当前页面；浏览器存储不可用')}}
+function saveDraft(){if(screen!=='chat')return;const key=draftKey();if(!key)return;const value=$('prompt').value;if(value)drafts[key]=value.slice(0,1024);else delete drafts[key];const keys=Object.keys(drafts);for(const old of keys.slice(0,Math.max(0,keys.length-64)))delete drafts[old];persistDrafts()}
+function restoreDraft(){const value=drafts[draftKey()];$('prompt').value=typeof value==='string'?value.slice(0,1024):'';resizePrompt()}
+function resizePrompt(){const input=$('prompt');input.style.height='auto';input.style.height=Math.min(140,input.scrollHeight)+'px'}
+let savedSelection=null;try{savedSelection=JSON.parse(localStorage.getItem('chaos-selection')||'null')}catch{}
+function remember(){localStorage.setItem('chaos-selection',JSON.stringify({screen,tab,project_id:selectedProjectId,session_id:selectedSessionId}))}
+function notice(text=''){const el=$('notice');el.textContent=text;el.hidden=!text}
+function relativeTime(value){if(!value)return'';const date=new Date(typeof value==='number'?(value<1e12?value*1000:value):value),elapsed=Math.max(0,Date.now()-date.getTime());if(!Number.isFinite(elapsed))return'';if(elapsed<60000)return'刚刚';if(elapsed<3600000)return Math.floor(elapsed/60000)+' 分钟前';if(elapsed<86400000)return Math.floor(elapsed/3600000)+' 小时前';if(elapsed<604800000)return Math.floor(elapsed/86400000)+' 天前';return date.toLocaleDateString('zh-CN',{month:'numeric',day:'numeric'})}
+function closeSocket(){const old=socket;socket=null;if(old)old.close()}
+function finishAssistant(){assistantBubble=null;assistantRecord=null;assistantText=''}
+function atBottom(){return timeline.scrollHeight-timeline.scrollTop-timeline.clientHeight<80}
+function scrollBottom(){timeline.scrollTop=timeline.scrollHeight}
+function inlineText(parent,text){
+  for(const part of text.split(/(`[^`\n]+`|\*\*[^*\n]+\*\*)/g)){
+    if(part.startsWith('`')&&part.endsWith('`')&&part.length>2){const code=document.createElement('code');code.textContent=part.slice(1,-1);parent.append(code)}
+    else if(part.startsWith('**')&&part.endsWith('**')&&part.length>4){const strong=document.createElement('strong');strong.textContent=part.slice(2,-2);parent.append(strong)}
+    else parent.append(document.createTextNode(part));
+  }
+}
+function renderReply(target,text){
+  const blocks=[];let paragraph=[],list=null,code=null,codeLines=[];
+  const flush=()=>{if(paragraph.length){const p=document.createElement('p');inlineText(p,paragraph.join('\n'));blocks.push(p);paragraph=[]}};
+  for(const line of text.split('\n')){
+    if(/^\s*```/.test(line)){flush();list=null;if(code)code=null;else{const pre=document.createElement('pre');code=document.createElement('code');codeLines=[];pre.append(code);blocks.push(pre)}continue}
+    if(code){codeLines.push(line);code.textContent=codeLines.join('\n');continue}
+    const heading=line.match(/^(#{1,6})\s+(.+)$/),item=line.match(/^\s*(?:([-*+])|\d+[.)])\s+(.+)$/);
+    if(heading){flush();list=null;const h=document.createElement('h'+Math.min(heading[1].length+1,4));inlineText(h,heading[2]);blocks.push(h)}
+    else if(item){flush();const kind=item[1]?'ul':'ol';if(!list||list.tagName.toLowerCase()!==kind){list=document.createElement(kind);blocks.push(list)}const li=document.createElement('li');inlineText(li,item[2]);list.append(li)}
+    else if(!line.trim()){flush();list=null}else{list=null;paragraph.push(line)}
+  }
+  flush();target.replaceChildren(...blocks);
+}
+function messageNode(record){const el=document.createElement('div');el.className='bubble '+(record.role==='user'?'user':'agent');el.dataset.key=record.key;if(record.role==='assistant')renderReply(el,record.content);else el.textContent=record.content;return el}
+function renderMessages(){nodes=new Map();messages.replaceChildren(...records.map(record=>{const node=messageNode(record);nodes.set(record.key,node);return node}));if(assistantRecord)assistantBubble=nodes.get(assistantRecord.key)||null;$('earlier').hidden=nextBefore==null}
+function appendAssistant(text){if(typeof text!=='string'||!text)return;const follow=atBottom();if(!assistantRecord){assistantRecord={key:'live:'+cursorTask+':'+(++liveIndex),role:'assistant',content:''};records.push(assistantRecord);assistantBubble=messageNode(assistantRecord);nodes.set(assistantRecord.key,assistantBubble);messages.append(assistantBubble);assistantText=''}assistantText+=text;assistantRecord.content=assistantText;renderReply(assistantBubble,assistantText);if(follow)scrollBottom()}
+function readOnlyReason(){if(!selectedSessionId)return'';const id=selectedSummary?.project_id||selectedProjectId;if(id==='unassigned')return'这条旧会话未记录所属项目，可进入项目新建会话';return projects.find(p=>p.id===id)?.available===false?'项目目录暂不可用，当前会话仅可查看历史':''}
+function renderState(){
+  const busy=activeStatus(globalRun.status),here=busy&&globalRun.session_id===selectedSessionId,readOnly=!!readOnlyReason(),sessionBusy=activeStatus(selectedSummary?.status);task=here?globalRun.task_id:null;
+  $('activeBanner').hidden=!credential||!busy||screen==='chat'&&here;$('activeText').textContent='另一个会话正在执行，完成后可发送新任务';
+  $('send').hidden=!!here;$('send').disabled=!credential||!selectedSessionId||busy||sessionBusy||sending||historyPending||readOnly;$('stop').hidden=!here;$('stop').disabled=sending;$('prompt').disabled=!credential||busy||sessionBusy||sending||readOnly;$('prompt').placeholder=readOnly?'只读历史':'输入任务……';
+  $('chatState').textContent=here?statusText(globalRun.status):readOnly?'只读历史':statusText(selectedSummary?.status);$('newSession').disabled=!credential||projects.find(p=>p.id===selectedProjectId)?.available===false;
+  $('focusInput').disabled=$('prompt').disabled;$('taskActionLabel').textContent=here?'停止':'状态';$('taskActionIcon').textContent=here?'■':'≡';$('taskAction').disabled=sending;
+}
+function renderScreen(){
+  $('catalogScreen').hidden=!credential||screen==='chat';$('chatScreen').hidden=!credential||screen!=='chat';$('homeNav').hidden=screen==='project';$('projectNav').hidden=screen!=='project';$('connectionHint').hidden=!!credential;
+  $('projectTools').hidden=!credential||screen!=='home'||tab!=='projects';
+  $('recentTab').setAttribute('aria-selected',String(tab==='recent'));$('projectsTab').setAttribute('aria-selected',String(tab==='projects'));
+  const project=projects.find(p=>p.id===selectedProjectId);$('projectTitle').textContent=project?.id==='unassigned'?'未记录项目':project?.name||'项目';$('projectSubtitle').textContent=project?.id==='unassigned'?'只读历史':project?.available===false?'项目目录暂不可用':(project?.session_count??0)+' 个会话';
+  $('search').placeholder=screen==='home'&&tab==='projects'?'搜索项目':'搜索会话与历史内容';$('chatTitle').textContent=selectedSummary?.title||'新会话';$('chatProject').textContent=selectedSummary?.project_id==='unassigned'?'未记录项目 · 只读历史':selectedSummary?.project_name||project?.name||'';if(credential&&screen==='chat'&&readOnlyReason())notice(readOnlyReason());renderState();
+}
+function row(title,preview,meta,handler){const el=document.createElement('button');el.className='row';el.type='button';el.setAttribute('role','listitem');for(const [name,text]of [['row-title',title],['row-preview',preview],['row-meta',meta]]){if(!text)continue;const span=document.createElement('span');span.className=name;span.textContent=text;el.append(span)}el.onclick=handler;return el}
+function renderList(){
+  const isProjects=screen==='home'&&tab==='projects',query=$('search').value.trim().toLowerCase();
+  const items=isProjects?projects.filter(p=>!query||(p.name+' '+p.path).toLowerCase().includes(query)):sessions;
+  $('list').replaceChildren(...items.map(item=>isProjects?row(item.id==='unassigned'?'未记录项目':item.name,'',[(item.session_count??0)+' 个会话',relativeTime(item.updated_at),item.id==='unassigned'?'只读历史':item.available===false?'目录暂不可用':''].filter(Boolean).join(' · '),()=>openProject(item.id)):row(item.title||'新会话',item.preview||'',[(item.project_id==='unassigned'?'未记录项目':item.project_name||'项目'),relativeTime(item.updated_at),item.project_id==='unassigned'?'只读历史':statusText(item.status)].filter(Boolean).join(' · '),()=>openSession(item.id,item))));
+  $('emptyList').hidden=items.length>0;$('emptyList').textContent=query?'没有找到匹配内容':isProjects?'暂无项目':screen==='project'?'这个项目还没有会话，可新建会话':'暂无会话，进入项目开始对话';$('loadMore').hidden=isProjects||nextOffset==null;
+}
+async function api(path,options={}){
+  const auth=credential;if(!auth)throw Error('未配对');const response=await fetch(path,{...options,headers:{authorization:'Bearer '+auth,...options.headers}});
+  if(auth!==credential)throw Error('认证已改变');if(response.status===401){unpair();throw Error('未配对')}
+  const data=await response.json();if(!response.ok)throw Error(data.error||'连接暂不可用');return data;
+}
+async function loadProjects(){const data=await api('/projects');projects=Array.isArray(data.projects)?data.projects:[];if(!selectedProjectId)selectedProjectId=data.current_project_id||projects[0]?.id||null;renderScreen();if(screen==='home'&&tab==='projects')renderList()}
+async function loadSessions(append=false){
+  if(screen==='home'&&tab==='projects'){renderList();return}const epoch=append?listEpoch:++listEpoch,projectId=screen==='project'?selectedProjectId:null,query=$('search').value.trim(),offset=append?nextOffset:0;if(offset==null)return;
+  $('loadMore').disabled=true;try{const params=new URLSearchParams({offset:String(offset),limit:'40'});if(projectId)params.set('project_id',projectId);if(query)params.set('q',query);const data=await api('/sessions?'+params);
+    if(epoch!==listEpoch||projectId!==(screen==='project'?selectedProjectId:null)||query!==$('search').value.trim())return;
+    const old=append?sessions:[],seen=new Set(old.map(item=>item.id));sessions=[...old,...(data.sessions||[]).filter(item=>!seen.has(item.id))];nextOffset=data.next_offset??null;renderList();
+  }catch(error){if(epoch===listEpoch&&credential)notice(error.message)}finally{if(epoch===listEpoch)$('loadMore').disabled=false}
+}
+function visibleRecords(rows,prefix='snapshot'){return(rows||[]).filter(item=>['user','assistant'].includes(item.role)&&typeof item.content==='string').map((item,index)=>({...item,key:item.sequence==null?prefix+':'+index:'m:'+item.sequence}))}
+async function loadHistory(before=null){
+  const sessionId=selectedSessionId,epoch=viewEpoch;if(!sessionId)return false;if(before==null&&historyJob?.id===sessionId&&historyJob.epoch===epoch)return historyJob.promise;
+  const revision=before==null?++historyRevision:historyRevision;
+  const run=async()=>{const height=timeline.scrollHeight,top=timeline.scrollTop;$('earlier').disabled=true;
+    try{const params=new URLSearchParams({limit:'50'});if(before!=null)params.set('before',String(before));const data=await api('/sessions/'+encodeURIComponent(sessionId)+'/messages?'+params);
+      if(sessionId!==selectedSessionId||epoch!==viewEpoch||revision!==historyRevision)return false;
+      const incoming=visibleRecords(data.messages);if(before!=null){const seen=new Set(records.map(item=>item.key));records=[...incoming.filter(item=>item.sequence!=null&&!seen.has(item.key)),...records]}
+      else{finishAssistant();records=incoming;selectedSummary=data.session||selectedSummary;if(selectedSummary?.project_id)selectedProjectId=selectedSummary.project_id;const active=data.active_task||(activeStatus(data.task?.status)?data.task:null);cursorTask=active?.id||active?.task_id||null;lastSequence=Number(data.event_sequence)||0;closeSocket();
+        if(active){globalRun={...globalRun,status:active.status,task_id:cursorTask,session_id:sessionId,sequence:lastSequence};const tail=records.at(-1);if(data.assistant_open&&tail?.role==='assistant'){assistantRecord=tail;assistantText=tail.content}}
+        historyPending=false;if(data.snapshot_truncated)notice('当前任务的较早输出已省略，完成后可查看完整历史');
+      }
+      nextBefore=data.next_before??null;renderMessages();renderScreen();if(before!=null)timeline.scrollTop=top+timeline.scrollHeight-height;else scrollBottom();if(before==null)connect();return true;
+    }catch(error){if(sessionId===selectedSessionId&&epoch===viewEpoch&&credential){notice(error.message);if(before==null)historyPending=true}return false}finally{if(sessionId===selectedSessionId&&epoch===viewEpoch)$('earlier').disabled=false}
+  };
+  const promise=run();if(before==null){const job={id:sessionId,epoch,promise};historyJob=job;try{return await promise}finally{if(historyJob===job)historyJob=null}}return await promise;
+}
+async function openSession(id,summary=null){
+  saveDraft();
+  ++viewEpoch;closeSocket();finishAssistant();selectedSessionId=id;selectedSummary=summary||sessions.find(item=>item.id===id)||null;if(selectedSummary?.project_id)selectedProjectId=selectedSummary.project_id;
+  screen='chat';restoreDraft();records=[];nextBefore=null;cursorTask=null;lastSequence=0;historyPending=true;notice();renderMessages();renderScreen();remember();await loadHistory();remember();
+}
+async function openProject(id){saveDraft();const epoch=++viewEpoch;++listEpoch;closeSocket();selectedProjectId=id;selectedSessionId=null;screen='project';sessions=[];nextOffset=null;$('search').value='';notice();renderScreen();renderList();remember();await loadSessions();if(epoch!==viewEpoch||screen!=='project'||selectedProjectId!==id||projects.find(p=>p.id===id)?.available===false)return;try{await api('/projects/'+encodeURIComponent(id)+'/select',{method:'POST'})}catch(error){if(credential&&epoch===viewEpoch)notice(error.message)}}
+async function showHome(nextTab='recent'){saveDraft();++viewEpoch;++listEpoch;closeSocket();screen='home';tab=nextTab;selectedSessionId=null;selectedSummary=null;sessions=[];nextOffset=null;$('search').value='';notice();renderScreen();renderList();remember();if(tab==='projects'){try{await loadProjects()}catch(error){if(credential)notice(error.message)}}else await loadSessions()}
+async function backFromChat(){if(selectedProjectId)await openProject(selectedProjectId);else await showHome('recent')}
+async function newSession(){if(!selectedProjectId||$('newSession').disabled)return;const projectId=selectedProjectId,epoch=viewEpoch;$('newSession').disabled=true;try{const data=await api('/sessions',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({project_id:projectId})});if(epoch!==viewEpoch)return;await openSession(data.session_id,{id:data.session_id,project_id:projectId,project_name:projects.find(p=>p.id===projectId)?.name,title:'新会话',status:'idle'})}catch(error){if(credential&&epoch===viewEpoch)notice(error.message)}finally{renderState()}}
+async function refreshCatalogue(){try{await loadProjects();if(screen!=='chat')await loadSessions()}catch(error){if(credential)notice(error.message)}}
+async function terminalHistory(){const id=selectedSessionId,epoch=viewEpoch;await loadHistory();if(id===selectedSessionId&&epoch===viewEpoch)await refreshCatalogue()}
+function showEvent(data){
+  if(data.event==='assistant_delta')appendAssistant(data.data?.text);
+  if(data.event==='tool_started'){finishAssistant();$('chatState').textContent='工具 · '+(data.data?.name||'执行中')}
+  if(data.event==='task_started'){finishAssistant();globalRun.status='running';renderState()}
+  if(data.event==='task_status'&&activeStatus(data.data?.status)){globalRun.status=data.data.status;renderState()}
+  if(['task_completed','task_failed','task_stopped'].includes(data.event)){finishAssistant();globalRun.status=data.event.slice(5);if(selectedSummary)selectedSummary.status=globalRun.status;renderState();void terminalHistory()}
+}
+function webSocketUrl(){return(location.protocol==='https:'?'wss':'ws')+'://'+location.host+'/sessions/'+encodeURIComponent(selectedSessionId)+'/events?since='+lastSequence}
+function connect(){
+  if(!credential||screen!=='chat'||historyPending||!cursorTask||!activeStatus(globalRun.status)||globalRun.session_id!==selectedSessionId||socket&&socket.readyState<2)return;
+  const boundSession=selectedSessionId,boundTask=cursorTask,current=new WebSocket(webSocketUrl());socket=current;
+  current.onopen=()=>{if(current===socket){current.send('auth:'+credential);state.textContent='● 在线'}};
+  current.onmessage=event=>{if(current!==socket||boundSession!==selectedSessionId||boundTask!==cursorTask)return;let data;try{data=JSON.parse(event.data)}catch{return}if(data.session_id!==boundSession||data.task_id!==boundTask||!Number.isInteger(data.sequence)||data.sequence<=lastSequence)return;lastSequence=data.sequence;globalRun.sequence=lastSequence;showEvent(data)};
+  current.onclose=event=>{if(current!==socket)return;socket=null;if(event.code===4401){unpair();return}if(credential){if(event.code!==1000)state.textContent='等待重连';retry()}};
+}
+function unpair(){saveDraft();closeManager();credential=null;localStorage.removeItem('chaos-device');++viewEpoch;++listEpoch;initialized=false;historyJob=null;historyPending=false;closeSocket();finishAssistant();task=null;cursorTask=null;lastSequence=0;records=[];clearTimeout(reconnectTimer);reconnectTimer=null;$('pair').hidden=false;state.textContent='未配对';notice();renderMessages();renderScreen()}
+function retry(){if(credential&&!reconnectTimer)reconnectTimer=setTimeout(()=>{reconnectTimer=null;void sync()},2000)}
+async function pair(){try{const response=await fetch('/pair',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({token:token.value})}),data=await response.json();if(!response.ok){notice(data.error||'配对失败');return}credential=data.device_credential;localStorage.setItem('chaos-device',credential);token.value='';$('pair').hidden=true;notice();await sync()}catch{notice('连接失败，请重试')}}
+async function send(){
+  const input=$('prompt'),draftValue=input.value,prompt=draftValue.trim();if(!credential||!selectedSessionId||activeStatus(globalRun.status)||activeStatus(selectedSummary?.status)||sending||historyPending||readOnlyReason()||!prompt)return;if(prompt.length>1024){notice('任务内容最多 1024 个字符');return}const id=selectedSessionId,epoch=viewEpoch,summary=selectedSummary;sending=true;renderState();notice();
+  try{const data=await api('/sessions/'+encodeURIComponent(id)+'/messages',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({prompt})});globalRun={status:'running',task_id:data.task_id,session_id:data.session_id||id,sequence:0};
+    if(drafts['session:'+id]===draftValue)delete drafts['session:'+id];if(id===selectedSessionId&&input.value===draftValue){input.value='';input.style.height=''}persistDrafts();if(id===selectedSessionId&&epoch===viewEpoch){await openSession(data.session_id||id,{...summary,id:data.session_id||id,status:'running'});if(data.continued_from)notice('延续会话：已保留原会话历史，后续对话保存到新会话。')}
+    renderState();
+  }catch(error){if(credential)notice(error.message);void sync()}finally{sending=false;renderState()}
+}
+async function stop(){if(!task||sending)return;sending=true;renderState();try{await api('/tasks/'+encodeURIComponent(task)+'/stop',{method:'POST'});await sync()}catch(error){if(credential)notice(error.message)}finally{sending=false;renderState()}}
+async function initializeNavigation(){
+  initialized=true;const epoch=viewEpoch;try{await loadProjects()}catch(error){initialized=false;throw error}if(epoch!==viewEpoch)return;
+  if(savedSelection?.session_id&&savedSelection.screen==='chat'){selectedProjectId=savedSelection.project_id||selectedProjectId;await openSession(savedSelection.session_id);return}
+  if(savedSelection?.screen==='project'&&projects.some(p=>p.id===savedSelection.project_id)){await openProject(savedSelection.project_id);return}
+  screen='home';tab=savedSelection?.tab==='projects'?'projects':'recent';renderScreen();if(tab==='projects')renderList();else await loadSessions();remember();
+}
+async function sync(){
+  if(!credential)return;if(syncJob)return syncJob;const run=async()=>{try{const data=await api('/status'),previous=globalRun;
+    if(data.task_id!==cursorTask||Number(data.sequence)>=lastSequence){globalRun=data;state.textContent='● 在线';renderState();
+      if(!initialized)await initializeNavigation();
+      else if(screen==='chat'&&(historyPending||activeStatus(data.status)&&data.session_id===selectedSessionId&&cursorTask!==data.task_id))await loadHistory();
+      else if(screen==='chat'&&previous.session_id===selectedSessionId&&activeStatus(previous.status)&&!activeStatus(data.status))await terminalHistory();
+    }
+    connect();
+  }catch{if(credential)state.textContent='等待重连';if(!initialized)initialized=false}finally{retry()}};
+  const job=run();syncJob=job;try{await job}finally{if(syncJob===job)syncJob=null}
+}
+$('pairButton').onclick=pair;$('recentTab').onclick=()=>showHome('recent');$('projectsTab').onclick=()=>showHome('projects');$('projectBack').onclick=()=>showHome('projects');$('chatBack').onclick=backFromChat;$('newSession').onclick=newSession;$('loadMore').onclick=()=>loadSessions(true);$('earlier').onclick=()=>loadHistory(nextBefore);$('viewActive').onclick=()=>openSession(globalRun.session_id);
+$('composer').onsubmit=event=>{event.preventDefault();void send()};$('stop').onclick=stop;$('search').oninput=()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>{if(screen==='home'&&tab==='projects')renderList();else void loadSessions()},250)};
+$('prompt').oninput=()=>{resizePrompt();saveDraft()};
+$('chatProjects').onclick=()=>showHome('projects');$('chatSessions').onclick=backFromChat;$('actionSessions').onclick=backFromChat;
+$('focusInput').onclick=()=>{$('prompt').focus?.()};$('latest').onclick=scrollBottom;
+$('taskAction').onclick=()=>task?stop():notice([$('chatState').textContent,globalRun.task_id?'任务 '+globalRun.task_id:'当前没有活动任务'].filter(Boolean).join(' · '));
+window.addEventListener('pagehide',saveDraft);
+window.addEventListener('online',()=>sync());document.addEventListener('visibilitychange',()=>{if(!document.hidden)sync()});
+let managerEpoch=0,browsePath=null,browseParent=null,pendingRemove=null,managerBusy=false;
+function managerError(text=''){$('managerError').textContent=text;$('managerError').hidden=!text}
+function closeManager(){++managerEpoch;$('projectManager').hidden=true;pendingRemove=null;$('removeConfirm').hidden=true;managerBusy=false;$('saveProject').disabled=false;$('confirmRemove').disabled=false}
+function openManager(manage=false){
+  saveDraft();++managerEpoch;$('projectManager').hidden=false;$('managerTitle').textContent=manage?'管理项目入口':'添加项目';
+  $('projectPath').value='';$('managerForm').hidden=manage;$('browseFooter').hidden=true;$('managerPath').textContent='';managerError();
+  pendingRemove=null;$('removeConfirm').hidden=true;browsePath=null;
+  if(manage)renderManagedProjects();else $('directoryList').replaceChildren();
+}
+function renderManagedProjects(){
+  $('directoryList').replaceChildren(...projects.filter(p=>p.registered).map(project=>{
+    const wrapper=document.createElement('div');wrapper.className='manage-row';wrapper.append(row(project.name,project.path,project.recent?'最近选择':'已保存',()=>{$('projectPath').value=project.path;$('managerForm').hidden=false}));
+    const remove=document.createElement('button');remove.textContent='移除';remove.onclick=()=>{pendingRemove=project;$('removeText').textContent='移除“'+project.name+'”的入口？工程文件和已有会话会保留。';$('removeConfirm').hidden=false};wrapper.append(remove);return wrapper;
+  }));
+}
+async function browseDirectories(path=null){
+  const epoch=++managerEpoch;managerError();$('managerForm').hidden=false;
+  try{const data=await api('/project-directories'+(path?'?path='+encodeURIComponent(path):''));if(epoch!==managerEpoch||$('projectManager').hidden)return;
+    browsePath=data.path;browseParent=data.parent;$('managerPath').textContent=data.path||'选择电脑上的文件夹';$('projectPath').value=data.path||'';
+    $('browseFooter').hidden=!data.path;$('browseParent').disabled=!data.parent;
+    $('directoryList').replaceChildren(...data.directories.map(item=>row(item.name,item.path,'文件夹 →',()=>browseDirectories(item.path))));
+  }catch(error){if(epoch===managerEpoch)managerError(error.message)}
+}
+async function addProjectPath(){
+  if(managerBusy)return;const path=$('projectPath').value.trim();if(!path){managerError('请选择或输入电脑上的项目文件夹');return}
+  const epoch=managerEpoch;managerBusy=true;$('saveProject').disabled=true;managerError();
+  try{const data=await api('/projects',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({path})});if(epoch!==managerEpoch)return;
+    await loadProjects();if(epoch!==managerEpoch)return;closeManager();await openProject(data.project.id);
+  }catch(error){if(epoch===managerEpoch)managerError(error.message)}finally{if(epoch===managerEpoch){managerBusy=false;$('saveProject').disabled=false}}
+}
+async function removeProjectEntry(){
+  if(!pendingRemove||managerBusy)return;const project=pendingRemove,epoch=managerEpoch;managerBusy=true;$('confirmRemove').disabled=true;
+  try{await api('/projects/'+encodeURIComponent(project.id),{method:'DELETE'});if(epoch!==managerEpoch)return;pendingRemove=null;$('removeConfirm').hidden=true;await loadProjects();if(epoch===managerEpoch)renderManagedProjects()}
+  catch(error){if(epoch===managerEpoch)managerError(error.message)}finally{if(epoch===managerEpoch){managerBusy=false;$('confirmRemove').disabled=false}}
+}
+$('addProject').onclick=()=>openManager();$('manageProjects').onclick=()=>openManager(true);$('closeManager').onclick=closeManager;
+$('managerForm').onsubmit=event=>{event.preventDefault();void addProjectPath()};$('browseProjects').onclick=()=>browseDirectories();
+$('browseParent').onclick=()=>browseDirectories(browseParent);$('chooseDirectory').onclick=()=>{if(browsePath){$('projectPath').value=browsePath;void addProjectPath()}};
+$('cancelRemove').onclick=()=>{pendingRemove=null;$('removeConfirm').hidden=true};$('confirmRemove').onclick=removeProjectEntry;
+function fitViewport(){if(window.visualViewport)$('app').style.height=Math.round(window.visualViewport.height)+'px'}window.visualViewport?.addEventListener('resize',fitViewport);fitViewport();
+renderScreen();if(credential){$('pair').hidden=true;state.textContent='连接中';void sync()}
 </script>
 </body>
 </html>

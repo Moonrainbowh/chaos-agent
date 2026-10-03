@@ -2,11 +2,13 @@
 把聊天、目标、动作、用量和 checkpoint 保存为可恢复、可迁移的结构化状态。
 
 ## 边界
+- 负责：以独立的消息分支索引持久化原始节点身份、分叉锚点与书签；消息分叉复制完整工具配对的前缀，新任务不继承旧任务授权/验证状态，现有两层 Agent 关系保持独立。
 - 为 persistent context 提供任务内按路径笔记，覆盖/追加原子执行，保留版本和幂等操作记录；不改变原始消息或工作区文件。
 - 负责：随 Message JSON 持久化附件引用元数据，并在恢复、fork、checkpoint 与 rewind 后保持引用不变；旧消息缺少附件字段时继续兼容读取。
 - 不负责：在 SQLite 中保存附件 blob、base64 或原绝对路径，也不负责解析或修复附件内容。
 - 负责：原子持久化 lineage、snapshot manifest、checkpoint 游标与 rewind operation，并提供非破坏性任务分叉及 session Rewind 终态事务。
 - 负责：线程生命周期、消息与事件存储、持久目标、checkpoint 元数据、恢复和 schema migration。
+- 负责：提供稳定排序的会话分页、按消息序号读取历史页，以及原子创建仅继承消息的延续 thread；延续不复制任务、用量、事件、验证事实或授权。
 - 负责：checkpoint 记录 message/event bounds 与 opaque artifact handles。
 - 负责：持久化任务预算快照与累计使用量，使恢复同一 thread 不重置限制。
 - 负责：提供事务边界和稳定 ID，支持 TUI 与非交互 CLI 共享同一会话。
@@ -41,11 +43,13 @@
 - 2026-09-05 的配置、验证与实验边界见根目录 `docs/context-boundary-experiment.md` 和 `docs/context-boundary-results.md`；具体候选值可配置，实验结果不自动推广为默认策略。
 
 ## Units
+- `ConversationTreeRepositoryMixin`：v24 原子维护 canonical message node、前缀分叉、共享历史引用、书签与会话组事件 | SQLite I/O | 与两层 Agent 授权关系独立；分叉不复制任务、事件或验证事实，工具配对必须闭合。
 - `OwnedTemporary`（共享临时文件助手）：迁移清理在 POSIX 使用稳定设备/inode 身份与可用的 birthtime，不把写入或硬链接引起的 ctime 更新判为替换；`close()` 只释放保活描述符，身份捕获失败仍关闭描述符并清理已确认归属的临时文件 | 文件 I/O | 不删除身份不同的替代文件，Windows 仍使用原 Win32 身份校验
 - `ContextNotesRepositoryMixin`: 笔记覆盖/追加单事务、幂等工具请求、版本保留 | SQLite I/O | 虚拟相对路径、单文件 1MB；内部 context:note_file 记录不作为工作区恢复点
 - `ThreadStatus`、`GoalStatus`、`ThreadSummary`、`ThreadRelation`、`MessageRecord`、`GoalRecord`、`CheckpointRecord`: 表达不可变的会话、父子关系和 checkpoint 状态 | 无副作用 | 时间归一化为 UTC，元数据深度冻结
 - `WorkspaceLineageRecord`、`WorkspaceSnapshotRecord`、`CheckpointCursor`、`RewindOperationRecord`: 表达 lineage、manifest、会话游标与 Rewind 状态 | 无副作用 | UUID、枚举、绝对路径、摘要、时间、JSON 与容量均严格校验
 - `SQLiteSessionRepository`、`record_task_steering(...)`、`record_task_followup(...)`、`promote_task_followups(...)`: 组合短事务仓储，分别原子持久立即 steering 和隐藏于当前回合的 FIFO follow-up | SQLite I/O | follow-up 只能在 Core 收尾门一次性提升为 messages，附件不得成为孤立记录
+- `ThreadContentRepositoryMixin`、`list_threads(...)`、`load_message_records(...)`、`create_thread_from_history(...)`: 稳定分页、排他消息序号历史页和单事务消息延续 | SQLite I/O | 列表单页 1..1000、offset 无总量截断；消息页按序号升序，默认仍读取全部；延续挂回原根、继承标题及消息 payload/时间但使用新序号，不复制任务、授权、事件、目标、预算或验证状态
 - `RecordRepositoryMixin`、`SemanticRepositoryMixin`: 原子保存目标、普通/语义 checkpoint 与来源索引 | SQLite I/O | 稳定 ID 内容漂移、缺失 owner 与损坏 JSON 均失败闭合
 - `WorkflowRepositoryMixin`、`SkillActivationRepositoryMixin`: 保存已校验 DAG 与 thread-scoped Skill 身份 | SQLite I/O | Workflow thread 限于两级树；Skill 不保存正文且 upsert 不重复
 - `WorkspaceSnapshotRepositoryMixin`: 创建/读取 lineage，并在一个写事务中发布 snapshot entries、checkpoint 与 cursor | SQLite I/O | blob 仅作摘要元数据；任一写入失败完全回滚，available/unavailable 关联必须一致
@@ -53,7 +57,7 @@
 - `EditBatchRepositoryMixin`、`record_edit_batch_post_identities(...)`: 准备、查询、迁移、记录操作进度与 POST 所有权证明并闭合多文件编辑批次 | SQLite I/O | 同 workspace 最多一个 unresolved；计划漂移、逆序进度、相反终态与冲突码漂移均失败闭合；`target_post_device/inode`（v22）只能在 APPLYING 阶段写入，因为原子替换后的文件索引在 journal 落库时还不存在，且该证明从 `EditBatchPath` 的相等性中排除，否则重放原始 prepare 请求会被误判为计划漂移
 - `CheckpointForkRepositoryMixin`、`AtomicSessionRewindRepositoryMixin`: 从 checkpoint 非破坏性分叉游标前事实与累计预算；以单事务创建 paused replacement、转交 owner、SUPERSEDE 旧任务并完成 operation | SQLite I/O | session/combined 禁止 generic completion；任一写入故障整体回滚为 pending，completed 幂等重试复核 source/replacement/owner/lineage/status 事实
 - `save_task_contract_revision`、`begin_verification_run`、`append_verification_evidence`、`finalize_task`: 保存 append-only 验证账本并原子完成 | SQLite I/O | 必须复核最新 generation、revision 与全部 required evidence
-- `SessionDatabase`、`migrate_legacy_session_database`、稳定 JSON codecs: 执行 v1-v23 migration、schema/index/FK 校验、旧库复制及含附件引用的 Message 编解码 | SQLite/JSON I/O | v20 follow-up 队列、v21 记忆条目表、v22 编辑批次 POST 所有权证明列、v23 软预算租约列；未来版本、缺表/索引、损坏数据失败闭合，旧库始终保留
+- `SessionDatabase`、`migrate_legacy_session_database`、稳定 JSON codecs: 执行 v1-v24 migration、schema/index/FK 校验、旧库复制及含附件引用的 Message 编解码 | SQLite/JSON I/O | v20 follow-up 队列、v21 记忆条目表、v22 编辑批次 POST 所有权证明列、v23 软预算租约列、v24 独立消息树索引；未来版本、缺表/索引、损坏数据失败闭合，旧库始终保留
 - `get_or_create_task_budget(...)`、`reserve_task_budget(...)`: 创建冻结的 quick/standard/deep 软租约，并在单个 `BEGIN IMMEDIATE` 事务内按硬上限、可信进展基线和续约资格预留额度 | SQLite I/O | 类型化区分普通预留、续约、软租约耗尽和硬上限耗尽；相同快照不能重复续约
 - `budget_payload(...)`、`copy_budget(...)`: 将租约状态写入 checkpoint，并在 fork/rewind 时采用不可回退的累计使用量和当前 owner 的权威租约元数据 | SQLite/JSON I/O | lineage 只累计用量，不建立第二套租约状态机
 - `PeerSessionRepositoryMixin`、`PeerMessageRepositoryMixin`、`PeerInboxRepositoryMixin`: 原子注册/心跳/rename 本机实例并保存、领取/续租/查询显式 `peer` origin 纯文本 | SQLite I/O | v18；同名允许但 ref 唯一；held 与 claim lease 分离，过期 lease可恢复，closed 与消息终态不可回退

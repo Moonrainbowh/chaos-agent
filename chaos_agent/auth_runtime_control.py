@@ -34,6 +34,8 @@ class AuthenticationRuntimeControl:
         self._store = store if store is not None else CredentialStore()
         self._saved_choices: tuple[tuple[str, str], ...] | None = None
         self._workbuddy_models = {}
+        from .api_model_control import ApiModelControl
+        self._api_models = ApiModelControl(profiles, register_profile)
 
     def login_choices(self) -> tuple[tuple[str, str], ...]:
         return tuple((f"{p.id} {method}",
@@ -102,7 +104,7 @@ class AuthenticationRuntimeControl:
     def model_choices(self) -> tuple[tuple[str, str], ...]:
         if self._saved_choices is None:
             self._reload_choices()
-        return self._saved_choices or ()
+        return (self._saved_choices or ()) + self._api_models.choices()
 
     def _reload_choices(self) -> None:
         choices = []
@@ -124,7 +126,7 @@ class AuthenticationRuntimeControl:
         self._saved_choices = tuple(choices)
 
     def is_refresh_choice(self, instruction: str) -> bool:
-        return instruction.strip() in {"workbuddy:oauth", "workbuddy:api_key"}
+        return self._api_models.is_refresh(instruction) or instruction.strip() in {"workbuddy:oauth", "workbuddy:api_key"}
 
     def is_antigravity_catalog_choice(self, instruction: str) -> bool:
         return (
@@ -134,6 +136,9 @@ class AuthenticationRuntimeControl:
 
     def model_choices_for(self, instruction: str) -> tuple[tuple[str, str], ...] | None:
         """Return the local second-level Antigravity catalog for a model query."""
+        nested = self._api_models.nested(instruction)
+        if nested is not None:
+            return nested
         parts = _parts(instruction)
         if not parts or parts[0] != "antigravity:oauth":
             return None
@@ -149,6 +154,8 @@ class AuthenticationRuntimeControl:
         )
 
     def is_saved_model_choice(self, instruction: str) -> bool:
+        if self._api_models.is_model(instruction):
+            return True
         parts = _parts(instruction)
         if len(parts) != 2 or ":" not in parts[0]:
             return False
@@ -181,6 +188,8 @@ class AuthenticationRuntimeControl:
 
     async def refresh_models(self, instruction: str) -> int:
         """Discover only the explicitly selected WorkBuddy credential slot."""
+        if self._api_models.is_refresh(instruction):
+            return await self._api_models.refresh(instruction)
         if not self.is_refresh_choice(instruction):
             raise AuthError("Model discovery is unavailable for this selection")
         from code_agent.authentication.source import StoredCredentialSource
@@ -194,6 +203,9 @@ class AuthenticationRuntimeControl:
 
     async def restore_profile(self, name: str) -> None:
         """Recreate deterministic saved-login profiles for restored task contracts."""
+        if isinstance(name, str) and name.startswith("discovered/"):
+            self._api_models.restore(name)
+            return
         if not isinstance(name, str) or name in self._profiles or not name.startswith("login/"):
             return
         parts = name.split("/", 3)
@@ -202,6 +214,8 @@ class AuthenticationRuntimeControl:
         await self.select_model(f"{parts[1]}:{parts[2]} {shlex.quote(parts[3])}")
 
     async def select_model(self, instruction: str) -> str:
+        if self._api_models.is_model(instruction):
+            return self._api_models.select(instruction)
         selected = instruction.strip()
         if selected in self._profiles:
             return selected

@@ -11,9 +11,18 @@ from .terminal_display import DisplayKind
 from .terminal_state import TerminalState
 from .terminal_tail import clear_live_tail
 from .tui_commands import TuiCommand, TuiCommandKind
+from .terminal_layout import LayoutMode
 
 
 async def handle_general_command(app: Any, command: TuiCommand) -> bool | None:
+    if command.kind is TuiCommandKind.LAYOUT:
+        if command.action is not None:
+            app.layout_mode = LayoutMode(command.action)
+            app._mobile_frame = None
+            app._clear_input_tail()
+        else:
+            app._append(DisplayKind.METADATA, "布局：" + app.layout_mode.value + " · /layout auto|wide|compact")
+        return True
     if command.kind is TuiCommandKind.CLEAR:
         return _clear(app)
     if command.kind is TuiCommandKind.COMPACT:

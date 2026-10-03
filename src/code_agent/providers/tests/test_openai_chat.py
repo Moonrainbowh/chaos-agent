@@ -111,7 +111,7 @@ class OpenAIChatClientTests(unittest.IsolatedAsyncioTestCase):
                 id="call_2", name="list_files", arguments={},
             )),
             ModelEvent(kind=ModelEventKind.USAGE, usage=Usage(
-                input_tokens=12, output_tokens=5, cached_input_tokens=3,
+                input_tokens=12, output_tokens=5, cached_input_tokens=3, cache_read_known=True,
             )),
             ModelEvent(kind=ModelEventKind.COMPLETED),
         ])

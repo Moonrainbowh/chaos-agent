@@ -26,6 +26,7 @@ class Rect(ctypes.Structure):
 class Info(ctypes.Structure):
     _fields_ = [('size', Coord), ('cursor', Coord), ('attr', wintypes.WORD), ('window', Rect), ('maximum', Coord)]
 out = msvcrt.get_osfhandle(sys.stdout.fileno())
+k.SetConsoleOutputCP(65001)
 k.GetConsoleScreenBufferInfo.argtypes = [wintypes.HANDLE, ctypes.POINTER(Info)]
 k.ReadConsoleOutputCharacterW.argtypes = [wintypes.HANDLE, wintypes.LPWSTR, wintypes.DWORD, Coord, ctypes.POINTER(wintypes.DWORD)]
 def write(text):
@@ -51,7 +52,11 @@ for step in range(5):
     cells = ctypes.create_unicode_buffer(count + 1); read = wintypes.DWORD()
     assert k.ReadConsoleOutputCharacterW(out, cells, count, Coord(0, 0), ctypes.byref(read))
     text = cells.value
-    assert text.count('CHAOS AGENT') == 1, repr((step, info.size.x, text))
+    assert text.count('CHAOS AGENT') == int(expected > 64), repr((step, info.size.x, text))
+    assert text.count('draft [image1]') == 1, repr((step, text))
+    assert bool(app._mobile_frame.touch_regions) == (expected <= 64)
+    if expected <= 64:
+        assert text.count('发送') == 1, repr(text)
     assert text.count('HISTORY_SENTINEL') == 1, repr((step, text))
     assert app.input.text == 'draft [image1]'
 write('\x1b]0;RESIZE_DONE_OK\x07')

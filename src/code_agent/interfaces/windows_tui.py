@@ -21,10 +21,13 @@ from .input_events import ExitGuard
 from .terminal_display import DisplayKind, text_entry
 from .terminal_renderer import ColorMode, Theme, render_entries
 from .terminal_size import terminal_size
+from .terminal_layout import LayoutMode
+from .terminal_mouse import MouseClick
+from .tui_mobile import handle_touch, restore_mobile_draft
 from .terminal_win32_input import WIN32_INPUT_ENABLE, WIN32_INPUT_DISABLE
 from .terminal_io import (
     BRACKETED_PASTE_DISABLE, BRACKETED_PASTE_ENABLE, MOUSE_REPORT_DISABLE,
-    MOUSE_REPORT_ENABLE, capture_ctrl_c_as_input, read_key,
+    capture_ctrl_c_as_input, read_key,
     render_terminal as render_terminal, stdout_write,
 )
 from .terminal_tail import LiveTailGeometry, clear_live_tail
@@ -99,14 +102,18 @@ class WindowsTerminalApp(TerminalPresentation):
         self._tail_geometry: LiveTailGeometry | None = None
         self._projection_epoch = 0
         self.composer_expanded: bool = True
+        self.layout_mode = LayoutMode.AUTO
+        self._mouse_reporting_enabled = False
+        self._mobile_frame = None
         self._run_started_at: float | None = None; self._drawn_draft_revision = -1; self._drawn_size: tuple[int, int] | None = None; self._next_spinner_at = time.monotonic() + 0.1
         self._last_alt_v_failure_at = 0.0
+        self._clipboard_failure_latched = False
         self._viewport_offset = 0
         self._viewport_needs_full_redraw = False
         self.theme, self.color = Theme.SLATE, ColorMode.AUTO
         self.motion = TailMotion()
         self._visual_task = None
-        self._pending_input_keys: deque[str] = deque()
+        self._pending_input_keys: deque[str | MouseClick] = deque()
         self.catalog = catalog_for(select_runtime_language())
 
     async def run(self, *, thread_id: str | None = None) -> None:
@@ -121,7 +128,9 @@ class WindowsTerminalApp(TerminalPresentation):
         platform_input_enable = WIN32_INPUT_ENABLE if os.name == "nt" else ""
         platform_input_disable = WIN32_INPUT_DISABLE if os.name == "nt" else ""
         try:
-            self._write("\x1b[6 q" + platform_input_enable + BRACKETED_PASTE_ENABLE + MOUSE_REPORT_ENABLE); self.running = True; self._approval_task = asyncio.create_task(listen_approvals(self))
+            self._write("\x1b[6 q" + platform_input_enable + BRACKETED_PASTE_ENABLE + MOUSE_REPORT_DISABLE)
+            self._mouse_reporting_enabled = False
+            self.running = True; self._approval_task = asyncio.create_task(listen_approvals(self))
             if self.interaction_broker is not None:
                 self._interaction_task = asyncio.create_task(listen_interactions(self))
             self.redraw()
@@ -132,7 +141,7 @@ class WindowsTerminalApp(TerminalPresentation):
                     if self._pending_input_keys
                     else await asyncio.to_thread(read_key, timeout=.1)
                 )
-                if key in {"scroll_up", "scroll_down"}:
+                if key in {"scroll_up", "scroll_down"} and getattr(self, "_project_picker", None) is None:
                     self.scroll_viewport(await self._read_scroll_burst(key))
                     self.redraw()
                 elif key is not None:
@@ -142,6 +151,7 @@ class WindowsTerminalApp(TerminalPresentation):
                 self.reset_terminal_title()
                 self._write(BRACKETED_PASTE_DISABLE + MOUSE_REPORT_DISABLE + platform_input_disable + "\x1b[0 q"); await close_tasks(self)
             finally:
+                self._mouse_reporting_enabled = False
                 restore_ctrl_c()
     async def submit(
         self,
@@ -166,11 +176,25 @@ class WindowsTerminalApp(TerminalPresentation):
     async def wait_checkpoint_idle(self) -> None: await wait_rewind_task(self)
     async def close_checkpoint_flow(self) -> None:
         await close_rewind_flow(self)
-    async def handle_key(self, key: str) -> None:
+    async def handle_key(self, key: str | MouseClick) -> None:
+        from .tui_projects import handle_project_key
+        if isinstance(key, MouseClick):
+            if await handle_project_key(self, key):
+                return
+            await handle_touch(self, key)
+            return
+        # Win32 key-up/modifier records decode to ""; isprintable() accepts it.
+        # Ignore them before they can reset Ctrl+C confirmation or UI state.
+        if not key:
+            return
         if await handle_auth_key(self, key):
             self.redraw()
             return
+        if await handle_project_key(self, key):
+            return
         sync_attachment_input(self)
+        if key not in {"alt+v", "\x16"}:
+            self._clipboard_failure_latched = False
         if key == "\x03":
             await handle_interrupt(self)
         elif await self.interactions.handle_key(self, key):
@@ -189,24 +213,28 @@ class WindowsTerminalApp(TerminalPresentation):
             # chord while the modifier is held. Treat that burst as one paste
             # gesture so an empty clipboard cannot spam identical errors.
             now = time.monotonic()
-            if now - self._last_alt_v_failure_at < 0.45:
+            if self._clipboard_failure_latched:
                 return
             self.composer_expanded = True
             if not await apply_clipboard_images(self):
                 self._last_alt_v_failure_at = now
+                self._clipboard_failure_latched = True
             else:
                 self._last_alt_v_failure_at = 0.0
+                self._clipboard_failure_latched = False
         elif key == "\x16":
             self.composer_expanded = True
             # Ctrl+V can be replayed by ConPTY just like Alt+V. Debounce only
             # failed clipboard gestures; successful pastes remain repeatable.
             now = time.monotonic()
-            if now - self._last_alt_v_failure_at < 0.45:
+            if self._clipboard_failure_latched:
                 return
             if not await apply_clipboard_images(self):
                 self._last_alt_v_failure_at = now
+                self._clipboard_failure_latched = True
             else:
                 self._last_alt_v_failure_at = 0.0
+                self._clipboard_failure_latched = False
         elif key == "\x15": clear_input(self)
         elif key in {"scroll_up", "page_up"}:
             self.scroll_viewport(1 if key == "scroll_up" else 4)
@@ -244,12 +272,13 @@ class WindowsTerminalApp(TerminalPresentation):
             delete_input(self, backwards=False)
         elif key.isprintable() and self.composer_expanded:
             self.exit_guard.input_received(); insert_input(self, key)
+        restore_mobile_draft(self)
         self.redraw()
 
     async def _read_scroll_burst(self, first: str) -> int:
         """Coalesce one frame of wheel reports before repainting the viewport."""
         delta = 1 if first == "scroll_up" else -1
-        deadline = asyncio.get_running_loop().time() + (1 / 30)
+        deadline = asyncio.get_running_loop().time() + (1 / 60)
         while True:
             remaining = deadline - asyncio.get_running_loop().time()
             if remaining <= 0:
@@ -287,6 +316,12 @@ class WindowsTerminalApp(TerminalPresentation):
             history = await load_thread_history(self.history, thread_id)
             restored = TerminalState()
             restored.restore(history)
+            tree_control = getattr(self, "conversation_tree", None)
+            if tree_control is not None:
+                from .usage_summary import UsageAccumulator
+                restored.usage = UsageAccumulator()
+                for event in await tree_control.usage_events(thread_id):
+                    restored.usage.observe(event)
             restore_settings = getattr(self.tasks, "restore_runtime_settings", None)
             if restored.task_id and callable(restore_settings):
                 await restore_settings(restored.task_id)
@@ -446,6 +481,11 @@ class WindowsTerminalApp(TerminalPresentation):
     def _flush_pending_entries(self) -> None:
         new = self.state.entries[self._flushed_entries:]
         if new:
+            if self.layout_mode.resolve(terminal_size((100, 30)).columns) is LayoutMode.COMPACT:
+                self._flushed_entries = len(self.state.entries)
+                self._viewport_needs_full_redraw = True
+                self.redraw()
+                return
             if self._viewport_offset:
                 self._flushed_entries = len(self.state.entries)
                 self._viewport_needs_full_redraw = True
@@ -454,7 +494,13 @@ class WindowsTerminalApp(TerminalPresentation):
             previous = self.state.entries[self._flushed_entries - 1] if self._flushed_entries else None
             rendered = render_entries(new, self._columns(), theme=self.theme, color=self.color, previous=previous)
             height = shutil.get_terminal_size((100, 30)).lines
-            self._write(self._tail_clear_sequence() + rendered + "\n\r")
+            separator = "\n\r\n\r" if (
+                new[-1].kind is DisplayKind.AGENT
+                and self.state.status in {
+                    "completed", "accepted_partial", "failed", "error", "waiting_decision",
+                }
+            ) else "\n\r"
+            self._write(self._tail_clear_sequence() + rendered + separator)
             self._tail_geometry = None
             self._flushed_entries = len(self.state.entries)
             trace_event(
@@ -500,6 +546,9 @@ class WindowsTerminalApp(TerminalPresentation):
 
     def _collapse_completed_transcript(self) -> None:
         """Rewrite the finished transcript with consecutive tool calls folded."""
+        if self.layout_mode.resolve(terminal_size((100, 30)).columns) is LayoutMode.COMPACT:
+            self.redraw()
+            return
         if not design_for(self.theme) or not self.state.entries:
             return
         rendered = render_entries(

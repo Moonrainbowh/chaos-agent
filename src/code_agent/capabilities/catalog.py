@@ -18,6 +18,7 @@ HYBRID_EAGER_BUILTIN_NAMES = frozenset(
         "search_text",
         "git_status",
         "git_diff",
+        "read", "search", "write", "edit", "execute",
     }
 )
 HYBRID_EAGER_MODIFY_NAMES = frozenset(

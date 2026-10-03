@@ -63,7 +63,7 @@ class Win32Input:
             return ""
         if vk == 13:
             return "shift+enter" if modifiers & 28 else "enter"
-        if vk == 86 and modifiers & 3 and not modifiers & 12:
+        if vk == 86 and modifiers & 3 and not modifiers & 12 and repeat <= 1:
             return "alt+v"
         if vk == 27:
             return "escape"

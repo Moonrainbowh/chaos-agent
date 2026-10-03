@@ -124,6 +124,22 @@ class DispatcherValidationTests(unittest.IsolatedAsyncioTestCase):
     def tearDown(self) -> None:
         self.temporary.cleanup()
 
+    async def test_disabled_structured_verifier_is_hidden_and_cannot_dispatch(self) -> None:
+        dispatcher = RootActionDispatcher(
+            self.files, WorkspaceEditor(WorkspacePathGuard(self.root)),
+            self.policy, ApprovalBroker(), enable_structured_verification=False,
+        )
+        self.assertNotIn("run_verification", {tool.name for tool in dispatcher.tools()})
+
+        result = await dispatcher.dispatch(
+            ActionRequest("verify-disabled", "run_verification", {"kind": "python_unittest"}),
+            CancellationToken(),
+        )
+
+        self.assertTrue(result.is_error)
+        self.assertEqual(result.output["error"], "structured verification is disabled")
+        self.policy.evaluate.assert_not_called()
+
     async def test_malformed_write_is_rejected_before_policy_or_file_side_effect(self) -> None:
         result = await self.dispatcher.dispatch(
             ActionRequest("call-1", "write_file", {"path": "note.txt", "content": ""}),

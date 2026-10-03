@@ -2,11 +2,13 @@
 把不同模型协议转换为统一、可流式处理的消息与工具调用接口。
 
 ## 边界
+- 负责：规范化各协议输入总量及缓存读取/写入；明确区分未提供与真实零值，不重复计算 OpenAI 输入内含的缓存。
 - 负责：OpenAI-compatible Responses、Codex Responses、Chat Completions、Anthropic Messages、Google Generative AI 与 pi Messages 适配。
 - 负责：流式事件规范化、超时与有限重试、能力声明、用量统计和配置校验。
 - 负责：按 profile 显式声明的输入模态，在发起网络请求前解析并校验附件引用；把图片和文本附件分别映射为 Responses、Chat Completions 与 Anthropic Messages 的原生 content blocks。
 - 负责：缺失能力、缺失/损坏 blob、不允许的 MIME 或超限附件必须在零网络请求下失败闭合；纯文本消息保持既有字符串 payload。
 - 负责：按名称解析模型 profile；profile 声明模型上下文、输出、协议、认证引用及 Agent 预算。
+- 负责：显式请求配置端点的 OpenAI-compatible `/v1/models`，有界读取、去重模型 ID；发现不推断模型容量或模态。
 - 负责：向上层提供只读的已配置 profile 目录与当前 profile 信息；只在空闲或下一任务边界构造不可变 provider 配置和 client。
 - 负责：管理 profile、client 和 runner 的原子生命周期；切换先构建并校验新 client，再提交 runner/current，旧 client 进入可追踪 retirement，清理失败不得反转已提交切换。
 - 负责：把冻结的 reasoning effort 和 profile 输出上限映射为协议原生字段：Chat `reasoning_effort`/`max_completion_tokens`、Responses `reasoning.effort`/`max_output_tokens`、Anthropic `max_tokens`；Anthropic reasoning 在没有确认映射时零网络请求拒绝。
@@ -26,6 +28,7 @@
 - 2026-09-05 的配置、验证与实验边界见根目录 `docs/context-boundary-experiment.md` 和 `docs/context-boundary-results.md`；具体候选值可配置，实验结果不自动推广为默认策略。
 
 ## Units
+- `discover_models(config, client=None)`: 显式读取配置端点的模型 ID 列表 | HTTP GET | Bearer 认证、禁止重定向、30 秒及响应上限；基础地址已含 `/v1` 时不重复添加，错误不包含服务端正文或密钥。
 - `ProviderError` 及子类：表达配置、HTTP、协议和响应上限失败 | 无副作用 | 对外消息执行脱敏；支持可选 retryable 标记以指示可恢复的瞬态传输与网络中断
 - `ProviderConfig`、`ApiProtocol`: 校验并冻结端点、协议和传输限制 | 请求时读取 API key 环境变量
 - `InputModality`、`ModelProfile`、`ModelProfileResolver`: 显式校验单模型输入模态、提供方和 Agent 限制，并按 CLI 模型名选择 profile | 请求时读取 API key 环境变量 | 缺失模态声明默认仅 text；未显式配置时采用 50 回合、128 总工具调用、每回合 50 调用的硬安全上限，实际收敛由 Core 进展门控制

@@ -23,10 +23,15 @@ _DEFAULT_SERVICES = {
     "task_modes",
     "semantic_graph",
     "peers",
+    "conversation_tree",
+    "tool_catalog",
 }
 
 
 class TuiCommandKind(str, Enum):
+    LAYOUT = "layout"
+    TREE = "tree"
+    TOOLS = "tools"
     LOGIN = "login"
     THEME = "theme"
     HELP = "help"; STATUS = "status"; CLEAR = "clear"; COMPACT = "compact"; EXIT = "exit"; NEW = "new"; SESSIONS = "sessions"; RESUME = "resume"; TASKS = "tasks"; ACCEPT = "accept"; DIFF = "diff"; MAP = "map"; ATTACHMENT = "attachment"; EVIDENCE = "evidence"; RECOVERY = "recovery"; CHECKPOINT = "checkpoint"; REWIND = "rewind"; MODEL = "model"; MODE = "mode"; EFFORT = "effort"; PERMISSION = "permission"; WORKFLOW = "workflow"; SKILL = "skill"; MCP = "mcp"; PLUGIN_CONTROL = "plugin_control"; PLUGIN = "plugin"; COST = "cost"; DOCTOR = "doctor"; REVIEW = "review"; TEST = "test"
@@ -93,6 +98,8 @@ def parse_tui_command(
 
 def _parsed_command(spec: object, arguments: tuple[str, ...], normalized_action: str | None) -> ParseOutcome:
     kinds = {
+        "layout": "layout",
+        "tree": "tree", "tools": "tools",
         "login": "login",
         "theme": "theme", "help": "help", "status": "status", "clear": "clear", "compact": "compact",
         "exit": "exit", "new": "new", "sessions": "sessions", "resume": "resume",

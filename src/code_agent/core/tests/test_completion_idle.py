@@ -18,6 +18,8 @@ class CompletionIdleTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(infer_task_intent(text, "code"), TaskIntent.ANALYZE)
         for text in (
             "这个是什么意思", "[image1]这个是什么意思", "这张图片是什么内容",
+            ".我的管理员账号密码是啥呀", "为啥现在是交互模式",
+            "这个项目是干啥的呀？你好", "仓库里面有什么",
             "请描述图中有什么", "总结这份内容",
             "有没有讲workbuddy里面的模型的套餐反代出来的操作？或者相关的项目？？",
             "有没有相关项目？",
@@ -60,6 +62,25 @@ class CompletionIdleTests(unittest.IsolatedAsyncioTestCase):
         events = engine._task_completion_events("thread", result, None, None)
         self.assertEqual([item.kind for item in events], [EventKind.TASK_STATUS_CHANGED, EventKind.TASK_DECISION_REQUIRED])
         self.assertEqual(events[-1].payload["reason"], result.stop_reason)
+
+    async def test_disabled_structured_verification_completes_modified_task_without_claiming_pass(self):
+        class Journal:
+            async def load_task_state(self, _):
+                return TaskState(files_changed=("changed.py",))
+
+            async def transition_task(self, identifier, status, reason):
+                return SimpleNamespace(id=identifier, status=status, stop_reason=reason)
+
+        engine = AgentEngineCompletionMixin()
+        engine._journal = Journal()
+        engine._require_verification = False
+        engine._verification = SimpleNamespace(assess=lambda *_: self.fail("verification must not run"))
+        task = SimpleNamespace(id="task", contract=SimpleNamespace(intent=TaskIntent.MODIFY), status=TaskStatus.RUNNING)
+
+        result = await engine._resolve_task_completion(task, "thread")
+
+        self.assertEqual(result.status, TaskStatus.COMPLETED)
+        self.assertIn("without structured verification", result.stop_reason)
 
     async def test_modify_without_workspace_changes_waits_for_implementation(self):
         class Journal:

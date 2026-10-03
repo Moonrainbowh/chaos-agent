@@ -11,6 +11,7 @@ from .terminal_win32_input import Win32Input
 from .input_events import MAX_PASTE_BYTES
 from .console_shortcuts import read_character, _consume_shortcut
 from .posix_terminal_io import read_key as read_posix_key
+from .terminal_mouse import MouseClick, mouse_key as _mouse_key
 
 from .terminal_renderer import ColorMode, Theme, render_entries, render_live_tail
 from .terminal_state import TerminalState
@@ -150,7 +151,7 @@ def _available(console, timeout=.02):
     return True
 
 
-def read_key(*, timeout: float | None = None) -> str | None:
+def read_key(*, timeout: float | None = None) -> str | MouseClick | None:
     """Keep framed paste atomic even when the console delivers its marker in chunks."""
     if os.name != "nt" and "msvcrt" not in sys.modules:
         return read_posix_key(timeout=timeout)
@@ -185,7 +186,11 @@ def read_key(*, timeout: float | None = None) -> str | None:
         if not _available(msvcrt, .08):
             return key
         suffix = msvcrt.getwch()
-        if suffix in {"v", "V"}:
+        # On Windows the Win32 decoder already sees the physical modifier
+        # flags. Do not reinterpret a bare Alt-generated ESC followed by a
+        # later `v` as an image shortcut; that fallback is only for the CRT
+        # compatibility path where no native key event is available.
+        if suffix in {"v", "V"} and not isinstance(msvcrt, Win32Input):
             return "alt+v"
         if suffix == "O":
             return _VT_KEYS.get("\x1bO" + msvcrt.getwch(), "")
@@ -201,32 +206,32 @@ def read_key(*, timeout: float | None = None) -> str | None:
             if "@" <= character <= "~":
                 break
         if sequence == _PASTE_START:
-            return _read_bracketed_paste(msvcrt)
+            paste = _read_bracketed_paste(msvcrt)
+            # Native Win32 input reports Ctrl+V as a control key event. An
+            # empty bracketed frame arriving through the same decoder is a
+            # terminal modifier artefact (not a user paste), and must not be
+            # routed to clipboard-image ingestion.
+            if isinstance(msvcrt, Win32Input) and paste == _PASTE_START + _PASTE_END:
+                return ""
+            return paste
         mouse = _mouse_key(sequence)
         return mouse or _VT_KEYS.get(sequence, "") or _enter_sequence(sequence)
     if key in {"\x00", "\xe0"}:
         suffix = msvcrt.getwch()
-        if suffix == "/":  # Windows console Alt+V scan code (VK_V -> 0x2f).
+        # The native Win32 decoder handles the real VK_V + Alt event. The
+        # legacy scan-code fallback can also be emitted for a bare Alt key by
+        # Windows Terminal, so only use it when native records are unavailable.
+        if suffix == "/" and not isinstance(msvcrt, Win32Input):
             return "alt+v"
         if suffix == "\r" and _shift_is_pressed():
             return "shift+enter"
         return _EXTENDED_KEYS.get(suffix, "")
     if key == "\r" and _shift_is_pressed():
         return "shift+enter"
-    if key.isprintable():
+    # Empty key-up/modifier events are not text and must not form paste bursts.
+    if key and key.isprintable():
         return _read_text_burst(msvcrt, key)
     return key
-
-
-def _mouse_key(sequence: str) -> str:
-    """Map SGR vertical wheel reports to application scroll commands."""
-    match = _SGR_MOUSE.fullmatch(sequence)
-    if not match:
-        return ""
-    button = int(match.group(1))
-    if button & 64:
-        return "scroll_up" if button & 1 == 0 else "scroll_down"
-    return ""
 
 
 def _read_bracketed_paste(console: object) -> str:

@@ -154,6 +154,7 @@ def _usage_event(value: object) -> ModelEvent:
             input_tokens=value.get("prompt_tokens", 0),  # type: ignore[arg-type]
             output_tokens=value.get("completion_tokens", 0),  # type: ignore[arg-type]
             cached_input_tokens=details.get("cached_tokens", 0),  # type: ignore[arg-type]
+            cache_read_known="cached_tokens" in details,
         )
     except (TypeError, ValueError) as error:
         raise ProviderProtocolError("Chat usage contains invalid token counts") from error

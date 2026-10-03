@@ -163,7 +163,8 @@ def _usage(value):
                 raise ValueError("invalid token count")
         usage = Usage(input_tokens=value.get("promptTokenCount", 0),
                       output_tokens=value.get("candidatesTokenCount", 0) + value.get("thoughtsTokenCount", 0),
-                      cached_input_tokens=value.get("cachedContentTokenCount", 0))
+                      cached_input_tokens=value.get("cachedContentTokenCount", 0),
+                      cache_read_known="cachedContentTokenCount" in value)
     except (AttributeError, TypeError, ValueError):
         raise ProviderProtocolError("Google usage is malformed") from None
     return ModelEvent(kind=ModelEventKind.USAGE, usage=usage)

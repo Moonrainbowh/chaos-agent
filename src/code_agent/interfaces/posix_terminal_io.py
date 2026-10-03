@@ -9,6 +9,7 @@ import re
 from collections import deque
 
 from .input_events import MAX_PASTE_BYTES
+from .terminal_mouse import MouseClick, mouse_key as _mouse_key
 
 
 _VT_KEYS = {
@@ -25,7 +26,7 @@ _decoder = codecs.getincrementaldecoder("utf-8")("replace")
 _pending: deque[str] = deque()
 
 
-def read_key(*, timeout: float | None = None) -> str | None:
+def read_key(*, timeout: float | None = None) -> str | MouseClick | None:
     """Read one key or bracketed paste event from a raw POSIX terminal."""
     key = _pending.popleft() if _pending else _read_character(timeout)
     if key is None:
@@ -35,7 +36,7 @@ def read_key(*, timeout: float | None = None) -> str | None:
     return "\x08" if key == "\x7f" else key
 
 
-def _read_escape_sequence() -> str:
+def _read_escape_sequence() -> str | MouseClick:
     suffix = _read_character(.08)
     if suffix is None:
         return "\x1b"
@@ -58,17 +59,6 @@ def _read_escape_sequence() -> str:
         return _read_bracketed_paste()
     mouse = _mouse_key(sequence)
     return mouse or _VT_KEYS.get(sequence, "") or _enter_sequence(sequence)
-
-
-def _mouse_key(sequence: str) -> str:
-    """Map SGR vertical wheel reports to application scroll commands."""
-    match = _SGR_MOUSE.fullmatch(sequence)
-    if not match:
-        return ""
-    button = int(match.group(1))
-    if button & 64:
-        return "scroll_up" if button & 1 == 0 else "scroll_down"
-    return ""
 
 
 def _read_character(timeout: float | None) -> str | None:

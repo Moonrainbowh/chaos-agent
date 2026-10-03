@@ -24,6 +24,7 @@ from chaos_agent.rewind_capture import RewindCaptureCoordinator
 from chaos_agent.rewind_gate import WorkspaceMutationGate
 from chaos_agent.subagents import RestrictedDispatcher
 from chaos_agent.task_verification import TaskScopedVerificationService
+from chaos_agent.verification_mode import structured_verification_enabled
 
 
 _Result = TypeVar("_Result")
@@ -132,6 +133,7 @@ def build_engine(
     initial_verification = LedgerTaskVerificationService(
         workspace_root, sessions
     )
+    verification_enabled = structured_verification_enabled()
     return AgentEngine(
         model,
         context,
@@ -143,7 +145,9 @@ def build_engine(
             sessions,
             semantic_snapshot if callable(semantic_snapshot) else None,
             (workspace_root, initial_verification),
+            enable_structured_verification=verification_enabled,
         ),
+        require_verification=verification_enabled,
         action_lineage=action_lineage,
         capability_strategy=capability_strategy,
     )
@@ -170,7 +174,7 @@ def build_child_engine_factory(
             reasoning_effort=agent.mode.effective_reasoning_effort,
         )
         restricted = RestrictedDispatcher(
-            host.dispatcher, agent.effective_tools
+            host.dispatcher, agent.effective_tools, compact_tools=True
         )
         sessions = (
             host.sessions

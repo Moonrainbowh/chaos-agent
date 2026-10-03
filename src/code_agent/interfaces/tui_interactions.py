@@ -34,6 +34,7 @@ class TuiInteractions:
         self.interaction_choice = 0
         self.steering = SteeringQueueView()
         self.agent_status = AgentRunStatusProjection()
+        self.session_tree = None
 
     def rows(self, app: object, *, max_rows: int = 14) -> tuple[str, ...]:
         approval = app._pending_approval
@@ -56,6 +57,8 @@ class TuiInteractions:
             return rewind
         if self.diff_interaction.active:
             return self.diff_interaction.rows(app._columns(), max_rows=max_rows)
+        if self.session_tree is not None and self.session_tree.active:
+            return self.session_tree.rows(app._columns(), max_rows)
         return command_rows(self, app)
 
     def observe_event(self, app: object, event: object) -> None:
@@ -76,6 +79,8 @@ class TuiInteractions:
             return True
         if self.diff_interaction.active:
             return await self._handle_diff_key(app, key)
+        if self.session_tree is not None and self.session_tree.active:
+            return await self.session_tree.handle_key(app, key)
         return await self._handle_picker_key(app, key)
 
     async def _handle_approval_key(self, app: object, key: str) -> bool:

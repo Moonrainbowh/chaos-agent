@@ -137,6 +137,30 @@ class LogicalChangeEngineIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn(EventKind.COMPLETED, [event.kind for event in events])
         self.assertEqual((await self.sessions.load_task(task.id)).status, TaskStatus.COMPLETED)
 
+    async def test_disabled_structured_verification_does_not_dispatch_verifier(self) -> None:
+        task = await self.task()
+        write = ToolCall("write", "write_file", {"path": "service.py", "content": "VALUE = 2\n"})
+        model = FakeModelClient(
+            ((ModelEvent(ModelEventKind.TOOL_CALL, tool_call=write), _completed()), (_completed(),))
+        )
+        dispatcher = WorkspaceDispatcher(self.root)
+        service = TaskScopedVerificationService(
+            self.sessions, enable_structured_verification=False,
+        )
+
+        events = [
+            event async for event in AgentEngine(
+                model, FakeContextBuilder(), dispatcher, self.sessions,
+                verification=service, require_verification=False,
+            ).run("change it", thread_id=task.thread_id, task=task)
+        ]
+
+        self.assertEqual([item.name for item in dispatcher.requests], ["write_file"])
+        self.assertIn(EventKind.COMPLETED, [event.kind for event in events])
+        settled = await self.sessions.load_task(task.id)
+        self.assertEqual(settled.status, TaskStatus.COMPLETED)
+        self.assertIn("without structured verification", settled.stop_reason)
+
     async def test_critical_final_gate_runs_full_tests_then_build(self) -> None:
         task = await self.task()
         write = ToolCall(

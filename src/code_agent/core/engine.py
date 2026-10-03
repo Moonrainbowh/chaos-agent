@@ -39,6 +39,7 @@ class AgentEngine(
         limits: Optional[EngineLimits] = None,
         model_name: str = "configured-model",
         verification: TaskVerificationService | None = None,
+        require_verification: bool = True,
         context_mode_snapshot: Mapping[str, JSONValue] | None = None,
         context_permission_snapshot: Mapping[str, JSONValue] | None = None,
         action_lineage: ActionLineage | None = None,
@@ -57,6 +58,9 @@ class AgentEngine(
             raise ValueError("model_name must be non-blank text")
         self._model_name = model_name
         self._verification = verification
+        if not isinstance(require_verification, bool):
+            raise TypeError("require_verification must be a boolean")
+        self._require_verification = require_verification
         peer_tools = tuple(peer_tool_names)
         if not all(isinstance(name, str) and name.strip() for name in peer_tools):
             raise ValueError("peer_tool_names must contain non-blank text")

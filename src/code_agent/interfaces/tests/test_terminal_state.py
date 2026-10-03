@@ -85,6 +85,17 @@ def _restored_thread() -> RestoredThread:
 
 
 class TerminalStateTests(unittest.TestCase):
+    def test_settled_task_replaces_exploration_warning_with_durable_reason(self):
+        state = TerminalState()
+        state.apply(AgentEvent(EventKind.TASK_BUDGET_WARNING, {
+            "category": "exploration", "reason": "task produced no answer text",
+        }))
+        state.apply(AgentEvent(EventKind.TASK_STATUS_CHANGED, {
+            "status": "waiting_decision", "reason": "no workspace file changes",
+        }))
+        self.assertIsNone(state.task_budget_line)
+        self.assertEqual(state.task_stop_reason, "no workspace file changes")
+
     def test_context_and_model_lifecycle_have_distinct_running_phases(self) -> None:
         state = TerminalState()
         state.apply(AgentEvent(EventKind.RUN_STARTED, {}))

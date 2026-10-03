@@ -76,11 +76,11 @@ class AnthropicClientTests(unittest.IsolatedAsyncioTestCase):
             events = [item async for item in client.stream("System", messages, tools)]
 
         self.assertEqual(events, [
-            ModelEvent(kind=ModelEventKind.USAGE, usage=Usage(input_tokens=10, output_tokens=1, cached_input_tokens=4)),
+            ModelEvent(kind=ModelEventKind.USAGE, usage=Usage(input_tokens=14, output_tokens=1, cached_input_tokens=4, cache_read_known=True)),
             ModelEvent(kind=ModelEventKind.TEXT_DELTA, text="Hello"),
             ModelEvent(kind=ModelEventKind.REASONING_DELTA, text="Reason"),
             ModelEvent(kind=ModelEventKind.TOOL_CALL, tool_call=ToolCall(id="tool-1", name="read_file", arguments={"path": "a.txt"})),
-            ModelEvent(kind=ModelEventKind.USAGE, usage=Usage(input_tokens=10, output_tokens=7, cached_input_tokens=4)),
+            ModelEvent(kind=ModelEventKind.USAGE, usage=Usage(input_tokens=14, output_tokens=7, cached_input_tokens=4, cache_read_known=True)),
             ModelEvent(kind=ModelEventKind.COMPLETED),
         ])
         request = requests[0]

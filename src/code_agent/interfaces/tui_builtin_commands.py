@@ -15,6 +15,12 @@ from .tui_general_commands import handle_general_command
 
 
 async def handle_builtin_command(app: Any, command: TuiCommand) -> bool | None:
+    if command.kind is TuiCommandKind.TREE:
+        from .session_tree import show_session_tree
+        return await show_session_tree(app)
+    if command.kind is TuiCommandKind.TOOLS:
+        app._append(DisplayKind.METADATA, app.tool_catalog())
+        return True
     handled = await handle_general_command(app, command)
     if handled is not None:
         return handled

@@ -16,6 +16,7 @@ class TaskScopedVerificationService:
         sessions: object,
         semantic_snapshot: Callable[[Path], object] | None = None,
         initial_service: tuple[Path, LedgerTaskVerificationService] | None = None,
+        enable_structured_verification: bool = True,
     ) -> None:
         if semantic_snapshot is not None and not callable(semantic_snapshot):
             raise TypeError("semantic_snapshot must be callable or None")
@@ -23,6 +24,7 @@ class TaskScopedVerificationService:
         self._semantic_snapshot = semantic_snapshot
         self._services: dict[str, tuple[Path, LedgerTaskVerificationService]] = {}
         self._initial_service = initial_service
+        self._enable_structured_verification = enable_structured_verification
 
     async def prepare(self, task: object, state: object) -> object:
         return await self._service(task).prepare(task, state)
@@ -37,7 +39,10 @@ class TaskScopedVerificationService:
         service = self._service(task)
         await self._refresh(service, self._root(task))
         settled, plan = await service.commit_logical_change(task, state)
-        return settled, service.milestone_verification(task, plan)
+        return settled, (
+            service.milestone_verification(task, plan)
+            if self._enable_structured_verification else None
+        )
 
     def rollback_logical_change(self, task_id: str) -> None:
         self._existing(task_id).rollback_logical_change(task_id)
@@ -58,6 +63,8 @@ class TaskScopedVerificationService:
         return await self._service(task).assess(task, state)
 
     async def suggest_verification(self, task: object, state: object) -> object:
+        if not self._enable_structured_verification:
+            return None
         service = self._service(task)
         if state.files_changed:
             await self._refresh(service, self._root(task))

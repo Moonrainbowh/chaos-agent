@@ -30,6 +30,12 @@ def built_in_command_specs() -> tuple[CommandSpec, ...]:
 def _general_specs() -> tuple[CommandSpec, ...]:
     return (
         CommandSpec(
+            "layout", (), "Appearance", "Choose automatic, wide or compact terminal layout",
+            "[auto|wide|compact]", visibility=CommandVisibility.ADVANCED,
+            actions=tuple(CommandAction(mode, (), "Use " + mode + " terminal layout")
+                          for mode in ("auto", "wide", "compact")),
+        ),
+        CommandSpec(
             "clear", ("c", "清屏"), "General",
             "Clear the visible transcript and start a fresh turn",
         ),
@@ -109,11 +115,12 @@ def _mode_spec() -> CommandSpec:
     return CommandSpec(
             "mode", ("模式",), "Configuration",
             "Choose automatic, Q&A, programming, or read-only planning behavior", "<action>",
+            visibility=internal,
             actions=(
-                CommandAction("auto", (), "Agent chooses the next task's read-only or programming contract", requires=task_modes),
-                CommandAction("ask", (), "Pure Q&A with a read-only task contract", requires=task_modes),
-                CommandAction("code", (), "Programming mode with permission-governed tools", requires=task_modes),
-                CommandAction("plan", (), "Read-only planning with no writes or local execution", requires=task_modes),
+                CommandAction("auto", (), "Agent chooses the next task's read-only or programming contract", requires=task_modes, visibility=internal),
+                CommandAction("ask", (), "Pure Q&A with a read-only task contract", requires=task_modes, visibility=internal),
+                CommandAction("code", (), "Programming mode with permission-governed tools", requires=task_modes, visibility=internal),
+                CommandAction("plan", (), "Read-only planning with no writes or local execution", requires=task_modes, visibility=internal),
                 CommandAction("agent", ("topology", "代理"), "Legacy topology selector", "<single|team>", requires=runtime, visibility=internal),
                 CommandAction("model", ("profile", "模型"), "Legacy model selector", "<profile>", requires=runtime, visibility=internal),
                 CommandAction("effort", ("reasoning", "思考"), "Legacy effort selector", "<effort>", requires=runtime, visibility=internal),
@@ -180,6 +187,8 @@ def _session_specs() -> tuple[CommandSpec, ...]:
     advanced = CommandVisibility.ADVANCED
     peers = ("peers",)
     return (
+        CommandSpec("tree", ("对话树",), "Session", "Browse message branches and continue from a selected node", requires=("conversation_tree",), visibility=advanced),
+        CommandSpec("tools", ("工具",), "General", "Show registered and model-visible tools", requires=("tool_catalog",), visibility=advanced),
         CommandSpec(
             "help", ("帮助", "?"), "General", "Show available commands",
             "[command|all]", visibility=advanced,

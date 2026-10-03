@@ -94,8 +94,8 @@ async def apply_clipboard_images(app: Any) -> bool:
         return False
     if not added:
         # A replayed clipboard event did not change the draft; keep the
-        # transcript quiet and let the existing attachment marker stand.
-        app.exit_guard.input_received()
+        # transcript quiet and let the existing attachment marker stand. It
+        # is not user input, so it must not disarm the Ctrl+C exit guard.
         return True
     app._append(
         DisplayKind.METADATA,

@@ -1,7 +1,13 @@
 # User Interfaces
-通过同一内核提供终端优先的追加式转录、单次 CLI 和机器可读命令模式。
+通过同一内核提供终端优先的转录、单次 CLI 和机器可读命令模式；wide 使用追加式布局，手机 compact 使用有界完整视口。
 
 ## 边界
+- 负责：手机 compact 模式按用户指定 URI Agent 示例提供顶部项目/会话入口、顶对齐消息视口、深绿色背景的用户消息及底部四列触控操作；绿色背景标识消息角色，不表达任务完成，输入编辑与模态使用各自按钮，wide 保留追加式布局。
+- 负责：显示 Host 注入的项目目录选择入口并委托项目切换；运行中或待决策模态拒绝切换，取消保留原草稿。项目启动前 Picker 可使用相同终端输入与触控语义。
+- 负责：为手机 SSH 终端提供与现有任务控制器共用的 `auto/wide/compact` 布局，auto 在终端宽度不超过 64 列时选择紧凑布局；紧凑模式提供有界底部触控操作区、单击列表和软键盘可用的输入操作，尺寸变化与布局切换保留草稿、附件、会话和任务身份；复用当前转录状态及滚动控制，手机真机验收与合成测试分别记录。
+- 负责：以同一用量投影显示最近请求、会话累计输入/输出、缓存读取/写入、命中率和已配置价格估算；未知缓存/价格保持未知，流式用量快照不能重复累计。
+- 负责：`!command` 委托用户命令控制器执行并写入对话，`!!command` 仅显示；命令与模型生成共用前台槽，取消后保留真实结果。
+- 负责：`/tree` 消息树浏览、过滤、搜索、折叠、书签和分支选择；`/tools` 显示注册与模型可见能力；分支切换只改变对话，不恢复工作区。
 - 负责：交互启动时在重依赖加载前用临时全屏显示蓝色大字 `CHAOS`，由左到右扫描显现，初始化结束退出动画屏，清空启动前的终端画面和滚动历史并将光标移至左上角，再进入输入区；运行期间保留新产生的滚动历史，重定向输出禁用，NO_COLOR/reduced motion 使用静态反馈。
 - 负责：输入区支持 URI-Agent 风格的单行待命胶囊与 6 行工作台展开，但不显示行数标签；折叠状态仅在终端视口位于底部时由 Space 唤起展开，查看滚动历史时不改写视口，Esc 折叠收拢并保全草稿；输入区使用与用户输入行一致的统一深蓝底色（`\x1b[48;2;30;48;76m`）；默认回答采用 Antigravity 风格单栏现代自然流式排版，标题独立成行且章节适度留白，粗体高亮亮白，行内代码使用冰雾蓝；代码内容保持原样。
 - 负责：输入按 UTF-8 65536 字节（64 KiB）计量，超限插入整次拒绝且保留草稿；单次粘贴超过 10 个逻辑行时折叠为独立 `[chars: N]`（按 Unicode 码点计数），前后键入文字及其他粘贴块独立显示；折叠块作为一个编辑单元，发送时还原完整正文；粘贴换行只入草稿，拆包粘贴标记不可泄漏为提交键。
@@ -18,22 +24,23 @@
 - 负责：`agent`、`agent ask`、`agent resume` 与 `agent run --json` 的一致用户语义。
 - 负责：`resume <thread-id>` 在 thread 属于持久任务时先恢复该任务冻结的运行时契约，再继续回合；终态任务只允许无提示打开历史，不能被误当作可恢复任务继续执行。
 - 负责：以 Windows Terminal 和 PowerShell 的原生文本选择、复制、滚轮回滚、键盘输入、Unicode、颜色及窗口调整为首版交互验收基线。
-- 负责：将完成的消息、工具和任务结果追加到普通终端缓冲区；仅重绘可变高度的圆角实线输入区和其下方的一行紧凑状态。
+- 鼠标报告仅在 compact 布局开启；wide 保留原生拖选、复制及滚轮回滚。运行中尺寸或布局变化同步切换，项目启动 Picker 使用同一宽度判定，退出恢复关闭。
+- 负责：wide 将完成的消息、工具和任务结果追加到普通终端缓冲区，仅重绘输入区和状态；compact 从相同转录状态重绘有界视口、项目栏及底部操作区。
 - 负责：输入区以 `Enter` 提交、`Shift+Enter` 或 `Ctrl+J` 插入换行，支持快捷键调用外部编辑器（`$EDITOR` 或系统默认文本编辑器）在安全临时文件中编辑多行复杂 Prompt，保存后回填至输入缓冲区；并在多行内容中提供符合行结构的光标移动。
 - 负责：命令与文件 Picker 支持字符子序列模糊匹配（Fuzzy Subsequence Match）与 MRU 权重排序，在大量候选项中提供低输入成本的高精度命中。
 - 负责：把普通按键、粘贴块与 Windows 控制信号归一为结构化输入事件；粘贴块规范化换行、有界插入且绝不自动提交。
 - 负责：以可注入时钟实现双击 `Ctrl+C` 退出保护；第一次按当前状态暂停、拒绝、清空或提示，只有两秒内第二次才退出。
 - 负责：默认使用 `›`、`◆`、`↳`、`✓`、`!`、`×` 等 Unicode 符号，ASCII 仅作为显式兼容回退；不使用 Emoji 或混合两套符号语法。
 - 负责：普通用户和 Agent 正文使用高可读的浅色；Chaos 品牌、用户标记、选中项、标题、路径、内联代码、显式强调、短标签使用当前主题强调色，Diff 增加使用绿色；自动强调只作用于确定的结构信号，不按关键词猜测结论或状态。
-- 负责：工具调用、元数据和次要状态使用层级较弱但清晰可读的中灰色；关联 Action request/result 并只展示脱敏、有界的工具事实摘要；绿色仅用于任务级且证据充分的真正完成，不用于普通 Action 完成、部分完成或未验证结果。
+- 负责：工具调用、元数据和次要状态使用层级较弱但清晰可读的中灰色；关联 Action request/result 并只展示脱敏、有界的工具事实摘要；绿色完成标记仅用于任务级且证据充分的真正完成，不用于普通 Action 完成、部分完成或未验证结果；compact 用户消息的深绿色背景只标识角色。
 - 负责：将 Markdown 表格渲染为无纵线的三线表，窄宽度改用稳定逐项布局。
 - 负责：采用中等留白：对话轮次之间空一行，连续工具记录不空行，工具组与最终结论之间空一行，短正文内部不额外扩张间距。
 - 负责：从不可信模型或工具文本中剥离终端控制序列；ANSI 样式只能由本地可信显示事件生成，并支持 `auto`、`always`、`never` 颜色模式及 ASCII 回退。
 - 负责：从单一命令注册表生成解析、帮助、调色板、补全、显示标签与动态可用性；命令只委托注入的控制器或只读服务，不直接执行工具、修改配置或调用 provider。
 - 负责：把动态插件命令以始终命名空间化的 ID 合并进不可变命令快照；动态贡献属于 `internal`，不得膨胀默认根 Picker；禁用、撤销或 digest 变化后不执行旧选择。
 - 负责：`Shift+:` 产生的 `:` 打开带边框、查询行、命令/说明两列和选中行的默认命令面板；`Tab` 补全、`Enter` 执行，旧 `/` 前缀保持兼容。默认面板只展示 `primary`，Diff 仅保留为可完整输入的 `advanced` 兼容命令。
-- 负责：选中无参数命令后一次 `Enter` 立即执行，选中复合命令后一次 `Enter` 进入由同一注册表生成的二级动作菜单；`/会话`、`/模式` 和 `/权限` 只作为根父项，其具体动作不得平铺到根面板。
-- 负责：默认命令面暴露 20 个英文主命令（按注入服务可用性启用）；`/login` 仅登录，`/model` 统一选择配置 profile 与已保存登录可用模型，并在成功后记住当前 Windows 用户的选择；WorkBuddy 上次模型启动时经一次账号目录验证后恢复，Antigravity OAuth 首层仅提供本地全量目录的二级入口。成功改变选择后开启新会话，同值和失败保留旧会话，运行中先暂停。`/mode`、`/effort` 分别管理默认 `auto` 及显式 `ask|code|plan` 任务行为和思考深度；`auto` 在创建时根据输入冻结为持久的 `ask` 或 `code`，旧复合 `/mode agent|model|effort` 仅作隐藏兼容入口。
+- 负责：选中无参数命令后一次 `Enter` 立即执行，选中复合命令后一次 `Enter` 进入由同一注册表生成的二级动作菜单；`/会话` 和 `/权限` 只作为根父项，其具体动作不得平铺到根面板。
+- 负责：默认命令面暴露 19 个英文主命令（按注入服务可用性启用）；`/login` 仅登录，`/model` 统一选择配置 profile 与已保存登录可用模型，并在成功后记住当前 Windows 用户的选择；WorkBuddy 上次模型启动时经一次账号目录验证后恢复，Antigravity OAuth 首层仅提供本地全量目录的二级入口。成功改变选择后开启新会话，同值和失败保留旧会话，运行中先暂停。任务行为直接使用默认 `auto`，在创建时根据输入冻结为持久的 `ask` 或 `code`；不展示 `/mode`、其二级模式菜单或推荐提示，显式旧命令仅作隐藏兼容入口，无参数 `/mode` 只报告当前行为；`/effort` 管理思考深度。
 - 负责：`/会话` 二级面把历史会话与同机在线 Agent、重命名、纯文本发送、入站策略及 held 消息处理分开；`/list-agents`、`/peers`、`/rename` 仅为隐藏兼容入口，不进入注册表、根 Picker 或默认帮助。
 - 不负责：把 peer 文本解释为用户授权、斜杠命令或附件，也不从界面直接访问 peer 存储。
 - 负责：`/清屏` 只清空本次转录，必须保留 `current_thread_id` 和当前会话语义。
@@ -43,7 +50,7 @@
 - 负责：底部状态栏实时显示当前模型回合的输出 token/s；首个文本增量开始计时，生成中使用确定性 token 估算，收到 provider 输出用量后校准。
 - 不负责：复制 Agent 状态机、直接执行工具、直接访问 provider、切换活动任务的模型，或绕过 `ActionPolicy` 权限决定。
 - 不负责：把启发式 bug/dead-code 候选渲染成确定根因或可安全删除结论，也不从界面维护第二份 Repo Index。
-- 不负责：接管 Windows Terminal 字体、调色板、复制设置或鼠标选择；不提供默认全屏仪表板、固定顶部栏或应用自有滚动历史。
+- 不负责：接管 Windows Terminal 字体、调色板、复制设置或鼠标选择；wide 不提供默认全屏仪表板、固定顶部栏或应用自有滚动历史；compact 的项目栏及有界转录视口是手机体验的明确例外，不另建持久历史库。
 - 不负责：macOS 端到端适配、Linux 平台专有剪贴板/Win32 快捷键支持、IDE 插件、Web UI、远程多用户服务或桌面应用。
 - 同一 TUI 同时只管理一个前台任务；运行中的 `Enter` 默认持久排队，当前回合收尾后再进入上下文，而非创建第二任务。`Tab` 在非命令输入中切换为转向，转向立即持久化并在下一模型安全边界生效，不硬杀当前工具。
 - `Esc` 先显示 `pausing` 再暂停并创建 checkpoint，关闭 TUI 中断并创建 checkpoint，显式停止转为失败；已持久化排队不因暂停或关闭丢失。
@@ -66,7 +73,7 @@
 - 负责：会话 Picker 显示标题、预览、状态、更新时间和消息数；读取与恢复语义分离，超长 Thread 使用分页、窗口读取和搜索。
 - 负责：模式操作显示当前 topology、已注册 profile、实际模型、思考深度和生效边界；只接收已配置 profile ID 或唯一短后缀，不接收密钥、任意 URL、启动命令或权限变更。
 - 负责：原始 reasoning 不进入转录、状态或会话；只呈现本地生命周期推导的活动标签，或 provider 明确标注、脱敏且有界的 reasoning summary。
-- 负责：维持一个前台父任务、追加式单栏转录和最小动态尾部；子 Agent 是该任务内的层级执行，不引入默认全屏、多栏、固定侧栏或卡片化仪表盘。
+- 负责：维持一个前台父任务和单栏转录；wide 保持追加式转录及最小动态尾部，compact 使用明确的手机视口；子 Agent 是该任务内的层级执行，不引入多栏、固定侧栏或卡片化仪表盘。
 - 不负责：调度子 Agent、生成语义摘要、执行插件提案，或把 mode、Oracle、插件和 UI 选择解释为权限授权或 verification evidence。
 - 不负责：从 Workflow edge 推导授权、直接启动 MCP 进程、保存 Skill 激活或执行插件 ActionProposal。
 - 负责：维护有界附件草稿并提供显式路径、`Alt+V`（兼容 `Ctrl+V`）单张位图或多张图片文件、Windows Terminal 文件拖放、列表和移除入口；图片草稿在光标处显示稳定编号 `[image1]`、`[image2]`，支持多次或批量粘贴，删除中间项不重编号；左右键跨越整个标记，Backspace/Delete 同时移除标记和对应附件，Ctrl+U 清空文字与附件；`/attach remove imageN` 可按编号移除，标记不混入正文；附件列表只显示安全名称、类型、大小和摘要，粘贴或拖放绝不自动提交。
@@ -82,6 +89,16 @@
 - 2026-09-05 的配置、验证与实验边界见根目录 `docs/context-boundary-experiment.md` 和 `docs/context-boundary-results.md`；具体候选值可配置，实验结果不自动推广为默认策略。
 
 ## Units
+- `ProjectPicker`、`choose_project(...)`：手机项目启动与 TUI 选择共用有界列表、文件夹浏览、显式路径、仅移除记录及草稿确认 | 委托注入 ProjectStore 读写目录记录 | 私有输入缓冲，取消不修改会话草稿，无模型调用。
+- `open_project_picker(...)`、`handle_project_key(...)`、`render_project_overlay(...)`：当前 TUI 项目弹层与 Host 重建请求 | 仅在选择不同目录后设置 requested_project 并退出当前 TUI | 运行中及已有模态禁止进入，新到达认证/审批优先。
+- `mouse_key(sequence)`、`MouseClick`：跨 Windows/POSIX 归一 SGR 左键按下与滚轮 | 无副作用 | 忽略释放、移动和无效坐标，不将控制序列作为输入文字。
+- `handle_touch(...)`、`mobile_palette(...)`、`restore_mobile_draft(...)`：把紧凑模式当前绘制区域的触控映射到现有键盘/命令/暂停控制器，并保留打开命令菜单前的输入对象 | TUI/控制器调用 | 尺寸漂移与无效尾部拒绝旧点击；认证输入隔离，命令菜单不丢失草稿；切换会话后不恢复旧会话草稿。
+- `LayoutMode.resolve(columns)`、`TouchRegion.contains(row, column)`：按真实终端列数选择自动/宽屏/紧凑布局，并表达当前尾部的触控区域 | 无副作用 | 手动覆盖优先，自动阈值为 64 列。
+- `render_mobile_frame(...)`、`render_mobile_viewport(...)`：渲染紧凑输入、两行真实状态及四列图标/文字控件；完整视口固定项目/会话入口，短消息顶对齐、长消息按既有滚动偏移截取；临时回复复用真实 Markdown 并接续正文，不写入持久消息 | 终端呈现/更新命中区 | 中文显示列预算、NO_COLOR、尺寸漂移拒绝旧点击；wide 保留追加式转录。
+- `UsageAccumulator`、`UsageSummary`：统一 live/durable 用量快照，累计不同请求、替换同请求快照；读取未知费用/缓存保持未知 | 进程内投影 | 会话累计包含分支的真实请求，分叉复制的消息不产生用量。
+- `submit_shell`：解析 `!`/`!!`、占用前台槽、取消和显示 | 委托宿主控制器 | 不调用 provider，运行中保留命令草稿。
+- `SessionTreeView`、`show_session_tree`：消息树搜索、过滤、折叠、书签与键盘选择 | 委托宿主控制器 | 只切换对话，工具配对未完成的位置不可分叉。
+- 自定义 API 模型 Picker：`/model` 通过注入 Authentication Controller 展示每个配置服务的加载入口和缓存的二级模型列表；显式 Enter 异步加载，Esc 可取消，失败保留当前模型；选择成功沿用新会话切换边界，容量提示明示继承配置值。
 - `ExperienceSnapshot`, `build_experience_snapshot`, `format_experience_summary`: 将现有 TerminalState、DiffView、EvidenceRecord 和 artifact locator 投影为简洁的用户事实摘要；有修改但无验证时强制显示“验证中”，错误保留副作用与下一步；不读取模型自述、不暴露大日志正文。
 - `explain_runtime_error`: 将受信宿主事实与有界错误摘要组合为状态、副作用、恢复点和下一步；未确认的修改或 checkpoint 不得被错误文本推断。
 - `terminal_size`: 在 Windows/ConPTY 下直接读取当前 console window，避免 `shutil.get_terminal_size()` 的固定 buffer/fallback；其他平台保留标准库回退。
@@ -104,7 +121,7 @@
 - `tui_run.submit/start_prepared/finish_run`：把任务创建、取消、直接 Skill 斜杠唤醒（`/<skill-name> [prompt]`）与最终尾部刷新绑定同一前台 future | 异步任务与展示 | 准备失败/取消等待原创建流程清理；追加输入不得创建并行任务，附件仍以持久消息确认移除。
 - `command_navigation`、`runtime_picker`：从注册表与当前控制器生成选择项、参数提示与当前值，统一方向键、Enter、Tab 和逐级 Esc | 进程内选择态 | `/mode` 默认提示当前任务行为与推荐 `auto`，高级设置仍独立可查；失败保留输入；禁用选项不得落入其他命令；旧任务冻结设置不可隐式替换。
 - `Theme`、`TerminalDesign`、`preferred_theme`、`recolor`：维护唯一 Muted Slate 的可信语义颜色与轮廓，忽略旧 `CHAOS_THEME` 偏好 | 无副作用 | 不改变终端背景、权限或任务预算。
-- `render_designed_frame`、`render_collapsed_capsule`、`render_welcome`：按窗口预算渲染紧凑启动摘要、流式连续输入区、Picker 与真实状态，消除控制台空白空行；细节通过 `:status` 查询 | 无副作用 | 输入光标始终可见，累计 token 明示 task，不推导容量百分比。
+- `render_designed_frame`、`render_collapsed_capsule`、`render_welcome`：按窗口预算渲染紧凑启动摘要、流式连续输入区、Picker 与真实状态，消除控制台空白空行；细节通过 `:status` 查询 | 无副作用 | 展开输入框、状态与用量行共享左侧缩进，光标几何同步；输入光标始终可见，累计 token 明示 task，不推导容量百分比。
 - `TailMotion`、`watch_visuals`、`exit_transition`：以可注入时间控制 280ms 边框过渡、活动期间的非百分比巡移光带和持久取消完成后的至多 160ms 退出反馈，空闲窗口只在 resize 或过渡时刷新 | 终端 I/O/有界异步等待 | `:theme motion off`、`CHAOS_REDUCED_MOTION=1`、`NO_COLOR` 禁用动态装饰；完成语义只来自状态机。
 - `set_theme`、`theme_preview.main`：通过注册表中的 advanced `:theme motion on|off` 控制动画，并提供无 provider/工具调用的真实渲染器离线预览 | 进程 UI 状态/用户指定的预览输出 | 不扩张默认根菜单，不提供主题切换；`CHAOS_REDUCED_MOTION` 控制重启动效偏好。
 - `format_evidence_summary(records)`: 渲染有界 evidence 摘要 | 无副作用 | 不将 UI 文本升级为完成裁决
@@ -119,7 +136,7 @@
 - `CommandRegistry.with_plugin_commands(descriptors)`：把绑定 digest/generation 的 namespaced plugin command 合并为不可变目录 | 无副作用 | 未命名空间化贡献拒绝，旧目录不被原地修改
 - `CommandRegistry.with_plugin_modes(identifiers)`：把 namespaced plugin mode 合并为模式命令的受限 action | 无副作用 | 不替换四个内置 mode
 - `CommandAction`、`CommandRegistry.resolve(...)`：声明并解析复合命令的二级动作 | 无副作用 | 只列举真实接通动作，需要自由文本参数时保留输入边界
-- `InputEvent`、`ExitGuard`: 归一键盘/粘贴/控制信号并实施双击退出状态机 | 进程内状态 | 粘贴不提交，状态机可注入时钟；已暂停任务单次 Ctrl+C 直接退出，活动任务保留双击保护
+- `InputEvent`、`ExitGuard`: 归一键盘/粘贴/控制信号并实施双击退出状态机 | 进程内状态 | 粘贴不提交，状态机可注入时钟；key-up/裸修饰键解码出的空事件不参与文本粘贴合并，键盘分发忽略它们而不重置退出窗口；已暂停任务单次 Ctrl+C 直接退出，活动任务保留双击保护
 - `InputBuffer`: 编辑原始 Windows 键盘输入、多行光标、历史与清空快捷键 | 进程内状态 | `Enter` 提交、`Shift+Enter`/`Ctrl+J` 换行，不接管终端选择和回滚
 - `DisplayEntry`、`DisplaySpan`、`TerminalState`: 将事件投影为最终回答、带目标/数量/耗时及有界文件预览的工具完成行和每轮独立的执行摘要，并把 reasoning、正文与工具准备事件投影为可动画的真实生命周期状态；累计 durable context/model/action 计时并在新 run 清零；暂停时保留持久 stop reason 供状态尾部展示；等待决定仅保留状态，不追加冗长黄色提示块 | 无副作用 | 完整 assistant 消息可在任务验证状态前落屏，不保留或渲染原始 reasoning
 - `TerminalState.draft_answer`、`has_draft`、`draft_revision`：安全投影当前模型回合的临时正文及可见 revision | 进程内状态 | 新 `MODEL_STARTED` 建立草稿边界，不进入会话消息、Evidence 或完成判定；无正文总结回合显示可恢复错误而不静默结束
@@ -140,7 +157,7 @@
 - `PluginInteractionAdapter.notify`、`interact`：把 generation-bound PluginProposal 分流为直接 Host 显示或共享 InteractionBroker 请求 | 显示/异步等待 | notify 不等待答案，其余交互可取消且默认不自答
 - `DiffController.load(...)`、`DiffView`：优先从注入的只读 Git 服务读取真实 unified diff，并提供文件导航、路径过滤和评论 | 只读服务调用/进程内状态 | 不直接 stage、unstage 或执行 Git。
 - `DiffInteraction`、`format_diff_feedback(...)`：持有 point-in-time Diff modal，消费导航/编辑/刷新/放弃键并生成带 scope、路径和行锚点的有界反馈 | 进程内状态 | 只有显式 `s` 才经调用方 `submit` 发送，刷新失败保留旧快照；计划审批使用 `rows(..., read_only=True)` 隐藏评论/发送/刷新提示
-- `AttachmentDraft.add_clipboard_items(...)`、`has_submission_input(...)`、`handle_attachment_command(...)`、`apply_clipboard_images(...)`、`dropped_file_paths(...)`：批量摄取并维护有界附件引用、在 UI 边界把无文本无附件提交静默判为空操作，并把 Windows Terminal 的空 bracketed paste 识别为 `Ctrl+V` 图片手势，同时提供显式命令和完整文件拖放识别 | 调用注入摄取器/进程内状态 | 把草稿剩余数量/字节预算下推至批量摄取器，重复剪贴板事件按 digest 幂等处理且不重复追加提示；拒绝批次不得发布孤儿 blob；旧 `add_clipboard()` 单图 API 保持可调用，但不具备预算协议的旧摄取器不得进入新版批量 UI；仅 durable `MESSAGE_ADDED` 确认后按本次 digest 移除草稿，后续新增与失败提交必须保留；非空文本粘贴不得误摄取剪贴板图片
+- `AttachmentDraft.add_clipboard_items(...)`、`has_submission_input(...)`、`handle_attachment_command(...)`、`apply_clipboard_images(...)`、`dropped_file_paths(...)`：批量摄取并维护有界附件引用、在 UI 边界把无文本无附件提交静默判为空操作，并为无原生 Win32 解码器的 Windows Terminal 兼容路径把空 bracketed paste 识别为 `Ctrl+V` 图片手势，同时提供显式命令和完整文件拖放识别 | 调用注入摄取器/进程内状态 | 原生 Win32 解码器收到空 bracketed 帧时忽略该终端伪事件，避免 Alt 长按误触发；把草稿剩余数量/字节预算下推至批量摄取器，重复剪贴板事件按 digest 幂等处理且不重复追加提示；拒绝批次不得发布孤儿 blob；旧 `add_clipboard()` 单图 API 保持可调用，但不具备预算协议的旧摄取器不得进入新版批量 UI；仅 durable `MESSAGE_ADDED` 确认后按本次 digest 移除草稿，后续新增与失败提交必须保留；非空文本粘贴不得误摄取剪贴板图片
 - `ModePermissionView`：分开展示模式实际模型、topology、Oracle、有效推理强度、有效主工具数量、生效边界与访问权限 | 无副作用 | Anthropic 默认 effort 明示为 prompt-only/structured unsupported；single 不计入被隐藏的 `delegate_agent`，模式信息绝不解释为授权。
 - `ModeControl.list()`、`use(name, idle)`：列出冻结的四档 mode 并在空闲边界委托运行时切换 | 调用注入的异步重建回调 | 回调成功后才更新当前 mode，活动任务和未知 mode 失败闭合。
 - `_set_mode(app, instruction, action)`：优先把 topology、profile、reasoning effort 独立委托给 `runtime_selection`，缺少该控件时保留旧 `ModeControl` 兼容 | 调用注入控件/追加显示 | profile 短名必须唯一，失败不得改变当前运行时
@@ -153,7 +170,7 @@
 - `handle_workflow_command(app, instruction)`：从注入的只读 Workflow store 渲染流程、节点详情或证据 | 只读服务调用/追加显示 | 不从 edge 推导授权或执行状态转换
 - `handle_skill_command`、`handle_mcp_command`、`handle_plugin_command`：把 `/技能`、`/mcp` 与 `/插件` 的注册 action（含 Skill 分类结构化列表、`/skill run` 及显式管理）委托给注入 Controller | Controller I/O 与追加显示 | 不读取完整扩展正文、不直接启动进程或绕过 Host policy
 
-- `ContextBudgetDisplay`、`TerminalPresentation`: 展示当前输入/有效工作窗与独立任务用量；手动换窗仅显示排队状态 | 终端 I/O | 不把累计消耗当成上下文占用，保留旧模式显示兼容
+- `ContextBudgetDisplay`、`TerminalPresentation`: 展示当前输入/有效工作窗与独立任务用量；按终端宽度缓存历史排版行，追加时增量维护，滚动时只截取可见视口，宽度/主题/会话变化时重排；手动换窗仅显示排队状态 | 终端 I/O | 不把累计消耗当成上下文占用，保留旧模式显示兼容
 - `TaskCostControl.report(...)`、`format_cost_report(...)`: 从持久任务预算投影 token 成本、当前 soft lease、最终 hard limit、续约次数和最终延伸状态 | 只读 Sessions | 定价缺失保持 unavailable，不自行推导或续约租约
 - `TerminalState.task_budget_line`: 将 `category=lease` 的 renewed/converge 事件投影为有界状态文本 | 进程内状态 | 只接受类型化 tier、phase、计数和原因，畸形事件不覆盖已有状态
 

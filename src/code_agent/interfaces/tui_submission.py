@@ -57,6 +57,10 @@ async def submit_active_input(app: object, prepared: PreparedInput) -> bool:
 
 
 async def pause_active_task(app: object, reason: str) -> bool:
+    if getattr(app, "_user_command_running", False):
+        app._token.cancel(reason)
+        await asyncio.gather(app._run_task, return_exceptions=True)
+        return True
     if getattr(app, "_starting_task", False) and app._run_task:
         app.state.status = "pausing"
         app._token.cancel(reason)
@@ -86,7 +90,7 @@ def request_pause_active_task(app: object, reason: str) -> bool:
     pending = getattr(app, "_pause_task", None)
     if pending is not None and not pending.done():
         return True
-    can_pause = bool(
+    can_pause = bool(getattr(app, "_user_command_running", False) or
         (getattr(app, "_starting_task", False) and app._run_task)
         or (
             app.tasks

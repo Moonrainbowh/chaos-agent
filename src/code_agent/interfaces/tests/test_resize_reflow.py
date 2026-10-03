@@ -38,7 +38,9 @@ class ResizeReflowTests(unittest.TestCase):
                 writes.clear()
                 app.redraw()
                 self.assertEqual(len(writes), 1)
-                self.assertEqual(writes[0].count("CHAOS AGENT"), 1)
+                self.assertEqual(writes[0].count("CHAOS AGENT"), int(columns > 64))
+                self.assertEqual(writes[0].count("draft 中文"), 1)
+                self.assertEqual(bool(app._mobile_frame.touch_regions), columns <= 64)
                 if expected:
                     if "\x1b[2J\x1b[H" not in writes[0]:
                         self.assertEqual(writes[0].count("\x1b[2K"), max(expected.height, app._tail_geometry.height))
@@ -56,6 +58,9 @@ class ResizeReflowTests(unittest.TestCase):
         writes = []
         app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker(), write=writes.append)
         app.theme = Theme.SLATE
+        from code_agent.interfaces.terminal_layout import LayoutMode
+        # This assertion verifies wide append/reflow; compact repaints a viewport.
+        app.layout_mode = LayoutMode.WIDE
         with patch("code_agent.interfaces.tui_presentation.shutil.get_terminal_size") as size:
             size.return_value = os.terminal_size((160, 60))
             app.redraw()

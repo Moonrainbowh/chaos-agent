@@ -55,7 +55,7 @@ class RuntimeDispatcherFactory:
                 client,
                 profile,
                 self._context_for(agent.mode, client, profile),
-                RestrictedDispatcher(self._dispatcher, agent.effective_tools),
+                RestrictedDispatcher(self._dispatcher, agent.effective_tools, compact_tools=True),
                 self._sessions,
                 self._root,
                 agent.mode,
@@ -95,6 +95,7 @@ class RuntimeDispatcherFactory:
             self._tools(selected),
             allow_delegation=selected.topology is AgentTopology.TEAM,
             allow_coordination=True,
+            compact_tools=True,
         )
         return self._plugin_bindings.bind(
             restricted,

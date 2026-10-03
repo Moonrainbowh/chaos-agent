@@ -87,7 +87,7 @@ class PickerHierarchyTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("/checkpoint", labels)
         self.assertIn("/mcp", labels)
         self.assertIn("/plugin", labels)
-        self.assertIn("/mode", labels)
+        self.assertNotIn("/mode", labels)
         self.assertIn("/permission", labels)
 
         actions = command_picker_items(

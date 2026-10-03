@@ -72,7 +72,7 @@ def _shortcut_prefix(records: list[_InputRecord]) -> tuple[int, str]:
             continue
         if key.character == "\x03" or (key.virtual_key == 0x43 and key.modifiers & 12 and not key.modifiers & 3):
             return index + 1, "\x03"
-        if key.virtual_key == 0x56 and key.modifiers & 3 and not key.modifiers & 12:
+        if key.virtual_key == 0x56 and key.modifiers & 3 and not key.modifiers & 12 and key.repeat <= 1:
             return index + 1, "alt+v"
         if key.virtual_key == 0x0D:
             return index + 1, "shift+enter" if key.modifiers & 0x1C else "enter"

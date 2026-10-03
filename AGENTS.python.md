@@ -29,7 +29,7 @@
 ## 终端界面验证
 - 主题预览：`python -m code_agent.interfaces.theme_preview --theme slate --animate`；离线示例不调用模型或工具。
 - 可交互对照页：`python -m code_agent.interfaces.theme_preview --html docs/ui-preview/index.html`；页面必须复用真实渲染器输出并明确标记示例数据。
-- 动效只刷新动态尾部，保持历史可选择、中文列宽与光标几何；唯一主题必须验证窄窗口、`NO_COLOR` 和 reduced motion。
+- wide 动效只刷新动态尾部，保持历史可选择、中文列宽与光标几何；compact 为用户明确要求的有界手机视口，可按真实消息/尺寸/状态变化重绘顶部与正文，不添加装饰性历史动效；唯一主题必须验证窄窗口、`NO_COLOR` 和 reduced motion。
 
 ## 脚本运行与命令行规范
 - 文件优先（File-First）：严禁在 PowerShell 下使用 `python -c "..."` 执行超过 3 行、包含嵌套引号或中文字符的内联脚本；多行与复杂逻辑必须先落盘为 `.py` 文件（如脚本或临时目录），再以 `python <path>` 执行，彻底规避字符串转义、编码乱码与长度溢出。

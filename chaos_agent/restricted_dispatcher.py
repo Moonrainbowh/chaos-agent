@@ -6,6 +6,7 @@ from code_agent.capabilities.catalog import CONTRACT_TOOL_NAME, contract_result
 from code_agent.core.action_execution import ActionExecutionContext
 from code_agent.core.cancellation import CancellationToken
 from code_agent.core.models import ActionRequest, ActionResult, ToolDefinition
+from code_agent.capabilities.compact_tools import OPERATIONS, compact_definitions, expand_request
 
 
 class RestrictedDispatcher:
@@ -18,12 +19,14 @@ class RestrictedDispatcher:
         *,
         allow_delegation: bool = False,
         allow_coordination: bool = False,
+        compact_tools: bool = False,
     ) -> None:
         if not isinstance(allow_delegation, bool):
             raise TypeError("allow_delegation must be a boolean")
         if not isinstance(allow_coordination, bool):
             raise TypeError("allow_coordination must be a boolean")
         self._inner = inner
+        self._compact = compact_tools
         self._allow_delegation = allow_delegation
         self._allow_coordination = allow_coordination
         self._allowed = self._effective(allowed_tools)
@@ -63,9 +66,26 @@ class RestrictedDispatcher:
         return frozenset(checked)
 
     def tools(self) -> tuple[ToolDefinition, ...]:
+        tools = self._legacy_tools()
+        return compact_definitions(tools) if self._compact else tools
+
+    def _legacy_tools(self):
         return tuple(
             tool for tool in self._inner.tools() if tool.name in self._allowed
         )
+
+    def resolve_action(self, request):
+        return expand_request(request, self._legacy_tools()) if self._compact else request
+
+    def compatible_action_names(self, definitions):
+        """Accept old names only for operations in the currently disclosed schema."""
+        allowed = set()
+        if self._compact:
+            for definition in definitions:
+                operations = OPERATIONS.get(definition.name, {})
+                exposed = definition.parameters.get("properties", {}).get("operation", {}).get("enum", ())
+                allowed.update(operations[op] for op in exposed if op in operations)
+        return allowed
 
     async def dispatch(
         self,
@@ -75,18 +95,32 @@ class RestrictedDispatcher:
         *,
         execution_context: ActionExecutionContext | None = None,
     ) -> ActionResult:
+        original = request
+        try:
+            request = self.resolve_action(request)
+        except ValueError as error:
+            return ActionResult(original.id,original.name,{"error":str(error)},True)
         if request.name not in self._allowed:
             return ActionResult(
                 request.id,
-                request.name,
+                original.name,
                 {"error": "child tool is outside its mode and role"},
                 is_error=True,
             )
         if request.name == CONTRACT_TOOL_NAME:
+            if self._compact:
+                name = request.arguments.get("name")
+                alias = next((group for group, ops in OPERATIONS.items() if name in ops.values()), name)
+                if set(request.arguments) == {"name"} and alias != name:
+                    request = ActionRequest(request.id,request.name,{"name":alias})
             return contract_result(request, self.tools())
-        return await self._inner.dispatch(
+        result = await self._inner.dispatch(
             request,
             cancellation,
             task_authorization,
             execution_context=execution_context,
         )
+        if request is not original:
+            return ActionResult(original.id,original.name,result.output,result.is_error,
+                                {**result.metadata,"compact_target":request.name})
+        return result

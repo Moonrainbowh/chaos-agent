@@ -4,6 +4,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import replace
 from pathlib import Path
+from code_agent.web_access import WebAccessService
 from typing import TYPE_CHECKING, Iterator, Sequence
 
 from code_agent.core.models import ActionRequest, ActionResult, ToolDefinition
@@ -13,6 +14,7 @@ from code_agent.policy.models import ApprovalMode
 from code_agent.workspace.edits import WorkspaceEditor
 
 from chaos_agent.action_dispatcher import RootActionDispatcher
+from chaos_agent.verification_mode import structured_verification_enabled
 from chaos_agent.action_metrics import ActionMetricsCollector
 from chaos_agent.workspace_mutation_pool import WorkspaceMutationPool
 from chaos_agent.workspace_models import WorkspaceServices
@@ -32,6 +34,7 @@ class TaskScopedDispatcher:
     ) -> None:
         self._runtime, self._source = runtime, source_services
         self.policy, self.approvals = policy, approvals
+        self.web_access = dependencies.get("web_access") or WebAccessService()
         self.mcp = dependencies.get("mcp")
         self.plugins = dependencies.get("plugins")
         self.threads = dependencies.get("threads")
@@ -115,6 +118,8 @@ class TaskScopedDispatcher:
             git=service.git,
             runtime=service.runtime,
             verification=service.verification,
+            web_access=self.web_access,
+            enable_structured_verification=structured_verification_enabled(),
             mcp=self.mcp,
             plugins=self.plugins,
             subagents=self.subagents,

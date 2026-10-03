@@ -84,7 +84,7 @@ class OpenAIResponsesClientTests(unittest.IsolatedAsyncioTestCase):
             ModelEvent(kind=ModelEventKind.REASONING_DELTA, text="Plan"),
             ModelEvent(kind=ModelEventKind.TOOL_CALL, tool_call=ToolCall(id="call-1", name="search", arguments={"q": "one"})),
             ModelEvent(kind=ModelEventKind.TOOL_CALL, tool_call=ToolCall(id="call-2", name="list_files", arguments={})),
-            ModelEvent(kind=ModelEventKind.USAGE, usage=Usage(input_tokens=20, output_tokens=8, cached_input_tokens=6)),
+            ModelEvent(kind=ModelEventKind.USAGE, usage=Usage(input_tokens=20, output_tokens=8, cached_input_tokens=6, cache_read_known=True)),
             ModelEvent(kind=ModelEventKind.COMPLETED),
         ])
         body = json.loads(seen[0].read())

@@ -22,10 +22,15 @@ def render_designed_frame(
 ) -> LiveTailFrame:
     """Keep the cursor visible and every physical row within the terminal budget."""
     safe_supplied = safe_text(input_text)
+    usage, separator, rest = context.partition("\n")
+    usage = usage if separator else ""
+    if height < 5:
+        usage = ""
+    context = rest if separator else context
     if not expanded and not palette and not draft and not safe_supplied.strip():
         return render_collapsed_capsule(
             safe_supplied, status, width, height, color, status_icon,
-            status_color, context, previous, theme, active=active,
+            status_color, (usage + "\n" if usage else "") + context, previous, theme, active=active,
         )
 
     frame_width = max(1, width - 2)
@@ -37,10 +42,10 @@ def render_designed_frame(
         placeholder = "Describe your next step..." if active else "What would you like to build?"
         rows = [clip_display(placeholder, text_width)]
     # Target 6 lines for comfortable multi-line editing, clamped by terminal height
-    target_rows = max(1, min(6, height - 3))
+    target_rows = max(1, min(6, height - 3 - bool(usage)))
     rows, cursor_row = _visible_input_rows(rows, cursor_row, target_rows)
     input_box_rows = len(rows) if (palette or draft) else target_rows
-    remaining = max(0, height - input_box_rows - 3)
+    remaining = max(0, height - input_box_rows - 3 - bool(usage))
     items = palette[:min(14, remaining)]
     remaining -= len(items)
     draft_rows = _render_draft(draft, frame_width, max(0, remaining - 1), color, modern=True)
@@ -51,8 +56,12 @@ def render_designed_frame(
         char_count=len(supplied), image_count=image_count, target_rows=input_box_rows,
     )
     lines.append(_status_row(status_icon, status, context, frame_width, color, status_color))
-    geometry = tail_geometry(lines, offset + cursor_row + 1, cursor_col + 4)
-    rendered = _rewrite_tail(lines, geometry.cursor_row, cursor_col + 4, previous, height)
+    if usage:
+        lines.append(colorize(clip_display(usage, frame_width), DIM_GRAY, color))
+    inset = 1 if width > 8 else 0
+    lines = [" " * inset + line for line in lines]
+    geometry = tail_geometry(lines, offset + cursor_row + 1, cursor_col + 4 + inset)
+    rendered = _rewrite_tail(lines, geometry.cursor_row, geometry.cursor_column, previous, height)
     return LiveTailFrame(recolor(rendered, theme), geometry)
 
 
@@ -65,11 +74,15 @@ def render_collapsed_capsule(
 ) -> LiveTailFrame:
     frame_width = max(1, width - 2)
     design = design_for(theme)
+    usage, separator, rest = context.partition("\n")
+    usage = usage if separator else ""
+    context = rest if separator else context
     supplied = input_text.strip()
     if supplied:
         left = f"› [Draft: {clip_display(supplied.replace(chr(10), ' '), 28)}] · [Space] Edit"
     else:
         left = "› [Space] Compose · [:] Commands" if not active else "› [Space] Steer/Queue · [Esc] Pause"
+    left = clip_display(left, max(1, frame_width - 8))
     left_width = display_width(left)
     right_raw = f"{status_icon} {status} · {context}".strip(" · ")
     max_right = max(1, frame_width - left_width - 6)
@@ -79,6 +92,8 @@ def render_collapsed_capsule(
     right_part = colorize(right, status_color or design.muted, color)
     capsule = colorize("╭─ ", design.border, color) + left_part + gap + right_part + colorize(" ─╮", design.border, color)
     lines = [capsule]
+    if usage and height > 1:
+        lines.append(colorize(clip_display(usage, frame_width), design.muted, color))
     geometry = tail_geometry(lines, 0, 4)
     rendered = _rewrite_tail(lines, 0, 4, previous, height)
     return LiveTailFrame(recolor(rendered, theme), geometry)

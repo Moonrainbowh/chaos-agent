@@ -66,6 +66,7 @@ class RootActionDispatcher:
         git: GitWorkspace | None = None,
         runtime: object | None = None,
         verification: LocalVerificationAdapter | None = None,
+        enable_structured_verification: bool = True,
         mcp: McpController | None = None,
         plugins: PluginToolBridge | None = None,
         subagents: SubagentTool | None = None,
@@ -86,6 +87,7 @@ class RootActionDispatcher:
     ) -> None:
         self.files, self.editor, self.policy, self.approvals = files, editor, policy, approvals
         self.git, self.runtime, self.verification = git, runtime, verification
+        self.enable_structured_verification = enable_structured_verification
         self.mcp, self.plugins, self.subagents = mcp, plugins, subagents
         self.threads, self.peers, self.caller_thread = threads, peers, caller_thread
         self.capture = capture
@@ -128,6 +130,8 @@ class RootActionDispatcher:
             shell_dialect=shell_dialect,
             include_web=self._web_access_enabled,
         )
+        if not self.enable_structured_verification:
+            builtins = tuple(tool for tool in builtins if tool.name != "run_verification")
         mcp = self.mcp.definitions() if self.mcp is not None else ()
         plugins = self.plugins.definitions() if self.plugins is not None else ()
         threads = self.threads.definitions() if self.threads is not None else ()
@@ -153,6 +157,8 @@ class RootActionDispatcher:
     ) -> ActionResult:
         target = self.plugins.targets().get(request.name) if self.plugins else None
         translated = ActionRequest(request.id, target, request.arguments) if target else request
+        if translated.name == "run_verification" and not self.enable_structured_verification:
+            return _error(request, "structured verification is disabled")
         rejected = preflight_action(request, translated)
         if rejected is not None:
             return rejected
@@ -287,6 +293,8 @@ class RootActionDispatcher:
                 await record_unknown_gap(self.capture, context, request, cancellation)
             return _ok(request, {"result": await self.mcp.call(request.name, arguments)})
         if request.name in {"web_retrieve", "web_search", "web_fetch", "site_api", "browser_fetch"}:
+            if not self._web_access_enabled:
+                return _error(request, "web access is disabled")
             if request.name == "web_retrieve":
                 return _ok(request, await self.web_access.retrieve(
                     query=arguments.get("query"), url=arguments.get("url"),

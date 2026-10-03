@@ -16,6 +16,7 @@ from code_agent.context_windows.tool_names import HISTORY_TOOLS, NOTE_READ_TOOLS
 
 
 READ_TOOLS = (
+    "web_retrieve", "web_search", "web_fetch", "site_api", "browser_fetch",
     "load_tool_contract",
     "read_file",
     "read_code_slices",

@@ -225,7 +225,7 @@ class AgentEngineTurnMixin(AgentEngineConvergenceMixin, AgentEngineDispatchMixin
         await self._journal.append_event(state.thread_id, built)
         yield built
         model_started = AgentEvent(
-            EventKind.MODEL_STARTED, {"turn": turn.number}
+            EventKind.MODEL_STARTED, {"turn": turn.number, "model": self._model_name}
         )
         await self._journal.append_event(state.thread_id, model_started)
         yield model_started

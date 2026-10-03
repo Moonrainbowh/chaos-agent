@@ -18,9 +18,11 @@ from ._workflows import WorkflowRepositoryMixin
 from ._workspace_snapshots import WorkspaceSnapshotRepositoryMixin
 from ._memory import MemoryRepositoryMixin
 from ._recovery import RecoveryRepositoryMixin
+from .conversation_tree import ConversationTreeRepositoryMixin
 
 
 class SQLiteSessionRepository(
+    ConversationTreeRepositoryMixin,
     ContextNotesRepositoryMixin,
     ContextJournalRepositoryMixin,
     AtomicSessionRewindRepositoryMixin,

@@ -152,6 +152,20 @@ class TerminalFirstRendererTests(unittest.TestCase):
 
         self.assertEqual(context, "gpt-5 · 12.3 token/s · 00:18")
 
+    def test_completed_timing_survives_status_row_width_budget(self) -> None:
+        context = status_context(
+            "gpt-5", None, 610, tokens=13_600, completed_at=0,
+            completed_duration_ms=83_000,
+        )
+        rendered = _plain(
+            render_live_tail(
+                "x", "等待决定", 108, color=ColorMode.NEVER,
+                status_context=context,
+            )
+        )
+
+        self.assertIn("耗时 1分23秒 · 10分钟前", rendered)
+
     def test_budget_warning_remains_visible_while_the_task_replans(self) -> None:
         output: list[str] = []
         app = WindowsTerminalApp(

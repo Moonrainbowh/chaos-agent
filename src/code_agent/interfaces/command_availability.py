@@ -24,6 +24,8 @@ def available_services(app: Any) -> set[str]:
             "task_modes",
             "semantic_graph",
             "peers",
+            "conversation_tree",
+            "tool_catalog",
         )
         if (
             getattr(app, "attachment_draft", None) is not None

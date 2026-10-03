@@ -62,6 +62,50 @@ class ThreadContentRepositoryMixin:
         await self._database.write(write)  # type: ignore[attr-defined]
         return identifier
 
+    async def create_thread_from_history(
+        self, source_thread_id: str, title: str | None = None
+    ) -> str:
+        """Atomically copy only messages into an active continuation thread.
+
+        Omitted titles inherit the source title. The continuation belongs to the
+        original root, preserving the two-level tree. Message payloads and times
+        are unchanged; copied records receive new sequence IDs. Execution state,
+        authorization, events, goals, checkpoints and budgets are not inherited.
+        """
+        source_thread_id = _text(source_thread_id, "source_thread_id")
+        if title is not None:
+            title = _text(title, "title")
+        identifier = uuid.uuid4().hex
+        timestamp = encode_datetime(utc_now())
+
+        def write(connection: sqlite3.Connection) -> None:
+            source = connection.execute(
+                "SELECT title, parent_thread_id FROM threads WHERE id = ?",
+                (source_thread_id,),
+            ).fetchone()
+            if source is None:
+                raise SessionNotFound("source thread not found")
+            parent_id = source["parent_thread_id"] or source_thread_id
+            if source["parent_thread_id"] is not None:
+                parent = connection.execute(
+                    "SELECT parent_thread_id FROM threads WHERE id = ?", (parent_id,)
+                ).fetchone()
+                if parent is None or parent["parent_thread_id"] is not None:
+                    raise SessionCorruptionError("source thread has no valid root")
+            connection.execute(
+                "INSERT INTO threads(id, created_at, updated_at, title, status, "
+                "parent_thread_id) VALUES (?, ?, ?, ?, ?, ?)",
+                (identifier, timestamp, timestamp, title if title is not None else source["title"],
+                 ThreadStatus.ACTIVE.value, parent_id),
+            )
+            from .conversation_tree import _ensure_nodes
+            from ._conversation_schema import copy_message_prefix
+            _ensure_nodes(connection, source_thread_id)
+            copy_message_prefix(connection, source_thread_id, identifier)
+
+        await self._database.write(write)  # type: ignore[attr-defined]
+        return identifier
+
     async def load_thread_relation(self, thread_id: str) -> ThreadRelation:
         thread_id = _text(thread_id, "thread_id")
 
@@ -96,16 +140,46 @@ class ThreadContentRepositoryMixin:
 
         return await self._database.read(read)  # type: ignore[attr-defined]
 
-    async def load_message_records(self, thread_id: str) -> tuple[MessageRecord, ...]:
+    async def load_message_records(
+        self,
+        thread_id: str,
+        *,
+        before_sequence: int | None = None,
+        limit: int | None = None,
+    ) -> tuple[MessageRecord, ...]:
+        """Read chronological records, optionally the latest page before a cursor.
+
+        The sequence cursor is exclusive and non-negative. An omitted limit
+        keeps the existing all-records behavior; a supplied limit is positive.
+        """
         thread_id = _text(thread_id, "thread_id")
+        if before_sequence is not None:
+            if isinstance(before_sequence, bool) or not isinstance(before_sequence, int):
+                raise TypeError("before_sequence must be an integer or None")
+            if before_sequence < 0:
+                raise ValueError("before_sequence must not be negative")
+        if limit is not None:
+            if isinstance(limit, bool) or not isinstance(limit, int):
+                raise TypeError("limit must be an integer or None")
+            if limit <= 0:
+                raise ValueError("limit must be positive")
 
         def read(connection: sqlite3.Connection) -> tuple[MessageRecord, ...]:
             _require_thread(connection, thread_id)
-            rows = connection.execute(
+            query = (
                 "SELECT sequence, payload, created_at FROM messages "
-                "WHERE thread_id = ? ORDER BY sequence",
-                (thread_id,),
-            ).fetchall()
+                "WHERE thread_id = ?"
+            )
+            parameters: list[object] = [thread_id]
+            if before_sequence is not None:
+                query += " AND sequence < ?"
+                parameters.append(before_sequence)
+            query += " ORDER BY sequence ASC" if limit is None else " ORDER BY sequence DESC LIMIT ?"
+            if limit is not None:
+                parameters.append(limit)
+            rows = connection.execute(query, parameters).fetchall()
+            if limit is not None:
+                rows.reverse()
             return tuple(
                 MessageRecord(
                     row["sequence"],
@@ -125,10 +199,14 @@ class ThreadContentRepositoryMixin:
 
         def write(connection: sqlite3.Connection) -> None:
             _require_thread(connection, thread_id)
-            connection.execute(
+            from .conversation_tree import _ensure_nodes
+            from ._conversation_schema import record_message_node
+            _ensure_nodes(connection, thread_id)
+            cursor = connection.execute(
                 "INSERT INTO messages(thread_id, payload, created_at) VALUES (?, ?, ?)",
                 (thread_id, payload, timestamp),
             )
+            record_message_node(connection, thread_id, cursor.lastrowid)
             _touch_thread(connection, thread_id, timestamp)
 
         await self._database.write(write)  # type: ignore[attr-defined]
@@ -176,14 +254,19 @@ class ThreadContentRepositoryMixin:
         await self._database.write(write)  # type: ignore[attr-defined]
 
     async def list_threads(
-        self, *, limit: int = 100, include_archived: bool = False
+        self, *, limit: int = 100, include_archived: bool = False, offset: int = 0
     ) -> tuple[ThreadSummary, ...]:
+        """Read one page ordered by updated_at descending, then ID ascending."""
         if isinstance(limit, bool) or not isinstance(limit, int):
             raise TypeError("limit must be an integer")
         if limit <= 0 or limit > 1_000:
             raise ValueError("limit must be between 1 and 1000")
         if not isinstance(include_archived, bool):
             raise TypeError("include_archived must be a bool")
+        if isinstance(offset, bool) or not isinstance(offset, int):
+            raise TypeError("offset must be an integer")
+        if offset < 0:
+            raise ValueError("offset must not be negative")
 
         def read(connection: sqlite3.Connection) -> tuple[ThreadSummary, ...]:
             where = "" if include_archived else "WHERE t.status = 'active'"
@@ -192,8 +275,8 @@ class ThreadContentRepositoryMixin:
                     (SELECT COUNT(*) FROM messages m WHERE m.thread_id = t.id) AS message_count,
                     (SELECT payload FROM messages m WHERE m.thread_id = t.id ORDER BY sequence DESC LIMIT 1) AS last_payload
                     FROM threads t {where}
-                    ORDER BY t.updated_at DESC, t.id ASC LIMIT ?""",
-                (limit,),
+                    ORDER BY t.updated_at DESC, t.id ASC LIMIT ? OFFSET ?""",
+                (limit, offset),
             ).fetchall()
             try:
                 return tuple(_summary(row) for row in rows)

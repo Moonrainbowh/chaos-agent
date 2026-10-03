@@ -1,6 +1,7 @@
 from __future__ import annotations
 from .terminal_history_summary import _summary_lines
 from .terminal_context_budget import ContextBudgetDisplay
+from .usage_summary import UsageAccumulator
 
 from typing import Mapping, Optional
 import re
@@ -50,6 +51,7 @@ class TerminalState:
         self.output_tokens: int = 0
         self.last_rate: float | None = None
         self.context_budget = ContextBudgetDisplay()
+        self.usage = UsageAccumulator()
 
     @property
     def draft_answer(self) -> str:
@@ -64,6 +66,7 @@ class TerminalState:
     def restore(self, history: RestoredThread) -> None:
         """Project persisted thread records into a terminal-safe view model."""
         self.context_budget = ContextBudgetDisplay()
+        self.usage = UsageAccumulator()
         self.thread_id = history.thread_id
         self.plan_text = ""
         self.plan_completed_steps = 0
@@ -79,6 +82,7 @@ class TerminalState:
         self.diff = None
         self.status = "idle"
         for event in history.events:
+            self.usage.observe(event)
             self._capture_diff(event)
             self._update_status(event)
         self.summary = _summary_lines(history, self.status)
@@ -108,6 +112,7 @@ class TerminalState:
             self.completed_duration_ms = max(0, round((finished_at - started_at) * 1000))
 
     def apply(self, event: AgentEvent) -> None:
+        self.usage.observe(event)
         self.timeline.append(_timeline_line(event))
         if event.kind in {EventKind.CANCELLED, EventKind.ERROR}:
             self._freeze_partial_answer()
@@ -141,6 +146,8 @@ class TerminalState:
             elif event.kind is EventKind.TASK_CREATED or self.task_status != "paused":
                 self.task_stop_reason = None
             self.status = status if isinstance(status, str) else "task"
+            if self.status in {"completed", "waiting_decision", "paused", "failed"}:
+                self.task_budget_line = None
         elif event.kind is EventKind.TASK_BUDGET_WARNING:
             lease_line = _lease_budget_line(event.payload)
             if lease_line is not None:

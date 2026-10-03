@@ -35,6 +35,35 @@ def _plain(value: str) -> str:
 
 
 class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
+    async def test_two_ctrl_c_taps_exit_with_key_release_events_in_between(self) -> None:
+        clock = [0.0]
+        app = WindowsTerminalApp(
+            AgentController(FakeEngine(())), ApprovalBroker(), write=lambda _: None
+        )
+        app.exit_guard = ExitGuard(clock=lambda: clock[0])
+        app.running = True
+
+        await app.handle_key("\x03")
+        await app.handle_key("")  # Win32 key-up and bare-modifier records.
+        clock[0] = 0.2
+        await app.handle_key("\x03")
+
+        self.assertFalse(app.running)
+        self.assertEqual(app.input.text, "")
+
+    async def test_real_text_between_ctrl_c_taps_disarms_exit(self) -> None:
+        app = WindowsTerminalApp(
+            AgentController(FakeEngine(())), ApprovalBroker(), write=lambda _: None
+        )
+        app.exit_guard = ExitGuard(clock=lambda: 0.0)
+        app.running = True
+
+        for key in ("\x03", "x", "\x03"):
+            await app.handle_key(key)
+
+        self.assertTrue(app.running)
+        self.assertEqual(app.input.text, "")
+
     async def test_paused_task_exits_on_one_ctrl_c(self) -> None:
         app = WindowsTerminalApp(
             AgentController(FakeEngine(())), ApprovalBroker(), write=lambda _: None
@@ -70,6 +99,7 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(app.running)
             self.assertEqual(app.state.status, "pausing")
 
+            await app.handle_key("")
             await asyncio.wait_for(app.handle_key("\x03"), 0.5)
 
             self.assertFalse(app.running)

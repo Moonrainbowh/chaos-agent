@@ -90,22 +90,33 @@ class Usage:
     input_tokens: int = 0
     output_tokens: int = 0
     cached_input_tokens: int = 0
+    cache_write_input_tokens: int | None = None
+    cache_read_known: bool = False
 
     def __post_init__(self) -> None:
         _validate_token_count(self.input_tokens, "input_tokens")
         _validate_token_count(self.output_tokens, "output_tokens")
         _validate_token_count(self.cached_input_tokens, "cached_input_tokens")
+        if self.cache_write_input_tokens is not None:
+            _validate_token_count(self.cache_write_input_tokens, "cache_write_input_tokens")
+        if not isinstance(self.cache_read_known, bool):
+            raise TypeError("cache_read_known must be a boolean")
 
     @property
     def total_tokens(self) -> int:
         return self.input_tokens + self.output_tokens
 
     def to_dict(self) -> dict[str, int]:
-        return {
+        result = {
             "input_tokens": self.input_tokens,
             "output_tokens": self.output_tokens,
             "cached_input_tokens": self.cached_input_tokens,
         }
+        if self.cache_write_input_tokens is not None:
+            result["cache_write_input_tokens"] = self.cache_write_input_tokens
+        if self.cache_read_known:
+            result["cache_read_known"] = True
+        return result
 
     @classmethod
     def from_dict(cls, data: Mapping[str, object]) -> Usage:
@@ -113,6 +124,8 @@ class Usage:
             input_tokens=cast(int, data.get("input_tokens", 0)),
             output_tokens=cast(int, data.get("output_tokens", 0)),
             cached_input_tokens=cast(int, data.get("cached_input_tokens", 0)),
+            cache_write_input_tokens=cast(Optional[int], data.get("cache_write_input_tokens")),
+            cache_read_known=cast(bool, data.get("cache_read_known", False)),
         )
 
 

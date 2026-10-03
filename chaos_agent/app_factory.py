@@ -83,6 +83,8 @@ def create_application(
     tui = build_application_tui(
         host, execution, foreground, mode_control, rewind
     )
+    from .conversation_controls import configure_conversation_controls
+    configure_conversation_controls(tui, host.sessions, host.dispatcher, lambda: execution.manager.current.profile)
     tui_ref.append(tui)
     execution.subagents.subscribe(lambda view: tui.interactions.observe_agent(tui, view))
     application = _application(host, execution, foreground, tui, rewind)

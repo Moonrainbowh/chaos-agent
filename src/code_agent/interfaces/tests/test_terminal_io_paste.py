@@ -9,10 +9,27 @@ from code_agent.interfaces.posix_terminal_io import read_key as read_posix_key
 
 
 class TerminalPasteInputTests(unittest.TestCase):
+    def test_empty_decoded_key_records_do_not_form_a_paste(self) -> None:
+        class ConsoleInput:
+            def __init__(self):
+                self.characters = ["", "", "\x03"]
+
+            def kbhit(self):
+                return bool(self.characters)
+
+            def read_key_character(self):
+                return self.characters.pop(0)
+
+        with patch.dict("sys.modules", {"msvcrt": ConsoleInput()}):
+            self.assertEqual(read_key(), "")
+            self.assertEqual(read_key(), "")
+            self.assertEqual(read_key(), "\x03")
+
     def test_sgr_mouse_wheel_maps_to_history_scroll(self) -> None:
         self.assertEqual(_mouse_key("\x1b[<64;20;10M"), "scroll_up")
         self.assertEqual(posix_mouse_key("\x1b[<65;20;10M"), "scroll_down")
-        self.assertEqual(_mouse_key("\x1b[<0;20;10M"), "")
+        from code_agent.interfaces.terminal_mouse import MouseClick
+        self.assertEqual(_mouse_key("\x1b[<0;20;10M"), MouseClick(20, 10))
 
     def test_empty_bracketed_paste_is_preserved_as_an_input_event(self) -> None:
         class ConsoleInput:

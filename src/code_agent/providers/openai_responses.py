@@ -172,6 +172,7 @@ def _usage(value: object) -> ModelEvent:
             input_tokens=value.get("input_tokens", 0),  # type: ignore[arg-type]
             output_tokens=value.get("output_tokens", 0),  # type: ignore[arg-type]
             cached_input_tokens=details.get("cached_tokens", 0),  # type: ignore[arg-type]
+            cache_read_known="cached_tokens" in details,
         )
     except (TypeError, ValueError) as error:
         raise ProviderProtocolError("Responses usage has invalid token counts") from error

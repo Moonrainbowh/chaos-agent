@@ -46,21 +46,23 @@ async def set_model(app: Any, instruction: str | None) -> bool:
 async def refresh_workbuddy_models(
     app: Any, authentication: Any, instruction: str
 ) -> bool:
-    app._append(DisplayKind.METADATA, "Loading WorkBuddy account models · Esc cancels")
+    custom_api = instruction.strip().startswith("api:")
+    app._append(DisplayKind.METADATA, "正在加载 API 模型 · Esc 取消" if custom_api else "Loading WorkBuddy account models · Esc cancels")
     try:
         count = await authentication.refresh_models(instruction)
     except asyncio.CancelledError:
-        app._append(DisplayKind.METADATA, "Model loading cancelled; login is retained.")
+        app._append(DisplayKind.METADATA, "Model loading cancelled; current model is retained.")
         return False
     except Exception:
         app._append(
             DisplayKind.ERROR,
-            "WorkBuddy model discovery failed or returned no runnable models. "
-            "Login is retained; select its load item in /model to retry.",
+            ("API 模型加载失败或列表为空；已保留当前模型，请在 /model 中重新加载。" if custom_api else
+             "WorkBuddy model discovery failed or returned no runnable models. "
+             "Current model is retained; select its load item in /model to retry."),
         )
         app.input.replace("/model " + instruction.strip())
         return False
-    app._append(DisplayKind.METADATA, f"Loaded {count} WorkBuddy models; choose one below.")
+    app._append(DisplayKind.METADATA, f"已加载 {count} 个 API 模型，请从下方选择。" if custom_api else f"Loaded {count} WorkBuddy models; choose one below.")
     app.input.replace("/model " + instruction.strip() + " ")
     return True
 
@@ -152,8 +154,7 @@ def show_task_modes(app: Any) -> bool:
     if control is None:
         app._append(DisplayKind.ERROR, "task mode selection is unavailable")
         return False
-    choices = " | ".join(item.name for item in control.list())
-    app._append(DisplayKind.METADATA, f"current {control.current.name} | {choices}")
+    app._append(DisplayKind.METADATA, f"Task behavior: {control.current.name} · {control.current.description}")
     return True
 
 

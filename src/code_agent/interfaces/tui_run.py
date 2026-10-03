@@ -38,9 +38,16 @@ async def submit(
         return False
     if app._pending_approval is not None:
         return _reject(app, text, "approval decision is pending")
+    if getattr(app, "_user_command_running", False):
+        return _reject(app, text, "命令正在执行，请等待或暂停；已保留输入")
     if not await yield_peer_slot(app):
         return False
     if not _skill_prompt:
+        if text.startswith("!"):
+            from .tui_shell import submit_shell
+            if attachments or getattr(app.attachment_draft, "items", ()):
+                return _reject(app, text, "命令不接受附件，请先移除附件")
+            return await submit_shell(app, text)
         parsed = parse_tui_command(text, available_services(app), app.command_registry)
         if parsed.is_command:
             try:
@@ -147,7 +154,11 @@ async def _run(
         if app.tasks:
             starting_task = app._starting_task
             if app._starting_task:
-                record = await app.tasks.start(prepared.prompt)
+                source = getattr(app, "current_thread_id", None)
+                if source and getattr(app, "conversation_tree", None) is not None:
+                    record = await app.tasks.start(prepared.prompt, source_thread_id=source)
+                else:
+                    record = await app.tasks.start(prepared.prompt)
                 app.active_task_id = record.id
                 if selected:
                     try:

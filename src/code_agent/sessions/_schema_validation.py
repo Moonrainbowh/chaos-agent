@@ -7,6 +7,9 @@ FOLLOWUP_MIGRATION = (
 )
 
 REQUIRED_COLUMNS = {
+    "conversation_nodes": {"node_id", "conversation_id", "parent_node_id", "label"},
+    "conversation_message_refs": {"message_sequence", "node_id"},
+    "conversation_heads": {"thread_id", "conversation_id", "node_id"},
     "threads": {"id", "created_at", "updated_at", "title", "status", "parent_thread_id"},
     "messages": {"sequence", "thread_id", "payload", "created_at"},
     "events": {"sequence", "thread_id", "payload", "created_at"},

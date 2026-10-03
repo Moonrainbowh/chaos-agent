@@ -151,7 +151,7 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn(":evidence", help_text)
         self.assertIn(":resume", help_text)
 
-    async def test_mode_prefix_enters_task_behavior_secondary_menu(self) -> None:
+    async def test_legacy_mode_prefix_reports_default_without_a_secondary_menu(self) -> None:
         class RuntimeSelection:
             current = type(
                 "Selection",
@@ -177,11 +177,6 @@ class WindowsTerminalAppTests(unittest.IsolatedAsyncioTestCase):
         app = WindowsTerminalApp(AgentController(FakeEngine(())), ApprovalBroker(), task_modes=task_modes, write=lambda _: None)
         app.runtime_selection = runtime
         app.input.replace("/mode")
-
-        await app.handle_key("\r")
-
-        self.assertFalse(hasattr(runtime, "seen"))
-        self.assertEqual(app.input.text, "/mode ")
 
         await app.handle_key("\r")
 

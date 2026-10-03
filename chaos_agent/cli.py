@@ -38,9 +38,12 @@ _ATTACHMENT_COMMANDS = frozenset(
 _HELP = """Usage: chaos-agent [global options] [command]
 
 Commands:
+  mobile                       Open saved projects for a phone SSH terminal
   auth <command>               Login, API keys, model catalog and configuration
   acp                          Serve ACP v1 over stdio for editor clients
-  host                         Serve the mobile PWA over the local/Tailscale network
+  host                         Serve the mobile PWA over localhost or the LAN
+  host --lan                   Allow same-Wi-Fi phone access (bind 0.0.0.0)
+  host revoke-device           Revoke the currently paired phone
   ask <prompt>                 Run one request and print the result
   resume <thread-id> [prompt]  Resume a saved task or open it in the TUI
   run --json <prompt>          Stream machine-readable JSON events
@@ -90,6 +93,11 @@ async def serve_host(application, arguments):
 
 
 async def run(arguments: Sequence[str], *, splash=None) -> int:
+    if arguments and arguments[0] == "mobile":
+        if splash is not None:
+            splash.stop()
+        from .mobile_cli import run as run_mobile
+        return await run_mobile(arguments[1:])
     from .debug_trace import configure_runtime_trace
     configure_runtime_trace()
     if arguments and arguments[0] == "auth":
@@ -138,6 +146,13 @@ async def run(arguments: Sequence[str], *, splash=None) -> int:
             splash.stop()
         print(f"usage error: {error}", file=sys.stderr)
         return 2
+    if is_host and command_arguments[1:] == ("revoke-device",):
+        from .remote_cli import revoke_device
+        try:
+            return await asyncio.to_thread(revoke_device)
+        except OSError:
+            print("host error: cannot save device revocation", file=sys.stderr)
+            return 1
     isolation_token = request_task_isolation("explicit") if isolated else None
     application = None
     try:
@@ -232,20 +247,10 @@ def main(*, splash=None) -> int:
 
 
 def _validate_host_arguments(arguments: Sequence[str]) -> None:
-    allowed = {"--bind", "--port"}
-    index = 0
-    while index < len(arguments):
-        value = arguments[index]
-        if value not in allowed or index + 1 >= len(arguments):
-            raise ValueError("host accepts only --bind <address> and --port <1..65535>")
-        if value == "--port":
-            try:
-                port = int(arguments[index + 1])
-            except ValueError as error:
-                raise ValueError("host port must be an integer") from error
-            if not 1 <= port <= 65535:
-                raise ValueError("host port must be between 1 and 65535")
-        index += 2
+    if arguments == ("revoke-device",):
+        return
+    from .remote_cli import _parse
+    _parse(arguments)
 
 
 async def _report_reclamation(application) -> int:

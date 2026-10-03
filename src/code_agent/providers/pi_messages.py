@@ -148,8 +148,13 @@ class _StreamState:
 
 def _usage(value):
     try:
-        usage = Usage(input_tokens=value.get("input", 0), output_tokens=value.get("output", 0),
-                      cached_input_tokens=value.get("cacheRead", 0))
+        for key in ("input", "output", "cacheRead", "cacheWrite"):
+            count = value.get(key, 0)
+            if isinstance(count, bool) or not isinstance(count, int) or count < 0:
+                raise ValueError("invalid token count")
+        usage = Usage(input_tokens=value.get("input", 0) + value.get("cacheRead", 0) + value.get("cacheWrite", 0),
+                      output_tokens=value.get("output", 0), cached_input_tokens=value.get("cacheRead", 0),
+                      cache_write_input_tokens=value.get("cacheWrite"), cache_read_known="cacheRead" in value)
     except (AttributeError, TypeError, ValueError):
         raise ProviderProtocolError("pi usage is malformed") from None
     return ModelEvent(kind=ModelEventKind.USAGE, usage=usage)

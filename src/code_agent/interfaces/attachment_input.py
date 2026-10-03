@@ -159,6 +159,13 @@ class AttachmentDraft:
         self._items = ()
         self._forget_images()
 
+    def restore_refs(self, items: Sequence[AttachmentRef]) -> None:
+        """Restore validated durable references when editing a historical message."""
+        checked = freeze_attachments(tuple(items))
+        self.validate(checked)
+        self.clear()
+        self._replace(checked)
+
     def commit(self, items: Sequence[AttachmentRef]) -> None:
         """Remove only references proven durable by the completed submission."""
         committed = {item.sha256 for item in freeze_attachments(tuple(items))}

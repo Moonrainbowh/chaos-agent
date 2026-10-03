@@ -62,7 +62,7 @@ def _options(
             (str(item[0]), "Configured · " + str(item[1])) if isinstance(item, (tuple, list))
             else (item.name, "Configured · " + item.model)
             for item in profiles()
-            if not (item.name if not isinstance(item, (tuple, list)) else str(item[0])).startswith("login/")
+            if not (item.name if not isinstance(item, (tuple, list)) else str(item[0])).startswith(("login/", "discovered/"))
         )
         authentication = getattr(app, "authentication", None)
         if authentication is not None:
@@ -97,6 +97,9 @@ def _nested_query(query: str) -> str:
 
 def _model_label(value: str) -> str:
     if " " not in value:
+        if value.startswith("api:"):
+            from urllib.parse import unquote
+            return unquote(value[4:]) + " · 加载 API 模型"
         if value.startswith("workbuddy:"):
             return "WorkBuddy · " + value.split(":", 1)[1].upper() + " · Load models"
         if value == "antigravity:oauth":

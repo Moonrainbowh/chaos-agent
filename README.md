@@ -6,13 +6,15 @@ The core takes architectural lessons from projects such as uv-agent, Aider, Clin
 
 ## What It Does
 
+- Displays session token/cache statistics, runs `!` commands with model-visible output (`!!` excludes it), and provides `/tree` message branching and `/tools` tool visibility. See [conversation controls](docs/pi-conversation-controls.md).
+
 - Uses OpenAI Responses, Codex Responses, Chat Completions, Anthropic Messages, Google Generative AI and pi-messages through one streaming model interface, with provider-specific OAuth and API Key login.
 - Keeps sessions, messages, events, goals, and checkpoints in a versioned SQLite database.
 - Discovers hierarchical `AGENTS.md` rules, builds a bounded repository map, and creates source-anchored semantic checkpoints near context pressure with deterministic fallback.
 - Freezes `low`, `medium`, `high`, or `ultra` task modes to an actual provider profile, model, prompt policy, tool set, reasoning effort, and execution limits. Modes never grant permission.
 - Runs bounded advisory Subagent, Oracle, Review, Search, and Librarian children through the same typed tools, policy checks, cancellation tree, and cumulative parent budget.
 - Loads trusted declarative plugins without executing plugin Python, shell, URLs, or terminal control sequences. Tools, namespaced commands and modes, custom Agents, typed events, and Host-owned interactions are wired through bounded controllers and policy checks.
-- Uses a configurable `legacy` / `hybrid` / `progressive` tool-capability strategy. The recommended `hybrid` default preloads common built-in reads while progressively disclosing long-tail, plugin, and MCP schemas.
+- Uses five common model interfaces (`read`, `search`, `write`, `edit`, `execute`) plus a capability loader. The default `hybrid` strategy loads Web, plugin, and MCP extensions on demand. See [tools and Web Access](docs/compact-tools-and-web.md).
 - Routes file reads, edits, Git inspection, structured local verification, and platform-native shell commands through typed tools, central policy checks, audit events, and explicit approval.
 - Provides a terminal TUI (`chaos-agent`), a text CLI (`chaos-agent ask`), session resume (`chaos-agent resume`), machine-readable events (`chaos-agent run --json`), and an ACP v1 editor adapter (`chaos-agent-acp`). The legacy `agent` command remains available during migration.
 
@@ -127,6 +129,17 @@ capability_strategy = "hybrid"
 ```
 
 Every configured `[providers.<name>]` profile must declare `api`, `base_url`, `model`, one authentication source (`api_key`, `api_key_env`, or `auth` with `provider_id`), `context_window`, and `max_output_tokens`. Prefer `api_key_env` or OAuth; literal `api_key` remains only for compatibility and can expose a secret through backups or accidental commits. Optional `input_cost_per_million` and `output_cost_per_million` rates must be configured together; `/cost` always reports durable task tokens and adds an estimated USD breakdown only when those rates exist. Use `chaos-agent --profile <name>` or `CHAOS_PROFILE` to choose one; `CHAOS_CONFIG` may select another absolute config path. `CHAOS_API`, `CHAOS_BASE_URL`, `CHAOS_MODEL`, and `CHAOS_API_KEY_ENV` override only the selected profile; a key override cannot replace stored authentication. Legacy `CODE_AGENT_*` names remain fallback aliases during migration.
+
+For custom Chat Completions or Responses APIs, `/model` includes a
+`<profile> · 加载 API 模型` entry. Selecting it explicitly requests
+`<base_url>/v1/models` (or `<base_url>/models` when the base already ends in
+`/v1`) and opens a searchable second-level model list. Choose a model to
+switch and open a new conversation; the refresh item reloads the catalog.
+Discovered models inherit the source profile's protocol, credentials, context
+window, output limit, modalities, and budgets; the catalog does not prove these
+capabilities. No config file is rewritten. Cancelled or failed discovery keeps
+the current model and previous catalog. The last selected model and task
+profiles can be rebuilt from their source config after restart.
 
 On Windows, `[agent].powershell_dialect` accepts only `powershell_7`; omit it
 (or set `auto`) to probe `pwsh`. The Host performs a bounded no-Profile probe
@@ -346,6 +359,11 @@ allow-once choice.
 
 ### Terminal appearance
 
+Android SSH terminals use the same TUI. Layout defaults to `auto`: at 64 columns
+or fewer it shows a compact composer and touch controls. Use `/layout compact`,
+`/layout wide`, or `/layout auto` to override it. See [mobile SSH usage and
+verification status](docs/mobile-ssh.md).
+
 The TUI uses **Muted Slate (方案 A / 冷萃冰阶)** as its single appearance:
 ice-blue accents, slate text, and pale gold activity feedback. A live status
 region sits above the follow-up composer while a task runs. The moving light
@@ -474,7 +492,7 @@ script executed as `/bin/sh -lc` instead of the frozen PowerShell dialect, and
 process-tree control uses the dedicated POSIX process group. Statements about
 "the current Windows user" mean the local account that runs the agent.
 
-- `CHAOS_APPROVAL_MODE=auto` is the default. Once the current workspace is selected, ordinary workspace reads, writes, non-critical local commands, and structured verification run without per-action approval. Network access, protected paths, and paths outside that workspace still require approval; unknown and critical actions remain denied.
+- `CHAOS_APPROVAL_MODE=auto` is the default. Once the current workspace is selected, ordinary workspace reads, writes, and non-critical local commands run without per-action approval. Structured verification is currently disabled by default; set `CHAOS_STRUCTURED_VERIFICATION=1` before startup to enable it. With it disabled, modified tasks can finish with an explicit unverified status reason, and agents can still run tests through ordinary commands. Network access, protected paths, and paths outside that workspace still require approval; unknown and critical actions remain denied.
 - Use `:权限` (or the compatible `/权限` and English `permission` alias) while idle to select `unrestricted`, `plan`, `ask`, `auto`, `elevated`, or `full-local` for subsequent tasks. The same values are accepted by `[agent].approval_mode` and `CHAOS_APPROVAL_MODE`.
 - Use `/权限 允许命令 [--network] <program> [args...]` to persist one exact `run_process_v1` rule for the current workspace. `/权限 规则` lists these rules and `/权限 撤销 <id-prefix>` removes one. A rule binds the resolved executable, complete argument list, workspace identity, descendant cwd scope, and network declaration; it never grants raw PowerShell.
 - `plan` allows workspace reads only. `ask` approves writes and commands interactively. `auto` and `elevated` trust recognized actions inside the configured workspace. `full-local` also allows recognized non-critical local actions but asks at network and outside-workspace boundaries. Production typed file tools still fail closed at the workspace boundary; approving typed external-file access is not implemented yet.

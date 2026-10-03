@@ -9,11 +9,16 @@ from .terminal_theme import design_for
 from .terminal_tail import clear_live_tail, get_console_dock_padding, render_live_tail_frame
 from .terminal_tail_geometry import resized_tail_geometry
 from .terminal_status import status_presentation, status_context
+from .usage_summary import usage_footer
 from .terminal_renderer import render_entries
 from .tui_input import sync_attachment_input
 from .tui_auth_prompt import auth_input_view
 from .terminal_display import safe_text, clip_display
 from .terminal_size import terminal_size
+from .terminal_layout import LayoutMode
+from .terminal_io import MOUSE_REPORT_ENABLE, MOUSE_REPORT_DISABLE
+from .tui_mobile import mobile_palette, modal_active
+from .terminal_mobile_viewport import render_mobile_viewport
 
 _SPINNER_FRAMES = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
 
@@ -118,17 +123,31 @@ class TerminalPresentation:
         sync_attachment_input(self)
         input_text, input_cursor = self.input.display
         now = time.monotonic(); size = _presentation_terminal_size((100, 30))
+        compact = self.layout_mode.resolve(size.columns) is LayoutMode.COMPACT
+        # Native selection and wheel scrolling belong to the desktop terminal.
+        # Only the compact touch UI needs pointer reports; update on resize too.
+        if self.running and compact != self._mouse_reporting_enabled:
+            self._write(MOUSE_REPORT_ENABLE if compact else MOUSE_REPORT_DISABLE)
+            self._mouse_reporting_enabled = compact
+        from .tui_projects import render_project_overlay
+        if render_project_overlay(self, size):
+            return
+        # Keep the scroll layout current as entries arrive, so the first wheel
+        # event after a long run does not pay for the whole transcript at once.
+        if not compact:
+            self._formatted_history_lines(size.columns)
         resized = self._drawn_size is not None and self._drawn_size != (size.columns, size.lines)
         # A terminal resize can reflow the old live tail before we receive the
         # next frame. Incremental cursor movement then has no reliable anchor
         # and leaves stacked input boxes behind. Repaint the visible screen
         # from durable transcript state once, then resume incremental updates.
         scrolling = bool(getattr(self, "_viewport_offset", 0))
-        full_scrolled_redraw = (scrolling or getattr(self, "_viewport_needs_full_redraw", False)) and (
+        full_scrolled_redraw = (scrolling or getattr(self, "_viewport_needs_full_redraw", False) or compact) and (
             resized
             or getattr(self, "_viewport_needs_full_redraw", False)
             or self._tail_geometry is None
         )
+        full_scrolled_redraw = full_scrolled_redraw or compact
         previous = None if resized or full_scrolled_redraw else self._current_tail_geometry(size)
         if resized:
             # Keep the reflowed old tail available for the next append. The
@@ -140,6 +159,9 @@ class TerminalPresentation:
         auth_view = auth_input_view(self)
         if auth_view is not None:
             input_text, input_cursor, palette = auth_view
+        palette_actions = ()
+        if compact:
+            palette, palette_actions = mobile_palette(self, palette, size.columns, size.lines)
         if not palette and self.state.plan_text and active:
             steps = [line.strip() for line in safe_text(self.state.plan_text).splitlines() if line.strip()]
             limit = max(1, min(12, size.lines - 12))
@@ -172,13 +194,10 @@ class TerminalPresentation:
             )
         if self._run_task and not self._run_task.done(): status += f" [{self.submit_mode.label}]"
         if self.interactions.steering.pending_count: status += " · " + self.interactions.steering.status_line()
-        frame = render_live_tail_frame(
-            input_text,
-            status,
-            size.columns,
+        frame_options = dict(
             cursor_index=input_cursor,
-            assistant_draft=self.state.draft_answer,
-            terminal_height=size.lines,
+            assistant_draft="" if compact else self.state.draft_answer,
+            terminal_height=max(1, size.lines - 2) if compact else size.lines,
             color=self.color,
             palette=palette,
             status_icon=icon,
@@ -188,6 +207,7 @@ class TerminalPresentation:
                 self._run_started_at,
                 now,
                 self.state.token_rate.rate(now) or self.state.last_rate,
+                usage=usage_footer(self.state.usage.summary, getattr(getattr(self, "usage_profile", None), "__call__", lambda: None)()),
                 tokens=self.state.context_budget.context_tokens if self.state.context_budget.context_tokens is not None else self.state.total_tokens,
                 context_window=self._context_window(),
                 show_percentage=self.state.context_budget.window_input_cap is not None or design_for(self.theme) is None,
@@ -204,10 +224,23 @@ class TerminalPresentation:
             theme=self.theme,
             motion_progress=progress, exiting=self.motion.exiting, active=active,
             expanded=getattr(self, "composer_expanded", True),
+            layout=self.layout_mode,
+            palette_actions=palette_actions,
+            modal=modal_active(self),
+            submit_label="引导" if self.submit_mode.value == "steer" else "排队",
         )
+        frame = render_live_tail_frame(input_text, status, size.columns, **frame_options)
+        if compact and previous is not None and frame.geometry.height != previous.height:
+            # Input/picker height changes must stay docked to the viewport bottom.
+            full_scrolled_redraw = True
+            frame_options["previous"] = None
+            frame = render_live_tail_frame(input_text, status, size.columns, **frame_options)
+        self._mobile_frame = None
         if full_scrolled_redraw:
-            prefix = self._render_scrolled_view(frame, size)
+            prefix = (render_mobile_viewport(self, frame, size, status) if compact
+                      else self._render_scrolled_view(frame, size))
             self._write("\x1b[?25l" + prefix + "\x1b[?25h")
+            self._mobile_frame = frame
             self._tail_geometry = frame.geometry
             self._viewport_needs_full_redraw = False
             self._redraw_dirty = False
@@ -216,6 +249,7 @@ class TerminalPresentation:
             return
         if scrolling:
             self._write("\x1b[?25l" + frame.text + "\x1b[?25h")
+            self._mobile_frame = frame
             self._tail_geometry = frame.geometry
             self._redraw_dirty = False
             self._drawn_draft_revision = self.state.draft_revision
@@ -236,14 +270,12 @@ class TerminalPresentation:
                 transcript = "\n".join(t_lines)
             prefix = "\x1b[3J\x1b[2J\x1b[H" + (transcript + "\n\r" if transcript else "")
         self._write(prefix + "\x1b[?25l" + frame.text + "\x1b[?25h")
+        self._mobile_frame = frame
         self._tail_geometry = frame.geometry; self._redraw_dirty = False; self._drawn_draft_revision = self.state.draft_revision; self._drawn_size = (size.columns, size.lines)
 
     def _render_scrolled_view(self, frame, size) -> str:
         """Render the transcript and composer inside one fixed viewport."""
-        transcript = render_entries(
-            self.state.entries, size.columns, theme=self.theme, color=self.color,
-        )
-        lines = transcript.splitlines() if transcript else []
+        lines = self._formatted_history_lines(size.columns)
         history_height = max(0, size.lines - frame.geometry.height)
         max_offset = max(0, len(lines) - history_height)
         self._viewport_offset = min(self._viewport_offset, max_offset)
@@ -255,6 +287,31 @@ class TerminalPresentation:
         if history:
             history += "\n\r"
         return "\x1b[2J\x1b[H" + history + frame.text
+
+    def _formatted_history_lines(self, width: int) -> list[str]:
+        """Cache transcript wrapping; append work scales with new entries only."""
+        entries = self.state.entries
+        key = (id(entries), width, self.theme, self.color)
+        cached_count = getattr(self, "_history_cache_count", 0)
+        reusable = (
+            getattr(self, "_history_cache_key", None) == key
+            and len(entries) >= cached_count
+            and (cached_count == 0 or entries[cached_count - 1] is self._history_cache_last)
+        )
+        if not reusable:
+            rendered = render_entries(entries, width, theme=self.theme, color=self.color)
+            self._history_cache_lines = rendered.splitlines() if rendered else []
+        elif len(entries) > cached_count:
+            new = render_entries(
+                entries[cached_count:], width, theme=self.theme, color=self.color,
+                previous=entries[cached_count - 1] if cached_count else None,
+            )
+            if new:
+                self._history_cache_lines.extend(new.splitlines())
+        self._history_cache_key = key
+        self._history_cache_count = len(entries)
+        self._history_cache_last = entries[-1] if entries else None
+        return self._history_cache_lines
 
     def _git_branch(self) -> str | None:
         try:

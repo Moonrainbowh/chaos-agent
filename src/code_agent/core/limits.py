@@ -265,10 +265,15 @@ class BudgetReservation:
 
 
 def add_usage(left: Usage, right: Usage) -> Usage:
+    if left == Usage():
+        return right
     return Usage(
         input_tokens=left.input_tokens + right.input_tokens,
         output_tokens=left.output_tokens + right.output_tokens,
         cached_input_tokens=left.cached_input_tokens + right.cached_input_tokens,
+        cache_write_input_tokens=(left.cache_write_input_tokens + right.cache_write_input_tokens
+                                 if left.cache_write_input_tokens is not None and right.cache_write_input_tokens is not None else None),
+        cache_read_known=left.cache_read_known and right.cache_read_known,
     )
 
 

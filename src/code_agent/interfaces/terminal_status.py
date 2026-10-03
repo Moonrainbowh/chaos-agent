@@ -114,10 +114,18 @@ def status_context(
     phase_durations: Mapping[str, int] | None = None,
     completed_at: float | None = None,
     completed_duration_ms: int | None = None,
+    usage: str | None = None,
 ) -> str:
-    parts = [model] if model else []
+    parts = []
+    if model:
+        parts.append(model)
     if branch:
         parts.append(branch)
+    if completed_duration_ms is not None and completed_at is not None:
+        parts.append(
+            (f"耗时 {_format_duration(completed_duration_ms)} · "
+             f"{_format_relative_age(max(0, now - completed_at))}")
+        )
     if tokens > 0:
         window = context_window or 128_000
         pct = max(1, int(tokens * 100 / window))
@@ -138,12 +146,7 @@ def status_context(
     if started_at is not None:
         elapsed = int(now - started_at)
         parts.append(f"{elapsed // 60:02d}:{elapsed % 60:02d}")
-    if completed_duration_ms is not None and completed_at is not None:
-        parts.append(
-            (f"耗时 {_format_duration(completed_duration_ms)} · "
-             f"{_format_relative_age(max(0, now - completed_at))}")
-        )
-    return " · ".join(parts)
+    return (usage + "\n" if usage else "") + " · ".join(parts)
 
 
 def _format_duration(duration_ms: int) -> str:

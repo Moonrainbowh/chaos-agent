@@ -35,18 +35,15 @@ def make_app(**controls):
 
 
 class CommandNavigationTests(unittest.IsolatedAsyncioTestCase):
-    async def test_mode_picker_shows_current_and_recommended_default(self):
-        app = make_app(task_modes=TaskModeControl("ask"))
-        app.input.replace("/mode")
-        await app.handle_key("\r")
-
-        rows = "\n".join(app.interactions.rows(app))
-        self.assertIn("当前：ask", rows)
-        self.assertIn("推荐：auto", rows)
-        self.assertIn("Current", rows)
-        self.assertIn("/mode auto", rows)
-        self.assertIn("/mode code", rows)
-        self.assertEqual(app.task_modes.current.name, "ask")
+    async def test_mode_picker_is_hidden_and_default_remains_auto(self):
+        app = make_app(task_modes=TaskModeControl())
+        for text in ("/", "/mode", "/mode ", ":mode "):
+            app.input.replace(text)
+            rows = "\n".join(app.interactions.rows(app))
+            self.assertNotIn("推荐：auto", rows)
+            self.assertFalse(any(item.identifier == "mode" or item.identifier.startswith("mode:")
+                                 for item in app.interactions.picker.matches))
+        self.assertEqual(app.task_modes.current.name, "auto")
 
     async def test_model_and_effort_enter_real_choices_and_apply(self):
         runtime = Runtime()

@@ -100,6 +100,12 @@ class Application:
         if preference is None:
             return None, False
         if preference.source == "configured":
+            if (self.authentication is not None and preference.profile
+                    and preference.profile.startswith("discovered/")):
+                try:
+                    await self.authentication.restore_profile(preference.profile)
+                except Exception:
+                    return "Could not restore the last API model; using the configured default.", True
             names = {name for name, _, _ in runtime.profiles()}
             if preference.profile not in names:
                 preferences.clear()
@@ -143,7 +149,7 @@ class Application:
             return
         self._closed = True
         first_error: BaseException | None = None
-        for resource in (self.peers, self.subagents, self.model, self.mcp):
+        for resource in (self.peers, self.subagents, self.model, self.mcp, getattr(self.dispatcher, "web_access", None)):
             close = getattr(resource, "aclose", None)
             if close is None:
                 continue

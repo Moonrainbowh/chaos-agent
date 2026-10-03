@@ -133,6 +133,14 @@ def validate_schema_structure(connection: sqlite3.Connection) -> None:
         _validate_index(connection, name, *specification)
     _validate_worktree_uniqueness(connection)
     _validate_peer_ref_uniqueness(connection)
+    _validate_index(connection, "conversation_nodes_group", "conversation_nodes", ("conversation_id", "node_id"), False, False)
+    for table, expected in {
+        "conversation_nodes": {("node_id", "messages", "sequence", "CASCADE"), ("conversation_id", "threads", "id", "NO ACTION"), ("parent_node_id", "conversation_nodes", "node_id", "NO ACTION")},
+        "conversation_message_refs": {("message_sequence", "messages", "sequence", "CASCADE"), ("node_id", "conversation_nodes", "node_id", "NO ACTION")},
+        "conversation_heads": {("thread_id", "threads", "id", "CASCADE"), ("conversation_id", "threads", "id", "NO ACTION"), ("node_id", "conversation_nodes", "node_id", "NO ACTION")},
+    }.items():
+        if not expected.issubset(_foreign_keys(connection, table)):
+            raise SessionCorruptionError(f"invalid foreign keys for {table}")
 
 
 def _foreign_keys(

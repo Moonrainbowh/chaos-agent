@@ -114,5 +114,9 @@ def auth_input_view(app):
     if state is None:
         return "", 0, ("Authentication in progress · Esc cancels",)
     masked = "*" * min(64, len(state.characters))
-    hints = (state.prompt, state.error or "Hidden input · Enter confirms · Esc cancels")
+    count = len(state.characters)
+    hints = (
+        state.prompt,
+        state.error or f"已输入 {count} 个字符 · Enter 确认 · Esc 取消",
+    )
     return masked, min(64, state.cursor), hints

@@ -6,12 +6,13 @@ from code_agent.interfaces.console_shortcuts import _InputRecord, _alt_v_prefix
 from code_agent.interfaces.terminal_io import read_key
 
 
-def event(vk, modifiers=0, down=True):
+def event(vk, modifiers=0, down=True, repeat=0):
     record = _InputRecord()
     record.kind = 1
     record.data.key.down = down
     record.data.key.virtual_key = vk
     record.data.key.modifiers = modifiers
+    record.data.key.repeat = repeat
     return record
 
 
@@ -24,6 +25,9 @@ class ConsoleShortcutTests(unittest.TestCase):
     def test_ordinary_v_and_altgr_are_not_image_shortcuts(self):
         for modifiers in (0, 4, 8, 6, 9):
             self.assertEqual(_alt_v_prefix([event(0x56, modifiers)]), 0)
+
+    def test_repeated_native_alt_v_key_event_is_not_another_image_shortcut(self):
+        self.assertEqual(_alt_v_prefix([event(0x56, 2, repeat=2)]), 0)
 
     def test_preceding_text_must_not_be_consumed_with_shortcut(self):
         self.assertEqual(_alt_v_prefix([event(0x41), event(0x56, 2)]), 0)

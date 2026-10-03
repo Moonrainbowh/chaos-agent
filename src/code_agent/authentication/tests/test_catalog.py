@@ -20,6 +20,19 @@ class RegistryTests(unittest.TestCase):
         self.assertEqual(get_provider("openai-codex").login_methods, ("browser", "device_code"))
         self.assertTrue(get_provider("antigravity").experimental)
         self.assertEqual(get_provider("kimi-coding").request_path, "/v1/messages")
+        self.assertEqual(
+            get_provider("qwen-token-plan-individual").base_url,
+            "https://token-plan.maas.qwencloudapi.com/compatible-mode/v1",
+        )
+        self.assertEqual(
+            get_provider("qwen-token-plan").base_url,
+            "https://token-plan.maas.qwencloudapi.com/compatible-mode/v1",
+        )
+        qwen = next(
+            model for model in ModelCatalog().models("qwen-token-plan-individual")
+            if model.id == "qwen3.8-flash"
+        )
+        self.assertEqual(qwen.base_url, get_provider("qwen-token-plan-individual").base_url)
 
     def test_offline_catalog_does_not_network(self):
         with patch("httpx.AsyncClient", side_effect=AssertionError("unexpected network")):
