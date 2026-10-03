@@ -46,13 +46,13 @@ A/B 检查切窗影响，B/C 检查明确笔记要求的影响，C/D 检查相�
 案例自检（输出路径必须不存在）：
 
 ```powershell
-.venv/Scripts/python.exe -X utf8 -B scripts/continuity_v2_benchmark.py --selfcheck --export F:/code-ai-chaos/chaos-16-context-experiments/csv-continuity-v2-new --report docs/experiments/csv-continuity-v2-selfcheck-new.json
+.venv/Scripts/python.exe -X utf8 -B scripts/continuity_v2_benchmark.py --selfcheck --export F:/code-ai-chaos/chaos-16-agent/artifacts/archives/2026-10-02/materials/chaos-16-context-experiments/csv-continuity-v2-new --report docs/experiments/csv-continuity-v2-selfcheck-new.json
 ```
 
 脚本模型完整宿主：
 
 ```powershell
-.venv/Scripts/python.exe -X utf8 -B scripts/continuity_host_benchmark.py --mode offline --fixture-version v2 --output F:/code-ai-chaos/chaos-16-context-experiments/csv-continuity-v2-host-new
+.venv/Scripts/python.exe -X utf8 -B scripts/continuity_host_benchmark.py --mode offline --fixture-version v2 --output F:/code-ai-chaos/chaos-16-agent/artifacts/archives/2026-10-02/materials/chaos-16-context-experiments/csv-continuity-v2-host-new
 ```
 
 真实模型复跑前冻结最终源码，再从快照执行同一命令，改为 `--mode api --profile gpt56_luna --model gpt-5.6-luna --effort high`。用户指定后，连续任务评测默认使用 Luna/high；v1 已有 low 成绩保留原标记。四组最大累计预算为 1200000 token，实际用量以 Provider 回执为准；预算耗尽、接口失败、缺覆盖都保留，不自动扩预算重跑。

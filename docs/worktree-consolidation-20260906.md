@@ -22,7 +22,7 @@
 
 ## 恢复材料
 
-- 本地备份目录：`F:\code-ai-chaos\worktree-merge-20260905`。
+- 本地备份目录：`F:\code-ai-chaos\chaos-16-agent\artifacts\archives\2026-10-02\materials\worktree-merge-20260905`。
 - `inventory.json` 记录全部原工作树、HEAD、文件清单和 Git 快照引用。
 - 每个改动工作树有 `files.zip`、`staged.patch`、`unstaged.patch`、`changes.patch`。
 - Git 快照分支前缀：`codex/worktree-backup-20260905/`；用于保留原稿，不代表通过测试的交付分支。

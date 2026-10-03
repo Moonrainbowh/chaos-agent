@@ -14,7 +14,7 @@
 
 因此，这一版适合作为宿主机制与基本接续的回归样例，难度尚不足以支撑主动记忆收益结论。下一版应保留本次 v1 结果，并让预先定义的代码变化真实破坏早期合理实现，同时留下明确未完成的子目标；不能把增加摘要长度当作当前证据支持的改进。
 
-运行使用[冻结源码](F:/code-ai-chaos/chaos-16-context-experiments/csv-continuity-luna-pilot-02-runtime/runtime-freeze.json)，四组及 D 重启后的进程均从该快照加载。共享工作区的其他改动未进入运行中的快照。
+运行使用[冻结源码](F:/code-ai-chaos/chaos-16-agent/artifacts/archives/2026-10-02/materials/chaos-16-context-experiments/csv-continuity-luna-pilot-02-runtime/runtime-freeze.json)，四组及 D 重启后的进程均从该快照加载。共享工作区的其他改动未进入运行中的快照。
 
 验证：454 项根集成测试通过；2 项宿主专项测试通过；四组 offline-host 验收及冻结源码下的 D 组验收通过。上述离线模型 usage 为脚本值，与下表真实 API 用量分开保存。未把本轮声明为全产品发布验收。
 
@@ -60,4 +60,4 @@
 
 A/B 检查换窗增量，C/D 检查相同改版任务上的进程恢复增量。B/C 还改变了工程难度，不能单独归因为记忆差异。四组均使用 persistent，不能据此宣称优于 summary。
 
-完整证据：[结果 JSON](F:/code-ai-chaos/chaos-16-context-experiments/csv-continuity-luna-api-pilot-01/results.json)；[冻结配置](F:/code-ai-chaos/chaos-16-context-experiments/csv-continuity-luna-api-pilot-01/manifest.json)。
+完整证据：[结果 JSON](F:/code-ai-chaos/chaos-16-agent/artifacts/archives/2026-10-02/materials/chaos-16-context-experiments/csv-continuity-luna-api-pilot-01/results.json)；[冻结配置](F:/code-ai-chaos/chaos-16-agent/artifacts/archives/2026-10-02/materials/chaos-16-context-experiments/csv-continuity-luna-api-pilot-01/manifest.json)。

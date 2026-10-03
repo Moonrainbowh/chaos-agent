@@ -34,7 +34,7 @@
 从仓库根目录运行：
 
 ```powershell
-python -B scripts/continuity_benchmark.py --export F:/code-ai-chaos/chaos-16-context-experiments/csv-continuity-v1 --selfcheck --report docs/experiments/csv-continuity-v1-selfcheck.json
+python -B scripts/continuity_benchmark.py --export F:/code-ai-chaos/chaos-16-agent/artifacts/archives/2026-10-02/materials/chaos-16-context-experiments/csv-continuity-v1 --selfcheck --report docs/experiments/csv-continuity-v1-selfcheck.json
 ```
 
 导出目录必须不存在；报告也拒绝覆盖。每组包含 `workspace/` 与同级的 `controller/`。Agent 只获得 workspace；controller 内保存未来事件计划和 C/D 外部补丁。导出不包含参考修复与隐藏测试。自检使用另外的临时工作区，不修好导出的坏代码。
@@ -50,8 +50,8 @@ python -B scripts/continuity_benchmark.py --export F:/code-ai-chaos/chaos-16-con
 API 运行必须先冻结源码，避免共享工作区改动影响组间比较或 D 组重启。冻结不复制用户配置与凭据；模型配置在启动时读取并核对，修改模型名称会拒绝启动。示例（目标目录均须不存在）：
 
 ```powershell
-.venv/Scripts/python.exe -X utf8 -B scripts/freeze_continuity_runtime.py F:/code-ai-chaos/chaos-16-context-experiments/continuity-runtime-new
-.venv/Scripts/python.exe -X utf8 -B F:/code-ai-chaos/chaos-16-context-experiments/continuity-runtime-new/scripts/continuity_host_benchmark.py --mode api --profile gpt56_luna --model gpt-5.6-luna --effort low --task-tokens 300000 --output F:/code-ai-chaos/chaos-16-context-experiments/continuity-api-new
+.venv/Scripts/python.exe -X utf8 -B scripts/freeze_continuity_runtime.py F:/code-ai-chaos/chaos-16-agent/artifacts/archives/2026-10-02/materials/chaos-16-context-experiments/continuity-runtime-new
+.venv/Scripts/python.exe -X utf8 -B F:/code-ai-chaos/chaos-16-agent/artifacts/archives/2026-10-02/materials/chaos-16-context-experiments/continuity-runtime-new/scripts/continuity_host_benchmark.py --mode api --profile gpt56_luna --model gpt-5.6-luna --effort low --task-tokens 300000 --output F:/code-ai-chaos/chaos-16-agent/artifacts/archives/2026-10-02/materials/chaos-16-context-experiments/continuity-api-new
 ```
 
 每组保留 `host/sessions.sqlite3`、真实 actions/events 日志、进程回执、最终工作区、独立验收和结果。未来复跑需固定同一源码快照、模型配置、案例与评分口径。

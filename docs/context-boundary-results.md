@@ -71,4 +71,4 @@
 
 ## 可复核文件
 
-[实验定义](F:/code-ai-chaos/chaos-16-context-boundary/docs/context-boundary-experiment.md) · [全部结果 JSON](F:/code-ai-chaos/chaos-16-context-experiments/formal-10/results.json) · [配对 CSV](F:/code-ai-chaos/chaos-16-context-experiments/formal-10/paired-results.csv) · [冻结条件](F:/code-ai-chaos/chaos-16-context-experiments/formal-10/manifest.json) · [冻结代码清单](F:/code-ai-chaos/chaos-16-context-experiments/formal-10/code-freeze.json)
+[实验定义](F:/code-ai-chaos/chaos-16-agent/artifacts/archives/2026-10-02/references/context-boundary-experiment.md) · [全部结果 JSON](F:/code-ai-chaos/chaos-16-agent/artifacts/archives/2026-10-02/materials/chaos-16-context-experiments/formal-10/results.json) · [配对 CSV](F:/code-ai-chaos/chaos-16-agent/artifacts/archives/2026-10-02/materials/chaos-16-context-experiments/formal-10/paired-results.csv) · [冻结条件](F:/code-ai-chaos/chaos-16-agent/artifacts/archives/2026-10-02/materials/chaos-16-context-experiments/formal-10/manifest.json) · [冻结代码清单](F:/code-ai-chaos/chaos-16-agent/artifacts/archives/2026-10-02/materials/chaos-16-context-experiments/formal-10/code-freeze.json)

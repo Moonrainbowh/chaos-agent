@@ -52,6 +52,6 @@
 
 v2 所有组接受相同改版；A/B 对比切窗，B/C 对比自然记忆和明确笔记要求，C/D 对比重启。四组均使用 persistent，不能据此宣称优于 summary。
 
-完整证据：[结果 JSON](F:/code-ai-chaos/chaos-16-context-experiments/csv-continuity-v2-offline-host-02/results.json)；[冻结配置](F:/code-ai-chaos/chaos-16-context-experiments/csv-continuity-v2-offline-host-02/manifest.json)。
+完整证据：[结果 JSON](F:/code-ai-chaos/chaos-16-agent/artifacts/archives/2026-10-02/materials/chaos-16-context-experiments/csv-continuity-v2-offline-host-02/results.json)；[冻结配置](F:/code-ai-chaos/chaos-16-agent/artifacts/archives/2026-10-02/materials/chaos-16-context-experiments/csv-continuity-v2-offline-host-02/manifest.json)。
 
 本报告使用脚本模型；usage 为脚本测试值，不能作为真实 API 费用或模型能力证据。

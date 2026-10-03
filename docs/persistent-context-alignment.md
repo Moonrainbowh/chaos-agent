@@ -71,7 +71,7 @@ work_tokens = 256000
 
 根集成测试使用确定性模型替身，通过生产 factory、AgentEngine、RootActionDispatcher、ActionPolicy 和 HYBRID 工具披露完成两次换窗及证据回查；核对所有 provider 调用均为 main，累计 usage 连续。它验证执行链路，不是付费真实模型试验，也不是长期质量/成本收益证明。
 
-验证证据保存在 `F:/code-ai-chaos/chaos-16-context-experiments/persistent-alignment/validation/`。上一轮 10 个合成长历史任务的冻结结果不改写。
+验证证据保存在 `F:/code-ai-chaos/chaos-16-agent/artifacts/archives/2026-10-02/materials/chaos-16-context-experiments/persistent-alignment/validation/`。上一轮 10 个合成长历史任务的冻结结果不改写。
 
 2026-09-05 验证结果：
 
@@ -79,5 +79,5 @@ work_tokens = 256000
 - 全量运行期间补充了工具参数校验与额度快照的任务隔离；最终 `context_windows` 定向回归 22 项通过，根集成套件随后以最终实现通过。定向测试与全量测试有重叠，不相加冒充独立样本量。
 - `git diff --check`、新增实现的语法/文件与函数长度检查通过。
 - 隔离构建 wheel 和 sdist 成功；wheel 已核对包含全部新增实现模块。首次非隔离构建因验证环境缺少 wheel 失败，未修改运行环境，通过构建隔离解决。
-- 安装包：`F:/code-ai-chaos/chaos-16-context-experiments/persistent-alignment/artifacts/`。没有安装到日常运行环境，没有切换默认策略或修改私人 profile。
+- 安装包：`F:/code-ai-chaos/chaos-16-agent/artifacts/archives/2026-10-02/materials/chaos-16-context-experiments/persistent-alignment/artifacts/`。没有安装到日常运行环境，没有切换默认策略或修改私人 profile。
 - 未进行真实 API 长任务实验，不能据此声称成本或恢复质量胜过 summary。
