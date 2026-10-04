@@ -16,6 +16,7 @@ from code_agent.workspace.files import WorkspaceFiles
 from code_agent.workspace.ignore import IgnoreRules
 from code_agent.workspace.paths import WorkspacePathGuard
 from chaos_agent.action_dispatcher import RootActionDispatcher
+from chaos_agent.tools import validate_tool_arguments
 
 
 class BatchCodeSliceToolTests(unittest.IsolatedAsyncioTestCase):
@@ -63,6 +64,26 @@ class BatchCodeSliceToolTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(result.is_error)
         self.assertEqual(result.output["slices"][0]["text"], "two\nthree\n")
         self.assertEqual(result.output["slices"][0]["path"], "app.py")
+
+    async def test_large_file_identity_reaches_stale_check_without_truncation(self) -> None:
+        arguments = self.arguments()
+        arguments["targets"][0]["expected_device_id"] = (1 << 64) - 1
+        arguments["targets"][0]["expected_file_id"] = (1 << 128) - 1
+        self.assertIsNone(validate_tool_arguments("read_code_slices", arguments))
+        result = await self.dispatcher.dispatch(
+            ActionRequest("slice-large-identity", "read_code_slices", arguments),
+            CancellationToken(),
+        )
+        self.assertTrue(result.is_error)
+        self.assertEqual(result.output["error_code"], "stale_repo_context")
+        self.assertNotIn("slices", result.output)
+        for field, overflow in (
+            ("expected_device_id", 1 << 64), ("expected_file_id", 1 << 128),
+        ):
+            with self.subTest(field=field):
+                arguments["targets"][0][field] = overflow
+                self.assertIsNotNone(validate_tool_arguments("read_code_slices", arguments))
+                arguments["targets"][0][field] = overflow - 1
 
     async def test_generation_mismatch_fails_without_source(self) -> None:
         arguments = self.arguments()
