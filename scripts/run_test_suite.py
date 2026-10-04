@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import faulthandler
 import json
 import os
@@ -115,23 +116,61 @@ class StructuredRunner(unittest.TextTestRunner):
     def _makeResult(self):
         result = super()._makeResult()
         result.progress_path = os.environ.get("CHAOS_TEST_PROGRESS")
+        result.discovered = getattr(self, "discovered", 0)
         return result
+
+    def run(self, test):
+        self.discovered = test.countTestCases()
+        return super().run(test)
+
+
+def _test_sources(suite: Path, pattern: str):
+    """Visit the root and importable subpackages, matching unittest discovery."""
+    pending = [suite]
+    while pending:
+        directory = pending.pop()
+        yield from sorted(directory.glob(pattern))
+        pending.extend(path for path in sorted(directory.iterdir(), reverse=True)
+                       if path.is_dir() and (path / "__init__.py").is_file())
 
 
 def run_suite(root: Path, start_dir: str, pattern: str) -> int:
     root = Path(root).resolve()
     relative, suite = _resolve_suite(root, start_dir)
     prioritize_source_tree(root)
+    # unittest silently ignores module-level pytest functions. Do not accept a
+    # partially discovered suite; an explicit load_tests hook may adapt them.
+    for path in _test_sources(suite, pattern):
+        tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=path.name)
+        functions = [node.name for node in tree.body
+                     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))]
+        if any(name.startswith("test_") for name in functions) and "load_tests" not in functions:
+            raise RuntimeError(f"unittest cannot discover module-level tests in {path.relative_to(suite).as_posix()}; use TestCase or load_tests")
     program = unittest.main(
         module=None,
         argv=["unittest", "discover", "-s", str(suite), "-p", pattern],
         testRunner=StructuredRunner,
+        testLoader=unittest.TestLoader(),
         exit=False,
     )
     result = program.result
     if not isinstance(result, StructuredTextResult):
         raise RuntimeError("structured unittest result is unavailable")
     returncode = 0 if result.wasSuccessful() else 1
+    if not result.testsRun and result.wasSuccessful():
+        returncode = 2
+    counts = {"discovered": getattr(result, "discovered", result.testsRun),
+              "run": result.testsRun, "skipped": len(result.skipped),
+              "failures": len(result.failures), "errors": len(result.errors),
+              "unexpected_successes": len(result.unexpectedSuccesses),
+              "expected_failures": len(result.expectedFailures)}
+    print("CHAOS_SUITE_RESULT " + json.dumps({"suite": relative.as_posix(),
+          "exit_code": returncode, **counts}, sort_keys=True), flush=True)
+    result_path = os.environ.get("CHAOS_TEST_RESULT")
+    if result_path and root == repository_root():
+        Path(result_path).write_text(json.dumps(counts), encoding="utf-8")
+    if not result.testsRun and result.wasSuccessful():
+        print(f"test discovery error: {relative.as_posix()} discovered zero tests", file=sys.stderr)
     if returncode and os.environ.get("GITHUB_ACTIONS", "").casefold() == "true":
         _emit_github_failure(relative, returncode, result)
     return returncode

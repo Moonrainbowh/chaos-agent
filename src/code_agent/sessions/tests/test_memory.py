@@ -1,4 +1,6 @@
 import asyncio
+import tempfile
+import unittest
 from pathlib import Path
 
 from code_agent.sessions.models import MemoryLifecycle
@@ -8,9 +10,8 @@ from code_agent.core.task import TaskAuthorization, TaskContract
 from code_agent.core.models import Message, ToolCall
 
 
-def test_project_memory_is_scoped_versioned_and_idempotent(tmp_path: Path) -> None:
+def _exercise_project_memory(tmp_path: Path, repo: SQLiteSessionRepository) -> None:
     async def run() -> None:
-        repo = SQLiteSessionRepository(tmp_path / "sessions.db")
         first = await repo.create_memory("project", "alpha", "decision", "use SQLite", lifecycle=MemoryLifecycle.ACTIVE, source_refs={"message": 3}, idempotency_key="decision-1")
         duplicate = await repo.create_memory("project", "alpha", "decision", "different", lifecycle=MemoryLifecycle.ACTIVE, idempotency_key="decision-1")
         assert duplicate == first
@@ -81,3 +82,11 @@ def test_project_memory_is_scoped_versioned_and_idempotent(tmp_path: Path) -> No
         assert checklist["unresolved_tool_calls"] == ({"tool_call_id": "call-1", "tool_name": "write_file", "status": "unknown"},)
 
     asyncio.run(run())
+
+
+class ProjectMemoryTests(unittest.TestCase):
+    def test_project_memory_is_scoped_versioned_and_idempotent(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with SQLiteSessionRepository(root / "sessions.db") as repository:
+                _exercise_project_memory(root, repository)

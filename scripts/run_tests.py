@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import os
 import math
+import json
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -46,6 +47,12 @@ def discover_test_suites(root: Path) -> tuple[Path, ...]:
             continue
         suites.append(suite)
 
+    remote = root / "chaos_agent" / "remote" / "tests"
+    if (root / "chaos_agent" / "remote").is_dir():
+        if not remote.is_dir() or not any(remote.glob(TEST_PATTERN)):
+            missing.append(remote.relative_to(root))
+        else:
+            suites.append(remote)
     integration = root / "tests"
     if not integration.is_dir() or not any(integration.glob(TEST_PATTERN)):
         missing.append(integration.relative_to(root))
@@ -61,12 +68,26 @@ def discover_test_suites(root: Path) -> tuple[Path, ...]:
 def run_test_suites(root: Path, suites: Sequence[Path], suite_timeout: float = 600) -> int:
     prioritize_source_tree(root)
     github_actions = os.environ.get("GITHUB_ACTIONS", "").casefold() == "true"
+    results = []
+    exit_code = 0
     for suite in suites:
         relative = suite.relative_to(root)
         print(f"=== {relative.as_posix()} ===", flush=True)
         from scripts.suite_process import run_supervised_suite
 
-        completed = run_supervised_suite(root, relative, suite_timeout)
+        try:
+            completed = run_supervised_suite(root, relative, suite_timeout)
+        except Exception as error:
+            # A cleanup/control failure is unsafe to continue. Still make the
+            # unfinished scope explicit instead of claiming a complete run.
+            print(f"test infrastructure error: {relative.as_posix()}: {type(error).__name__}",
+                  file=sys.stderr, flush=True)
+            results.append({"suite": relative.as_posix(), "exit_code": 2,
+                            "counts": None, "infrastructure_error": type(error).__name__})
+            exit_code = exit_code or 2
+            break
+        results.append({"suite": relative.as_posix(), "exit_code": completed.returncode,
+                        "counts": getattr(completed, "test_counts", None)})
         if completed.returncode != 0:
             print(
                 f"test suite failed: {relative.as_posix()}",
@@ -75,8 +96,19 @@ def run_test_suites(root: Path, suites: Sequence[Path], suite_timeout: float = 6
             )
             if github_actions:
                 _emit_github_failure(relative, completed.returncode)
-            return completed.returncode or 1
-    return 0
+            exit_code = exit_code or completed.returncode or 1
+    counts = [r["counts"] for r in results]
+    totals = None
+    if counts and all(isinstance(c, dict) for c in counts):
+        totals = {key: sum(c[key] for c in counts) for key in counts[0]}
+    if not results:
+        exit_code = 2
+    summary = {"suites": results, "suite_count": len(results), "totals": totals,
+               "unrun_suites": [s.relative_to(root).as_posix() for s in suites[len(results):]],
+               "failed_suites": sum(r["exit_code"] != 0 for r in results),
+               "exit_code": exit_code}
+    print("CHAOS_TEST_SUMMARY " + json.dumps(summary, sort_keys=True), flush=True)
+    return exit_code
 
 
 def _emit_github_failure(suite: Path, returncode: int) -> None:

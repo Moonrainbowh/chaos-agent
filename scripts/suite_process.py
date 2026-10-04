@@ -55,12 +55,18 @@ def run_supervised_suite(root: Path, suite: Path, timeout: float) -> subprocess.
     try:
         with tempfile.TemporaryDirectory(prefix="chaos-suite-") as temporary:
             progress = Path(temporary) / "progress.json"
-            env = dict(os.environ, CHAOS_TEST_PROGRESS=str(progress), PYTHONUNBUFFERED="1")
+            result_path = Path(temporary) / "result.json"
+            env = dict(os.environ, CHAOS_TEST_PROGRESS=str(progress),
+                       CHAOS_TEST_RESULT=str(result_path), PYTHONUNBUFFERED="1")
             command = (sys.executable, "-m", "scripts.run_test_suite", "--start-dir",
                        str(suite), "--supervised", "--timeout", str(timeout))
             process = subprocess.Popen(command, cwd=root, env=env, stdin=subprocess.PIPE,
                                        start_new_session=os.name != "nt")
-            return _wait_suite(process, job, command, suite, progress, timeout)
+            completed = _wait_suite(process, job, command, suite, progress, timeout)
+            completed.test_counts = None
+            if result_path.is_file():
+                completed.test_counts = json.loads(result_path.read_text(encoding="utf-8"))
+            return completed
     finally:
         if job is not None:
             job.close()

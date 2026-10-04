@@ -103,6 +103,7 @@ class SourceTreeImportTests(unittest.TestCase):
             (root / "src").mkdir()
             (root / "tests").mkdir()
             result = StructuredTextResult(io.StringIO(), False, 1)
+            result.testsRun = 1
             with (
                 mock.patch.object(
                     sys,
@@ -132,6 +133,35 @@ class SourceTreeImportTests(unittest.TestCase):
 
 
 class StructuredResultTests(unittest.TestCase):
+    def test_nested_function_tests_cannot_hide_behind_a_passing_top_level_case(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            nested = root / "tests/nested"
+            nested.mkdir(parents=True)
+            (nested / "__init__.py").write_text("", encoding="utf-8")
+            (nested / "test_hidden.py").write_text("def test_hidden():\n    assert False\n", encoding="utf-8")
+            (root / "tests/test_visible.py").write_text(
+                "import unittest\nclass Visible(unittest.TestCase):\n    def test_ok(self): pass\n", encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "nested/test_hidden.py"):
+                run_suite(root, "tests", "test_*.py")
+
+    def test_empty_suite_is_not_success(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parents[1]) as temporary:
+            root = Path(temporary)
+            (root / "tests").mkdir()
+            (root / "tests/test_empty.py").write_text("", encoding="utf-8")
+            with mock.patch.object(unittest.defaultTestLoader, "_top_level_dir", str(Path(__file__).resolve().parents[1] / "tests")):
+                self.assertEqual(run_suite(root, "tests", "test_*.py"), 2)
+
+    def test_function_style_tests_are_reported_instead_of_silently_skipped(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "tests").mkdir()
+            (root / "tests/test_function.py").write_text(
+                "def test_missing():\n    assert False\n", encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "module-level tests"):
+                run_suite(root, "tests", "test_*.py")
+
     def test_failure_kinds_do_not_capture_runtime_values(self) -> None:
         result = _run_cases(
             _failure_case()("test_failure"),

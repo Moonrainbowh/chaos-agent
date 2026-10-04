@@ -21,7 +21,7 @@
 
 ## 构建与运行
 - 套件监管：`scripts/suite_process.py` 组合现有 Windows Job；子进程在管道放行后才发现测试，超时输出最后测试标识及线程栈，并确认 Job 清空。临时进度文件仅用于进程间传递，失败沿用现有结构化输出。
-- 全量回归：`python scripts/run_tests.py`（动态发现全部 Feature 测试，最后运行根集成测试；`--suite-timeout` 配置每套件秒数，默认 300，另有 2 秒线程栈输出宽限；超时退出 124）
+- 全量回归：使用项目 `.venv` 或 CI 的 `uv run --locked python scripts/run_tests.py`（动态发现全部 Feature 与 remote 测试，最后运行根集成测试；`--suite-timeout` 默认 600 秒，另有 2 秒线程栈输出宽限；单套件超时 124；普通失败/超时继续汇总，进程清理失败中止并列出未运行项；零发现失败，末尾 JSON 汇总实际数量）
 - 根集成测试：`python -m unittest discover -s tests -p 'test_*.py'`
 - Feature 测试：`python -m unittest discover -s src/code_agent/<feature>/tests -p 'test_*.py'`
 - 打包：`python -m build`

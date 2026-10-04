@@ -23,7 +23,7 @@
 - `PowerShellRuntimeResolver.resolve()`: 有界执行无 Profile 探测并缓存一个应用级结果 | 启动一次 `pwsh` 探测进程 | source workspace、task worktree、主/子 Agent 共用同一 resolver；失败不得迁移到另一方言
 - `CommandSpec`: 冻结并校验 argv、legacy PowerShell 文本或 typed `ShellScript`、cwd、环境与执行限额 | 无副作用 | 三种命令载荷必须且只能提供一种；新脚本调用使用 typed 方言，legacy 字段只用于迁移兼容
 - `OutputChunk`、`CommandResult`: 表达有界流式字节块及含相对 cwd、取消原因的最终命令结果 | 无副作用 | stdout 与 stderr 共用同一字节上限，`truncated_streams` 精确记录实际丢字节的流
-- `decode_output(data, encoding, truncated): DecodedOutput`: 在文本边界按 BOM 或显式编码严格解码 Runtime 原始字节 | 无副作用 | 默认 UTF-8；失败保留完整 Base64，逐流区分未知/混合编码与被输出上限截断的多字节尾部
+- `decode_output(data, encoding, truncated): DecodedOutput`: 在文本边界按 BOM 或显式编码严格解码 Runtime 原始字节 | 无副作用 | 默认 UTF-8，失败不猜测 ANSI；windows-ansi/windows-oem 仅显式选择时使用；失败保留完整 Base64，逐流区分未知/混合编码与被输出上限截断的多字节尾部
 - PowerShell 双脚本包装：UTF-8 BOM payload 保留顶层 `using`/`param`/`return`，独立 UTF-8 controller 配置 Console 与 `$OutputEncoding`、以默认 Stop + try/catch 传播未恢复错误和 native exit | 创建两个权限收窄的临时脚本并在所有退出路径清理 | 不拦截 PowerShell 对象流；用户脚本文本不进入 controller、argv 或展示命令；显式 `exit` 仍由 PowerShell 自身直接决定进程退出
 - `RuntimeErrorBase`、`RuntimeUnavailable`、`RuntimeStartError`、`ProcessTreeTerminationError`: 区分 Runtime 缺失、命令启动失败与无法证明进程树已终止 | 无副作用
 - `DirectoryLease(path, guard)`: 在进程创建期间锁定并复验工作目录的最终路径 | 临时持有 Windows 目录句柄 | 不共享 DELETE；进程创建返回后立即释放
