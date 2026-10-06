@@ -52,6 +52,8 @@ jobs:
       - run: uv run --locked python scripts/run_tests.py --suite-timeout 600
       - run: uv run --locked python -m build --no-isolation --outdir .ci-dist
       - run: uv export --locked --no-emit-project --no-dev --output-file .ci-dist/runtime-requirements.txt
-      - run: python -m pip download --dest .ci-dist --only-binary=:all: --no-deps -r .ci-dist/runtime-requirements.txt
+      - run: >-
+          python -m pip download --dest .ci-dist --only-binary=:all: --no-deps
+          -r .ci-dist/runtime-requirements.txt
       - run: uv run --locked python -m build benchmarks --no-isolation --outdir .ci-bench-dist
       - run: python scripts/check_wheel_install.py --wheel .ci-dist/chaos_agent-*.whl --wheelhouse .ci-dist --benchmark-wheel .ci-bench-dist/chaos_agent_benchmarks-*.whl
