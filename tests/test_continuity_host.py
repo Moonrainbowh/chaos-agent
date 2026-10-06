@@ -3,15 +3,48 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 import tempfile
+import time
 import unittest
 
-from chaos_agent.continuity_run import run_arm, durable_stats
+from chaos_agent.continuity_run import run_arm, durable_stats, _record
 from code_agent.core.limits import EngineLimits
 from code_agent.evaluation.long_context_metrics import usage_metrics
 from code_agent.sessions.repository import SQLiteSessionRepository
 
 
 class ContinuityHostTests(unittest.IsolatedAsyncioTestCase):
+    async def test_control_arm_uses_stable_virtual_initial_window(self):
+        from code_agent.context_windows.persistent_history import first_window_id
+        options = SimpleNamespace(mode="offline", profile="offline", model="offline-fixed",
+                                  effort="high", task_tokens=300000, timeout=60)
+        with tempfile.TemporaryDirectory(prefix="continuity-control-") as directory:
+            folder = Path(directory) / "A"
+            record = await asyncio.wait_for(run_arm(folder, "A", options), 120)
+            self.assertTrue(record["passed"], record)
+            self.assertEqual(record["committed_windows"], 0)
+            self.assertEqual(record["window_metrics_version"], 2)
+            self.assertEqual(record["initial_window_persistence"], "virtual")
+            self.assertEqual(record["model_turns"], 8)
+            self.assertEqual(record["tool_calls"], 24)
+            self.assertTrue(record["api_usage_is_scripted"])
+            self.assertTrue(record["fresh_agent_verification"])
+            self.assertTrue(record["cleanup"])
+            self.assertTrue(record["receipts"])
+            for receipt in record["receipts"]:
+                self.assertEqual(receipt["window_id"], first_window_id(receipt["task_id"]))
+            self.assertTrue(all(item["final_exit_code"] == 0 for item in record["verifiers"]))
+
+    def test_committed_window_gate_still_rejects_unplanned_or_missing_switches(self):
+        options = SimpleNamespace(mode="offline", model="offline-fixed", effort="high", task_tokens=300000)
+        observation = SimpleNamespace(verifier_results=(), workspace_removed=True)
+        for arm, count in (("A", 1), ("B", 0), ("C", 2), ("D", 2)):
+            with self.subTest(arm=arm, count=count):
+                record = _record(arm, options, {"windows": [{}] * count, "usage": []},
+                                 {"fresh_agent_verification": True}, [], SimpleNamespace(failures=()),
+                                 observation, time.monotonic())
+                self.assertFalse(record["passed"])
+                self.assertIn("unexpected committed window count", record["failures"])
+
     async def test_unknown_usage_survives_worker_loss(self):
         options = SimpleNamespace(model="gpt-5.6-luna", task_tokens=300000)
         with tempfile.TemporaryDirectory() as directory:

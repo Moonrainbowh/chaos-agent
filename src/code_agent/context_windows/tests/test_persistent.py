@@ -30,6 +30,7 @@ class PersistentTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.path = Path(self.tmp.name) / "sessions.db"
+        assert self.path.resolve().is_relative_to(Path(self.tmp.name).resolve())
         self.repo = SQLiteSessionRepository(self.path)
         self.thread = await self.repo.create_thread()
         self.policy = WindowPolicy(strategy="persistent", work_tokens=10000, safety_tokens=100)
@@ -56,7 +57,7 @@ class PersistentTests(unittest.IsolatedAsyncioTestCase):
             await self.repo.append_message(self.thread, Message("assistant", tool_calls=(ToolCall(key, name, args),)))
         result = await self.service.dispatch(request, CancellationToken())
         if persist:
-            await self.repo.append_message(self.thread, Message("tool", str(result.output), tool_call_id=key))
+            await self.repo.append_message(self.thread, Message("tool", str(result.output), tool_call_id=key, name=name))
         self.assertFalse(result.is_error, str(result.output))
         return result.output
 
@@ -85,7 +86,7 @@ class PersistentTests(unittest.IsolatedAsyncioTestCase):
         await self.tool("notes_write_file", {"path": "state.md", "text": "private checkpoint"})
         await self.repo.append_message(self.thread, Message("assistant", tool_calls=(
             ToolCall("read", "read_file", {"path": "hidden-in-arguments.py"}),)))
-        await self.repo.append_message(self.thread, Message("tool", "old evidence 原文", tool_call_id="read"))
+        await self.repo.append_message(self.thread, Message("tool", "old evidence 原文", tool_call_id="read", name="read_file"))
         before = await self.repo.load_messages(self.thread)
         first = await self.build()
         from code_agent.context.measurements import prompt_estimate
@@ -99,6 +100,7 @@ class PersistentTests(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn("old evidence", str(bundle.messages))
             self.assertNotIn("private checkpoint", bundle.system_prompt + str(bundle.messages))
             self.assertIn("Keep the API contract", str(bundle.messages))
+        assert self.path.resolve().is_relative_to(Path(self.tmp.name).resolve())
         self.repo = SQLiteSessionRepository(self.path)
         self.builder = self.make_builder()
         self.service = PersistentToolService(self.repo, lambda: self.thread, self.builder)

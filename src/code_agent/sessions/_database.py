@@ -22,13 +22,18 @@ from .errors import (
 from ._schema_structure import validate_schema_structure
 from ._schema_validation import FOLLOWUP_MIGRATION, REQUIRED_COLUMNS
 from ._conversation_schema import CONVERSATION_MIGRATION
+from ._history_schema import HISTORY_MIGRATION, HISTORY_COLUMNS, validate_history_triggers
 
-SCHEMA_VERSION = 24
+from ._approval_schema import APPROVAL_MIGRATION, APPROVAL_COLUMNS
+
+SCHEMA_VERSION = 26
 _BUSY_TIMEOUT_MS = 5_000
 _SQLITE_CORRUPT = 11
 _SQLITE_NOTADB = 26
 _Result = TypeVar("_Result")
 _MIGRATIONS: dict[int, tuple[str, ...]] = {
+    26: APPROVAL_MIGRATION,
+    25: tuple(HISTORY_MIGRATION),
     24: CONVERSATION_MIGRATION,
     1: (
         "CREATE TABLE threads (id TEXT PRIMARY KEY, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)",
@@ -251,7 +256,7 @@ class SessionDatabase:
 
     @staticmethod
     def _validate_schema(connection: sqlite3.Connection) -> None:
-        groups = (REQUIRED_COLUMNS, REWIND_REQUIRED_COLUMNS, EDIT_BATCH_REQUIRED_COLUMNS)
+        groups = (REQUIRED_COLUMNS, REWIND_REQUIRED_COLUMNS, EDIT_BATCH_REQUIRED_COLUMNS, HISTORY_COLUMNS, APPROVAL_COLUMNS)
         for required in groups:
             for table, expected in required.items():
                 rows = connection.execute(f"PRAGMA table_info({table})").fetchall()
@@ -260,6 +265,7 @@ class SessionDatabase:
                         f"session schema is missing {table}"
                     )
         validate_schema_structure(connection)
+        validate_history_triggers(connection)
 
     def _execute(
         self,

@@ -32,6 +32,7 @@ class TuiCommandKind(str, Enum):
     LAYOUT = "layout"
     TREE = "tree"
     TOOLS = "tools"
+    MEMORY = "memory"
     LOGIN = "login"
     THEME = "theme"
     HELP = "help"; STATUS = "status"; CLEAR = "clear"; COMPACT = "compact"; EXIT = "exit"; NEW = "new"; SESSIONS = "sessions"; RESUME = "resume"; TASKS = "tasks"; ACCEPT = "accept"; DIFF = "diff"; MAP = "map"; ATTACHMENT = "attachment"; EVIDENCE = "evidence"; RECOVERY = "recovery"; CHECKPOINT = "checkpoint"; REWIND = "rewind"; MODEL = "model"; MODE = "mode"; EFFORT = "effort"; PERMISSION = "permission"; WORKFLOW = "workflow"; SKILL = "skill"; MCP = "mcp"; PLUGIN_CONTROL = "plugin_control"; PLUGIN = "plugin"; COST = "cost"; DOCTOR = "doctor"; REVIEW = "review"; TEST = "test"
@@ -66,6 +67,16 @@ def parse_tui_command(
     raw_body = text[1:].lstrip()
     head = raw_body.split(maxsplit=1)[0] if raw_body else ""
     raw_spec = registry.resolve(head)
+    if raw_spec is not None and raw_spec.name == "memory":
+        if not set(raw_spec.requires).issubset(effective):
+            return ParseOutcome(error="unknown or unavailable slash command")
+        instruction = raw_body[len(head):].lstrip() or None
+        action_name = instruction.split(maxsplit=1)[0] if instruction else "list"
+        action = registry.resolve_action(raw_spec, action_name)
+        if action is None:
+            return ParseOutcome(error="unknown slash command action")
+        return ParseOutcome(TuiCommand(TuiCommandKind.MEMORY,
+                                       instruction=instruction, action=action.name))
     if raw_spec is not None and raw_spec.name in {"rewind", "回退", "attach", "附件"}:
         if not set(raw_spec.requires).issubset(effective):
             return ParseOutcome(error="unknown or unavailable slash command")

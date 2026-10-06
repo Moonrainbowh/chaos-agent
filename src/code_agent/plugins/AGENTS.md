@@ -32,4 +32,4 @@
 - `UiRequest`：声明 Host 渲染的 `notify`、`confirm`、`input`、`select` 交互 | 无副作用 | 插件不能写 ANSI、接管输入或提供用户答案。
 - `PluginCommandCatalog.resolve(qualified_id, arguments)`：生成绑定 plugin digest 与 snapshot generation 的 namespaced Host invocation | 无副作用 | 撤销或重载后旧 invocation 失效
 - `PluginHost.generation`、`is_active(plugin_id, digest, generation)`：验证贡献仍属于当前不可变 snapshot | 进程内状态 | apply/enable/disable 增加 generation，旧命令和事件提案在重新启用后仍保持失效
-- `PluginEventRuntime.handle`、`execute`：把仍处于当前 snapshot 的事件提案分流到 Host notify、交互或中央 Action executor | Host I/O | 取消向上传播，异常只返回稳定类别，旧 proposal 失败闭合
+- `PluginEventRuntime.handle`、`execute`：把当前 snapshot 提案分流到 Host notify、交互或中央 Action executor | Host I/O | 取消上传；异常稳定类别，错误 ActionResult 非成功，旧 proposal 失败闭合

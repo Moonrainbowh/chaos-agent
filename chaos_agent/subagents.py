@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from contextvars import ContextVar, Token
+from uuid import uuid5, NAMESPACE_URL
 
 from code_agent.core.action_execution import ActionExecutionContext
 from code_agent.core.cancellation import CancellationToken
@@ -123,6 +124,7 @@ class SubagentTool:
             int(arguments.get("token_budget", 20_000)),
             int(arguments.get("tool_budget", 16)),
             int(arguments.get("active_seconds", 300)),
+            run_id=uuid5(NAMESPACE_URL, f"{self._parent_run_id or request.id}:{request.id}").hex,
         )
 
 
@@ -148,11 +150,14 @@ def _action_result(
         "run_id": result.run_id,
         "role": role.value,
         "status": result.status.value,
+        "result": result.result.to_dict() if result.result is not None else None,
         "summary": distill_subagent_summary(result.summary),
         "usage": {
             "tokens": result.usage.total_tokens,
             "tool_calls": result.usage.tool_calls,
             "active_seconds": result.usage.active_seconds,
+            "complete": result.usage_complete,
+            "known_lower_bound": not result.usage_complete,
         },
         "references": [reference.identifier for reference in result.references],
         "error": result.error,
@@ -259,9 +264,12 @@ class SubagentRuntime:
             self._runner.reset_execution_context(token)
 
     async def release(self, parent_id: str) -> None:
-        supervisor = self._supervisors.pop(parent_id, None)
+        supervisor = self._supervisors.get(parent_id)
         if supervisor is not None:
+            await supervisor.cancel_all("parent execution settling")
             await supervisor.wait_all()
+            if self._supervisors.get(parent_id) is supervisor:
+                self._supervisors.pop(parent_id)
 
     async def aclose(self) -> None:
         supervisors = tuple(self._supervisors.values())

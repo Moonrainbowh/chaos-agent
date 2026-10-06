@@ -40,6 +40,13 @@ def acp_stop_reason(event: AgentEvent) -> str | None:
         return "refusal"
     if event.kind is EventKind.COMPLETED:
         return "end_turn"
+    if event.kind is EventKind.TASK_DECISION_REQUIRED:
+        return "refusal"
+    if event.kind is EventKind.TASK_RESULT:
+        result = event.payload.get("result", {})
+        status = result.get("execution_status") if isinstance(result, Mapping) else None
+        return "end_turn" if status in {"completed", "accepted_partial"} else (
+            "cancelled" if status in {"paused", "interrupted", "cancelled"} else "refusal")
     return None
 
 

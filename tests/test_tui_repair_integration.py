@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from code_agent.config.loader import RuntimeConfig
-from code_agent.core.models import ModelEvent, ModelEventKind
+from code_agent.core.models import ModelEvent, ModelEventKind, Usage
 from code_agent.core.task import TaskStatus
 from code_agent.policy.models import ApprovalMode
 from chaos_agent.app import create_application
@@ -17,6 +17,7 @@ from tests.test_runtime_selection import _profiles
 class ReplyModel:
     async def stream(self, *args, **kwargs):
         yield ModelEvent(ModelEventKind.TEXT_DELTA, text="Hello.")
+        yield ModelEvent(ModelEventKind.USAGE, usage=Usage(100, 2))
         yield ModelEvent(ModelEventKind.COMPLETED)
 
 

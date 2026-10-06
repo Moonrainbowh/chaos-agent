@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import aclosing
 import json
 
 from code_agent.core.models import ModelEvent, ModelEventKind, ToolCall, Usage
@@ -10,6 +11,7 @@ from .config import ApiProtocol, InputModality
 from .errors import ProviderConfigError, ProviderProtocolError
 from ._limits import ToolBudget
 from ._request_payload import request_options
+from .prepared import contains_images
 from .transport import ProviderTransport
 
 
@@ -62,6 +64,12 @@ class PiMessagesClient:
         await self._transport.aclose()
 
     async def stream(self, system_prompt, messages, tools):
+        prepared = await self.prepare_request(system_prompt, messages, tools)
+        async with aclosing(self.stream_prepared(prepared)) as events:
+            async for event in events:
+                yield event
+
+    async def prepare_request(self, system_prompt, messages, tools):
         system, history = _messages(system_prompt, messages, self._attachments, self._config)
         options = {"maxTokens": self._options.max_output_tokens}
         if self._options.reasoning_effort:
@@ -69,18 +77,24 @@ class PiMessagesClient:
         body = {"model": self._config.model, "options": options,
                 "context": {"systemPrompt": system, "messages": history,
                             "tools": [tool.to_dict() for tool in tools]}}
+        return await self._transport.prepare_request(self._config.pi_messages_path, body,
+            max_output_tokens=self._options.max_output_tokens,
+            uncalibrated_images=contains_images(messages))
+
+    async def stream_prepared(self, prepared):
         state = _StreamState(self._config)
-        async for sse in self._transport.stream_sse(self._config.pi_messages_path, body):
-            try:
-                value = json.loads(sse.data)
-            except (ValueError, UnicodeError):
-                raise ProviderProtocolError("pi stream contains malformed JSON") from None
-            if not isinstance(value, dict):
-                raise ProviderProtocolError("pi event must be an object")
-            for event in state.consume(value):
-                yield event
-                if event.kind is ModelEventKind.COMPLETED:
-                    return
+        async with aclosing(self._transport.stream_prepared(prepared)) as events:
+            async for sse in events:
+                try:
+                    value = json.loads(sse.data)
+                except (ValueError, UnicodeError):
+                    raise ProviderProtocolError("pi stream contains malformed JSON") from None
+                if not isinstance(value, dict):
+                    raise ProviderProtocolError("pi event must be an object")
+                for event in state.consume(value):
+                    yield event
+                    if event.kind is ModelEventKind.COMPLETED:
+                        return
         raise ProviderProtocolError("pi stream ended without done")
 
 

@@ -19,9 +19,21 @@ from ._workspace_snapshots import WorkspaceSnapshotRepositoryMixin
 from ._memory import MemoryRepositoryMixin
 from ._recovery import RecoveryRepositoryMixin
 from .conversation_tree import ConversationTreeRepositoryMixin
+from ._history_queries import HistoryQueryRepositoryMixin
+from ._history_display import HistoryDisplayRepositoryMixin
+from ._history_context import HistoryContextRepositoryMixin
+from ._history_events import HistoryEventRepositoryMixin
+from ._history_usage import HistoryUsageRepositoryMixin
+from ._approvals import ApprovalRepositoryMixin
 
 
 class SQLiteSessionRepository(
+    ApprovalRepositoryMixin,
+    HistoryQueryRepositoryMixin,
+    HistoryDisplayRepositoryMixin,
+    HistoryContextRepositoryMixin,
+    HistoryEventRepositoryMixin,
+    HistoryUsageRepositoryMixin,
     ConversationTreeRepositoryMixin,
     ContextNotesRepositoryMixin,
     ContextJournalRepositoryMixin,

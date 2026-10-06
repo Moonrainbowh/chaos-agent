@@ -93,11 +93,23 @@ class BatchConflict:
 
 @dataclass(frozen=True)
 class BatchApplyResult:
+    """Report effects and, on APPLIED, immutable plan-bound output identities.
+
+    ``post_identities`` contains every plan endpoint, including explicit ``None``
+    for missing endpoints and the same object for case-only aliases. Existing
+    endpoints carry full mutation-scoped state from an owned FD/handle, not a
+    later observation. Legacy construction defaults to no ownership proof.
+    Consumers must verify the plan and exact endpoint set before persisting only
+    device/inode for durable recovery; in-process checks retain full state.
+    """
+
     status: BatchApplyStatus
     applied_operations: tuple[int, ...] = ()
     rolled_back_operations: tuple[int, ...] = ()
     conflicts: tuple[BatchConflict, ...] = ()
     error: str | None = None
+    plan_id: str | None = None
+    post_identities: tuple[tuple[str, PathIdentity | None], ...] = ()
 
 
 class RecoveryOperationKind(str, Enum):

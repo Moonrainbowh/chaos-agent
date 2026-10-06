@@ -17,6 +17,7 @@ class TaskScopedVerificationService:
         semantic_snapshot: Callable[[Path], object] | None = None,
         initial_service: tuple[Path, LedgerTaskVerificationService] | None = None,
         enable_structured_verification: bool = True,
+        allow_sensitive_paths: bool = False,
     ) -> None:
         if semantic_snapshot is not None and not callable(semantic_snapshot):
             raise TypeError("semantic_snapshot must be callable or None")
@@ -25,6 +26,9 @@ class TaskScopedVerificationService:
         self._services: dict[str, tuple[Path, LedgerTaskVerificationService]] = {}
         self._initial_service = initial_service
         self._enable_structured_verification = enable_structured_verification
+        if type(allow_sensitive_paths) is not bool:
+            raise TypeError("allow_sensitive_paths must be a bool")
+        self._allow_sensitive_paths = allow_sensitive_paths
 
     async def prepare(self, task: object, state: object) -> object:
         return await self._service(task).prepare(task, state)
@@ -62,6 +66,10 @@ class TaskScopedVerificationService:
     async def assess(self, task: object, state: object) -> object:
         return await self._service(task).assess(task, state)
 
+    async def progress_fingerprint(self, task: object, state: object) -> str:
+        """Expose only current, trusted and stable ledger PASS facts to Core."""
+        return await self._service(task).progress_fingerprint(task, state)
+
     async def suggest_verification(self, task: object, state: object) -> object:
         if not self._enable_structured_verification:
             return None
@@ -96,7 +104,8 @@ class TaskScopedVerificationService:
             service = initial[1]
             self._initial_service = None
         else:
-            service = LedgerTaskVerificationService(root, self._sessions)
+            service = LedgerTaskVerificationService(root, self._sessions,
+                allow_sensitive_paths=self._allow_sensitive_paths)
         self._services[task_id] = (root, service)
         return service
 

@@ -78,6 +78,9 @@ class RunStatus(str, Enum):
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
+    WAITING_DECISION = "waiting_decision"
+    INTERRUPTED = "interrupted"
+    PAUSED = "paused"
 
 
 @dataclass(frozen=True)
@@ -239,8 +242,15 @@ class ChildRunResult:
     usage: AgentUsage = field(default_factory=AgentUsage)
     references: tuple[AgentReference, ...] = ()
     error: str | None = None
+    result: object | None = None
+    usage_complete: bool = False
 
     def __post_init__(self) -> None:
+        from code_agent.core.task_result import TaskResult
+        if not isinstance(self.usage_complete, bool):
+            raise TypeError('usage_complete must be boolean')
+        if self.result is not None and not isinstance(self.result, TaskResult):
+            raise TypeError('result must be TaskResult')
         object.__setattr__(self, "run_id", _text(self.run_id, "run_id", 128))
         if not isinstance(self.status, RunStatus):
             raise TypeError("status must be a RunStatus")

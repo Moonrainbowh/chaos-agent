@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import aclosing
 import json
 import uuid
 from urllib.parse import quote
@@ -12,6 +13,7 @@ from .config import ApiProtocol, InputModality
 from .errors import ProviderConfigError, ProviderProtocolError
 from ._limits import ToolBudget
 from ._request_payload import request_options
+from .prepared import contains_images
 from .transport import ProviderTransport
 
 
@@ -63,6 +65,12 @@ class GoogleGenerativeAIClient:
         await self._transport.aclose()
 
     async def stream(self, system_prompt, messages, tools):
+        prepared = await self.prepare_request(system_prompt, messages, tools)
+        async with aclosing(self.stream_prepared(prepared)) as events:
+            async for event in events:
+                yield event
+
+    async def prepare_request(self, system_prompt, messages, tools):
         system, contents = google_messages(system_prompt, messages, self._attachments)
         generation = {"maxOutputTokens": self._options.max_output_tokens}
         if self._options.reasoning_effort:
@@ -72,34 +80,39 @@ class GoogleGenerativeAIClient:
             body["systemInstruction"] = {"parts": [{"text": system}]}
         if tools:
             body["tools"] = [{"functionDeclarations": [tool.to_dict() for tool in tools]}]
+        return await self._transport.prepare_request(f"/models/{quote(self._config.model, safe='')}:streamGenerateContent?alt=sse", body, auth_header="x-goog-api-key", auth_scheme=None,
+            max_output_tokens=self._options.max_output_tokens,
+            uncalibrated_images=contains_images(messages))
+
+    async def stream_prepared(self, prepared):
         budget = ToolBudget(self._config.max_tool_calls, self._config.max_tool_argument_bytes)
-        path = f"/models/{quote(self._config.model, safe='')}:streamGenerateContent?alt=sse"
         finished = False
-        async for sse in self._transport.stream_sse(path, body, auth_header="x-goog-api-key", auth_scheme=None):
-            value = _object(sse.data)
-            value = value.get("response", value)
-            if not isinstance(value, dict) or "error" in value:
-                raise ProviderProtocolError("Google provider returned an invalid or error event")
-            candidates = value.get("candidates", [])
-            if not isinstance(candidates, list) or len(candidates) > 1:
-                raise ProviderProtocolError("Google stream must contain at most one candidate")
-            for candidate in candidates:
-                if not isinstance(candidate, dict) or not isinstance(candidate.get("content", {}), dict):
-                    raise ProviderProtocolError("Google candidate is malformed")
-                parts = candidate.get("content", {}).get("parts", [])
-                if not isinstance(parts, list):
-                    raise ProviderProtocolError("Google content parts are malformed")
-                for part in parts:
-                    event = _part_event(part, budget)
-                    if event:
-                        yield event
-                reason = candidate.get("finishReason")
-                if reason:
-                    if reason != "STOP":
-                        raise ProviderProtocolError("Google generation ended without normal completion")
-                    finished = True
-            if "usageMetadata" in value:
-                yield _usage(value["usageMetadata"])
+        async with aclosing(self._transport.stream_prepared(prepared)) as events:
+            async for sse in events:
+                value = _object(sse.data)
+                value = value.get("response", value)
+                if not isinstance(value, dict) or "error" in value:
+                    raise ProviderProtocolError("Google provider returned an invalid or error event")
+                candidates = value.get("candidates", [])
+                if not isinstance(candidates, list) or len(candidates) > 1:
+                    raise ProviderProtocolError("Google stream must contain at most one candidate")
+                for candidate in candidates:
+                    if not isinstance(candidate, dict) or not isinstance(candidate.get("content", {}), dict):
+                        raise ProviderProtocolError("Google candidate is malformed")
+                    parts = candidate.get("content", {}).get("parts", [])
+                    if not isinstance(parts, list):
+                        raise ProviderProtocolError("Google content parts are malformed")
+                    for part in parts:
+                        event = _part_event(part, budget)
+                        if event:
+                            yield event
+                    reason = candidate.get("finishReason")
+                    if reason:
+                        if reason != "STOP":
+                            raise ProviderProtocolError("Google generation ended without normal completion")
+                        finished = True
+                if "usageMetadata" in value:
+                    yield _usage(value["usageMetadata"])
         if not finished:
             raise ProviderProtocolError("Google stream ended without finishReason")
         yield ModelEvent(kind=ModelEventKind.COMPLETED)

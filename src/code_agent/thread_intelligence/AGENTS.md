@@ -2,6 +2,8 @@
 在完整保留原始会话的前提下，为超长线程提供可重建的语义压缩、检索、引用和 `read_thread` 上下文。
 
 ## 边界
+- S10：默认构建只物化必要 checkpoint 与未覆盖原文，有界行/字节读取；来源首次分页 hash，可靠 journal epoch 未变才复用。完整组须 ID+name 匹配，未知/旧无名结果仍可检索，不可被覆盖为已闭合。
+- 显式 compact 可分批复用原 SemanticCompactor 迁移超长旧日志，逐批发布且可取消续进；来源损坏、必要组/摘要超限、预算拒绝或无真实 checkpoint 不推进，不自动迁移或删除原文。
 - 负责：索引和语义压缩仅消费附件引用的安全摘要；message digest 覆盖引用元数据，summarizer 不解析或读取附件 blob。
 - 负责：从 durable Message 重建首回合时保持附件引用且清除重复的 transient user input。
 - 不负责：附件摄取、blob 解析、Provider 多模态映射或从附件内容生成搜索索引。
@@ -12,6 +14,7 @@
 - 负责：构建有界线程索引，按当前 thread tree 的授权范围搜索消息、事件、摘要及 evidence 引用。
 - 负责：`read_thread` 返回稳定来源锚点和有界原文，并检查相关的后续修订、替代或回滚；模型推断的冲突只能标为候选。
 - 负责：语义压缩和检索调用服从取消、超时与累计预算，不得产生隐藏的免费模型调用。
+- 自动构建及手动compact在语义Provider调用或checkpoint发布前执行inner的固定内容preflight；必要规则或system/总预算失败原样阻断，不以摘要绕过。自动构建同时检查当前工具schema；手动摘要不携带工具，最终inner.build仍重新检查。
 - 负责：语义服务不可用、失败、超限或结果不合法时，稳定回退到 Context Engine 的确定性压缩。
 - 不负责：覆盖或删除原始消息、把摘要作为唯一任务状态、生成 verification evidence 或决定任务完成。
 - 不负责：直接调用具体 provider、管理 API key、决定总提示预算、实现会话数据库或渲染搜索结果。
@@ -31,7 +34,7 @@
 - `DeterministicSummaryService.summarize(request, cancellation): SummaryResponse` / `render_bounded_source_summary(sources, max_tokens): str`：按来源顺序和稳定 ID 生成有界且不可信的确定性摘要或 provider 输入投影 | 无 provider 或网络副作用 | 仅渲染公开消息、工具 action 与附件安全元数据，不读取附件 blob 或独立隐藏推理字段。
 - `SemanticCheckpoint.create(sources, response): SemanticCheckpoint`：固化摘要来源范围、模型、用量、版本和范围 digest | 无副作用 | checkpoint 始终是不可信派生上下文。
 - `SemanticCompactor.compact(...): SemanticCompactionResult`：在上下文压力达到阈值时压缩闭合旧区间并保留最近原文 | 调用注入的摘要服务 | 取消向上传播，失败、超时、孤立工具消息或预算超限时使用确定性回退。
-- `ThreadAwareContextBuilder.build(...)`: 从 Sessions 稳定消息记录协调语义压缩并以结构化请求委托现有 ContextBuilder | 摘要调用与 SQLite I/O | 发布失败使用原始消息；委托时保留 revision、控制快照与预算租约
+- `ThreadAwareContextBuilder.build(...)` / `SemanticHistory`: 有界读取必要 checkpoint+原文并协调语义压缩 | 摘要与 Sessions I/O | 选最新不重叠来源，旧重叠 metadata 不占必要容量；来源 hash/闭合验证及读取修订一致，保留控制快照和预算租约
 - `ThreadAwareContextBuilder.compact_context(...)`: 显式触发语义压缩并返回前后消息/token 与 checkpoint 身份 | 摘要调用与 SQLite I/O | 后续 build 仅在来源锚点和范围 digest 仍有效时复用最新 checkpoint，原始消息永不删除
 - `BoundedThreadIndex.add(entry): None`：在显式授权的 thread tree 内维护容量受限的来源索引 | 超限时淘汰最旧条目 | stable ID 冲突会被拒绝。
 - `BoundedThreadIndex.search(query, ...): tuple[SearchHit, ...]`：对授权消息、事件、checkpoint 与 evidence 文本执行有界检索 | 无副作用 | 不接受任意 thread ID 越权查询。

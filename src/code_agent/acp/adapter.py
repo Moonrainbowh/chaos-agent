@@ -185,6 +185,8 @@ class ChaosAcpAgent:
         stop_reason: str | None = None
         try:
             async with self._prompt_lock:
+                if token.is_cancelled:
+                    return schema.PromptResponse(stopReason="cancelled")
                 with self._permissions.scope(session_id):
                     async for event in self._controller.ask(
                         text, thread_id=session_id, cancellation=token

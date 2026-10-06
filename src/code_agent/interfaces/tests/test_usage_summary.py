@@ -14,6 +14,21 @@ def usage_event(usage):
 
 
 class UsageSummaryTests(unittest.TestCase):
+    def test_aggregate_seed_matches_historic_events_plus_live_requests(self):
+        historical = [AgentEvent(EventKind.MODEL_STARTED, {"model": "model-a"}),
+            usage_event(Usage(10, 2, 3, 0, True)),
+            usage_event(Usage(12, 3, 4, 0, True)),
+            AgentEvent(EventKind.MODEL_STARTED, {"model": "model-a"})]
+        live = [AgentEvent(EventKind.MODEL_STARTED, {"model": "model-b"}),
+            usage_event(Usage(20, 4)), usage_event(Usage(25, 5))]
+        accumulator = UsageAccumulator()
+        accumulator.seed(summarize_usage(historical))
+        self.assertEqual(accumulator.summary, summarize_usage(historical))
+        for event in live:
+            accumulator.observe(event)
+        self.assertEqual(accumulator.summary, summarize_usage(historical + live))
+        self.assertEqual(len(accumulator._closed), 0)
+
     def test_footer_geometry_stays_within_narrow_terminal(self):
         from code_agent.interfaces.terminal_tail import render_live_tail_frame
         from code_agent.interfaces.terminal_renderer import Theme, ColorMode

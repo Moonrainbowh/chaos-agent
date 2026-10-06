@@ -10,6 +10,7 @@ from unittest.mock import patch
 from code_agent.core.action_execution import ActionExecutionContext, ActionLineage
 from code_agent.core.cancellation import CancellationToken
 from code_agent.core.engine import AgentEngine
+from code_agent.core.task import TaskAuthorization, TaskStatus
 from code_agent.core.events import AgentEvent, EventKind
 from code_agent.core.models import (
     ActionRequest,
@@ -38,7 +39,6 @@ from code_agent.workspace.files import WorkspaceFiles
 from code_agent.workspace.ignore import IgnoreRules
 from code_agent.workspace.paths import WorkspacePathGuard
 from chaos_agent.action_dispatcher import RootActionDispatcher
-from chaos_agent.app_factory import _build_execution
 from chaos_agent.subagents import (
     EngineChildRunner,
     RestrictedDispatcher,
@@ -53,6 +53,7 @@ class _Engine:
             EventKind.MESSAGE_ADDED,
             {"message": Message(role="assistant", content=objective).to_dict()},
         )
+        yield AgentEvent(EventKind.COMPLETED)
 
 
 def _agent(*, may_write: bool) -> AgentDefinition:
@@ -255,56 +256,50 @@ class RewindLineageTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(result.is_error)
         self.assertEqual(capture.calls, [])
 
-    async def test_child_engine_and_compactor_use_root_scoped_repository(self) -> None:
-        registry, profiles = _runtime()
-        mode = registry.freeze(AgentMode.MEDIUM, profiles)
-        scoped = SimpleNamespace(name="root-scoped")
-        class Sessions:
-            def for_owner(self, owner):
-                self.owner = owner
-                return scoped
-
-        host = SimpleNamespace(
-            profiles=profiles, modes=registry, mode=mode,
-            initial=profiles[mode.definition.profile_id],
-            dispatcher=SimpleNamespace(tools=lambda: ()),
-            plugin_bridge=SimpleNamespace(
-                definitions=lambda: ()),
-            sessions=Sessions(), root=Path("."), git=None,
-        )
-        engines, contexts, verifications = [], [], []
-        class BuiltEngine(_Engine):
-            def __init__(self, *args, **kwargs):
-                engines.append((args[3], kwargs.get("action_lineage")))
-
-        def context_for(host, mode, factory, sessions=None):
-            contexts.append(sessions)
-            return object()
-
-        def verification(root, sessions):
-            verifications.append(sessions)
-            return object()
-
-        with patch("chaos_agent.app_factory._context_for",
-                   side_effect=context_for), patch(
-            "chaos_agent.rewind_sessions.AgentEngine", BuiltEngine
-        ), patch("chaos_agent.rewind_sessions.LedgerTaskVerificationService",
-                 side_effect=verification):
-            execution = _build_execution(host, lambda provider: object(), object())
-            await execution.subagents.dispatch(
-                ActionRequest("delegate", "delegate_agent", {
-                    "objective": "inspect", "role": "review"
-                }),
-                CancellationToken(),
-                execution_context=ActionExecutionContext(
-                    "root-owner", "main", "delegate", "task"),
-            )
-
-        self.assertIs(engines[-1][0], scoped)
-        self.assertIs(contexts[-1], scoped)
-        self.assertIs(verifications[-1], scoped)
-        self.assertEqual(engines[-1][1], ActionLineage(
-            "root-owner", "task", "delegate"))
+    async def test_production_child_engine_context_and_verification_share_owner_scope(self):
+        from tests.agent_app_test_support import _isolated_application
+        from tests.test_child_execution_scope import ChildClient
+        from code_agent.core.task import TaskContract
+        from code_agent.core.limits import EngineLimits
+        from chaos_agent.task_verification import TaskScopedVerificationService
+        with tempfile.TemporaryDirectory() as temporary:
+            app, root, _ = _isolated_application(Path(temporary))
+            (root / 'scope.txt').write_text('source', encoding='utf-8')
+            sessions = app.sessions
+            task = await app.foreground_tasks.start('Read scope')
+            owner = task.thread_id
+            await sessions.transition_task(task.id, TaskStatus.RUNNING)
+            await sessions.register_task_execution(task.id, 'scope-owner', 123, 45)
+            await sessions.get_or_create_task_budget(owner, 'parent', EngineLimits())
+            factory = app.subagents._runner._factory.__self__
+            factory._client_factory = lambda *args, **kwargs: ChildClient()
+            parent_token = app.subagents.activate(task.id)
+            contexts = []
+            original = factory._context_for.for_child
+            def context_for(*args, **kwargs):
+                contexts.append(args[-1])
+                return original(*args, **kwargs)
+            try:
+                with patch.object(factory._context_for, 'for_child', side_effect=context_for), patch(
+                    'chaos_agent.application_context.TaskScopedVerificationService',
+                    wraps=TaskScopedVerificationService,
+                ) as verification:
+                    result = await app.subagents.dispatch(
+                        ActionRequest('delegate', 'delegate_agent', {'objective': 'Read scope', 'role': 'review', 'token_budget': 100000}),
+                        CancellationToken(), execution_context=ActionExecutionContext(owner, owner, 'delegate', task.id),
+                    )
+                self.assertFalse(result.is_error, result.to_dict())
+                self.assertEqual(len(contexts), 1)
+                self.assertIs(verification.call_args.args[0], contexts[0])
+                child = next(iter(app.subagents._child_threads.values()))
+                self.assertEqual((await sessions.load_thread_relation(child)).parent_thread_id, owner)
+                records = await sessions.context_records(child, 'usage')
+                self.assertTrue(records)
+                self.assertTrue(all(record['budget_owner_thread_id'] == owner for record in records))
+            finally:
+                app.subagents.reset(parent_token)
+                await sessions.release_task_execution(task.id, 'scope-owner')
+                await app.aclose()
 
 
 if __name__ == "__main__":

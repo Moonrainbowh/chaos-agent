@@ -80,6 +80,11 @@ async def _compact(app: Any) -> bool:
     if getattr(report, "status", None) == "queued":
         app._append(DisplayKind.METADATA, "Context boundary queued; it will take effect before the next model request.")
         return True
+    if getattr(report, "status", None) == "migrated":
+        app._append(DisplayKind.SUCCESS,
+            f"Context history migrated: {report.windows_published} windows persisted; "
+            f"current window {report.window_id}.")
+        return True
     checkpoint = getattr(report, "checkpoint_id", None)
     detail = (
         f"messages {report.before_messages} -> {report.after_messages}; "

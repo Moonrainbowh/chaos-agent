@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+import asyncio
 
 from code_agent.mcp.registry import (
     McpController,
@@ -144,6 +145,38 @@ class McpSnapshotTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(manager.cancelled, ["docs"])
         self.assertEqual(manager.closed, ["docs"])
+
+    async def test_pending_enable_cannot_undo_later_disable(self) -> None:
+        manager = Manager()
+        entered, release = asyncio.Event(), asyncio.Event()
+        original = manager.start
+        async def delayed(server):
+            entered.set()
+            await release.wait()
+            return await original(server)
+        manager.start = delayed
+        server = McpServer("docs", "python", approved=True, tool_risks={"search": McpRisk.READ})
+        controller = McpController(McpRegistry((server,)), manager)
+        enabling = asyncio.create_task(controller.enable("docs"))
+        await entered.wait()
+        await controller.disable("docs")
+        self.assertFalse(controller.status("docs")[0].enabled)
+        release.set()
+        with self.assertRaises(RuntimeError): await enabling
+        self.assertFalse(controller.status("docs")[0].enabled)
+        self.assertEqual(controller.snapshot().tools, ())
+        self.assertEqual(manager.active, set())
+
+    async def test_stale_generation_and_server_risk_are_not_authority(self) -> None:
+        manager = Manager()
+        server = McpServer("docs", "python", approved=True, tool_risks={"search": McpRisk.CRITICAL})
+        controller = McpController(McpRegistry((server,)), manager)
+        await controller.enable("docs")
+        old = controller.snapshot().generation
+        self.assertEqual(controller.risks(), {"mcp.docs.search": "critical"})
+        await controller.restart("docs")
+        with self.assertRaises(PermissionError):
+            await controller.call("mcp.docs.search", {}, expected_generation=old)
 
 
 if __name__ == "__main__":

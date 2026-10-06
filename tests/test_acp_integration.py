@@ -14,6 +14,7 @@ from chaos_agent.cli import _ACP_HELP, _HELP, run
 class FakeApplication:
     def __init__(self, root: Path) -> None:
         self.controller = SimpleNamespace(ask=lambda *args, **kwargs: None)
+        self.foreground_tasks = SimpleNamespace(start=lambda *args, **kwargs: None)
         self.sessions = SimpleNamespace(
             create_thread=lambda: None,
             load_messages=lambda _: None,
@@ -36,8 +37,9 @@ class AcpIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(application.dispatcher.interactive)
         adapted = run_agent.await_args.args[0]
         self.assertIsInstance(adapted, ChaosAcpAgent)
-        self.assertIs(adapted._controller, application.controller)
-        self.assertIs(adapted._sessions, application.sessions)
+        self.assertIs(adapted._controller.tasks, application.foreground_tasks)
+        self.assertIs(adapted._controller.sessions, application.sessions)
+        self.assertIs(adapted._sessions, adapted._controller)
 
     async def test_cli_acp_owns_lifecycle_without_command_parser(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

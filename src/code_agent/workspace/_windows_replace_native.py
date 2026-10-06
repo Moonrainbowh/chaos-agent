@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ctypes
 import os
+import stat
 from pathlib import Path
 
 from ctypes import wintypes
@@ -64,6 +65,12 @@ def require_file_identity(
 
 
 def file_identity(handle: int) -> tuple[int, int]:
+    identity = full_file_identity(handle)
+    return identity.device, identity.inode
+
+
+def full_file_identity(handle: int, mode: int = stat.S_IFREG | 0o666) -> safety.PathIdentity:
+    """Read complete state from the already-held file handle, never its pathname."""
     class FileInformation(ctypes.Structure):
         _fields_ = (
             ("attributes", wintypes.DWORD),
@@ -89,7 +96,12 @@ def file_identity(handle: int) -> tuple[int, int]:
     if information.attributes & (0x10 | 0x400):
         raise WorkspaceError("protected file handle is not a plain file")
     index = (int(information.index_high) << 32) | int(information.index_low)
-    return int(information.volume), index
+    attributes = int(information.attributes)
+    mode = mode & ~0o222 if attributes & 0x1 else mode
+    ticks = (int(information.write.dwHighDateTime) << 32) | int(information.write.dwLowDateTime)
+    return safety.PathIdentity(int(information.volume), index, mode, attributes,
+                               (int(information.size_high) << 32) | int(information.size_low),
+                               (ticks - 116444736000000000) * 100)
 
 
 def set_handle_readonly(handle: int, readonly: bool) -> None:

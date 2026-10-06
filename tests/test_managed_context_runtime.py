@@ -51,7 +51,7 @@ class ManagedRuntimeTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("LATE_SKILL_CONTENT",bundle.system_prompt)
             self.assertGreater(bundle.measurements["prompt_tokens"],2000)
             dispatcher=SimpleNamespace()
-            model=wire_managed_engine(object(),SimpleNamespace(_inner=context),dispatcher)
+            model=wire_managed_engine(object(),context,dispatcher)
             self.assertIsInstance(model,BudgetedWindowClient)
             self.assertIs(dispatcher.context_actions,context.context_actions)
 

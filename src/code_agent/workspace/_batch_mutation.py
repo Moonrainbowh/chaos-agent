@@ -24,7 +24,7 @@ def write_bytes_exact(
     validate_batch: Callable[[], None],
     *,
     expected_identity: PathIdentity | None,
-) -> None:
+) -> PathIdentity:
     target = editor.guard.root / Path(expected.relative_path)
     state = capture_target_state(target, editor.guard, context="batch write")
     if not same_path_state(state.identity, expected_identity):
@@ -34,7 +34,7 @@ def write_bytes_exact(
         validate_batch()
         require_state(editor, expected, require_identity=expected_identity)
 
-    secure_atomic_write(
+    return secure_atomic_write(
         state,
         content,
         editor.guard,
@@ -94,7 +94,7 @@ def move_path_exact(
     *,
     source_identity: PathIdentity,
     destination_identity: PathIdentity | None,
-) -> None:
+) -> PathIdentity:
     if os.name != "nt":
         raise WorkspaceError("exact batch move is currently supported only on Windows")
     from ._windows_exact_move import move_no_replace
@@ -112,7 +112,7 @@ def move_path_exact(
                 f"batch path identity drifted: {destination.relative_path}"
             )
 
-    retry_windows_file_operation(
+    return retry_windows_file_operation(
         lambda: move_no_replace(
             source_path,
             destination_path,

@@ -10,6 +10,7 @@ from code_agent.core.context_request import ContextRequest
 from code_agent.core.models import Message, ModelEventKind, ToolDefinition, Usage
 from code_agent.core.task_state import TaskState
 from code_agent.context.tokens import estimate_tokens
+from code_agent.context_windows.policy import RequestBudgetConstraints
 from code_agent.interfaces.approval import ApprovalBroker, ApprovalRequest
 from code_agent.skills.controller import SkillController
 from code_agent.thread_intelligence.deterministic_summary import (
@@ -97,9 +98,10 @@ class BoundSkillContextBuilder:
         inner: object,
         binding: ThreadRuntimeBinding,
         skills: SkillController,
+        *, semantic_snapshot: object = None,
     ) -> None:
         self._semantic = inner
-        self._inner = getattr(inner, "_inner", inner)
+        self._snapshot = semantic_snapshot
         self._binding, self._skills = binding, skills
         self._restored: set[str] = set()
 
@@ -159,14 +161,9 @@ class BoundSkillContextBuilder:
         return await compact(thread_id, cancellation)
 
     def semantic_snapshot_for_root(self, root: Path) -> object:
-        config = getattr(self._inner, "config", None)
-        workspace_root = getattr(config, "workspace_root", None)
-        if workspace_root is None or Path(root).resolve() != workspace_root:
-            raise ValueError("semantic snapshot root does not match context root")
-        provider = getattr(self._inner, "semantic_snapshot_for_turn", None)
-        if not callable(provider):
+        if not callable(self._snapshot):
             raise RuntimeError("semantic snapshot is unavailable")
-        return provider()
+        return self._snapshot(root)
 
 
 class ModelSemanticSummarizer:
@@ -196,11 +193,15 @@ class ModelSemanticSummarizer:
         )
         text: list[str] = []
         usage = Usage()
-        async for event in self._model.stream(
-            _SUMMARY_SYSTEM,
-            messages,
-            (),
-        ):
+        stream_for = getattr(self._model, "stream_for", None)
+        if callable(stream_for):
+            events = stream_for("semantic_summary", _SUMMARY_SYSTEM, messages, (),
+                constraints=RequestBudgetConstraints(auxiliary_input_tokens=
+                    request.max_total_tokens - request.max_output_tokens,
+                    auxiliary_total_tokens=request.max_total_tokens))
+        else:
+            events = self._model.stream(_SUMMARY_SYSTEM, messages, ())
+        async for event in events:
             cancellation.raise_if_cancelled()
             if event.kind is ModelEventKind.TEXT_DELTA and event.text:
                 text.append(event.text)
@@ -217,7 +218,7 @@ class ModelSemanticSummarizer:
                 task = await self._sessions.load_task_for_thread(
                     relation.parent_thread_id
                 )
-        if task is not None:
+        if task is not None and not getattr(self._model, "accounts_task_usage", False):
             await self._sessions.consume_task_usage(task.id, usage)
         return SummaryResponse(summary, self._model_name, usage)
 

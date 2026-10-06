@@ -60,3 +60,14 @@ class ContextBudgetTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(await app.submit("/compact"))
         self.assertIn("queued",app.state.entries[-1].text)
         self.assertNotIn("persisted",app.state.entries[-1].text)
+
+    async def test_manual_compact_displays_published_migration_receipt(self):
+        from code_agent.context_windows.builder import WindowMigrationReport
+        class Engine(FakeEngine):
+            async def compact_context(self, thread, cancellation):
+                return WindowMigrationReport("request-one", "window-last", 1101, 3)
+        app = WindowsTerminalApp(AgentController(Engine(())), ApprovalBroker(), write=lambda _: None)
+        app.current_thread_id = "thread-one"
+        self.assertTrue(await app.submit("/compact"))
+        self.assertIn("3 windows persisted", app.state.entries[-1].text)
+        self.assertIn("window-last", app.state.entries[-1].text)

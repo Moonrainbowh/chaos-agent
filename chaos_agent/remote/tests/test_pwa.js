@@ -24,13 +24,20 @@ function browser({protocol = 'https:', host = 'chaos.example.com', saved = 'save
   const fixture = {
     status: {status: 'idle', task_id: null, session_id: null, sequence: 0},
     projects: [{id: 'p1', name: '项目一', path: 'F:/one', session_count: 3, updated_at: 1791000000, available: true}, {id: 'p2', name: '项目二', path: 'F:/two', session_count: 1, updated_at: 1791000001, available: true}],
-    sessionRows: [summary('s1'), summary('s2', 'p2')], nextOffset: null, history: new Map(), newId: 'new-session', continueId: null
+    sessionRows: [summary('s1'), summary('s2', 'p2')], nextOffset: null, history: new Map(), newId: 'new-session', continueId: null, requests: new Map()
   };
   fixture.history.set('s1', {messages: [{sequence: 3, role: 'user', content: '已有问题'}, {sequence: 4, role: 'assistant', content: '已有回答'}], next_before: 3, session: summary('s1'), task: null, active_task: null, event_sequence: 0, assistant_open: false});
   fixture.history.set('s2', {messages: [{sequence: 1, role: 'user', content: '项目二问题'}, {sequence: 2, role: 'assistant', content: '项目二回答'}], next_before: null, session: summary('s2', 'p2'), task: null, active_task: null, event_sequence: 0, assistant_open: false});
   const route = async (url, options = {}) => {
     const parsed = new URL(url, 'https://host.test'), method = options.method || 'GET';
     if (parsed.pathname === '/status') return response({...fixture.status});
+    const pending = parsed.pathname.match(/^\/sessions\/([^/]+)\/requests$/);
+    if (pending) return response(fixture.requests.get(pending[1]) || {task_id:null,requests:[]});
+    if (/^\/tasks\/[^/]+\/requests\/[^/]+\/respond$/.test(parsed.pathname)) {
+      const body = JSON.parse(options.body), id = parsed.pathname.split('/')[4];
+      for (const snapshot of fixture.requests.values()) for (const card of snapshot.requests) if (card.request_id===id) card.status=body.approved?'approved':'denied';
+      return response({status:'recorded'});
+    }
     if (parsed.pathname === '/projects' && method === 'GET') return response({projects: fixture.projects, current_project_id: 'p1'});
     if (parsed.pathname === '/projects' && method === 'POST') {
       const root = JSON.parse(options.body).path;
@@ -98,7 +105,7 @@ async function credentialChecks() {
     activate(b); await b.evaluate("openSession('s1')");
     assert.equal(b.sockets.at(-1).url, expected + '/sessions/s1/events?since=12');
     b.sockets.at(-1).onopen(); assert.equal(b.sockets.at(-1).auth, 'auth:saved-device');
-    for (const failure of [async () => {throw Error('network');}, async () => response({error: 'offline'}, 503)]) {
+    for (const failure of [async () => {throw Error('network');}, async () => response({error: 'offline'}, 503), async () => response({error: 'permission denied'}, 403)]) {
       b.route = failure; await b.evaluate('sync()'); assert.equal(b.storage.get('chaos-device'), 'saved-device');
     }
     b.route = async () => response({error: 'unauthorized'}, 401); await b.evaluate('sync()');
@@ -108,6 +115,15 @@ async function credentialChecks() {
   assert.equal(ws.storage.has('chaos-device'), false);
   const paired = browser({saved: null}); paired.node('token').value = 'example-one-use'; await paired.evaluate('pair()');
   assert.equal(paired.storage.get('chaos-device'), 'new-device'); assert.equal(paired.node('list').children.length, 2);
+  const partial = browser(); await partial.evaluate('sync()');
+  const history = partial.fixture.history.get('s1');
+  partial.fixture.history.set('s1', {...history, session: summary('s1', 'p1', 'accepted_partial'),
+    task: {id:'partial-task',status:'accepted_partial',result:{execution_status:'accepted_partial',verification_status:'unverified'}}});
+  await partial.evaluate("openSession('s1')");
+  assert.equal(partial.node('chatState').textContent, '已接受部分');
+  partial.evaluate("globalRun.session_id='s1'; showEvent({event:'task_status',data:{status:'accepted_partial',result:{execution_status:'accepted_partial',verification_status:'unverified'}}})");
+  assert.equal(partial.node('chatState').textContent, '已接受部分 · 未验证');
+  assert.equal(partial.evaluate("statusText('waiting_decision')"), '待决策');
   console.log('Credentials and origins: HTTP/WS, HTTPS/WSS, saved auth, offline/503, HTTP 401 and WS 4401.');
 }
 
@@ -142,6 +158,12 @@ async function historyChecks() {
   assert.deepEqual(plain(b.evaluate('records.map(row=>row.sequence)')), [1, 2, 3, 4]);
   const saved = JSON.parse(b.storage.get('chaos-selection')); assert.equal(saved.session_id, 's1');
   const restored = browser({selection: saved}); await restored.evaluate('sync()'); assert.equal(restored.node('chatScreen').hidden, false); assert.equal(restored.node('messages').children.length, 2);
+  const restoredRoute=restored.route;
+  restored.route=async(url,options)=>url.startsWith('/sessions/s1/messages?')?response({error:'session changed during history snapshot; retry'},409):restoredRoute(url,options);
+  await restored.evaluate('loadHistory()');
+  assert.equal(restored.storage.get('chaos-device'),'saved-device');assert.equal(restored.evaluate('historyPending'),true);
+  restored.route=restoredRoute;await restored.evaluate('sync()');
+  assert.equal(restored.evaluate('historyPending'),false);assert.equal(restored.node('messages').children.length,2);
   console.log('History: refresh recovery, older-message paging, durable sequence deduplication, public roles only, no polling reload.');
 }
 
@@ -252,9 +274,44 @@ async function migratedMobileChecks() {
   console.log('Migrated mobile controls: shared project add/browse/remove confirmation, stale picker response, isolated multiline drafts, reload and successful-send clearing.');
 }
 
-(async () => {
+async function cursorResetChecks() {
+  const b=browser();await b.evaluate('sync()');activate(b);b.fixture.status.host_epoch='epoch-one';b.fixture.history.get('s1').host_epoch='epoch-one';await b.evaluate("openSession('s1')");
+  assert.match(b.sockets.at(-1).url,/epoch=epoch-one$/);
+  const old=b.sockets.at(-1),before=b.count('/sessions/s1/messages');b.fixture.history.get('s1').event_sequence=25;
+  event(b,'connection_state',25,{reset:true,snapshot_required:true},'s1','task-1',old);await tick();await tick();
+  assert.equal(b.evaluate('lastSequence'),25);assert.ok(b.count('/sessions/s1/messages')>before);assert.notEqual(b.sockets.at(-1),old);
+  activate(b,'s1',2);b.fixture.status.host_epoch='epoch-two';b.fixture.history.get('s1').host_epoch='epoch-two';await b.evaluate('sync()');
+  assert.equal(b.evaluate('lastSequence'),2);assert.equal(b.evaluate('hostEpoch'),'epoch-two');assert.match(b.sockets.at(-1).url,/since=2&epoch=epoch-two$/);
+  console.log('Event gap and Host epoch: persistent snapshot reload before low-sequence reconnect.');
+}
+
+async function approvalChecks() {
+  const b=browser();await b.evaluate('sync()');
+  const card={request_id:'host-uuid',task_id:'task-one',action_digest:'full-digest',state_version:'version-one',owner_instance_id:'owner-one',workspace_root:'F:/one',kind:'approval',preview:{summary:'<img src=x onerror=attack()>',notice:'有限预览'},expires_at:Date.now()/1000+300,status:'pending'};
+  b.fixture.requests.set('s1',{task_id:'task-one',requests:[card]});await b.evaluate("openSession('s1')");
+  assert.equal(b.node('requestsPanel').hidden,false);assert.match(textOf(b.node('requestRows')),/<img src=x onerror=attack\(\)>/);
+  const normal=b.route,wait=deferred();let answers=0;
+  b.route=async(url,options)=>{if(url.endsWith('/respond')){answers++;return wait.promise}return normal(url,options)};
+  const first=b.evaluate('respondCard(requestCards[0],true)');await tick();await b.evaluate('respondCard(requestCards[0],true)');assert.equal(answers,1);
+  const posted=JSON.parse(b.calls.find(call=>call.url.endsWith('/respond')).options.body);
+  assert.deepEqual(posted,{action_digest:'full-digest',state_version:'version-one',owner_instance_id:'owner-one',approved:true});
+  card.status='approved';wait.resolve(response({status:'recorded'}));await first;assert.equal(b.node('requestRows').children[0].children.some(node=>node.className==='request-controls'),false);
+  card.status='pending';card.expires_at=Date.now()/1000-1;await b.evaluate('loadRequests()');assert.equal(b.node('requestRows').children[0].children.some(node=>node.className==='request-controls'),false);
+  card.expires_at=Date.now()/1000+300;card.kind='decision';card.preview={operation:'reconcile',summary:'未知结果',reconciliation:{decision:'operator_not_executed'}};b.route=normal;await b.evaluate('loadRequests()');
+  const before=b.count('/tasks/task-one/requests/host-uuid/respond');await b.evaluate('respondCard(requestCards[0],true)');assert.equal(b.count('/tasks/task-one/requests/host-uuid/respond'),before);
+  await b.evaluate("respondCard(requestCards[0],true,'我已检查','目标文件不存在')");assert.equal(b.count('/tasks/task-one/requests/host-uuid/respond'),before+1);
+  card.status='pending';const late=deferred();b.route=async(url,options)=>url==='/sessions/s1/requests'?late.promise:normal(url,options);
+  const fetching=b.evaluate('loadRequests()');await b.evaluate("openSession('s2')");late.resolve(response({task_id:'task-one',requests:[card]}));await fetching;assert.equal(b.evaluate('requestCards.length'),0);
+  b.route=async()=>response({error:'unauthorized'},401);await b.evaluate('loadRequests()');assert.equal(b.node('requestsPanel').hidden,true);
+  console.log('Approval cards: bound response, single-flight, expiry, literal text, explicit reconciliation evidence, stale navigation and revoke.');
+}
+
+module.exports = {browser, response};
+if (require.main === module) (async () => {
   await credentialChecks(); await navigationChecks(); await historyChecks(); await streamChecks(); await terminalAndContinuationChecks(); await availabilityChecks(); await raceChecks();
   await migratedMobileChecks();
+  await approvalChecks();
+  await cursorResetChecks();
   assert.match(html, /height:100dvh/); assert.match(html, /safe-area-inset-bottom/); assert.match(html, /visualViewport/); assert.match(html, /min-height:40px/);
   console.log('All mobile page behavior checks passed; no Provider or model calls were made.');
 })().catch(error => {console.error(error); process.exitCode = 1;});

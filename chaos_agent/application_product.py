@@ -86,6 +86,7 @@ def configure_product_ui(host: Any) -> None:
         costs=host.costs,
         doctor=host.doctor,
         semantic_graph=host.semantic_graph,
+        project_memory=host.project_memory,
     )
     host.tui.authentication = host.authentication
     host.tui.model_preferences = host.model_preferences

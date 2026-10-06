@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from ._tool_feedback import tool_failure
 from .events import AgentEvent, EventKind
 from .models import ActionResult, ToolCall
-from .exploration_repeat import READ_ONLY_TOOLS
+from .action_semantics import operation_kind
 from ._json import plain
 
 
@@ -42,12 +42,13 @@ def build_diagnostic_reflection(error_message: str) -> str:
 
 
 def duplicate_failed_call_result(
-    last_failed_call: tuple[str, str] | None, call: ToolCall
+    last_failed_call: tuple[str, str] | None, call: ToolCall,
+    *, observed_call: ToolCall | None = None,
 ) -> ActionResult | None:
     if last_failed_call is None:
         return None
     prev_sig, prev_error = last_failed_call
-    if call_signature(call) != prev_sig:
+    if call_signature(observed_call or call) != prev_sig:
         return None
     msg = (
         "The identical tool call failed on the previous attempt.\n\n"
@@ -62,13 +63,12 @@ def duplicate_failed_call_result(
 
 
 def circuit_breaker_result(
-    action_history: list[str], call: ToolCall
+    action_history: list[str], call: ToolCall,
+    *, observed_call: ToolCall | None = None,
 ) -> ActionResult | None:
-    signature = (
-        f"{call.name}:{json.dumps(plain(call.arguments), sort_keys=True)}"
-    )
-    signature = call_signature(call)
-    if call.name in READ_ONLY_TOOLS:
+    operation = observed_call or call
+    signature = call_signature(operation)
+    if operation_kind(operation) == "read":
         return None
     action_history.append(signature)
     count = action_history.count(signature)

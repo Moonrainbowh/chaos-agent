@@ -21,6 +21,7 @@ from code_agent.providers.runtime_manager import ProviderRuntimeManager
 from chaos_agent.agent_modes import runtime_effort_for_mode
 from chaos_agent.app_ui import ModeAwareWindowsTerminalApp, PluginModeControl
 from chaos_agent.application_context import engine_for
+from chaos_agent.context_assembly import wrap_context
 from chaos_agent.runtime_dispatcher_factory import RuntimeDispatcherFactory
 from chaos_agent.runtime_provider_controls import ProviderControls
 from chaos_agent.runtime_selection_control import (
@@ -136,11 +137,15 @@ def _initial_runtime(
         initial.provider,
         reasoning_effort=snapshot.effective_reasoning_effort,
     )
-    context = context_for(snapshot, model, initial)
-    if context_wrapper is not None:
-        context = context_wrapper(context)
-    runner = engine_for(
-        model, initial, context, factory(snapshot), sessions, root, snapshot,
-        capability_strategy=factory.capability_strategy,
-    )
-    return AgentController(runner), model, runner
+    try:
+        context = context_for(snapshot, model, initial)
+        if context_wrapper is not None:
+            context = wrap_context(context, context_wrapper)
+        runner = engine_for(
+            model, initial, context, factory(snapshot), sessions, root, snapshot,
+            capability_strategy=factory.capability_strategy,
+        )
+        return AgentController(runner), model, runner
+    except BaseException:
+        factory.retire_partial_client(model)
+        raise

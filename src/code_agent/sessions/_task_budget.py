@@ -93,78 +93,108 @@ async def reserve(
         raise TypeError("progress must be a TaskProgressSnapshot or None")
     snapshot = progress or TaskProgressSnapshot()
 
-    def write(connection: sqlite3.Connection) -> BudgetReservation:
-        _require_thread(connection, thread_id)
-        row = connection.execute("SELECT * FROM task_budgets WHERE thread_id = ?", (thread_id,)).fetchone()
-        if row is None:
-            raise SessionCorruptionError("task budget is missing")
-        current = task_budget(row)
-        if current.model_turns + model_turns > current.limits.max_agent_rounds or current.tool_calls + tool_calls > current.limits.max_tool_calls:
+    def write(connection):
+        from ._shared_budget import binding, require_active_parent, token_spent
+        bound = binding(connection, thread_id)
+        if bound is None:
+            return _reserve_connection(connection, thread_id, model_turns, tool_calls, snapshot)
+        require_active_parent(connection, bound)
+        child = task_budget(connection.execute("SELECT * FROM task_budgets WHERE thread_id=?", (thread_id,)).fetchone())
+        if (child.model_turns + model_turns > bound['max_agent_rounds']
+                or child.tool_calls + tool_calls > bound['max_tool_calls']
+                or token_spent(connection, bound['owner_thread_id'], thread_id) >= bound['max_total_tokens']):
+            return BudgetReservation(child, BudgetReserveStatus.HARD_EXHAUSTED, 'child task budget exhausted')
+        connection.execute('SAVEPOINT child_reservation')
+        local = _reserve_connection(connection, thread_id, model_turns, tool_calls, snapshot)
+        if local.status not in {BudgetReserveStatus.RESERVED, BudgetReserveStatus.RENEWED}:
+            connection.execute('ROLLBACK TO child_reservation')
+            connection.execute('RELEASE child_reservation')
+            return local
+        shared = _reserve_connection(connection, bound['owner_thread_id'], model_turns, tool_calls, snapshot, allow_renewal=False)
+        if shared.status not in {BudgetReserveStatus.RESERVED, BudgetReserveStatus.RENEWED}:
+            connection.execute('ROLLBACK TO child_reservation')
+        connection.execute('RELEASE child_reservation')
+        return local if shared.status in {BudgetReserveStatus.RESERVED, BudgetReserveStatus.RENEWED} else BudgetReservation(child, shared.status, shared.reason)
+
+    return await database.write(write)
+
+
+def _reserve_connection(connection, thread_id, model_turns, tool_calls, snapshot, *, allow_renewal=True):
+    from ._shared_budget import token_spent
+    _require_thread(connection, thread_id)
+    row = connection.execute("SELECT * FROM task_budgets WHERE thread_id = ?", (thread_id,)).fetchone()
+    if row is None:
+        raise SessionCorruptionError("task budget is missing")
+    current = task_budget(row)
+    if (current.model_turns + model_turns > current.limits.max_agent_rounds
+            or current.tool_calls + tool_calls > current.limits.max_tool_calls
+            or token_spent(connection, thread_id) >= current.limits.max_total_tokens):
+        return BudgetReservation(
+            current,
+            BudgetReserveStatus.HARD_EXHAUSTED,
+            "hard task budget exhausted",
+        )
+    baseline = current.lease_progress_baseline or snapshot.digest
+    lease_exceeded = (
+        current.model_turns + model_turns > current.lease_model_turn_limit
+        or current.tool_calls + tool_calls > current.lease_tool_call_limit
+    )
+    status = BudgetReserveStatus.RESERVED
+    reason = None
+    renewed = replace(current, lease_progress_baseline=baseline)
+    if lease_exceeded:
+        if not allow_renewal:
+            return BudgetReservation(current, BudgetReserveStatus.LEASE_EXHAUSTED,
+                                     "child cannot renew parent soft lease")
+        if snapshot.digest == baseline:
+            return BudgetReservation(
+                renewed,
+                BudgetReserveStatus.LEASE_EXHAUSTED,
+                "soft lease exhausted without new trusted progress",
+            )
+        renewed = _renew_lease(renewed, snapshot)
+        if renewed is None:
             return BudgetReservation(
                 current,
-                BudgetReserveStatus.HARD_EXHAUSTED,
-                "hard task budget exhausted",
+                BudgetReserveStatus.LEASE_EXHAUSTED,
+                "soft lease exhausted after final extension",
             )
-        baseline = current.lease_progress_baseline or snapshot.digest
-        lease_exceeded = (
-            current.model_turns + model_turns > current.lease_model_turn_limit
-            or current.tool_calls + tool_calls > current.lease_tool_call_limit
-        )
-        status = BudgetReserveStatus.RESERVED
-        reason = None
-        renewed = replace(current, lease_progress_baseline=baseline)
-        if lease_exceeded:
-            if snapshot.digest == baseline:
-                return BudgetReservation(
-                    renewed,
-                    BudgetReserveStatus.LEASE_EXHAUSTED,
-                    "soft lease exhausted without new trusted progress",
-                )
-            renewed = _renew_lease(renewed, snapshot)
-            if renewed is None:
-                return BudgetReservation(
-                    current,
-                    BudgetReserveStatus.LEASE_EXHAUSTED,
-                    "soft lease exhausted after final extension",
-                )
-            if (
-                current.model_turns + model_turns > renewed.lease_model_turn_limit
-                or current.tool_calls + tool_calls > renewed.lease_tool_call_limit
-            ):
-                return BudgetReservation(
-                    current,
-                    BudgetReserveStatus.LEASE_EXHAUSTED,
-                    "requested reservation exceeds renewed soft lease",
-                )
-            status = BudgetReserveStatus.RENEWED
-            reason = snapshot.reason
-        updated = replace(
-            renewed,
-            model_turns=current.model_turns + model_turns,
-            tool_calls=current.tool_calls + tool_calls,
-        )
-        connection.execute(
-            "UPDATE task_budgets SET model_turns = ?, tool_calls = ?, "
-            "lease_tier = ?, lease_model_turn_limit = ?, lease_tool_call_limit = ?, "
-            "lease_renewals = ?, lease_final_extension = ?, "
-            "lease_progress_baseline = ?, lease_last_reason = ? WHERE thread_id = ?",
-            (
-                updated.model_turns,
-                updated.tool_calls,
-                updated.lease_tier.value,
-                updated.lease_model_turn_limit,
-                updated.lease_tool_call_limit,
-                updated.lease_renewals,
-                int(updated.lease_final_extension),
-                updated.lease_progress_baseline,
-                updated.lease_last_reason,
-                thread_id,
-            ),
-        )
-        sync_lineage_usage(connection, thread_id, updated)
-        return BudgetReservation(updated, status, reason)
-
-    return await database.write(write)  # type: ignore[attr-defined]
+        if (
+            current.model_turns + model_turns > renewed.lease_model_turn_limit
+            or current.tool_calls + tool_calls > renewed.lease_tool_call_limit
+        ):
+            return BudgetReservation(
+                current,
+                BudgetReserveStatus.LEASE_EXHAUSTED,
+                "requested reservation exceeds renewed soft lease",
+            )
+        status = BudgetReserveStatus.RENEWED
+        reason = snapshot.reason
+    updated = replace(
+        renewed,
+        model_turns=current.model_turns + model_turns,
+        tool_calls=current.tool_calls + tool_calls,
+    )
+    connection.execute(
+        "UPDATE task_budgets SET model_turns = ?, tool_calls = ?, "
+        "lease_tier = ?, lease_model_turn_limit = ?, lease_tool_call_limit = ?, "
+        "lease_renewals = ?, lease_final_extension = ?, "
+        "lease_progress_baseline = ?, lease_last_reason = ? WHERE thread_id = ?",
+        (
+            updated.model_turns,
+            updated.tool_calls,
+            updated.lease_tier.value,
+            updated.lease_model_turn_limit,
+            updated.lease_tool_call_limit,
+            updated.lease_renewals,
+            int(updated.lease_final_extension),
+            updated.lease_progress_baseline,
+            updated.lease_last_reason,
+            thread_id,
+        ),
+    )
+    sync_lineage_usage(connection, thread_id, updated)
+    return BudgetReservation(updated, status, reason)
 
 
 async def load(database: object, task_id: str, load_task: object) -> TaskBudget:

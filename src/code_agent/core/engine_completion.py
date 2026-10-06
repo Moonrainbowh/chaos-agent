@@ -11,17 +11,23 @@ from .verification_state import VerifierOutcome, decide_verification_transition
 class AgentEngineCompletionMixin:
     """Resolve a model completion through the persistent verification gate."""
 
-    async def _resolve_task_completion(self, task: TaskRecord, thread_id: str) -> TaskRecord:
+    async def _resolve_task_completion(self, task: TaskRecord, thread_id: str, result_metadata=None) -> TaskRecord:
         if task.contract.intent is TaskIntent.MODIFY:
             state = await self._journal.load_task_state(thread_id)
             if not state.files_changed:
+                if result_metadata is not None:
+                    result_metadata.update(verification='unverified', remaining=(
+                        'workspace change or explicit acceptance of no-change delivery',))
                 return await self._journal.transition_task(
                     task.id,
                     TaskStatus.WAITING_DECISION,
                     "Requested modification produced no workspace file changes. "
-                    "Continue with implementation or explain why no change is required.",
+                    "Continue with implementation, or explain why no change is required "
+                    "and request explicit acceptance of the unchanged partial delivery.",
                 )
             if not getattr(self, "_require_verification", True):
+                if result_metadata is not None:
+                    result_metadata.update(verification='unverified')
                 return await self._journal.transition_task(
                     task.id, TaskStatus.COMPLETED,
                     "task completed without structured verification",
@@ -37,6 +43,11 @@ class AgentEngineCompletionMixin:
             assessment = verification_assessment.assessment
             outcome = verification_assessment.outcome
         transition = decide_verification_transition(task.contract.intent, assessment, outcome)
+        diagnostics = getattr(verification_assessment, "diagnostics", ())
+        detail = "; ".join(diagnostics)
+        explanation = "Verification " + outcome.value + (": " + detail if detail else "")
+        if result_metadata is not None:
+            result_metadata.update(verification=assessment.kind.value, remaining=assessment.unmet_required)
         if transition.action.value == "complete":
             if (
                 verification_assessment is not None
@@ -55,12 +66,14 @@ class AgentEngineCompletionMixin:
             missing = ", ".join(assessment.unmet_required) or "current verification evidence"
             return await self._journal.transition_task(
                 task.id, TaskStatus.WAITING_DECISION,
-                "Verification did not complete. Missing: " + missing,
+                ("Verification did not complete. Missing: " + missing
+                 + (". " + explanation if detail else ""))[:1024],
             )
-        if transition.status is task.status:
+        if transition.status is task.status and not detail:
             return task
         return await self._journal.transition_task(
-            task.id, transition.status, "verification evidence is required"
+            task.id, transition.status,
+            (explanation if detail else "verification evidence is required")[:1024]
         )
 
     @staticmethod

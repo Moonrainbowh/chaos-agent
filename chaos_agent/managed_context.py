@@ -10,6 +10,7 @@ from code_agent.context_windows.tools import WindowToolService
 from code_agent.context_windows.persistent_builder import PersistentContextBuilder
 from code_agent.context_windows.persistent_tools import PersistentToolService
 from chaos_agent.runtime_extensions import BoundSkillContextBuilder
+from chaos_agent.context_assembly import ContextAssembly, ContextScopedDispatcher
 
 
 def build_managed_context(config, rules, repo_map, skills, sessions, binding, client, profile, *,
@@ -25,9 +26,11 @@ def build_managed_context(config, rules, repo_map, skills, sessions, binding, cl
     policy = profile.context_policy
     limits = ApiContextLimits(profile.context_window, profile.max_output_tokens, profile.api_input_tokens)
     counter = configured_counter(profile.provider.model)
-    guarded = BudgetedWindowClient(client, sessions, binding.current, policy, limits, counter)
+    guarded = client if isinstance(client, BudgetedWindowClient) else BudgetedWindowClient(
+        client, sessions, binding.current, policy, limits, counter)
     workspace = WorkspaceContextBuilder(config, rules, repo_map, DeterministicCompactor(config))
-    scaffold = BoundSkillContextBuilder(workspace, binding, skills)
+    snapshot = workspace_snapshot(workspace, config.workspace_root)
+    scaffold = BoundSkillContextBuilder(workspace, binding, skills, semantic_snapshot=snapshot)
     if policy.strategy == "persistent":
         result = PersistentContextBuilder(
             scaffold, sessions, policy, limits, counter, None,
@@ -35,13 +38,12 @@ def build_managed_context(config, rules, repo_map, skills, sessions, binding, cl
             memory_user_scope_id=memory_user_scope_id,
             allow_user_memory=allow_user_memory,
         )
-        result.context_actions = PersistentToolService(sessions, binding.current, result)
+        actions = PersistentToolService(sessions, binding.current, result)
     else:
         result = WindowContextBuilder(scaffold, sessions, policy, limits, counter,
                                      HandoffWriter(guarded, counter, policy, limits))
-        result.context_actions = WindowToolService(sessions, binding.current)
-    result.managed_client = guarded
-    return result
+        actions = WindowToolService(sessions, binding.current)
+    return ContextAssembly(result, guarded, actions, snapshot)
 
 
 def configured_counter(model):
@@ -56,18 +58,20 @@ def configured_counter(model):
     return PromptTokenCounter(encoding)
 
 
+def workspace_snapshot(workspace, root):
+    """Bind snapshot access to the workspace built by this composition."""
+    from pathlib import Path
+    frozen_root = Path(root).resolve()
+    def snapshot(requested_root):
+        if Path(requested_root).resolve() != frozen_root:
+            raise ValueError("semantic snapshot root does not match context root")
+        return workspace.semantic_snapshot_for_turn()
+    return snapshot
+
+
 def wire_managed_engine(model, context, dispatcher):
-    managed = context
-    seen = set()
-    while managed is not None and id(managed) not in seen:
-        seen.add(id(managed))
-        if getattr(managed, "managed_client", None) is not None:
-            break
-        managed = getattr(managed, "_inner", None)
-    if managed is None or getattr(managed, "managed_client", None) is None:
-        return model
-    root = dispatcher
-    while getattr(root, "_inner", None) is not None:
-        root = root._inner
-    root.context_actions = managed.context_actions
-    return managed.managed_client
+    """Legacy direct composition helper; production uses ContextAssembly explicitly."""
+    if not isinstance(context, ContextAssembly):
+        raise TypeError("managed context wiring requires ContextAssembly")
+    dispatcher.context_actions = context.context_actions
+    return context.model_client

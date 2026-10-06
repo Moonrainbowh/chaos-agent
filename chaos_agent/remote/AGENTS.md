@@ -1,22 +1,20 @@
-# Remote Host
-通过标准 HTTP/WebSocket Host 将手机 PWA 接入电脑端 Chaos Agent，支持局域网直连和外部反向代理入口。
+# Remote
+手机PWA接电脑：HTTP/WS、LAN/反向代理。
 
 ## 边界
-- 负责：一次性配对、单设备认证、单活动任务、移动端事件转换和 HTTP/WebSocket 生命周期。
-- 负责：复用已组合的 `Application`、`ForegroundTaskController` 和会话存储，不复制 Agent loop。
-- 负责：展示共享持久会话库中的最近项目、最近会话、搜索结果与分页消息；项目以任务的 source workspace 归属，未知归属保留为未归类，不静默隐藏历史。
-- 负责：在已知项目中选择或创建会话，并按所选项目组合应用；恢复任务使用原契约，终态续聊创建继承消息的新任务，保留原任务终态。
-- 负责：提供窄屏单栏导航、紧凑会话列表和固定输入区；页面刷新与 Host 重启后从持久库重建历史。
-- 负责：复用 SSH 手机入口的固定用户 ProjectStore，展示无历史的已登记项目；提供认证后的添加、目录浏览、最近选择和移除入口，移除不删除工程或历史。
-- 负责：手机聊天页提供项目/会话快捷导航、绿色用户消息、输入/到底/状态等大按钮；按会话隔离并保存浏览器草稿，切换导航不丢失未发送文本。
-- 项目登记与会话历史归属分别保存；移除入口后已有历史仍可读。目录选择仅浏览文件夹，不执行模型或切换运行中的任务；任务控制继续遵守单执行槽。
-- 不负责：Provider、Workspace、权限策略、TUI、云端 Relay、用户账户或公网穿透。
+- 一次配对/单设备/单活动任务/移动事件/连接；共Application/Foreground/Sessions不复制loop；不负责Provider/Workspace/policy/TUI/云Relay/账户/穿透。
+- 历史按Task source workspace归属，未知不隐藏；已知项目组合app/会话恢复契约，终态继承消息新Task保旧终态，刷新/重启持久重建。
+- 共SSH固定用户ProjectStore含无历史项目；登记/历史归属分存，移除不删工程/历史；目录仅浏览文件夹，不调模型/切活动Task，守单槽。
+- S12共持久审批/待决定，绑task/action/workspace/version/owner/TTL，过期/重放/撤销拒或等；未知走原核对，继续消息非批准。未Task Skill/插件仅本地，审批不扩冻结权限。
+- 仅凭据失效401/4401；业务拒绝403保配对；accepted_partial显示已接受部分、waiting_decision待决策，不补验证。
+- 默认HTTPS/WSS、代理上游loopback HTTP；明文调试须显式具体私网IPv4，不改防火墙/装服务。撤销不回滚动作，先提交批准仍有效，后响应拒；证书加载≠手机信任链验收。
 
 ## Units
-- `PairingStore`: 生成一次性 Token、签发、持久化和校验设备凭据 | 产品状态目录 `remote/devices.json` 与进程内 Token | 复用 StoreLock 串行写入，原子替换并 fsync；成功保存后消费 Token；认证读取当前摘要以观察外部撤销，损坏或缺失时拒绝认证。
-- `RemoteCatalog`: 合并固定用户 ProjectStore 的项目入口与共享会话库历史，投影 registered/recent 属性、搜索公开历史、分页消息和创建项目会话 | 项目登记/最近选择及会话 checkpoint | 不构造 Provider；移除入口不隐藏历史，seed 遵守已移除记录；Host 内 registry 操作串行并在线程外执行，归属使用 source workspace，缺失归属与目录不可用时历史只读。
-- `RemoteApplications`: 按已知项目惰性组合和关闭一个备用 Application | 应用运行时生命周期 | 复用产品会话库并继承当前模型选择；保存任务恢复使用原契约。
-- `RemoteTaskController`: 将选中会话映射为新建、恢复或继承历史的任务，管理 Host 单执行槽 | Agent 任务、每次运行的有界事件缓冲和公开消息快照 | 原子消息快照带事件游标；WebSocket 固定所属运行；手机断线不取消任务。
-- `RemoteEventAdapter`: 将 `AgentEvent` 转换为有界 `MobileEvent` | 无外部副作用 | 不泄露 reasoning、凭据、上下文或原始异常正文。
-- `create_host_app`: 组合 HTTP/WebSocket 路由和静态 PWA，可注入 ProjectStore 以隔离测试 | 请求处理/连接生命周期 | 认证先于项目/目录/会话/任务操作；项目选择只更新登记和最近记录，不替换活动 Application；目录浏览调用 ProjectStore 有界浅层接口；活动 WebSocket 发送前及等待期间检查撤销；PWA 从 location 构造 ws/wss，仅 401 或 4401 清除凭据。
-- 静态页面提供最近/项目导航、添加/浏览/移除入口确认、项目内新建、历史搜索与分页、刷新后恢复选择；单栏布局固定底部输入区及四个大操作，深绿色只标记用户角色。草稿按会话（无会话时按项目）隔离，保存最多 64 条、每条 1024 字符，发送成功才清空对应草稿；未知项目和不可用目录只读。将连续 `assistant_delta` 追加到同一回复气泡，工具调用及任务边界分段；基于文本节点呈现基础 Markdown，不执行模型 HTML；使用原子快照的事件游标重连，过滤旧会话响应及已关闭目录面板的迟到结果。
+- parse_host_options/HostTransport：初始化前核本机/TLS/显式私网。
+- PairingStore/authorized_response：进程内一次Token，设备摘要remote/devices.json；StoreLock串行/原子替换/fsync，成功才消费；认证读当前摘要，撤销/损坏/缺失拒。敏感响应持锁重认证至CAS/唤醒，取消仍等取锁worker并释放。
+- RemoteCatalog：ProjectStore+共享库最近项目/会话、registered/recent、公开搜索/分页/建会话；添加/浏览/最近选择/移除/checkpoint先认证，不构造Provider。移除保历史，seed守移除，registry串行/thread外；无归属/不可用目录历史只读。
+- RemoteApplications：已知项目惰性组合/关一备用app，共库/当前model，恢复契约。
+- RemoteTaskController：新建/恢复/继承会话，单槽/有界run事件/公开消息；原子cursor/result快照，结束run核同Task/version持久结果，不跨run/live；WS固定run/断线不取消；epoch变/gap reset回持久快照，旧cursor不串run；丢回应poll核快照。
+- RemoteRequestControl：认证查/答中央审批/最小Task决定；Host UUID(非callID)/摘要/预览/choices，绑定/TTL/CAS/consumed_now阻重复执行；restart无Future审批stale、决定核持久状态；未知走S5，accept_partial显式未验证终态非成功证据。
+- RemoteEventAdapter：AgentEvent→有界MobileEvent，无副作用，不泄reasoning/凭据/context/异常正文。
+- create_host_app/PWA：HTTP/WS/static+可注入ProjectStore；项目/目录/会话/Task先认证，选项目仅登记/最近不替活动app，目录有界浅层。WS发送前/等待核撤销，ws/wss取location，仅401/4401清凭据。窄单栏紧列表，导航/添加浏览移除确认/项目新建/搜索分页/刷新选中；固定输入/到底/状态四按钮，深绿仅user。草稿按会话(无会话按项目)≤64×1024字符，导航保留/发送成功才清该条，未知项目/不可用目录只读。assistant_delta同气泡、tool/Task分段，文本节点Markdown不执行模型HTML。原子cursor重连，滤旧会话/关闭目录迟到结果；gap/epoch reset先持久快照/请求卡再低cursor，显示审批/拒绝/过期/已处理，离线/旧卡不自动批准。

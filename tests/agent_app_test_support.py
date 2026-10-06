@@ -66,6 +66,7 @@ def _isolated_application(
     *,
     approval_mode: str = "full-local",
     allow_sensitive_paths: bool = False,
+    model_name: str = "test",
 ):
     workspace, product = container / "workspace", container / "state"
     workspace.mkdir()
@@ -73,7 +74,7 @@ def _isolated_application(
         "CHAOS_CONFIG": str(container / "missing.toml"),
         "CHAOS_API": "responses",
         "CHAOS_BASE_URL": "https://api.example.test",
-        "CHAOS_MODEL": "test",
+        "CHAOS_MODEL": model_name,
         "CHAOS_API_KEY_ENV": "KEY",
         "CHAOS_APPROVAL_MODE": approval_mode,
     }

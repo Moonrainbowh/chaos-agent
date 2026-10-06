@@ -2,6 +2,7 @@
 在明确的 token 预算内渐进加载项目规则和代码结构，并用进程内混合检索构造稳定且可压缩的模型上下文。
 
 ## 边界
+- S11：project_memory以UNTRUSTED引用边界在固定prefix预算前计入；不作规则/权限/验证事实，禁止成品Bundle后追加绕预算。
 - 负责：把附件 token 估算纳入消息预算；最新 user 附件预算不足时明确失败，不能静默丢弃；旧消息压缩只保留有界附件元数据，不读取 blob。
 - 负责：首回合从完整持久 user Message 构建上下文，避免用纯文本 `user_input` 重建时丢失附件或重复消息。
 - 不负责：解析附件内容、生成 Provider content blocks，或让语义 summarizer 接触附件 blob。
@@ -15,6 +16,7 @@
 - 不负责：发起模型请求、修改文件、运行命令或持久化完整会话。
 - 不负责：将 Repo Index 持久化到磁盘，依赖文件监控器、外部搜索服务、embedding 模型或向量数据库。
 - 不负责：将整个仓库或所有扩展说明无条件注入提示词。
+- 必要规则不截断、不用模型摘要替换；规则与系统提示预算失败在模型请求及动作前阻断，诊断包含实际用量、继承文件和显式预算修复方式，调整仍受总提示与最小消息预算限制。
 - 负责有界渲染目标、未满足 required criteria、当前 generation 与最新有效 evidence 摘要；已失效证据和模型工作笔记不得作为通过事实呈现。
 - 不负责：解释原始 verifier 全量输出、生成 evidence 或决定完成状态。
 
@@ -26,7 +28,7 @@
 ## Units
 - `_requires_repo_map(query)`：复用 Core 的有界问候识别，跳过纯问候的仓库索引 | 无副作用 | 包含工作请求仍按正常上下文路径处理。
 - `render_evidence_summary(...)`: 渲染当前 generation 的 required criteria 和有效 evidence 摘要 | 无副作用 | 优先保留失败/未满足条件，绝不输出完整 verifier 原始内容
-- `PromptBudget.allocate(system_and_rules_tokens, tool_tokens, task_state_tokens): PromptAllocation`: 在固定安全余量下为规则、系统提示、工具、任务状态、repo map 和消息分配 token | 无副作用 | 默认规则上限 3,000 token，另为系统提示预留 2,000 token；工具上限 2,000 token；repo map 先于消息收缩，保留最小消息预算
+- `PromptBudget.allocate(system_and_rules_tokens, tool_tokens, task_state_tokens): PromptAllocation`: 在固定安全余量下为规则、系统提示、工具、任务状态、repo map 和消息分配 token | 无副作用 | 默认规则上限 6,000 token，另为系统提示预留 2,000 token；工具上限 2,000 token；repo map 先于消息收缩，保留最小消息预算
 - `ContextConfig`、`ProjectRule`、`Symbol`、`RepoEntry`、`CompactionResult`: 冻结上下文构建配置和中间结果 | 无副作用 | 路径和预算在构造时校验；旧 map/message 预算参数归一化为 `PromptBudget`
 - `estimate_tokens(text): int`、`truncate_to_tokens(text, budget): str`: 对 ASCII、多字节字符和代理对做确定性保守估算与截断 | 无副作用 | 不切断 Unicode 代理对
 - `RuleLoader.load(cwd): tuple[ProjectRule, ...]`: 按根规则、根目录直属扩展规则和目录链加载受边界保护的说明 | 读取已授权工作区文件 | 以根目录 mtime 复用直属扩展名称，不递归扫描工作区；严格受单文件和总字节预算约束
@@ -41,7 +43,7 @@
 - `RepoMapBuilder.build/render/render_with_metrics`: 兼容入口，组合共享 Repo Index 与分层 Request-derived Context | 首次或收到失效通知时刷新索引，并在发送 L0 前后校验 FileSignature | stale 时精确失效并最多重建一次；再次变化则 fail-closed，不发送跨代 L0/L1/L2；输出不超过 token 预算
 - `estimate_attachment_tokens(ref)`、`message_tokens(message)`: 只按安全元数据保守估算文本/图片附件预算 | 无副作用 | 不读取 blob
 - `DeterministicCompactor.compact(messages): CompactionResult`: 以确定规则压缩旧消息，同时保留最近消息、附件安全元数据与工具调用/结果配对 | 无副作用 | 最新 user 附件超预算明确失败，不依赖模型摘要
-- `WorkspaceContextBuilder.build(request): ContextBundle`: 按规则、工具、任务状态、按需 repo map 和消息的动态预算组装稳定系统提示词及本地数值度量，可选执行 source-anchored semantic compaction，并始终以确定性压缩施加最终硬边界 | 在线程池中读取工作区 | 透传真实 thread identity、revision 与 cancellation；非项目上下文或问候不触发 repo map；Context 不持久化；规则超出 3,000 token 立即失败；度量不含提示、规则或源码；非空输入只追加一个 user 消息
+- `WorkspaceContextBuilder.build(request): ContextBundle`、`preflight(request)`：组装上下文与检查固定预算 | 在线程池读取规则 | 真实thread/revision/cancellation；问候不触发repo map；不持久化；完整规则超配置额度立即失败（默认6,000）；preflight先于外层摘要Provider，build仍复查；度量无正文/源码；输入只追加一个user消息。其余上下文选择、压缩及确定性边界不变。
 - `render_task_state(state, token_budget): str`: 按优先级渲染有界持久任务事实 | 无副作用 | 事实在工作笔记之前，工作笔记始终标记为未验证
 
 ### 上下文选择验证与调试

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from typing import AsyncIterator
 
 from ._engine_run import _RunState, _TurnState
@@ -16,6 +17,7 @@ from .engine_turn_feedback import (
 )
 from .events import AgentEvent, EventKind
 from .models import ActionResult, Message, ToolCall
+from .action_semantics import resolve_supervision_call
 
 
 class AgentEngineDispatchMixin:
@@ -70,11 +72,12 @@ class AgentEngineDispatchMixin:
         # Register every accepted call before policy handling so a blocked call
         # cannot have its id reused by a later model turn.
         state.used_call_ids.add(call.id)
+        observed_call = resolve_supervision_call(call, getattr(self, "_actions", None))
         failure = duplicate_failed_call_result(
-            getattr(state, "last_failed_call", None), call
+            getattr(state, "last_failed_call", None), call, observed_call=observed_call
         )
         if failure is None:
-            failure = circuit_breaker_result(state.action_history, call)
+            failure = circuit_breaker_result(state.action_history, call, observed_call=observed_call)
         if failure is not None:
             if is_validation_failure(failure):
                 setattr(turn, "has_validation_error", True)
@@ -106,12 +109,12 @@ class AgentEngineDispatchMixin:
             self._track_turn_event(state, event, validation_blocked)
             if event.kind is EventKind.ACTION_COMPLETED:
                 completed_result = event.payload.get("result")
-                if isinstance(completed_result, dict):
+                if isinstance(completed_result, Mapping):
                     if is_validation_failure(completed_result):
                         setattr(turn, "has_validation_error", True)
                     if completed_result.get("is_error") is True:
                         state.last_failed_call = (
-                            call_signature(call),
+                            call_signature(observed_call),
                             format_action_error(completed_result),
                         )
                     else:
@@ -120,7 +123,7 @@ class AgentEngineDispatchMixin:
             if event.kind is EventKind.MESSAGE_ADDED and completed_result is not None:
                 try:
                     observation = state.exploration_repeat.observe(
-                        call, ActionResult.from_dict(completed_result)
+                        observed_call, ActionResult.from_dict(completed_result)
                     )
                 except (KeyError, TypeError, ValueError):
                     observation = None

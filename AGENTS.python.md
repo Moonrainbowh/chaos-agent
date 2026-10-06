@@ -1,41 +1,20 @@
 # Python 扩展规范
+适用本仓库 Python3.10+ 源码、根集成和测试。
 
-## 适用条件
-适用于本仓库的 Python 3.10+ 源码、根级集成入口与测试。
+## 结构与代码
+- Feature `src/code_agent/<feature>/`，测试其 `tests/`；Host组合入口 `chaos_agent/`（app.py/cli.py及组合模块）；集成测试 `tests/`。集成只组合公开接口，不重写Feature行为。
+- 文件/函数/变量snake_case，类/枚举PascalCase；异步边界显式async/await，阻塞文件I/O经asyncio.to_thread。
+- 新文件以300行为目标；历史超长Unit局部修复不强拆，新增复杂职责/模糊边界再拆。函数50行是拆分信号，多重解析/权限/副作用职责必须拆，不为行数碎拆。
 
-## 目录约定
-- Feature 源码：`src/code_agent/<feature>/`
-- Feature 测试：`src/code_agent/<feature>/tests/`
-- 集成入口与组合逻辑：`chaos_agent/`（入口为 `app.py`、`cli.py`，其余模块负责 Host、上下文、TUI 与 Workspace 组合）
-- 集成测试：`tests/`
+## 检查与运行
+- 全量：项目`.venv`或 `uv run --locked python scripts/run_tests.py`，动态全部Feature+remote+根集成。套件默认600s，线程栈宽限2s，timeout124；普通失败/超时继续汇总，清理失败中止并列未运行，零发现失败；末尾JSON必须是真实数量。
+- `suite_process.py`复用Windows Job；管道放行后才发现测试，超时输出末测试/线程栈，确认Job清空；临时进度只IPC，失败沿用结构化输出。
+- Feature `python -m unittest discover -s src/code_agent/<feature>/tests -p 'test_*.py'`；根 `python -m unittest discover -s tests -p 'test_*.py'`；打包 `python -m build`。
+- PowerShell多于3行、含嵌套引号或中文的Python必须落盘`.py`再执行；python-c只限轻量单行无嵌套引号探测。
 
-## 命名规范
-- 文件、函数和变量：`snake_case`
-- 类和枚举：`PascalCase`
-- 异步边界显式使用 `async` / `await`；阻塞文件系统操作经 `asyncio.to_thread` 调用。
+## 展示与数据
+- wide动效只刷新尾部，保持历史选择、中文列宽/光标；compact为明确有界手机视口，仅真实状态变化重绘；不加历史装饰动效。唯一主题验证窄屏、NO_COLOR、reduced motion；预览必须复用真实渲染且标示示例，离线预览不调用模型/工具。入口 `python -m code_agent.interfaces.theme_preview`，支持 --theme slate --animate / --html docs/ui-preview/index.html。
+- Excel/CSV动态嗅探或显式声明表头/类型，不盲用header=None。图表用自适应网格，不混绝对像素/固定add_axes；强相关多指标上下共享X轴，不用倍率缩放双Y轴伪造重合。
 
-## Unit 粒度
-- 新建文件以 300 行为目标；已有超长文件的小修复只改相关逻辑，不因历史行数强制拆分。新增复杂职责或修改导致边界进一步模糊时再按职责拆分。
-- 单个函数以 50 行为拆分信号；同时承担解析、权限和副作用时必须拆分，不为凑行数拆碎自解释的逻辑。
-- 集成层只组合 Feature 的公开接口，不重写 Feature 行为。
 
-## 构建与运行
-- 套件监管：`scripts/suite_process.py` 组合现有 Windows Job；子进程在管道放行后才发现测试，超时输出最后测试标识及线程栈，并确认 Job 清空。临时进度文件仅用于进程间传递，失败沿用现有结构化输出。
-- 全量回归：使用项目 `.venv` 或 CI 的 `uv run --locked python scripts/run_tests.py`（动态发现全部 Feature 与 remote 测试，最后运行根集成测试；`--suite-timeout` 默认 600 秒，另有 2 秒线程栈输出宽限；单套件超时 124；普通失败/超时继续汇总，进程清理失败中止并列出未运行项；零发现失败，末尾 JSON 汇总实际数量）
-- 根集成测试：`python -m unittest discover -s tests -p 'test_*.py'`
-- Feature 测试：`python -m unittest discover -s src/code_agent/<feature>/tests -p 'test_*.py'`
-- 打包：`python -m build`
-
-## 终端界面验证
-- 主题预览：`python -m code_agent.interfaces.theme_preview --theme slate --animate`；离线示例不调用模型或工具。
-- 可交互对照页：`python -m code_agent.interfaces.theme_preview --html docs/ui-preview/index.html`；页面必须复用真实渲染器输出并明确标记示例数据。
-- wide 动效只刷新动态尾部，保持历史可选择、中文列宽与光标几何；compact 为用户明确要求的有界手机视口，可按真实消息/尺寸/状态变化重绘顶部与正文，不添加装饰性历史动效；唯一主题必须验证窄窗口、`NO_COLOR` 和 reduced motion。
-
-## 脚本运行与命令行规范
-- 文件优先（File-First）：严禁在 PowerShell 下使用 `python -c "..."` 执行超过 3 行、包含嵌套引号或中文字符的内联脚本；多行与复杂逻辑必须先落盘为 `.py` 文件（如脚本或临时目录），再以 `python <path>` 执行，彻底规避字符串转义、编码乱码与长度溢出。
-- 探测轻量：`python -c` 仅允许用于无嵌套引号的单行版本或环境探测。
-
-## 数据处理与可视化规范
-- 表头防御：读取多工作表数据文件（如 Excel/CSV）时，必须动态嗅探或显式声明表头与类型，禁止无防护盲目假设 `header=None` 造成数值列被推断为 object 类型。
-- 布局自适应：科学图表与数据看板必须使用自适应网格（如 `GridSpec` 配合 `constrained_layout=True`），严禁混用绝对像素或固定比例 `add_axes` 导致多环境导出时重叠溢出。
-- 科学对齐：多指标强正相关对比时优先采用上下共享 X 轴子图（Shared X-Axis），严禁以固定倍率粗暴缩放双 Y 轴致使曲线完全重叠。
+接口细节与历史说明（非默认规则）：`docs/next-version/s4/reference/python-before.md`。本文件已保留必要约束；参考快照不覆盖当前规则。

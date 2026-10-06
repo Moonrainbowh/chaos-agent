@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import unittest
+from types import SimpleNamespace
+from code_agent.core.action_execution import ActionExecutionContext
+from code_agent.core.task import TaskAuthorization, TaskStatus
 
 from code_agent.core.cancellation import CancellationToken
 from code_agent.core.events import AgentEvent, EventKind
@@ -63,6 +66,13 @@ def _runtime():
 class EngineChildRunnerTests(unittest.IsolatedAsyncioTestCase):
     async def test_child_thread_is_created_under_the_active_parent(self) -> None:
         class Sessions:
+            async def load_task(self, task_id):
+                return SimpleNamespace(thread_id="parent-thread", status=TaskStatus.RUNNING,
+                    contract=SimpleNamespace(authorization=TaskAuthorization("C:/frozen")))
+
+            async def bind_child_budget(self, *args, **kwargs):
+                self.budget_binding = args
+
             async def create_thread(self, *, parent_thread_id=None):
                 self.parent = parent_thread_id
                 return "child-thread"
@@ -84,7 +94,7 @@ class EngineChildRunnerTests(unittest.IsolatedAsyncioTestCase):
         runner = EngineChildRunner(
             lambda _: (engine, None),
             sessions=sessions,
-            parent_thread=lambda: "parent-thread",
+            parent_thread=lambda: "wrong-global-parent",
         )
         registry, profiles = _runtime()
         agent = AgentDefinition(
@@ -95,6 +105,8 @@ class EngineChildRunnerTests(unittest.IsolatedAsyncioTestCase):
             ("read_file",),
         )
 
+        runner.bind_execution_context(ActionExecutionContext("parent-thread", "parent-thread",
+            "delegate", "parent-task"))
         await runner.run(
             ChildRunRequest("parent", "review", agent, 1, 100, 4, 30),
             CancellationToken(),
@@ -102,6 +114,7 @@ class EngineChildRunnerTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(sessions.parent, "parent-thread")
         self.assertEqual(engine.thread_id, "child-thread")
+        self.assertEqual(sessions.budget_binding, ("child-thread", "parent-thread", "parent-task", "delegate"))
 
     async def test_runtime_publishes_live_child_statuses(self) -> None:
         registry, profiles = _runtime()
@@ -112,6 +125,7 @@ class EngineChildRunnerTests(unittest.IsolatedAsyncioTestCase):
                     EventKind.MESSAGE_ADDED,
                     {"message": Message(role="assistant", content="done").to_dict()},
                 )
+                yield AgentEvent(EventKind.COMPLETED)
 
         runtime = SubagentRuntime(
             EngineChildRunner(lambda _agent, _parent: (Engine(), None)),
@@ -146,6 +160,7 @@ class EngineChildRunnerTests(unittest.IsolatedAsyncioTestCase):
                 yield AgentEvent(EventKind.ACTION_REQUESTED, {"request": {"id": "tool-1", "name": "read_file", "arguments": {"path": "x"}}})
                 yield AgentEvent(EventKind.MODEL_EVENT, {"event": ModelEvent(ModelEventKind.USAGE, usage=Usage(12, 3)).to_dict()})
                 yield AgentEvent(EventKind.MESSAGE_ADDED, {"message": Message(role="assistant", content="review finding").to_dict()})
+                yield AgentEvent(EventKind.COMPLETED)
 
         agent = AgentDefinition(
             "reviewer",
@@ -209,6 +224,7 @@ class EngineChildRunnerTests(unittest.IsolatedAsyncioTestCase):
                     EventKind.MESSAGE_ADDED,
                     {"message": Message(role="assistant", content="done").to_dict()},
                 )
+                yield AgentEvent(EventKind.COMPLETED)
 
         runtime = SubagentRuntime(
             EngineChildRunner(lambda _agent, _parent: (Engine(), None)),

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import aclosing
 import json
 from collections.abc import AsyncIterator, Iterable, Mapping, Sequence
 from dataclasses import dataclass
@@ -22,6 +23,7 @@ from .attachments import AttachmentResolver, ProviderAttachmentEncoder
 from .config import ApiProtocol, InputModality, ProviderConfig
 from .errors import ProviderConfigError, ProviderProtocolError
 from ._request_payload import chat_payload, request_options
+from .prepared import contains_images
 from .transport import ProviderTransport, Sleep
 
 
@@ -193,63 +195,77 @@ class OpenAIChatClient:
         self, system_prompt: str, messages: Sequence[Message],
         tools: Sequence[ToolDefinition],
     ) -> AsyncIterator[ModelEvent]:
+        prepared = await self.prepare_request(system_prompt, messages, tools)
+        async with aclosing(self.stream_prepared(prepared)) as events:
+            async for event in events:
+                yield event
+
+    async def prepare_request(
+        self, system_prompt: str, messages: Sequence[Message],
+        tools: Sequence[ToolDefinition],
+    ):
         payload = chat_payload(
             self._config, _request_messages(system_prompt, messages, self._attachments),
             [_tool_payload(tool) for tool in tools],
             self._request_options,
         )
+        return await self._transport.prepare_request(self._config.chat_completions_path, payload,
+            max_output_tokens=self._request_options.max_output_tokens,
+            uncalibrated_images=contains_images(messages))
+
+    async def stream_prepared(self, prepared):
         calls: dict[int, _PendingCall] = {}
         tool_budget = ToolBudget(self._config.max_tool_calls, self._config.max_tool_argument_bytes)
         seen_call_ids: set[str] = set()
         finish_seen = False
-        async for sse_event in self._transport.stream_sse(
-            self._config.chat_completions_path, payload):
-            if sse_event.event == "error":
-                raise ProviderProtocolError("Chat provider returned an error event")
-            if sse_event.data.strip() == "[DONE]":
-                for event in self._finish_calls(calls, seen_call_ids):
-                    yield event
-                yield ModelEvent(kind=ModelEventKind.COMPLETED)
-                return
-            value = _load_event(sse_event.data)
-            choices = value.get("choices", [])
-            if not isinstance(choices, list):
-                raise ProviderProtocolError("Chat choices must be a JSON array")
-            if finish_seen:
-                if self._config.provider_id == "workbuddy":
-                    for choice in choices:
-                        for event in self._consume_workbuddy_tail_delta(
-                            choice, calls, tool_budget
-                        ):
-                            yield event
-                    if "usage" in value and value["usage"] is not None:
-                        yield _usage_event(value["usage"])
-                    continue
-                yield _late_usage(value)
-                continue
-            for choice in choices:
+        async with aclosing(self._transport.stream_prepared(prepared)) as events:
+            async for sse_event in events:
+                if sse_event.event == "error":
+                    raise ProviderProtocolError("Chat provider returned an error event")
+                if sse_event.data.strip() == "[DONE]":
+                    for event in self._finish_calls(calls, seen_call_ids):
+                        yield event
+                    yield ModelEvent(kind=ModelEventKind.COMPLETED)
+                    return
+                value = _load_event(sse_event.data)
+                choices = value.get("choices", [])
+                if not isinstance(choices, list):
+                    raise ProviderProtocolError("Chat choices must be a JSON array")
                 if finish_seen:
                     if self._config.provider_id == "workbuddy":
-                        for event in self._consume_workbuddy_tail_delta(
-                            choice, calls, tool_budget
-                        ):
-                            yield event
+                        for choice in choices:
+                            for event in self._consume_workbuddy_tail_delta(
+                                choice, calls, tool_budget
+                            ):
+                                yield event
+                        if "usage" in value and value["usage"] is not None:
+                            yield _usage_event(value["usage"])
                         continue
-                    raise ProviderProtocolError("Chat delta received after finish")
-                if not isinstance(choice, dict):
-                    raise ProviderProtocolError("Chat choice must be a JSON object")
-                delta = choice.get("delta", {})
-                if not isinstance(delta, dict):
-                    raise ProviderProtocolError("Chat delta must be a JSON object")
-                for event in self._consume_delta(delta, calls, tool_budget):
-                    yield event
-                if choice.get("finish_reason") is not None:
-                    finish_seen = True
-                    if self._config.provider_id != "workbuddy":
-                        for event in self._finish_calls(calls, seen_call_ids):
-                            yield event
-            if "usage" in value and value["usage"] is not None:
-                yield _usage_event(value["usage"])
+                    yield _late_usage(value)
+                    continue
+                for choice in choices:
+                    if finish_seen:
+                        if self._config.provider_id == "workbuddy":
+                            for event in self._consume_workbuddy_tail_delta(
+                                choice, calls, tool_budget
+                            ):
+                                yield event
+                            continue
+                        raise ProviderProtocolError("Chat delta received after finish")
+                    if not isinstance(choice, dict):
+                        raise ProviderProtocolError("Chat choice must be a JSON object")
+                    delta = choice.get("delta", {})
+                    if not isinstance(delta, dict):
+                        raise ProviderProtocolError("Chat delta must be a JSON object")
+                    for event in self._consume_delta(delta, calls, tool_budget):
+                        yield event
+                    if choice.get("finish_reason") is not None:
+                        finish_seen = True
+                        if self._config.provider_id != "workbuddy":
+                            for event in self._finish_calls(calls, seen_call_ids):
+                                yield event
+                if "usage" in value and value["usage"] is not None:
+                    yield _usage_event(value["usage"])
         if finish_seen:
             for event in self._finish_calls(calls, seen_call_ids):
                 yield event

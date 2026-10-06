@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import json
+from contextlib import aclosing
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from typing import Optional
 
@@ -11,6 +13,7 @@ from .config import ProviderConfig
 from .errors import ProviderError, ProviderResponseLimitError
 from .http_errors import http_error
 from .sse import SSEDecoder, SSEEvent
+from .prepared import PreparedProviderRequest
 
 
 Sleep = Callable[[float], Awaitable[None]]
@@ -63,6 +66,16 @@ class ProviderTransport:
         auth_header: str = "Authorization",
         auth_scheme: Optional[str] = "Bearer",
     ) -> AsyncIterator[SSEEvent]:
+        prepared = await self.prepare_request(path, payload, headers,
+            auth_header=auth_header, auth_scheme=auth_scheme)
+        async with aclosing(self.stream_prepared(prepared)) as events:
+            async for event in events:
+                yield event
+
+    async def prepare_request(self, path, payload, headers=None, *,
+                              auth_header="Authorization", auth_scheme="Bearer",
+                              max_output_tokens=0, uncalibrated_images=False):
+        """Resolve transport authentication once and freeze the transformed JSON body."""
         if self._closed:
             raise ProviderError("Provider transport is closed")
         try:
@@ -86,6 +99,24 @@ class ProviderTransport:
             url, payload, request_headers = authenticated_request(
                 self._config, credential, path, payload, request_headers
             )
+        enforced = self._config.provider_id != "openai-codex"
+        diagnostics = () if enforced else (
+            "protocol omits remote output limit; configured reserve is local only",)
+        request_headers.setdefault("Content-Type", "application/json")
+        body = json.dumps(dict(payload), ensure_ascii=False, separators=(",", ":"),
+                          allow_nan=False).encode("utf-8")
+        return PreparedProviderRequest(body, url, tuple(request_headers.items()),
+            max_output_tokens, enforced, uncalibrated_images, diagnostics,
+            self, (api_key,))
+
+    async def stream_prepared(self, prepared):
+        """Send exactly the admitted body, including on retries, without re-encoding."""
+        if self._closed:
+            raise ProviderError("Provider transport is closed")
+        if not isinstance(prepared, PreparedProviderRequest) or prepared._transport_identity is not self:
+            raise ProviderError("prepared request belongs to another transport")
+        url, request_headers = prepared.url, dict(prepared.headers)
+        api_key = prepared._sensitive_values[0]
         attempt = 0
 
         while True:
@@ -96,7 +127,7 @@ class ProviderTransport:
                     "POST",
                     url,
                     headers=request_headers,
-                    json=dict(payload),
+                    content=prepared.body,
                     follow_redirects=False,
                     timeout=self._config.timeout_s,
                 ) as response:

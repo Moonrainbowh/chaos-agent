@@ -68,15 +68,14 @@ class RecordRepositoryMixin:
 
         await self._database.write(write)  # type: ignore[attr-defined]
 
-    async def list_goals(self, thread_id: str) -> tuple[GoalRecord, ...]:
+    async def list_goals(self, thread_id: str, *, limit: int | None = None,
+                         max_bytes: int | None = None) -> tuple[GoalRecord, ...]:
         thread_id = _text(thread_id, "thread_id")
 
         def read(connection: sqlite3.Connection) -> tuple[GoalRecord, ...]:
             _require_thread(connection, thread_id)
-            rows = connection.execute(
-                "SELECT * FROM goals WHERE thread_id = ? ORDER BY created_at, id",
-                (thread_id,),
-            ).fetchall()
+            from ._history_events import bounded_record_rows
+            rows = bounded_record_rows(connection,"goals",thread_id,limit=limit,max_bytes=max_bytes)
             try:
                 return tuple(
                     GoalRecord(
@@ -136,16 +135,15 @@ class RecordRepositoryMixin:
         return identifier
 
     async def list_checkpoints(
-        self, thread_id: str
+        self, thread_id: str, *, limit: int | None = None, max_bytes: int | None = None,
+        label: str | None = None
     ) -> tuple[CheckpointRecord, ...]:
         thread_id = _text(thread_id, "thread_id")
 
         def read(connection: sqlite3.Connection) -> tuple[CheckpointRecord, ...]:
             _require_thread(connection, thread_id)
-            rows = connection.execute(
-                "SELECT * FROM checkpoints WHERE thread_id = ? AND label NOT LIKE 'context:%' ORDER BY created_at, id",
-                (thread_id,),
-            ).fetchall()
+            from ._history_events import bounded_record_rows
+            rows = bounded_record_rows(connection,"checkpoints",thread_id,limit=limit,max_bytes=max_bytes,label=label)
             try:
                 return tuple(
                     CheckpointRecord(

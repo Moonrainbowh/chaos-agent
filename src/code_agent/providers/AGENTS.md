@@ -2,6 +2,7 @@
 把不同模型协议转换为统一、可流式处理的消息与工具调用接口。
 
 ## 边界
+- S10：提供公开 prepared 请求接口，在协议/附件/认证变换后冻结同一 HTTP body 供预算核算与发送；认证头不入计数或公开表示。输出字段被协议移除须明确诊断，不冒称远端强制额度。
 - 负责：规范化各协议输入总量及缓存读取/写入；明确区分未提供与真实零值，不重复计算 OpenAI 输入内含的缓存。
 - 负责：OpenAI-compatible Responses、Codex Responses、Chat Completions、Anthropic Messages、Google Generative AI 与 pi Messages 适配。
 - 负责：流式事件规范化、超时与有限重试、能力声明、用量统计和配置校验。
@@ -24,10 +25,11 @@
 
 ### 预算框架（显式启用的 v1 已实现）
 
-- ModelProfile 的 combined context_window、实际 max_output_tokens 与可选 api_input_tokens 共同约束输入；context_policy 必须显式启用。容量来源为配置，成功探测某一长度不等于发现 API 最大容量。
+- ModelProfile 的 combined context_window、实际 max_output_tokens 与可选 api_input_tokens 共同约束输入；策略显式启用，最终请求守卫也覆盖默认 semantic。容量来源为配置，成功探测某一长度不等于发现 API 最大容量。
 - 2026-09-05 的配置、验证与实验边界见根目录 `docs/context-boundary-experiment.md` 和 `docs/context-boundary-results.md`；具体候选值可配置，实验结果不自动推广为默认策略。
 
 ## Units
+- `PreparedProviderRequest`、各 client `prepare_request/stream_prepared`：认证变换后冻结最终 body、共享计数与原样发送/重试 | 附件解析、认证及网络 | headers 不入计数/repr，取消同步关闭委派流，诊断远端输出字段能力
 - `discover_models(config, client=None)`: 显式读取配置端点的模型 ID 列表 | HTTP GET | Bearer 认证、禁止重定向、30 秒及响应上限；基础地址已含 `/v1` 时不重复添加，错误不包含服务端正文或密钥。
 - `ProviderError` 及子类：表达配置、HTTP、协议和响应上限失败 | 无副作用 | 对外消息执行脱敏；支持可选 retryable 标记以指示可恢复的瞬态传输与网络中断
 - `ProviderConfig`、`ApiProtocol`: 校验并冻结端点、协议和传输限制 | 请求时读取 API key 环境变量

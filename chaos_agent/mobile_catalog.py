@@ -81,11 +81,23 @@ class ProjectSessionView:
     async def load_events(self, thread_id):
         return await self._read("load_events", thread_id)
 
-    async def list_goals(self, thread_id):
-        return await self._read("list_goals", thread_id)
+    async def list_goals(self, thread_id, **kwargs):
+        return await self._read("list_goals", thread_id, **kwargs)
 
-    async def list_checkpoints(self, thread_id):
-        return await self._read("list_checkpoints", thread_id)
+    async def list_checkpoints(self, thread_id, **kwargs):
+        return await self._read("list_checkpoints", thread_id, **kwargs)
+
+    async def history_stats(self, thread_id):
+        return await self._read("history_stats", thread_id)
+
+    async def load_context_messages(self, thread_id, **kwargs):
+        return await self._read("load_context_messages", thread_id, **kwargs)
+
+    async def read_event_page(self, thread_id, **kwargs):
+        return await self._read("read_event_page", thread_id, **kwargs)
+
+    async def load_task_for_thread(self, thread_id):
+        return await self._read("load_task_for_thread", thread_id)
 
     def __getattr__(self, name):
         return getattr(self.catalog.sessions, name)

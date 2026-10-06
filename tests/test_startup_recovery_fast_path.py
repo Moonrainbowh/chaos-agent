@@ -65,12 +65,12 @@ class StartupRecoveryFastPathTests(unittest.IsolatedAsyncioTestCase):
             prepared, handle, "stored-crash", coverage.token,
         ))
         await self.sessions.transition_edit_batch(record.mutation.mutation_id, EditBatchState.APPLYING)
-        editor.apply_batch(plan)
+        result = editor.apply_batch(plan)
         # Simulate a crash after apply but *after* the ownership proof was
         # written, which is the only window in which recovery may roll a batch
         # back. A crash before that point leaves no proof and recovery refuses
         # every POST path; that branch is covered separately.
-        await _persist_post_identities(capture, prepared, record)
+        await _persist_post_identities(capture, prepared, record, result)
         return record
 
     async def test_empty_history_builds_no_services_or_mutation_bundles(self):

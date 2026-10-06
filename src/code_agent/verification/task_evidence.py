@@ -181,7 +181,7 @@ async def record_planner_attestation(
         state.code_generation,
         state.subject_hash,
         repr(plan.to_dict()),
-        f"No executable files changed ({plan.reason})",
+        f"Host final-risk plan permits validation without project tests ({plan.reason})",
     )
     await sessions.append_verification_evidence(run_id, task_id, evidence)
     await sessions.close_verification_run(run_id, "completed")
@@ -203,12 +203,16 @@ def has_passing(
     criterion: str,
     identity: str | None = None,
 ) -> bool:
-    return any(
-        item.criterion_id == criterion
-        and (identity is None or item.verifier_identity == identity)
-        and item.outcome is EvidenceOutcome.PASS
-        and evidence_satisfies_required(item)
+    latest = {
+        (item.criterion_id, item.verifier_identity): item
         for item in records
+        if item.criterion_id == criterion
+        and (identity is None or item.verifier_identity == identity)
+    }
+    return any(
+        item.outcome is EvidenceOutcome.PASS
+        and evidence_satisfies_required(item)
+        for item in latest.values()
     )
 
 

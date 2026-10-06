@@ -165,11 +165,15 @@ class AgentEngineActionMixin:
         execution_context: ActionExecutionContext,
     ) -> ActionResult:
         try:
-            if task is not None:
+            authorization = (
+                task.contract.authorization if task is not None
+                else self._inherited_authorization
+            )
+            if authorization is not None:
                 result = await self._actions.dispatch(
                     request,
                     token,
-                    task.contract.authorization,
+                    authorization,
                     execution_context=execution_context,
                 )
             else:

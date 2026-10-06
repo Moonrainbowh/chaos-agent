@@ -71,9 +71,10 @@ class WindowsTerminalApp(TerminalPresentation):
     terminal input are selected by the terminal-I/O layer.
     """
 
-    def __init__(self, controller: AgentController, approvals: ApprovalBroker, *, sessions: Optional[SessionBrowser] = None, peers: object | None = None, evidence: Optional[EvidenceReader] = None, tasks: ForegroundTaskController | None = None, history: Optional[ThreadHistoryReader] = None, profiles: ProfileControl | None = None, modes: ModeControl | None = None, runtime_selection: object | None = None, task_modes: object | None = None, permissions: PermissionControl | None = None, costs: object | None = None, doctor: object | None = None, skills: SkillActivation | None = None, mcp: McpRegistry | None = None, workflows: object | None = None, plugins: object | None = None, checkpoints: CheckpointControl | None = None, interaction_broker: InteractionBroker | None = None, command_registry: CommandRegistry = REGISTRY, diff_source: GitDiffSource | None = None, attachment_draft: AttachmentDraft | None = None, write: Optional[Callable[[str], object]] = None, project_name: str | None = None, workspace_root: Path | None = None) -> None:
+    def __init__(self, controller: AgentController, approvals: ApprovalBroker, *, sessions: Optional[SessionBrowser] = None, peers: object | None = None, project_memory: object | None = None, evidence: Optional[EvidenceReader] = None, tasks: ForegroundTaskController | None = None, history: Optional[ThreadHistoryReader] = None, profiles: ProfileControl | None = None, modes: ModeControl | None = None, runtime_selection: object | None = None, task_modes: object | None = None, permissions: PermissionControl | None = None, costs: object | None = None, doctor: object | None = None, skills: SkillActivation | None = None, mcp: McpRegistry | None = None, workflows: object | None = None, plugins: object | None = None, checkpoints: CheckpointControl | None = None, interaction_broker: InteractionBroker | None = None, command_registry: CommandRegistry = REGISTRY, diff_source: GitDiffSource | None = None, attachment_draft: AttachmentDraft | None = None, write: Optional[Callable[[str], object]] = None, project_name: str | None = None, workspace_root: Path | None = None) -> None:
         self.controller, self.approvals = controller, approvals
         self.sessions, self.peers, self.evidence, self.tasks, self.history, self.profiles, self.modes, self.runtime_selection, self.permissions, self.skills, self.mcp, self.workflows, self.plugins, self.checkpoints, self.command_registry, self._write = sessions, peers, evidence, tasks, history, profiles, modes, runtime_selection, permissions, skills, mcp, workflows, plugins, checkpoints, command_registry, write or stdout_write
+        self.project_memory = project_memory
         self.task_modes, self.costs, self.doctor = task_modes, costs, doctor
         self.workspace_root = (workspace_root or Path.cwd()).resolve()
         self.project_name = project_name or Path.cwd().name or "chaos-agent"
@@ -320,8 +321,12 @@ class WindowsTerminalApp(TerminalPresentation):
             if tree_control is not None:
                 from .usage_summary import UsageAccumulator
                 restored.usage = UsageAccumulator()
-                for event in await tree_control.usage_events(thread_id):
-                    restored.usage.observe(event)
+                aggregate = getattr(tree_control, "usage_summary", None)
+                if callable(aggregate):
+                    restored.usage.seed(await aggregate(thread_id))
+                else:
+                    for event in await tree_control.usage_events(thread_id):
+                        restored.usage.observe(event)
             restore_settings = getattr(self.tasks, "restore_runtime_settings", None)
             if restored.task_id and callable(restore_settings):
                 await restore_settings(restored.task_id)

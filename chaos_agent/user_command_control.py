@@ -12,14 +12,20 @@ from code_agent.core.action_execution import ActionExecutionContext
 
 
 class UserCommandControl:
-    def __init__(self, sessions, dispatcher):
+    def __init__(self, sessions, dispatcher, *, on_thread_created=None):
+        if on_thread_created is not None and not callable(on_thread_created):
+            raise TypeError("on_thread_created must be callable")
         self.sessions, self.dispatcher = sessions, dispatcher
+        self.on_thread_created = on_thread_created
 
     async def run(self, command, thread_id, cancellation, *, include=True):
         """Run once and persist a bounded, untrusted result before returning."""
         if not isinstance(command,str) or not command.strip() or len(command.encode("utf-8")) > 65536:
             raise ValueError("command must contain 1..65536 UTF-8 bytes")
-        thread_id = thread_id or await self.sessions.create_thread()
+        if thread_id is None:
+            thread_id = await self.sessions.create_thread()
+            if self.on_thread_created is not None:
+                self.on_thread_created(thread_id)
         if include:
             await self.sessions.append_message(thread_id,Message("user","!"+command))
         request = ActionRequest(uuid.uuid4().hex,"run_command",{"command":command})

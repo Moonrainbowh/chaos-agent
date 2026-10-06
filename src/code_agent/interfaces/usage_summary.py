@@ -49,10 +49,18 @@ class UsageSummary:
 class UsageAccumulator:
     """Replace incremental snapshots within a request; add only distinct requests."""
     def __init__(self):
+        self._base: UsageSummary | None = None
         self._closed: list[Usage | None] = []
         self._current: Usage | None = None
         self._started = False
         self._models: set[str] = set()
+
+    def seed(self, summary: UsageSummary):
+        """Restore SQL aggregate facts without retaining historic request events."""
+        if not isinstance(summary, UsageSummary):
+            raise TypeError("usage baseline must be UsageSummary")
+        self.__init__()
+        self._base = summary
 
     def observe(self, event):
         if event.kind is EventKind.MODEL_STARTED:
@@ -74,7 +82,7 @@ class UsageAccumulator:
     def summary(self):
         calls = self._closed + ([self._current] if self._started else [])
         known = [usage for usage in calls if usage is not None]
-        return UsageSummary(
+        current = UsageSummary(
             sum(u.input_tokens for u in known), sum(u.output_tokens for u in known),
             sum(u.cached_input_tokens for u in known), sum(u.cache_write_input_tokens or 0 for u in known),
             len(known), bool(known) and all(u.cache_read_known or u.cached_input_tokens > 0 for u in known),
@@ -82,6 +90,21 @@ class UsageAccumulator:
             len(known) < len(calls), known[-1] if known else None,
             frozenset(self._models),
         )
+        base = self._base
+        if base is None:
+            return current
+        if not calls:
+            return base
+        count = base.requests + current.requests
+        return UsageSummary(base.input_tokens + current.input_tokens,
+            base.output_tokens + current.output_tokens,
+            base.cache_read + current.cache_read, base.cache_write + current.cache_write,
+            count, bool(count) and (base.read_known if base.requests else True)
+                and (current.read_known if current.requests else True),
+            bool(count) and (base.write_known if base.requests else True)
+                and (current.write_known if current.requests else True),
+            base.incomplete or current.incomplete, current.latest or base.latest,
+            base.models | current.models)
 
 
 def summarize_usage(events):

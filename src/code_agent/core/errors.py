@@ -21,3 +21,7 @@ class ContextBuildError(AgentEngineError):
 
 class SessionPersistenceError(AgentEngineError):
     code = "session_persistence"
+
+
+class PendingActionError(AgentEngineError):
+    code = "pending_action_outcome"

@@ -21,6 +21,9 @@ main{position:relative}.app-header h1{font-family:Consolas,"SFMono-Regular",mono
 .project-manager{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;background:var(--bg);padding-top:env(safe-area-inset-top)}.manager-header{display:flex;gap:8px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line)}.manager-header strong{flex:1}.manager-header button{min-height:44px}.manager-form{padding:14px;display:flex;flex-wrap:wrap;gap:8px}.manager-form label{width:100%;color:var(--muted);font-size:12px}.manager-form input{width:100%}.manager-form button{min-height:44px}.manager-path{padding:0 14px 10px;overflow-wrap:anywhere;color:var(--muted);font:12px/1.6 Consolas,monospace}.manager-error{padding:0 14px;color:#e5b59a}.manager-footer{padding:10px 14px calc(10px + env(safe-area-inset-bottom));border-top:1px solid var(--line);display:flex;gap:8px}.manager-footer button{flex:1;min-height:44px}.manage-row{display:flex;border-bottom:1px solid var(--line)}.manage-row .row{border:0;min-width:0;flex:1}.manage-row>button:last-child{margin:auto 10px;min-height:44px;flex-shrink:0;color:#e5b59a}.manager-confirm{padding:14px;background:#2b2721;border-top:1px solid #554936}.manager-confirm p{margin:0 0 12px;overflow-wrap:anywhere}.manager-confirm button{min-height:44px;margin-right:8px}
 @media(max-width:350px){.header-actions{width:100%}.header-actions button{flex:1}.project-tools small{display:none}}
 </style>
+<style>
+.requests{padding:10px 14px;border-bottom:1px solid var(--line)}.request-card{padding:12px;margin:8px 0;background:var(--panel);border:1px solid var(--line);border-radius:7px;overflow-wrap:anywhere}.request-card p{margin:6px 0;white-space:pre-wrap}.request-card small{display:block;color:var(--muted);white-space:pre-wrap}.request-card button{min-height:44px;margin:8px 8px 0 0}.request-card textarea{display:block;width:100%;margin-top:8px;min-height:60px}.request-controls{display:flex;gap:8px;flex-wrap:wrap}
+</style>
 </head>
 <body>
 <main id="app">
@@ -38,7 +41,7 @@ main{position:relative}.app-header h1{font-family:Consolas,"SFMono-Regular",mono
 </section>
 <section id="chatScreen" class="screen" hidden>
   <header class="navline chat-header"><button id="chatBack" class="icon-button" aria-label="返回会话列表">‹</button><div class="identity"><strong id="chatTitle">会话</strong><small id="chatProject"></small></div><div class="header-actions"><button id="chatProjects">项目</button><button id="chatSessions">会话</button></div><span id="chatState" class="muted" role="status"></span></header>
-  <div id="timeline" class="scroll"><button id="earlier" class="more" hidden>查看更早消息</button><section id="messages" class="messages" aria-label="聊天消息" aria-live="polite"></section></div>
+  <div id="timeline" class="scroll"><section id="requestsPanel" class="requests" aria-label="审批与决定" hidden><strong>审批与决定</strong><div id="requestRows" aria-live="polite"></div><button id="refreshRequests" type="button">刷新待办</button></section><button id="earlier" class="more" hidden>查看更早消息</button><section id="messages" class="messages" aria-label="聊天消息" aria-live="polite"></section></div>
   <form id="composer" class="composer"><textarea id="prompt" rows="1" maxlength="1024" placeholder="输入任务……" aria-label="输入任务"></textarea><button id="send" class="primary" type="submit">发送</button><button id="stop" class="stop" type="button" hidden>停止</button></form>
   <nav class="mobile-actions" aria-label="聊天操作"><button id="focusInput"><span aria-hidden="true">✎</span>输入</button><button id="actionSessions"><span aria-hidden="true">☰</span>会话</button><button id="latest"><span aria-hidden="true">↓</span>到底</button><button id="taskAction"><span id="taskActionIcon" aria-hidden="true">≡</span><b id="taskActionLabel">状态</b></button></nav>
 </section>
@@ -54,11 +57,44 @@ main{position:relative}.app-header h1{font-family:Consolas,"SFMono-Regular",mono
 </main>
 <script>
 const $=id=>document.querySelector('#'+id),state=$('state'),messages=$('messages'),token=$('token'),timeline=$('timeline');
-const activeStatus=status=>['created','running','verifying'].includes(status),statusText=status=>({created:'执行中',running:'执行中',verifying:'验证中',completed:'已完成',failed:'失败',stopped:'已停止',interrupted:'已中断'}[status]||'可继续');
-let credential=localStorage.getItem('chaos-device'),task=null,cursorTask=null,socket=null,lastSequence=0,reconnectTimer=null;
-let screen='home',tab='recent',selectedProjectId=null,selectedSessionId=null,selectedSummary=null,projects=[],sessions=[],nextOffset=null,nextBefore=null;
+const activeStatus=status=>['created','running','verifying'].includes(status),statusText=status=>({created:'执行中',running:'执行中',verifying:'验证中',completed:'已完成',accepted_partial:'已接受部分',waiting_decision:'待决策',failed:'失败',stopped:'已停止',interrupted:'已中断'}[status]||'可继续');
+let credential=localStorage.getItem('chaos-device'),task=null,cursorTask=null,socket=null,lastSequence=0,reconnectTimer=null,hostEpoch=null;
+let screen='home',tab='recent',selectedProjectId=null,selectedSessionId=null,selectedSummary=null,selectedResult=null,projects=[],sessions=[],nextOffset=null,nextBefore=null;
 let globalRun={status:'idle',task_id:null,session_id:null,sequence:0},initialized=false,viewEpoch=0,listEpoch=0,historyRevision=0,historyJob=null,historyPending=false,syncJob=null,sending=false,searchTimer=null;
 let records=[],nodes=new Map(),assistantBubble=null,assistantRecord=null,assistantText='',liveIndex=0;
+let requestCards=[],requestTask=null,requestEpoch=0,requestBusy=false;
+const decisionLabel=card=>card.preview?.operation==='reconcile'?({operator_executed:'报告已执行',operator_not_executed:'报告未执行',durable_receipt:'核验持久回执',local_mutation:'核验本机修改'}[card.preview?.reconciliation?.decision]||'核对结果'):({continue:'继续原任务',accept_partial:'接受部分交付',stop:'停止原任务'}[card.preview?.operation]||'批准一次');
+function renderRequests(){
+  const rows=$('requestRows');rows.replaceChildren();$('requestsPanel').hidden=screen!=='chat'||requestCards.length===0;
+  for(const card of requestCards.slice(0,12)){
+    const box=document.createElement('article');box.className='request-card';const title=document.createElement('strong');title.textContent=card.kind==='decision'?'任务决定':'动作审批';
+    const text=document.createElement('p');text.textContent=String(card.preview?.summary||card.preview?.operation||'待核对请求');
+    const meta=document.createElement('small');meta.textContent='工作区：'+String(card.workspace_root||'未知')+'\n有效期：'+new Date(card.expires_at*1000).toLocaleString()+'\n状态：'+({pending:'待响应',approved:'已处理',denied:'已拒绝',expired:'已过期',stale:'已失效'}[card.status]||card.status);
+    box.append(title,text,meta);if(card.preview?.notice){const note=document.createElement('small');note.textContent=card.preview.notice;box.append(note)}
+    if(card.status==='pending'&&Date.now()<card.expires_at*1000){
+      let reason=null,evidence=null;if(card.preview?.operation==='reconcile'){reason=document.createElement('textarea');reason.maxLength=1024;reason.placeholder='核对理由';reason.setAttribute('aria-label','核对理由');evidence=document.createElement('textarea');evidence.maxLength=4096;evidence.placeholder='证据或具体观测；用户报告不代表已验证';evidence.setAttribute('aria-label','核对证据');box.append(reason,evidence)}
+      const controls=document.createElement('div');controls.className='request-controls';const deny=document.createElement('button'),allow=document.createElement('button');deny.textContent='拒绝';allow.textContent=decisionLabel(card);allow.className='primary';deny.disabled=allow.disabled=requestBusy;
+      deny.onclick=()=>void respondCard(card,false);allow.onclick=()=>void respondCard(card,true,reason?.value,evidence?.value);controls.append(deny,allow);box.append(controls);
+    }
+    rows.append(box);
+  }
+}
+async function loadRequests(){
+  const id=selectedSessionId,epoch=viewEpoch,revision=++requestEpoch;if(!credential||screen!=='chat'||!id)return;
+  if(readOnlyReason()){requestCards=[];requestTask=null;renderRequests();return}
+  try{const data=await api('/sessions/'+encodeURIComponent(id)+'/requests');if(id!==selectedSessionId||epoch!==viewEpoch||revision!==requestEpoch)return;requestTask=data.task_id;requestCards=Array.isArray(data.requests)?data.requests:[];renderRequests()}
+  catch(error){if(id===selectedSessionId&&epoch===viewEpoch&&revision===requestEpoch&&credential){requestCards=[];renderRequests();notice('待办暂不可用：'+error.message)}}
+}
+async function respondCard(card,approved,reason,evidence){
+  if(requestBusy||card.task_id!==requestTask||!requestCards.some(item=>item.request_id===card.request_id))return;
+  if(approved&&card.preview?.operation==='reconcile'&&(!reason?.trim()||!evidence?.trim())){notice('请填写核对理由和证据；此操作不会自动续跑');return}
+  const id=selectedSessionId,epoch=viewEpoch;requestBusy=true;renderRequests();
+  const body={action_digest:card.action_digest,state_version:card.state_version,owner_instance_id:card.owner_instance_id,approved};if(approved&&card.preview?.operation==='reconcile'){body.reason=reason;body.evidence=evidence}
+  try{await api('/tasks/'+encodeURIComponent(card.task_id)+'/requests/'+encodeURIComponent(card.request_id)+'/respond',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});if(id===selectedSessionId&&epoch===viewEpoch){notice(approved?'已记录响应；执行与验证结果以任务状态为准':'已拒绝');await loadHistory();await loadRequests()}}
+  catch(error){if(id===selectedSessionId&&epoch===viewEpoch&&credential){notice(error.message);await loadRequests()}}
+  finally{requestBusy=false;renderRequests()}
+}
+$('refreshRequests').onclick=()=>void loadRequests();
 let drafts={};try{const saved=JSON.parse(localStorage.getItem('chaos-drafts-v1')||'{}');if(saved&&typeof saved==='object'&&!Array.isArray(saved))drafts=saved}catch{}
 function draftKey(){return selectedSessionId?'session:'+selectedSessionId:selectedProjectId?'project:'+selectedProjectId:null}
 function persistDrafts(){try{localStorage.setItem('chaos-drafts-v1',JSON.stringify(drafts))}catch{notice('草稿暂存于当前页面；浏览器存储不可用')}}
@@ -101,7 +137,7 @@ function renderState(){
   const busy=activeStatus(globalRun.status),here=busy&&globalRun.session_id===selectedSessionId,readOnly=!!readOnlyReason(),sessionBusy=activeStatus(selectedSummary?.status);task=here?globalRun.task_id:null;
   $('activeBanner').hidden=!credential||!busy||screen==='chat'&&here;$('activeText').textContent='另一个会话正在执行，完成后可发送新任务';
   $('send').hidden=!!here;$('send').disabled=!credential||!selectedSessionId||busy||sessionBusy||sending||historyPending||readOnly;$('stop').hidden=!here;$('stop').disabled=sending;$('prompt').disabled=!credential||busy||sessionBusy||sending||readOnly;$('prompt').placeholder=readOnly?'只读历史':'输入任务……';
-  $('chatState').textContent=here?statusText(globalRun.status):readOnly?'只读历史':statusText(selectedSummary?.status);$('newSession').disabled=!credential||projects.find(p=>p.id===selectedProjectId)?.available===false;
+  const result=!here&&selectedResult?selectedResult:globalRun.session_id===selectedSessionId?globalRun.result:null;$('chatState').textContent=here?statusText(globalRun.status):readOnly?'只读历史':statusText(selectedSummary?.status);if(result)$('chatState').textContent+=' · '+({verified:'已验证',unverified:'未验证',partial:'部分验证',unknown:'验证未知'}[result.verification_status]||'验证未知');$('newSession').disabled=!credential||projects.find(p=>p.id===selectedProjectId)?.available===false;
   $('focusInput').disabled=$('prompt').disabled;$('taskActionLabel').textContent=here?'停止':'状态';$('taskActionIcon').textContent=here?'■':'≡';$('taskAction').disabled=sending;
 }
 function renderScreen(){
@@ -139,8 +175,9 @@ async function loadHistory(before=null){
     try{const params=new URLSearchParams({limit:'50'});if(before!=null)params.set('before',String(before));const data=await api('/sessions/'+encodeURIComponent(sessionId)+'/messages?'+params);
       if(sessionId!==selectedSessionId||epoch!==viewEpoch||revision!==historyRevision)return false;
       const incoming=visibleRecords(data.messages);if(before!=null){const seen=new Set(records.map(item=>item.key));records=[...incoming.filter(item=>item.sequence!=null&&!seen.has(item.key)),...records]}
-      else{finishAssistant();records=incoming;selectedSummary=data.session||selectedSummary;if(selectedSummary?.project_id)selectedProjectId=selectedSummary.project_id;const active=data.active_task||(activeStatus(data.task?.status)?data.task:null);cursorTask=active?.id||active?.task_id||null;lastSequence=Number(data.event_sequence)||0;closeSocket();
+      else{finishAssistant();records=incoming;selectedSummary=data.session||selectedSummary;if(selectedSummary?.project_id)selectedProjectId=selectedSummary.project_id;if(data.host_epoch)hostEpoch=data.host_epoch;const active=data.active_task||(activeStatus(data.task?.status)?data.task:null);cursorTask=active?.id||active?.task_id||null;lastSequence=Number(data.event_sequence)||0;closeSocket();
         if(active){globalRun={...globalRun,status:active.status,task_id:cursorTask,session_id:sessionId,sequence:lastSequence};const tail=records.at(-1);if(data.assistant_open&&tail?.role==='assistant'){assistantRecord=tail;assistantText=tail.content}}
+        selectedResult=data.result||null;
         historyPending=false;if(data.snapshot_truncated)notice('当前任务的较早输出已省略，完成后可查看完整历史');
       }
       nextBefore=data.next_before??null;renderMessages();renderScreen();if(before!=null)timeline.scrollTop=top+timeline.scrollHeight-height;else scrollBottom();if(before==null)connect();return true;
@@ -150,8 +187,9 @@ async function loadHistory(before=null){
 }
 async function openSession(id,summary=null){
   saveDraft();
-  ++viewEpoch;closeSocket();finishAssistant();selectedSessionId=id;selectedSummary=summary||sessions.find(item=>item.id===id)||null;if(selectedSummary?.project_id)selectedProjectId=selectedSummary.project_id;
-  screen='chat';restoreDraft();records=[];nextBefore=null;cursorTask=null;lastSequence=0;historyPending=true;notice();renderMessages();renderScreen();remember();await loadHistory();remember();
+  ++requestEpoch;requestCards=[];requestTask=null;renderRequests();
+  ++viewEpoch;closeSocket();finishAssistant();selectedSessionId=id;selectedSummary=summary||sessions.find(item=>item.id===id)||null;selectedResult=null;if(selectedSummary?.project_id)selectedProjectId=selectedSummary.project_id;
+  screen='chat';restoreDraft();records=[];nextBefore=null;cursorTask=null;lastSequence=0;historyPending=true;notice();renderMessages();renderScreen();remember();await loadHistory();await loadRequests();remember();
 }
 async function openProject(id){saveDraft();const epoch=++viewEpoch;++listEpoch;closeSocket();selectedProjectId=id;selectedSessionId=null;screen='project';sessions=[];nextOffset=null;$('search').value='';notice();renderScreen();renderList();remember();await loadSessions();if(epoch!==viewEpoch||screen!=='project'||selectedProjectId!==id||projects.find(p=>p.id===id)?.available===false)return;try{await api('/projects/'+encodeURIComponent(id)+'/select',{method:'POST'})}catch(error){if(credential&&epoch===viewEpoch)notice(error.message)}}
 async function showHome(nextTab='recent'){saveDraft();++viewEpoch;++listEpoch;closeSocket();screen='home';tab=nextTab;selectedSessionId=null;selectedSummary=null;sessions=[];nextOffset=null;$('search').value='';notice();renderScreen();renderList();remember();if(tab==='projects'){try{await loadProjects()}catch(error){if(credential)notice(error.message)}}else await loadSessions()}
@@ -162,19 +200,19 @@ async function terminalHistory(){const id=selectedSessionId,epoch=viewEpoch;awai
 function showEvent(data){
   if(data.event==='assistant_delta')appendAssistant(data.data?.text);
   if(data.event==='tool_started'){finishAssistant();$('chatState').textContent='工具 · '+(data.data?.name||'执行中')}
-  if(data.event==='task_started'){finishAssistant();globalRun.status='running';renderState()}
-  if(data.event==='task_status'&&activeStatus(data.data?.status)){globalRun.status=data.data.status;renderState()}
-  if(['task_completed','task_failed','task_stopped'].includes(data.event)){finishAssistant();globalRun.status=data.event.slice(5);if(selectedSummary)selectedSummary.status=globalRun.status;renderState();void terminalHistory()}
+  if(data.event==='task_started'){finishAssistant();globalRun.status='running';globalRun.result=null;renderState()}
+  if(data.event==='task_status'&&typeof data.data?.status==='string'){globalRun.status=data.data.status;if(data.data.result)globalRun.result=data.data.result;if(selectedSummary)selectedSummary.status=globalRun.status;renderState();if(data.data.result&&globalRun.session_id===selectedSessionId)$('chatState').textContent=statusText(globalRun.status)+' · '+({verified:'已验证',unverified:'未验证',partial:'部分验证',unknown:'验证未知'}[data.data.result.verification_status]||'验证未知')}
+  if(['task_completed','task_failed','task_stopped'].includes(data.event)){finishAssistant();globalRun.result=data.data?.result||null;globalRun.status=globalRun.result?.execution_status||data.event.slice(5);if(selectedSummary)selectedSummary.status=globalRun.status;renderState();void terminalHistory()}
 }
-function webSocketUrl(){return(location.protocol==='https:'?'wss':'ws')+'://'+location.host+'/sessions/'+encodeURIComponent(selectedSessionId)+'/events?since='+lastSequence}
+function webSocketUrl(){return(location.protocol==='https:'?'wss':'ws')+'://'+location.host+'/sessions/'+encodeURIComponent(selectedSessionId)+'/events?since='+lastSequence+(hostEpoch?'&epoch='+encodeURIComponent(hostEpoch):'')}
 function connect(){
   if(!credential||screen!=='chat'||historyPending||!cursorTask||!activeStatus(globalRun.status)||globalRun.session_id!==selectedSessionId||socket&&socket.readyState<2)return;
   const boundSession=selectedSessionId,boundTask=cursorTask,current=new WebSocket(webSocketUrl());socket=current;
   current.onopen=()=>{if(current===socket){current.send('auth:'+credential);state.textContent='● 在线'}};
-  current.onmessage=event=>{if(current!==socket||boundSession!==selectedSessionId||boundTask!==cursorTask)return;let data;try{data=JSON.parse(event.data)}catch{return}if(data.session_id!==boundSession||data.task_id!==boundTask||!Number.isInteger(data.sequence)||data.sequence<=lastSequence)return;lastSequence=data.sequence;globalRun.sequence=lastSequence;showEvent(data)};
+  current.onmessage=event=>{if(current!==socket||boundSession!==selectedSessionId||boundTask!==cursorTask)return;let data;try{data=JSON.parse(event.data)}catch{return}if(data.session_id!==boundSession||data.task_id!==boundTask)return;if(data.event==='connection_state'&&data.data?.reset===true){closeSocket();lastSequence=0;cursorTask=null;historyPending=true;historyJob=null;++historyRevision;notice('连接游标已失效，正在核对持久快照');void loadHistory().then(()=>loadRequests());return}if(!Number.isInteger(data.sequence)||data.sequence<=lastSequence)return;lastSequence=data.sequence;globalRun.sequence=lastSequence;showEvent(data)};
   current.onclose=event=>{if(current!==socket)return;socket=null;if(event.code===4401){unpair();return}if(credential){if(event.code!==1000)state.textContent='等待重连';retry()}};
 }
-function unpair(){saveDraft();closeManager();credential=null;localStorage.removeItem('chaos-device');++viewEpoch;++listEpoch;initialized=false;historyJob=null;historyPending=false;closeSocket();finishAssistant();task=null;cursorTask=null;lastSequence=0;records=[];clearTimeout(reconnectTimer);reconnectTimer=null;$('pair').hidden=false;state.textContent='未配对';notice();renderMessages();renderScreen()}
+function unpair(){saveDraft();closeManager();credential=null;localStorage.removeItem('chaos-device');++viewEpoch;++listEpoch;++requestEpoch;requestCards=[];requestTask=null;renderRequests();initialized=false;historyJob=null;historyPending=false;closeSocket();finishAssistant();task=null;cursorTask=null;lastSequence=0;records=[];clearTimeout(reconnectTimer);reconnectTimer=null;$('pair').hidden=false;state.textContent='未配对';notice();renderMessages();renderScreen()}
 function retry(){if(credential&&!reconnectTimer)reconnectTimer=setTimeout(()=>{reconnectTimer=null;void sync()},2000)}
 async function pair(){try{const response=await fetch('/pair',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({token:token.value})}),data=await response.json();if(!response.ok){notice(data.error||'配对失败');return}credential=data.device_credential;localStorage.setItem('chaos-device',credential);token.value='';$('pair').hidden=true;notice();await sync()}catch{notice('连接失败，请重试')}}
 async function send(){
@@ -192,13 +230,13 @@ async function initializeNavigation(){
   screen='home';tab=savedSelection?.tab==='projects'?'projects':'recent';renderScreen();if(tab==='projects')renderList();else await loadSessions();remember();
 }
 async function sync(){
-  if(!credential)return;if(syncJob)return syncJob;const run=async()=>{try{const data=await api('/status'),previous=globalRun;
-    if(data.task_id!==cursorTask||Number(data.sequence)>=lastSequence){globalRun=data;state.textContent='● 在线';renderState();
+  if(!credential)return;if(syncJob)return syncJob;const run=async()=>{try{const data=await api('/status'),previous=globalRun,restarted=Boolean(data.host_epoch&&hostEpoch&&data.host_epoch!==hostEpoch);if(data.host_epoch)hostEpoch=data.host_epoch;if(restarted){closeSocket();lastSequence=0;cursorTask=null;historyJob=null;historyPending=true;++historyRevision;++requestEpoch;requestCards=[];renderRequests()}
+    if(restarted||data.task_id!==cursorTask||Number(data.sequence)>=lastSequence){globalRun=data;state.textContent='● 在线';renderState();
       if(!initialized)await initializeNavigation();
       else if(screen==='chat'&&(historyPending||activeStatus(data.status)&&data.session_id===selectedSessionId&&cursorTask!==data.task_id))await loadHistory();
-      else if(screen==='chat'&&previous.session_id===selectedSessionId&&activeStatus(previous.status)&&!activeStatus(data.status))await terminalHistory();
+      else if(screen==='chat'&&!activeStatus(data.status)&&(previous.session_id===selectedSessionId&&activeStatus(previous.status)||data.session_id===selectedSessionId&&data.status!==selectedSummary?.status))await terminalHistory();
     }
-    connect();
+    if(screen==='chat')await loadRequests();connect();
   }catch{if(credential)state.textContent='等待重连';if(!initialized)initialized=false}finally{retry()}};
   const job=run();syncJob=job;try{await job}finally{if(syncJob===job)syncJob=null}
 }

@@ -207,6 +207,11 @@ class ThreadContentRepositoryMixin:
                 (thread_id, payload, timestamp),
             )
             record_message_node(connection, thread_id, cursor.lastrowid)
+            from ._history_display import record_history_display
+            record_history_display(connection, cursor.lastrowid, message)
+            from ._history_queries import stable_item_id
+            connection.execute("INSERT INTO history_item_ids(thread_id,sequence,item_id) VALUES (?,?,?)",
+                (thread_id,cursor.lastrowid,stable_item_id(thread_id,cursor.lastrowid)))
             _touch_thread(connection, thread_id, timestamp)
 
         await self._database.write(write)  # type: ignore[attr-defined]

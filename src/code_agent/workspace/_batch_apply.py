@@ -36,6 +36,8 @@ from ._batch_observe import (
 )
 from ._batch_plan import _plan_id, validate_batch_structure
 from ._batch_rollback import AppliedOperation, rollback_operations
+from ._batch_output_receipts import error_identities, operation_identities, trusted_observations
+from ._secure_io import PathIdentity
 from ._edit_plan import EditPlan
 from .errors import BatchEditConflictError, CrossVolumeMoveError
 
@@ -98,7 +100,7 @@ def apply_batch(editor: object, plan: BatchEditPlan) -> BatchApplyResult:
         before = tuple(initial[path] for path in paths)
         post = _post_states(operation, before)
         try:
-            _execute_operation(
+            identities = _execute_operation(
                 editor,
                 operation,
                 before,
@@ -108,7 +110,7 @@ def apply_batch(editor: object, plan: BatchEditPlan) -> BatchApplyResult:
             primary = error
             try:
                 classification, observations = _classify_current(
-                    editor, before, post
+                    editor, before, post, error_identities(operation, error)
                 )
             except BaseException as inspection_error:
                 uncertain_conflicts.extend(
@@ -122,20 +124,21 @@ def apply_batch(editor: object, plan: BatchEditPlan) -> BatchApplyResult:
             break
         try:
             after = tuple(observe(editor, state.relative_path) for state in post)
+            owned = trusted_observations(post, after, identities)
         except BaseException as inspection_error:
             primary = inspection_error
             uncertain_conflicts.extend(
                 _inspection_conflicts(before, inspection_error)
             )
             break
-        if not _public_tuple_matches(after, post):
+        if not _observation_tuple_matches(after, owned):
             primary = BatchEditConflictError(
                 f"batch postcondition failed at operation {index}"
             )
             uncertain_conflicts.extend(_conflicts_for_mixed(before, after))
             break
-        applied.append(AppliedOperation(index, operation, before, after))
-        expected.update({item.state.relative_path: item for item in after})
+        applied.append(AppliedOperation(index, operation, before, owned))
+        expected.update({item.state.relative_path: item for item in owned})
         validation_error, drift = _validation_failure(editor, expected)
         if validation_error is not None:
             primary = validation_error
@@ -145,6 +148,8 @@ def apply_batch(editor: object, plan: BatchEditPlan) -> BatchApplyResult:
         return BatchApplyResult(
             BatchApplyStatus.APPLIED,
             applied_operations=tuple(item.index for item in applied),
+            plan_id=plan.plan_id,
+            post_identities=tuple((path.relative_path, expected[path.relative_path].identity) for path in plan.paths),
         )
     rolled_back, rollback_conflicts = rollback_operations(editor, applied)
     conflicts = tuple(uncertain_conflicts + rollback_conflicts)
@@ -170,10 +175,10 @@ def _execute_operation(
     operation: BatchOperation,
     before: tuple[PathObservation, ...],
     validate: Callable[[], None],
-) -> None:
+) -> tuple[PathIdentity | None, ...]:
     if type(operation) is EditPlan:
         assert operation.after_bytes is not None
-        write_bytes_exact(
+        output = write_bytes_exact(
             editor,
             before[0].state,
             operation.after_bytes,
@@ -188,9 +193,10 @@ def _execute_operation(
             validate,
             expected_identity=before[0].identity,
         )
+        output = None
     elif type(operation) is MovePlan:
         assert before[0].identity is not None
-        move_path_exact(
+        output = move_path_exact(
             editor,
             operation.source,
             operation.destination,
@@ -200,6 +206,7 @@ def _execute_operation(
         )
     else:
         raise TypeError("unsupported batch operation")
+    return operation_identities(operation, output)
 
 
 def _operation_paths(operation: BatchOperation) -> tuple[str, ...]:
@@ -274,10 +281,13 @@ def _classify_current(
     editor: object,
     before: tuple[PathObservation, ...],
     post: tuple[PlannedPathState, ...],
+    identities: tuple[PathIdentity | None, ...] | None,
 ) -> tuple[str, tuple[PathObservation, ...]]:
     current = tuple(observe(editor, item.state.relative_path) for item in before)
     if _observation_tuple_matches(current, before):
         return "pre", current
-    if _public_tuple_matches(current, post):
-        return "post", current
+    if identities is not None:
+        owned = trusted_observations(post, current, identities)
+        if _observation_tuple_matches(current, owned):
+            return "post", owned
     return "mixed", current

@@ -133,7 +133,7 @@ class ProfilePromptBudgetTests(unittest.IsolatedAsyncioTestCase):
     async def test_large_system_prompt_and_valid_rules_fit_together(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()
-            (root / "AGENTS.md").write_text("rules " * 1_900, encoding="utf-8")
+            (root / "AGENTS.md").write_text("rules " * 3_900, encoding="utf-8")
             budget = _profile_prompt_budget(_profile(context_window=20_000))
             builder = _workspace_builder(
                 root, budget, "System instruction " * 300

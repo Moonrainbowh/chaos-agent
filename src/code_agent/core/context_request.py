@@ -69,8 +69,13 @@ class ContextRequest:
     budget_lease: Mapping[str, JSONValue] = field(default_factory=dict)
     attachments: tuple[AttachmentRef, ...] = field(default_factory=tuple)
     task_facts: Mapping[str, JSONValue] = field(default_factory=dict)
+    project_memory: str = ""
 
     def __post_init__(self) -> None:
+        if not isinstance(self.project_memory, str):
+            raise TypeError("project_memory must be reference text")
+        if len(self.project_memory.encode("utf-8")) > 16384:
+            raise ValueError("project_memory exceeds its reference byte limit")
         if not isinstance(self.thread_id, str):
             raise TypeError("thread_id must be a string")
         if not self.thread_id.strip():

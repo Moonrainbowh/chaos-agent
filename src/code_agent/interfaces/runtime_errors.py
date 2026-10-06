@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import sqlite3
 
-from code_agent.context.errors import PromptBudgetError, RuleLimitError
+from code_agent.context.errors import BudgetDiagnostic, PromptBudgetError, RuleLimitError
 from code_agent.sessions.errors import SessionStorageError
 
 
@@ -16,11 +16,13 @@ def runtime_error_summary(error: BaseException) -> str:
         if isinstance(cause, SessionStorageError):
             return _session_storage_summary(cause)
         if isinstance(cause, RuleLimitError):
-            return "Project instructions exceed the context rule limit."
+            return _budget_summary(cause, "Project instructions exceed the context rule limit.")
         if isinstance(cause, PromptBudgetError):
-            if str(cause) == "system_and_rules_tokens exceeds its configured ceiling":
+            if str(cause).startswith("system_and_rules_tokens exceeds its configured ceiling"):
+                if isinstance(getattr(cause, 'diagnostic', None), BudgetDiagnostic):
+                    return _budget_summary(cause, "System prompt and project instructions exceed their reserved context capacity.")
                 return "System prompt and project instructions exceed their reserved context capacity."
-            return "The context cannot fit within the configured prompt budget."
+            return _budget_summary(cause, "The context cannot fit within the configured prompt budget.")
         status = getattr(cause, "status", None)
         if type(status) is int and 100 <= status <= 599:
             return f"Model request failed (HTTP {status}). Retry the request."
@@ -37,6 +39,17 @@ def runtime_error_summary(error: BaseException) -> str:
     if "<html" in message.lower() or "<!doctype" in message.lower():
         message = "Request failed; upstream returned an HTML error page."
     return f"{type(error).__name__}: {message[:240]}"
+
+
+def _budget_summary(error: BaseException, fallback: str) -> str:
+    diagnostic = getattr(error, 'diagnostic', None)
+    if not isinstance(diagnostic, BudgetDiagnostic):
+        return fallback
+    counts = ', '.join(f'{key}={value:,}' for key, value in diagnostic.counts)
+    files = ', '.join(diagnostic.files) or '(none)'
+    return (f'{fallback} Budget: {counts}. Rule files: {files}. '
+            'No mandatory rules were truncated. Compress reference material or explicitly adjust '
+            'PromptBudget limits while preserving the total prompt, system/tools and minimum message reserves.')
 
 
 def _session_storage_summary(error: SessionStorageError) -> str:

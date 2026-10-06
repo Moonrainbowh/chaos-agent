@@ -62,14 +62,14 @@ class PromptBudgetTests(unittest.TestCase):
     def test_system_prompt_has_capacity_beyond_project_rule_ceiling(self) -> None:
         budget = PromptBudget()
         allocation = budget.allocate(
-            system_and_rules_tokens=4_000,
+            system_and_rules_tokens=7_000,
             tool_tokens=1_500,
             task_state_tokens=1_000,
         )
 
-        self.assertEqual(budget.max_rule_tokens, 3_000)
-        self.assertEqual(allocation.rule_tokens, 4_000)
-        self.assertEqual(allocation.message_tokens, 12_000)
+        self.assertEqual(budget.max_rule_tokens, 6_000)
+        self.assertEqual(allocation.rule_tokens, 7_000)
+        self.assertEqual(allocation.message_tokens, 10_000)
         self.assertLessEqual(allocation.total_tokens, budget.max_prompt_tokens)
 
     def test_allocation_rejects_invalid_fixed_content_and_unsatisfiable_minimum(self) -> None:

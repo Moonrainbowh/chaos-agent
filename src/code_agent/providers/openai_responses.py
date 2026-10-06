@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import aclosing
 import json
 from collections.abc import AsyncIterator, Iterable, Mapping, Sequence
 from dataclasses import dataclass
@@ -15,6 +16,7 @@ from .attachments import AttachmentResolver, ProviderAttachmentEncoder
 from .config import ApiProtocol, InputModality, ProviderConfig
 from .errors import ProviderConfigError, ProviderProtocolError
 from ._request_payload import request_options, responses_payload
+from .prepared import contains_images
 from .transport import ProviderTransport, Sleep
 def _request_input(
     messages: Sequence[Message], encoder: ProviderAttachmentEncoder
@@ -207,54 +209,66 @@ class OpenAIResponsesClient:
 
     async def stream(self, system_prompt: str, messages: Sequence[Message], tools: Sequence[ToolDefinition],
     ) -> AsyncIterator[ModelEvent]:
+        prepared = await self.prepare_request(system_prompt, messages, tools)
+        async with aclosing(self.stream_prepared(prepared)) as events:
+            async for event in events:
+                yield event
+
+    async def prepare_request(self, system_prompt: str, messages: Sequence[Message], tools: Sequence[ToolDefinition],
+    ):
         payload = responses_payload(
             self._config, system_prompt, _request_input(messages, self._attachments),
             [_request_tool(tool) for tool in tools],
             self._request_options,
         )
+        return await self._transport.prepare_request(self._config.responses_path, payload,
+            max_output_tokens=self._request_options.max_output_tokens,
+            uncalibrated_images=contains_images(messages))
+
+    async def stream_prepared(self, prepared):
         calls = _CallRegistry(
             ToolBudget(self._config.max_tool_calls, self._config.max_tool_argument_bytes)
         )
-        async for sse in self._transport.stream_sse(
-            self._config.responses_path, payload):
-            value = _load_event(sse.data)
-            event_type = value.get("type", sse.event)
-            if not isinstance(event_type, str):
-                continue
-            if event_type == "error" or sse.event == "error":
-                raise ProviderProtocolError("Responses provider returned an error event")
-            if event_type in {"response.failed", "response.incomplete"}:
-                raise _terminal_error(event_type, value)
-            if event_type == "response.output_text.delta":
-                yield self._text_delta(value, ModelEventKind.TEXT_DELTA)
-            elif event_type in {"response.reasoning.delta", "response.reasoning_text.delta",
-                                "response.reasoning_summary_text.delta"}:
-                yield self._text_delta(value, ModelEventKind.REASONING_DELTA)
-            elif event_type == "response.output_item.added":
-                self._item_added(value, calls)
-            elif event_type == "response.function_call_arguments.delta":
-                state = calls.resolve(value)
-                delta = value.get("delta")
-                if not isinstance(delta, str):
-                    raise ProviderProtocolError("Responses argument delta must be text")
-                state.arguments.append(delta)
-            elif event_type == "response.output_item.done":
-                result = self._item_done(value, calls)
-                if result is not None:
-                    yield result
-            elif event_type == "response.completed":
-                for state in calls.states:
-                    result = _finalize(state)
+        async with aclosing(self._transport.stream_prepared(prepared)) as events:
+            async for sse in events:
+                value = _load_event(sse.data)
+                event_type = value.get("type", sse.event)
+                if not isinstance(event_type, str):
+                    continue
+                if event_type == "error" or sse.event == "error":
+                    raise ProviderProtocolError("Responses provider returned an error event")
+                if event_type in {"response.failed", "response.incomplete"}:
+                    raise _terminal_error(event_type, value)
+                if event_type == "response.output_text.delta":
+                    yield self._text_delta(value, ModelEventKind.TEXT_DELTA)
+                elif event_type in {"response.reasoning.delta", "response.reasoning_text.delta",
+                                    "response.reasoning_summary_text.delta"}:
+                    yield self._text_delta(value, ModelEventKind.REASONING_DELTA)
+                elif event_type == "response.output_item.added":
+                    self._item_added(value, calls)
+                elif event_type == "response.function_call_arguments.delta":
+                    state = calls.resolve(value)
+                    delta = value.get("delta")
+                    if not isinstance(delta, str):
+                        raise ProviderProtocolError("Responses argument delta must be text")
+                    state.arguments.append(delta)
+                elif event_type == "response.output_item.done":
+                    result = self._item_done(value, calls)
                     if result is not None:
                         yield result
-                response = value.get("response", {})
-                if not isinstance(response, dict):
-                    raise ProviderProtocolError("Completed response must be an object")
-                usage = response.get("usage", value.get("usage"))
-                if usage is not None:
-                    yield _usage(usage)
-                yield ModelEvent(kind=ModelEventKind.COMPLETED)
-                return
+                elif event_type == "response.completed":
+                    for state in calls.states:
+                        result = _finalize(state)
+                        if result is not None:
+                            yield result
+                    response = value.get("response", {})
+                    if not isinstance(response, dict):
+                        raise ProviderProtocolError("Completed response must be an object")
+                    usage = response.get("usage", value.get("usage"))
+                    if usage is not None:
+                        yield _usage(usage)
+                    yield ModelEvent(kind=ModelEventKind.COMPLETED)
+                    return
         raise ProviderProtocolError("Responses stream ended without response.completed")
     @staticmethod
     def _text_delta(value: Mapping[str, object], kind: ModelEventKind) -> ModelEvent:

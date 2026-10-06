@@ -238,6 +238,7 @@ def compose_subagents(
             child_engine,
             sessions=sessions,
             parent_thread=thread_binding.current,
+            thread_binding=thread_binding,
         ),
         modes,
         profiles,

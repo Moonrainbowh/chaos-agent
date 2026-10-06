@@ -187,6 +187,19 @@ def _session_specs() -> tuple[CommandSpec, ...]:
     advanced = CommandVisibility.ADVANCED
     peers = ("peers",)
     return (
+        CommandSpec(
+            "memory", ("记忆",), "Session", "Save and inspect explicit project memory",
+            "[action]", requires=("project_memory",), visibility=advanced,
+            actions=(
+                CommandAction("save", (), "Save explicit project memory", "<text>"),
+                CommandAction("list", (), "List project memory", "[offset]"),
+                CommandAction("show", (), "Show memory, sources and conditions", "<id>"),
+                CommandAction("revise", (), "Revise memory with version check", "<id> <text>"),
+                CommandAction("withdraw", (), "Withdraw memory", "<id>"),
+                CommandAction("delete", (), "Delete memory and prevent revival", "<id>"),
+                CommandAction("search", (), "Search applicable project memory", "<query>"),
+            ),
+        ),
         CommandSpec("tree", ("对话树",), "Session", "Browse message branches and continue from a selected node", requires=("conversation_tree",), visibility=advanced),
         CommandSpec("tools", ("工具",), "General", "Show registered and model-visible tools", requires=("tool_catalog",), visibility=advanced),
         CommandSpec(

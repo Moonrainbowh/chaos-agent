@@ -6,6 +6,8 @@ from pathlib import Path
 
 from code_agent.capabilities import CapabilityStrategy
 from code_agent.core.engine import AgentEngine
+from code_agent.core.action_execution import ActionLineage, ActionExecutionContext
+from code_agent.core.task import TaskAuthorization
 from code_agent.orchestration.models import (
     AgentDefinition,
     AgentMode,
@@ -44,7 +46,12 @@ class RuntimeDispatcherFactory:
         self.plugin_mode_digests: set[str] = set()
         self._partial_closures: set[asyncio.Task[None]] = set()
 
-    def child_engine(self, agent: AgentDefinition) -> tuple[AgentEngine, object]:
+    def child_engine(self, agent: AgentDefinition, parent=None, authorization=None) -> tuple[AgentEngine, object]:
+        if (not isinstance(parent, ActionExecutionContext) or not parent.task_id
+                or not isinstance(authorization, TaskAuthorization)):
+            raise ValueError("child engine requires concrete typed parent execution authority")
+        sessions = self._sessions.for_owner(parent.owner_thread_id)
+        root = Path(authorization.workspace_root).resolve()
         profile = self._profiles[agent.mode.profile_id]
         client = self._client_factory(
             profile.provider,
@@ -54,17 +61,24 @@ class RuntimeDispatcherFactory:
             engine = engine_for(
                 client,
                 profile,
-                self._context_for(agent.mode, client, profile),
-                RestrictedDispatcher(self._dispatcher, agent.effective_tools, compact_tools=True),
-                self._sessions,
-                self._root,
+                self._context_for.for_child(agent.mode, client, profile, root, sessions),
+                RestrictedDispatcher(self._dispatcher, agent.effective_tools, compact_tools=True,
+                                     frozen_authorization=authorization),
+                sessions,
+                root,
                 agent.mode,
                 capability_strategy=self.capability_strategy,
+                action_lineage=ActionLineage(parent.owner_thread_id, parent.task_id, parent.request_id),
+                inherited_authorization=authorization,
             )
             return engine, client
         except BaseException:
-            schedule_partial_client_close(client, self._partial_closures)
+            self.retire_partial_client(client)
             raise
+
+    def retire_partial_client(self, client):
+        """Close a client allocated by a synchronous partial composition."""
+        schedule_partial_client_close(client, self._partial_closures)
 
     def attach_subagents(
         self,

@@ -24,6 +24,7 @@ def available_services(app: Any) -> set[str]:
             "task_modes",
             "semantic_graph",
             "peers",
+            "project_memory",
             "conversation_tree",
             "tool_catalog",
         )

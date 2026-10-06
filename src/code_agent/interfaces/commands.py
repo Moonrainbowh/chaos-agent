@@ -8,7 +8,8 @@ from enum import Enum
 from typing import Optional
 
 from code_agent.core.attachments import AttachmentRef
-from code_agent.core.events import AgentEvent
+from code_agent.core.events import AgentEvent, EventKind
+from code_agent.core.task_result import ResultCollector, TaskResult
 from .controller import AgentController
 from .terminal_renderer import ColorMode, Theme, render_entries
 from .terminal_state import TerminalState
@@ -23,6 +24,9 @@ class CommandKind(str, Enum):
     RUN_JSON = "run_json"
     TASK_LIST = "task_list"
     TASK_RESUME = "task_resume"
+    TASK_RECOVERY = "task_recovery"
+    TASK_RESOLVE = "task_resolve"
+    TASK_RESULT = "task_result"
 
 
 @dataclass(frozen=True)
@@ -30,6 +34,8 @@ class Command:
     kind: CommandKind
     prompt: Optional[str] = None
     thread_id: Optional[str] = None
+    recovery_decision: dict[str, object] | None = None
+    require_verified: bool = False
 
 
 def parse_command(arguments: Sequence[str]) -> Command:
@@ -54,13 +60,27 @@ def parse_command(arguments: Sequence[str]) -> Command:
     if values[0] == "run":
         if len(values) < 3 or values[1] != "--json":
             raise ValueError("run requires --json followed by a prompt")
-        return Command(CommandKind.RUN_JSON, prompt=_joined(values[2:], "run"))
+        required = values[2] == '--require-verified'
+        return Command(CommandKind.RUN_JSON, prompt=_joined(values[3:] if required else values[2:], "run"), require_verified=required)
     if values[0] == "task":
+        if len(values) == 3 and values[1] == 'result' and values[2].strip():
+            return Command(CommandKind.TASK_RESULT, thread_id=values[2])
+        if len(values) == 3 and values[1] == "recovery" and values[2].strip():
+            return Command(CommandKind.TASK_RECOVERY, thread_id=values[2])
+        if len(values) == 9 and values[1] == "resolve":
+            if not all(value.strip() for value in values[2:]):
+                raise ValueError("recovery fields must not be blank")
+            sequence = int(values[4])
+            if sequence <= 0 or values[6] not in {'durable_receipt', 'local_mutation', 'operator_executed', 'operator_not_executed'}:
+                raise ValueError("invalid recovery sequence or decision")
+            return Command(CommandKind.TASK_RESOLVE, thread_id=values[2], recovery_decision={
+                'call_id': values[3], 'message_sequence': sequence, 'version': values[5],
+                'decision': values[6], 'reason': values[7], 'evidence': values[8]})
         if len(values) == 2 and values[1] == "list":
             return Command(CommandKind.TASK_LIST)
         if len(values) >= 3 and values[1] == "resume":
             return Command(CommandKind.TASK_RESUME, thread_id=values[2], prompt=" ".join(values[3:]) or "continue safely")
-        raise ValueError("task requires list or resume <task-id>")
+        raise ValueError("task requires list, resume, recovery, or resolve")
     raise ValueError(f"unknown command: {values[0]}")
 
 
@@ -77,6 +97,25 @@ async def execute_command(
     if command.kind is CommandKind.TUI:
         await tui.run(thread_id=command.thread_id)
         return 0
+    if command.kind is CommandKind.TASK_RESULT:
+        if tasks is None:
+            raise ValueError('task controls are unavailable')
+        result = await tasks.result(command.thread_id)
+        write(json.dumps(result.to_dict(), ensure_ascii=False) + '\n')
+        return 0
+    if command.kind in {CommandKind.TASK_RECOVERY, CommandKind.TASK_RESOLVE}:
+        if tasks is None:
+            raise ValueError("task controls are unavailable")
+        if command.kind is CommandKind.TASK_RECOVERY:
+            data = await tasks.recovery_checklist(command.thread_id or '')
+        else:
+            if command.recovery_decision is None:
+                raise ValueError("missing explicit recovery decision")
+            event = await tasks.resolve_pending_action(command.thread_id or '',
+                **command.recovery_decision, operator_authorized=True)
+            data = event.to_dict()
+        write(json.dumps(data, ensure_ascii=False, sort_keys=True) + '\n')
+        return 0
     if command.kind is CommandKind.TASK_LIST:
         if tasks is None:
             raise ValueError("task controls are unavailable")
@@ -86,7 +125,7 @@ async def execute_command(
     if command.kind is CommandKind.TASK_RESUME:
         if tasks is None:
             raise ValueError("task controls are unavailable")
-        await _write_rendered_events(
+        collected = await _write_rendered_events(
             tasks.resume(
                 command.thread_id or "",
                 _required_prompt(command),
@@ -94,7 +133,7 @@ async def execute_command(
             ),
             write,
         )
-        return 0
+        return await _finish_result(collected, tasks, command.thread_id, write)
     if command.kind in {CommandKind.ASK, CommandKind.RUN_JSON}:
         if tasks is None:
             raise ValueError("task controls are unavailable")
@@ -103,10 +142,12 @@ async def execute_command(
             task.id, _required_prompt(command), attachments=attachments
         )
         if command.kind is CommandKind.RUN_JSON:
-            await _write_json_events(events, write)
+            collected = await _write_json_events(events, write)
         else:
-            await _write_rendered_events(events, write)
-        return 0
+            collected = await _write_rendered_events(events, write)
+        return await _finish_result(collected, tasks, task.id, write,
+                                    json_output=command.kind is CommandKind.RUN_JSON,
+                                    require_verified=command.require_verified)
     if command.kind is CommandKind.RESUME:
         resume_thread = getattr(tasks, "resume_thread", None) if tasks else None
         events = (
@@ -124,8 +165,8 @@ async def execute_command(
         )
     else:
         raise AssertionError(f"unhandled command kind: {command.kind}")
-    await _write_rendered_events(events, write)
-    return 0
+    collected = await _write_rendered_events(events, write)
+    return await _finish_result(collected, tasks, collected.task_id, write)
 
 
 def _joined(values: Sequence[str], command: str) -> str:
@@ -143,11 +184,16 @@ def _required_prompt(command: Command) -> str:
 
 async def _write_rendered_events(
     events: AsyncIterator[AgentEvent], write: Callable[[str], object]
-) -> None:
+) -> ResultCollector:
     state = TerminalState()
+    collected = ResultCollector()
     try:
         async for event in events:
+            collected.observe(event)
             state.apply(event)
+    except Exception:
+        collected.result = TaskResult('failed', stop_code='execution_error')
+        state.apply(AgentEvent(EventKind.ERROR, {'code': 'execution_error'}))
     finally:
         rendered = render_entries(
             state.entries,
@@ -157,16 +203,38 @@ async def _write_rendered_events(
         )
         if rendered:
             write(rendered + "\n")
+    return collected
 
 
 async def _write_json_events(
     events: AsyncIterator[AgentEvent], write: Callable[[str], object]
-) -> None:
-    async for event in events:
-        write(
-            json.dumps(
-                event.to_dict(), ensure_ascii=False, sort_keys=True,
-                separators=(",", ":"),
-            )
-            + "\n"
-        )
+) -> ResultCollector:
+    collected = ResultCollector()
+    try:
+        async for event in events:
+            collected.observe(event)
+            write(json.dumps(event.to_dict(), ensure_ascii=False, sort_keys=True,
+                separators=(',', ':')) + '\n')
+    except Exception:
+        collected.result = TaskResult('failed', stop_code='execution_error')
+        write(json.dumps(AgentEvent(EventKind.ERROR, {'code': 'execution_error'}).to_dict()) + '\n')
+    return collected
+
+
+async def _finish_result(collected, tasks, task_id, write, *, json_output=False, require_verified=False):
+    result = collected.result
+    load = getattr(tasks, 'result', None)
+    if task_id and callable(load):
+        try:
+            result = await load(task_id)
+            if not isinstance(result, TaskResult):
+                raise TypeError('invalid durable result')
+            result = collected.reconcile(result)
+        except Exception:
+            result = TaskResult(stop_code='state_read_failed')
+    if json_output:
+        event = AgentEvent(EventKind.TASK_RESULT, {'task_id': task_id, 'result': result.to_dict()})
+        write(json.dumps(event.to_dict(), ensure_ascii=False, separators=(',', ':')) + '\n')
+    else:
+        write(f'Result: {result.execution_status}; changes={result.changes}; verification={result.verification_status}\n')
+    return result.exit_code(require_verified=require_verified)

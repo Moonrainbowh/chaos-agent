@@ -4,7 +4,7 @@ from dataclasses import replace
 from code_agent.core.models import ContextBundle
 from .builder import WindowContextBuilder
 from .history import closed_group_ends, select_window, source_digest
-from .persistent_history import first_window_id, item_id, record_window, window_index
+from .persistent_history import first_window_id, item_id
 
 
 GUIDANCE = (
@@ -33,25 +33,25 @@ class PersistentContextBuilder(WindowContextBuilder):
         self.remaining_by_thread = {}
         self._memory_context = ()
 
+    def _bundle_for_state(self, scaffold, request, records, active, windows):
+        return self._persistent_bundle(scaffold, request, records, active, windows)
+
     async def build(self, request):
         request.cancellation.raise_if_cancelled()
-        records = tuple(await self.sessions.load_message_records(request.thread_id))
+        records, active, windows = await self._history.build_state(request.thread_id, self.policy.strategy)
         if not records:
             raise ValueError("managed context requires durable messages")
         users = tuple(r.message for r in records if r.message.role == "user")
         scaffold = await self._inner.build(replace(request, messages=users[-1:], user_input=""))
         self._memory_context = await self._load_memory_context(request.user_input or users[-1].content, request.task_facts)
-        windows = await self.sessions.context_records(request.thread_id, "window")
         for prior in windows:
             if prior["strategy"] != "persistent":
                 raise ValueError("context strategy cannot change within an existing task")
-            select_window(records, prior)
         window = windows[-1] if windows else None
-        active = select_window(records, window)
         bundle = self._persistent_bundle(scaffold, request, records, active, windows)
-        requests = await self.sessions.context_records(request.thread_id, "request")
+        requests = await self.sessions.context_record_page(request.thread_id, "request", limit=1, newest=True)
         requested = bool(requests and (not window or window.get("request_id") != requests[-1]["id"]))
-        cap = self.limits.input_cap(self.policy)
+        cap = self._input_cap()
         if requested or bundle.measurements["prompt_tokens"] > cap:
             reason = "requested" if requested else "capacity_fallback"
             window, active = await self._reset(
@@ -61,6 +61,7 @@ class PersistentContextBuilder(WindowContextBuilder):
             bundle = self._persistent_bundle(scaffold, request, records, active, windows)
         if bundle.measurements["prompt_tokens"] > cap:
             raise ValueError("input cannot fit without dropping required state; history retained")
+        await self._preflight_bundle(bundle, request.tools)
         measurements = await self._measurements(bundle, request.thread_id)
         status = {key: measurements[key] for key in (
             "context_tokens_remaining", "window_input_cap", "prompt_tokens", "window_number")}
@@ -69,15 +70,14 @@ class PersistentContextBuilder(WindowContextBuilder):
         return replace(bundle, measurements=measurements)
 
     def _persistent_bundle(self, scaffold, request, records, active, windows):
-        index = window_index(request.thread_id, records, windows)
-        current = index[-1]["window_id"]
-        previous = index[-2]["window_id"] if len(index) > 1 else "none"
+        current = windows[-1]["id"] if windows else first_window_id(request.thread_id)
+        previous = windows[-2]["id"] if len(windows) > 1 else first_window_id(request.thread_id) if windows else "none"
         selected = list(active)
         users = [r for r in records if r.message.role == "user"]
         if users and users[-1] not in selected:
             selected.insert(0, users[-1])
         messages = tuple(replace(r.message, content=r.message.content +
-            f"\n[history_ref window={record_window(r, index)} item={item_id(r)}]") for r in selected)
+            f"\n[history_ref window={self._history.reference_window(request.thread_id, r)} item={item_id(r)}]") for r in selected)
         system = scaffold.system_prompt + GUIDANCE + (
             f"\nCurrent window: {current}; previous window: {previous}. "
             f"First window: {first_window_id(request.thread_id)}.")
@@ -85,7 +85,7 @@ class PersistentContextBuilder(WindowContextBuilder):
             system += "\nProject memory (reference only; verify against current code and user instructions):\n" + "\n".join(f"- {item}" for item in self._memory_context)
         if windows and windows[-1].get("reason") == "capacity_fallback":
             system += "\nCapacity forced a reset; do not assume a fresh checkpoint exists. Recover from history."
-        cap = self.limits.input_cap(self.policy)
+        cap = self._input_cap()
         base = self.counter.request(system, messages, request.tools)
         if base >= int(cap * self.policy.prepare_ratio):
             system += "\nWindow nearing capacity: update your checkpoint now."
@@ -121,15 +121,16 @@ class PersistentContextBuilder(WindowContextBuilder):
         window = windows[-1] if windows else None
         if not active:
             return window, active
-        payload = {"number": len(windows) + 1, "strategy": "persistent",
+        payload = {"number": windows[-1]["number"] + 1 if windows else 1, "strategy": "persistent",
                    "source_start": active[0].sequence, "source_end": active[-1].sequence,
                    "source_digest": source_digest(active),
                    "start_sequence": active[-1].sequence + 1, "carry": "", "reason": reason,
                    "request_id": requests[-1]["id"] if requests else None}
         candidate = {"id": first_window_id(f"candidate:{request.thread_id}"), **payload}
         fresh = self._persistent_bundle(scaffold, request, records, (), (*windows, candidate))
-        if fresh.measurements["prompt_tokens"] > self.limits.input_cap(self.policy):
+        if fresh.measurements["prompt_tokens"] > self._input_cap():
             raise ValueError("input cannot fit without dropping required state; history retained")
+        await self._preflight_bundle(fresh, request.tools)
         request.cancellation.raise_if_cancelled()
         identifier = await self.sessions.append_context_record(
             request.thread_id, "window", str(request.revision), payload,

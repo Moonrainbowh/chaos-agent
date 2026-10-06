@@ -85,6 +85,52 @@ def _restored_thread() -> RestoredThread:
 
 
 class TerminalStateTests(unittest.TestCase):
+    def test_error_after_completion_does_not_keep_completed_delivery(self):
+        from code_agent.interfaces.experience_summary import build_experience_snapshot
+        state = TerminalState()
+        state.apply(AgentEvent(EventKind.COMPLETED))
+        state.apply(AgentEvent(EventKind.ERROR))
+        self.assertEqual(build_experience_snapshot(state).status, 'failed')
+
+    def test_old_completion_carries_unknown_verification(self):
+        from code_agent.interfaces.experience_summary import build_experience_snapshot
+        for event in (AgentEvent(EventKind.COMPLETED), AgentEvent(
+                EventKind.TASK_STATUS_CHANGED, {'status': 'completed'})):
+            with self.subTest(event=event.kind):
+                state = TerminalState()
+                state.apply(event)
+                self.assertEqual(state.result.verification_status, 'unknown')
+                self.assertFalse(build_experience_snapshot(state).can_claim_completion)
+
+    def test_tool_result_does_not_replace_task_delivery(self):
+        state = TerminalState()
+        state.begin_run()
+        state.apply(AgentEvent(EventKind.ACTION_COMPLETED,
+            {'result': ActionResult('call', 'read_file', 'source').to_dict()}))
+        self.assertEqual(state.status, 'running')
+        self.assertIsNone(state.result)
+
+    def test_cancelled_delivery_survives_late_completion_until_new_run(self):
+        from code_agent.core.task_result import TaskResult
+        state = TerminalState()
+        state.begin_run()
+        state.apply(AgentEvent(EventKind.CANCELLED, {'reason': 'user cancelled'}))
+        state.apply(AgentEvent(EventKind.COMPLETED,
+            {'result': TaskResult('completed', verification_status='verified').to_dict()}))
+        self.assertEqual(state.status, 'cancelled')
+        self.assertEqual(state.result.execution_status, 'cancelled')
+        self.assertNotEqual(state.result.verification_status, 'verified')
+        state.apply(AgentEvent(EventKind.RUN_STARTED, {}))
+        state.apply(AgentEvent(EventKind.COMPLETED,
+            {'result': TaskResult('completed', verification_status='verified').to_dict()}))
+        self.assertEqual(state.status, 'completed')
+        self.assertEqual(state.result.verification_status, 'verified')
+        state.apply(AgentEvent(EventKind.CANCELLED, {'reason': 'user cancelled'}))
+        state.apply(AgentEvent(EventKind.TASK_STATUS_CHANGED,
+            {'status': 'running', 'run_instance_id': 'new-durable-run'}))
+        self.assertEqual(state.status, 'running')
+        self.assertIsNone(state.result)
+
     def test_settled_task_replaces_exploration_warning_with_durable_reason(self):
         state = TerminalState()
         state.apply(AgentEvent(EventKind.TASK_BUDGET_WARNING, {

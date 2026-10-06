@@ -12,6 +12,36 @@ from code_agent.core.task_intent import infer_task_intent, is_small_talk
 
 
 class CompletionIdleTests(unittest.IsolatedAsyncioTestCase):
+    async def test_unavailable_completion_preserves_specific_bounded_reason(self):
+        from code_agent.core.task_verification import VerificationAssessment
+        from code_agent.core.verification_state import VerifierOutcome
+        class Journal:
+            async def load_task_state(self, _):
+                return TaskState(files_changed=("changed.py",))
+            async def transition_task(self, identifier, status, reason):
+                return SimpleNamespace(id=identifier, status=status, stop_reason=reason)
+        class Verification:
+            async def assess(self, *args):
+                return VerificationAssessment(
+                    CompletionAssessment(CompletionKind.UNVERIFIED, ("risk-appropriate-validation",)),
+                    VerifierOutcome.UNAVAILABLE, 0, "hash",
+                    diagnostics=("Local test runtime is unavailable",))
+        engine = AgentEngineCompletionMixin()
+        engine._journal, engine._verification = Journal(), Verification()
+        task = SimpleNamespace(id="task", status=TaskStatus.RUNNING,
+                               contract=SimpleNamespace(intent=TaskIntent.MODIFY))
+        result = await engine._resolve_task_completion(task, "thread")
+        self.assertEqual(result.status, TaskStatus.WAITING_DECISION)
+        self.assertIn("unavailable", result.stop_reason)
+        self.assertIn("Local test runtime", result.stop_reason)
+
+    def test_verification_assessment_diagnostics_are_bounded(self):
+        from code_agent.core.task_verification import VerificationAssessment
+        from code_agent.core.verification_state import VerifierOutcome
+        with self.assertRaises(ValueError):
+            VerificationAssessment(CompletionAssessment(CompletionKind.UNVERIFIED, ()),
+                                   VerifierOutcome.NOT_RUN, 0, "hash",
+                                   diagnostics=("x" * 513,))
     def test_greeting_variants_are_analysis_but_work_requests_remain_modifications(self):
         for text in ("你好", "你好呀嘻嘻嘻", " Hello! ", "谢谢呀", "hi"):
             self.assertTrue(is_small_talk(text))

@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 from code_agent.core.events import AgentEvent, EventKind
+from code_agent.core.task_result import ResultCollector, TaskResult
 
 
 MOBILE_EVENT_NAMES = frozenset(
@@ -76,17 +77,25 @@ def event_from_agent(
         result = payload.get("result")
         data: dict[str, Any] = {}
         if isinstance(result, Mapping):
-            for key in ("name", "request_id", "ok"):
+            for key in ("name", "request_id", "is_error"):
                 value = result.get(key)
                 if isinstance(value, (str, bool, int)):
                     data[key] = _text(value, 128) if isinstance(value, str) else value
         return MobileEvent("tool_finished", data=data, **common)
     if event.kind is EventKind.COMPLETED:
-        return MobileEvent("task_completed", **common)
+        collected = ResultCollector()
+        collected.observe(event)
+        return MobileEvent("task_completed", data={'result': collected.result.to_dict()}, **common)
+    if event.kind is EventKind.TASK_RESULT:
+        result = TaskResult.from_dict(payload['result'])
+        return MobileEvent('task_status', data={'status': result.execution_status, 'result': result.to_dict()}, **common)
+    if event.kind in {EventKind.TASK_DECISION_REQUIRED, EventKind.TASK_PAUSED}:
+        status = 'waiting_decision' if event.kind is EventKind.TASK_DECISION_REQUIRED else 'paused'
+        return MobileEvent('task_status', data={'status': status}, **common)
     if event.kind is EventKind.CANCELLED:
         reason = _text(payload.get("reason"), 128)
         return MobileEvent("task_stopped", data={"reason": reason} if reason else None, **common)
     if event.kind is EventKind.ERROR:
         data = {key: value for key in ("code", "error_type") if (value := _text(payload.get(key), 128))}
-        return MobileEvent("task_failed", data=data, **common)
+        return MobileEvent("task_status", data={'status': 'interrupted', **data}, **common)
     return None

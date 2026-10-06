@@ -62,6 +62,7 @@ class UiComposition:
     costs: object | None = None
     doctor: object | None = None
     semantic_graph: object | None = None
+    project_memory: object | None = None
 
 
 def compose_ui_runtime(
@@ -192,6 +193,7 @@ class _UiComposer:
             peers=parts.peers,
             project_name=parts.root.name,
             workspace_root=parts.root,
+            project_memory=parts.project_memory,
         )
         self.tui.semantic_graph = parts.semantic_graph
         from .conversation_controls import configure_conversation_controls

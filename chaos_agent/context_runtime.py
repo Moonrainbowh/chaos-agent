@@ -79,6 +79,7 @@ def build_context_runtime(
     target_tokens: int | None = None,
     summary_tokens: int = 1_024,
     model_token_budget: int = 8_192,
+    return_assembly: bool = False,
 ) -> object:
     """Compose production thread intelligence or the legacy local pipeline."""
     deterministic = DeterministicCompactor(config)
@@ -97,13 +98,18 @@ def build_context_runtime(
             repo_map,
             deterministic,
         )
-        return ThreadAwareContextBuilder(
+        builder = ThreadAwareContextBuilder(
             sessions,
             semantic,
             workspace,
             context_limit=context_limit,
             target_tokens=target_tokens,
         )
+        if return_assembly:
+            from chaos_agent.context_assembly import ContextAssembly
+            from chaos_agent.managed_context import workspace_snapshot
+            return ContextAssembly(builder, None, semantic_snapshot=workspace_snapshot(workspace, config.workspace_root))
+        return builder
     if context_limit is not None or target_tokens is not None:
         raise TypeError("summarizer is required for production context limits")
 
