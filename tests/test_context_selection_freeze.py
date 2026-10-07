@@ -38,6 +38,12 @@ def isolated_application(policy=None):
 
 
 class ContextSelectionFreezeTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        # Freeze the original cap so restore/drift counterexamples stay exact.
+        scope = patch.dict("os.environ", {"CHAOS_MAX_PROMPT_TOKENS": "20000"})
+        scope.start()
+        self.addCleanup(scope.stop)
+
     async def test_new_real_host_tasks_persist_semantic_and_all_explicit_strategies(self):
         for strategy in ("semantic", "summary", "boundary", "persistent"):
             with self.subTest(strategy=strategy), isolated_application(None if strategy == "semantic" else

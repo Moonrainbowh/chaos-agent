@@ -18,6 +18,10 @@ from code_agent.sessions.errors import SessionNotFound
 
 class ProjectMemoryApplicationTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
+        # Memory inclusion and restart are tested at the original explicit cap.
+        scope = patch.dict(os.environ, {"CHAOS_MAX_PROMPT_TOKENS": "20000"})
+        scope.start()
+        self.addCleanup(scope.stop)
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
         self.container = Path(self.directory.name).resolve()

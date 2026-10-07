@@ -1,10 +1,12 @@
 """Actual Host strategy assembly and adapter bytes share the final admission."""
 import json
+import os
 import tempfile
 import unittest
 from dataclasses import replace
 from contextlib import nullcontext
 from pathlib import Path
+from unittest.mock import patch
 
 import httpx
 from chaos_agent.application_context import RuntimeContextFactory
@@ -37,6 +39,12 @@ class Skills:
 
 
 class PreparedContextAssemblyTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        # Preserve the original small-budget, zero-HTTP overflow regression.
+        scope = patch.dict(os.environ, {"CHAOS_MAX_PROMPT_TOKENS": "20000"})
+        scope.start()
+        self.addCleanup(scope.stop)
+
     async def exercise(self, strategy, oversized=False):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()
