@@ -9,6 +9,8 @@ from code_agent.mcp.official_sdk import OfficialMcpSdkAdapter
 from code_agent.mcp.registry import McpController, McpRegistry
 from code_agent.mcp.stdio_manager import StdioMcpManager
 from code_agent.orchestration.models import AgentDefinition, AgentMode, ModeSnapshot
+from code_agent.orchestration.budget import ParentBudget
+from code_agent.core.task import TaskStatus
 from code_agent.policy.engine import ActionPolicy, PolicyConfig
 from code_agent.plugins.registry import ContributionSnapshot, PluginHost
 from code_agent.thread_intelligence.authorization import ThreadAuthorization
@@ -244,9 +246,21 @@ def compose_subagents(
         profiles,
         plugin_host=plugin_host,
         mode_snapshots=mode_snapshots,
+        budget_resolver=lambda context: frozen_parent_budget(sessions, context),
     )
     dispatcher.subagents = subagents
     return subagents, _configured_mcp_targets(dispatcher.mcp), set()
+
+
+async def frozen_parent_budget(sessions, context):
+    """Borrow ceilings from this active task's persisted budget, never a profile."""
+    task = await sessions.load_task(context.task_id)
+    if task.thread_id != context.owner_thread_id or context.origin_thread_id != context.owner_thread_id:
+        raise ValueError('child budget context belongs to another parent')
+    if task.status not in {TaskStatus.RUNNING, TaskStatus.VERIFYING}:
+        raise ValueError('child budget parent task is not active')
+    frozen = await sessions.load_task_budget(context.task_id)
+    return ParentBudget(max_total_tokens=frozen.limits.max_total_tokens, max_tool_calls=frozen.limits.max_tool_calls)
 
 
 def _configured_mcp_targets(mcp: object) -> tuple[str, ...]:

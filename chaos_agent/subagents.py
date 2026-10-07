@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+import asyncio
+from collections.abc import Awaitable, Callable, Mapping
+from dataclasses import replace
 from contextvars import ContextVar, Token
 from uuid import uuid5, NAMESPACE_URL
 
@@ -188,15 +190,21 @@ class SubagentRuntime:
         runner: EngineChildRunner,
         mode_registry: ModeRegistry,
         profiles: dict[str, ModelProfile],
-        budget: ParentBudget = ParentBudget(),
+        budget: ParentBudget | None = None,
         *,
         plugin_host: PluginHost | None = None,
         mode_snapshots: Mapping[AgentMode, ModeSnapshot] | None = None,
+        budget_resolver: Callable[[ActionExecutionContext], Awaitable[ParentBudget]] | None = None,
     ) -> None:
         self._runner = runner
         self._modes = mode_registry
         self._profiles = profiles
-        self._budget = budget
+        self._budget = budget or ParentBudget()
+        self._explicit_budget = budget is not None
+        self._budget_resolver = budget_resolver
+        self._task_ledgers: dict[str, BudgetLedger] = {}
+        self._task_owners: dict[str, str] = {}
+        self._supervisor_lock = asyncio.Lock()
         self._parent: ContextVar[str] = ContextVar("subagent_parent", default="adhoc")
         self._supervisors: dict[str, ChildRunSupervisor] = {}
         self._listeners: set[Callable[[RunView], None]] = set()
@@ -244,13 +252,7 @@ class SubagentRuntime:
         execution_context: ActionExecutionContext | None = None,
     ) -> ActionResult:
         parent_id = self._parent.get()
-        supervisor = self._supervisors.get(parent_id)
-        if supervisor is None:
-            supervisor = ChildRunSupervisor(
-                self._runner, BudgetLedger(self._budget), cancellation
-            )
-            supervisor.subscribe(self._publish)
-            self._supervisors[parent_id] = supervisor
+        supervisor = await self._supervisor(parent_id, cancellation, execution_context)
         token = self._runner.bind_execution_context(execution_context)
         try:
             return await SubagentTool(
@@ -262,6 +264,41 @@ class SubagentRuntime:
             ).dispatch(request, cancellation)
         finally:
             self._runner.reset_execution_context(token)
+
+    async def _supervisor(
+        self, parent_id: str, cancellation: CancellationToken,
+        context: ActionExecutionContext | None,
+    ) -> ChildRunSupervisor:
+        # The lock spans the resolver await: concurrent first calls cannot fork ledgers.
+        owned = self._budget_resolver is not None and isinstance(context, ActionExecutionContext) and context.task_id is not None
+        if self._budget_resolver is not None and parent_id != "adhoc" and not owned:
+            raise ValueError("active parent task requires concrete execution context")
+        if owned and context.task_id != parent_id:
+            raise ValueError('child execution task does not match the active parent')
+        if owned and context.origin_thread_id != context.owner_thread_id:
+            raise ValueError("child execution origin does not match the parent owner")
+        async with self._supervisor_lock:
+            if owned and parent_id in self._task_owners and self._task_owners[parent_id] != context.owner_thread_id:
+                raise ValueError("child execution belongs to another parent owner")
+            supervisor = self._supervisors.get(parent_id)
+            if supervisor is not None:
+                return supervisor
+            ledger = self._task_ledgers.get(parent_id) if owned else None
+            if ledger is None:
+                budget = self._budget
+                if owned:
+                    frozen = await self._budget_resolver(context)
+                    budget = replace(budget,
+                        max_total_tokens=min(budget.max_total_tokens, frozen.max_total_tokens) if self._explicit_budget else frozen.max_total_tokens,
+                        max_tool_calls=min(budget.max_tool_calls, frozen.max_tool_calls) if self._explicit_budget else frozen.max_tool_calls)
+                ledger = BudgetLedger(budget)
+                if owned:
+                    self._task_ledgers[parent_id] = ledger
+                    self._task_owners[parent_id] = context.owner_thread_id
+            supervisor = ChildRunSupervisor(self._runner, ledger, cancellation)
+            supervisor.subscribe(self._publish)
+            self._supervisors[parent_id] = supervisor
+            return supervisor
 
     async def release(self, parent_id: str) -> None:
         supervisor = self._supervisors.get(parent_id)
@@ -278,4 +315,6 @@ class SubagentRuntime:
         for supervisor in supervisors:
             await supervisor.wait_all()
         self._supervisors.clear()
+        self._task_ledgers.clear()
+        self._task_owners.clear()
         self._child_threads.clear()

@@ -26,7 +26,7 @@ Windows/Linux/macOS共享TUI/CLI/JSON Host，发布chaos-agent保agent/本地状
 
 ## Units
 - create_application/CLI/RuntimeSelection：共享入口/切换恢复；CLI按TaskResult退出/查询0，child须终态，未知/取消非完成、建议非evidence。
-- Child composition：分配Provider前须typed父ActionExecutionContext/task/TaskAuthorization，持久父冻结授权/root/owner，child同根/角色收窄/父共享token-tool预算不猜UIthread；父owner/checkpoint释放前取消等待真实runner/closer；S8已迁生产测试才删旧装配。
+- Child composition：分配Provider前须typed父ActionExecutionContext/task/TaskAuthorization，持久父冻结授权/root/owner，child同根/角色收窄/父共享token-tool预算不猜UIthread；生产首次task-owned supervisor从持久冻结TaskBudget派生token/tool上限，显式ParentBudget仅收紧；同Task release/resume保留累计ledger及unknown预留，不因profile切换扩额，runtime关闭清缓存；taskless维持原默认。父owner/checkpoint释放前取消等待真实runner/closer；S8已迁生产测试才删旧装配。
 - ContextAssembly/ContextScopedDispatcher：经原dispatcher/policy，异常取消恢复scope不盖Root。
 - Root/TaskScoped/RestrictedDispatcher：child按父冻结write/execute/network/outside上限核compact/target；permission mode/永久进程规则/再次授权不扩，主审批原义。
 - Workspace/Mutation/SessionRouter/recovery：身份/日志/恢复/索引。
