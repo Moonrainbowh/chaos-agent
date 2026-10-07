@@ -1,7 +1,8 @@
 {
   "status": "PASS_STAGED_CAPTURE_BYTES",
-  "unique_files": 45,
+  "unique_files": 55,
   "production_candidate": "f8bb5dc75bd4808598e75100ee879248758ab9ce",
+  "validation_candidate": "8807ca56810c43891212eeecf4934ba154d7f1b8",
   "host_started": false,
   "provider_calls": 0,
   "sha256": {
@@ -49,6 +50,16 @@
     "docs/next-version/s16-source-completion/owned-cases-p4/s16-source-completion-p4-8bc3b259ade8/preflight-wire-request-3.json": "e2ea4bae01f3fea3ccbd04066025ab5684c3b127425f791c476c5030aefaaf78",
     "docs/next-version/s16-source-completion/owned-cases-p4/s16-source-completion-p4-8bc3b259ade8/preflight-wire-request-4.json": "78cbcb9ed8dd0d828b18007c6dd7dc9d4d7ba7db02e06cd55f0483516c930ade",
     "docs/next-version/s16-source-completion/owned-cases-p4/s16-source-completion-p4-8bc3b259ade8/preflight-wire-request-5.json": "e67f6d5e8bbcbbbed6bb80c2ea581266c517cc3d4736cb93f51f6d5c3efa8fa1",
-    "docs/next-version/s16-source-completion/owned-cases-p4/s16-source-completion-p4-8bc3b259ade8/preflight-wire-request-6.json": "f8b8ba6fed52f66b1fbdf2444b4785904ec0fbdd02eb65b994aba8532d253ee9"
+    "docs/next-version/s16-source-completion/owned-cases-p4/s16-source-completion-p4-8bc3b259ade8/preflight-wire-request-6.json": "f8b8ba6fed52f66b1fbdf2444b4785904ec0fbdd02eb65b994aba8532d253ee9",
+    "docs/next-version/s16-source-completion/ci-8807ca5/job-112792449501.log": "d0b4b930140aeaa141ff668796601d00f83918edf18388987e20c1d871379e26",
+    "docs/next-version/s16-source-completion/ci-8807ca5/job-112792449764.log": "afd50b2eca4fa778b41964da609feff092d19cb8fc5fe69dd9e32a24a3428967",
+    "docs/next-version/s16-source-completion/ci-8807ca5/job-112792449839.log": "a6a648aa170fdc263163fec06a30e620862e9e39e0ef6382e17d21e332c10213",
+    "docs/next-version/s16-source-completion/ci-8807ca5/job-112792450057.log": "52dd06b648961d35655296f43d8b657ebbff0fbb321154032abbf0a8488c7e1e",
+    "docs/next-version/s16-source-completion/ci-8807ca5/job-112792450086.log": "4f8f1a6e3c7e54dd35fa9f73059cd632c0ebbb36e6c6d05bacdd21345e1297df",
+    "docs/next-version/s16-source-completion/ci-f8bb5dc/job-112776410037.log": "32be18389afc332021083aa8ecc8e5cda8a58423e55ff95f0fe86773913ddd97",
+    "docs/next-version/s16-source-completion/ci-f8bb5dc/job-112776410304.log": "7320a810f0c0596b8d7b1f63ccc67b1e5dabb94b6b897f194de08cb7e0727e54",
+    "docs/next-version/s16-source-completion/ci-f8bb5dc/job-112776410332.log": "8823a9912c2315da7688ba83ec91ace90af7ec3accfa53e72a6a0b2db29a6a0c",
+    "docs/next-version/s16-source-completion/ci-f8bb5dc/job-112776410395.log": "203d2e726a8cb7f49aa69849589d1ec3c20e038180cd1dd2a8e4630c70184a9e",
+    "docs/next-version/s16-source-completion/ci-f8bb5dc/job-112776410437.log": "080c972f9a798ff55c0eb670ac70e33aefbc28417e10d7432c3bc084d1411a24"
   }
 }

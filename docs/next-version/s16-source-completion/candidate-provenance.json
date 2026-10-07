@@ -1,0 +1,18 @@
+{
+  "runtime_candidate": "f8bb5dc75bd4808598e75100ee879248758ab9ce",
+  "validation_candidate": "8807ca56810c43891212eeecf4934ba154d7f1b8",
+  "validation_tree": "8d6a2dd016b64ed9bde06b5d9474ae451300581c",
+  "ci_run_id": 37621445831,
+  "ci_url": "https://github.com/Moonrainbowh/chaos-agent/actions/runs/37621445831",
+  "changes_outside_docs": [
+    "tests/test_workbuddy_switch.py"
+  ],
+  "changes_outside_docs_and_tests": [],
+  "real_case": "s16-source-completion-p4-72d041646622",
+  "real_attempts": 1,
+  "p4_quality": "FAIL_P4_QUALITY",
+  "source_completion": "PASS_BOUNDED_CASE",
+  "interpretation": "All tracked runtime, build, configuration and dependency files are identical; the single reviewed test and evidence differ.",
+  "ci_status": "completed/success",
+  "ci_jobs_success": 5
+}

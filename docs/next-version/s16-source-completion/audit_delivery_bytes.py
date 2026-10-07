@@ -34,8 +34,15 @@ for case in sorted((DOCS / 'owned-cases-p4').glob('s16-source-completion-p4-*'))
         for name, digest in frozen['harness_hashes'].items():
             verify(DOCS / name, digest)
 
+for summary_path in sorted(DOCS.glob('ci-*/summary.json')):
+    summary = json.loads(summary_path.read_text(encoding='utf-8'))
+    for job in summary['jobs']:
+        if 'log' in job:
+            verify(summary_path.parent / job['log'], job['log_sha256'])
+
 result = {'status': 'PASS_STAGED_CAPTURE_BYTES', 'unique_files': len(checks),
           'production_candidate': 'f8bb5dc75bd4808598e75100ee879248758ab9ce',
+          'validation_candidate': '8807ca56810c43891212eeecf4934ba154d7f1b8',
           'host_started': False, 'provider_calls': 0, 'sha256': checks}
 (DOCS / 'delivery-byte-audit.json').write_text(
     json.dumps(result, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')

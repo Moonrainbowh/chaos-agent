@@ -1,6 +1,6 @@
 # S16 修复候选验收补充
 
-本表属于新生产候选 `f8bb5dc75bd4808598e75100ee879248758ab9ce`。原主工作区 `docs/next-version/s16/acceptance-matrix.md` 及 afbd 候选各项历史证据原样保留；旧候选 PASS 不自动移植为新候选证明。本次质量仍失败，S16 总体不放行。
+本表记录真实运行代码 `f8bb5dc75bd4808598e75100ee879248758ab9ce` 和测试修正后的候选 `8807ca56810c43891212eeecf4934ba154d7f1b8`；两者runtime源码完全相同。原主工作区 `docs/next-version/s16/acceptance-matrix.md` 及 afbd 候选各项历史证据原样保留；旧候选 PASS 不自动移植为新候选证明。本次质量仍失败，S16 总体不放行。
 
 | 本次验收项 | 状态 | 证据与边界 |
 |---|---|---|
@@ -10,7 +10,8 @@
 | 必要来源完成门 | PASS（离线） | 零/部分/伪造/截断/父代读/空答复/恢复/取消/预算优先反例；P3 Spec与Standards；完整来源不等于语义正确 |
 | 只读团队初始预算闭环 | PASS | TEAM自然STANDARD12/30，single/legacy分析QUICK、deep优先、旧账本不迁移，硬12/40不变；公开父最终交付回归 |
 | 最后Guard异步I/O | PASS | 新2项红→绿、52邻近回归及独立Python3.10共30项；ContextVar/取消/恢复保持 |
-| f8候选五平台全套、构建、干净安装 | FAIL（测试同步缺陷） | CI37616626754绑定f8bb5dc，4 jobs success；Windows3.13旧WorkBuddy test await None为唯一1error，后续构建安装跳过；原CI独审与全部日志保留，正修正测试等待方式并准备新候选 |
+| f8候选五平台全套、构建、干净安装 | FAIL（测试同步缺陷） | CI37616626754绑定f8bb5dc，4 jobs success；Windows3.13旧WorkBuddy test await None为唯一1error，后续构建安装跳过；原CI独审与全部日志保留 |
+| 测试同步修复与8807候选 | PASS | 仅失败测试改用事件屏障和稳定Task引用，产品代码不变；两版各19项及独立单例通过。新五平台CI37621445831绑定8807ca5，5/5 jobs success并独审PASS；各30套/3520发现=运行、零失败错误/无漏跑，Windows17skip/portable199skip；全部构建与干净安装通过 |
 | 公开零Provider预检 | PASS | fresh72d041646622及独审；父4/子2离线请求/四原正文/冻结绑定/自然预算/父最终答复。旧8bc顺序错误失败保留 |
 | 真实父子模型与同条件 | PASS | 7实际wire均GLM5.3-flash/medium；原源hash、额度、时限、60s/2retry保持；提示为批准范围内修正，不是原v7逐byte同prompt |
 | 真实child完整来源与交付 | PASS（单样例） | child3请求/4成功完整读取，wire5含四原正文，具体分析已交付；来源门未触发纠正，本次不证明一般成功率 |
