@@ -233,7 +233,7 @@ TOOL_DEFINITIONS: tuple[ToolDefinition, ...] = (
                     "enum": ["subagent", "oracle", "review", "search", "librarian"],
                 },
                 "agent_id": _nonempty_text_schema(),
-                "token_budget": _integer_schema(256, 100000),
+                "token_budget": _integer_schema(256, 300000),
                 "tool_budget": _integer_schema(0, 128),
                 "active_seconds": _integer_schema(1, 1800),
             },

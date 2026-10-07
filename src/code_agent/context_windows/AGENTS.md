@@ -28,7 +28,7 @@
 - `BudgetedWindowClient`: 每次主/辅助调用前原子预留、调用后核算 | Provider 和 Sessions I/O | 中断无用量保留预留，不重复扣缓存 token
 - `closed_group_ends`、`select_window`、`carried_messages`: 保持工具组、原始用户请求和来源锚点 | 无副作用 | 过期锚点拒绝恢复
 - `HandoffWriter`: 自由摘要/显式字段交接；迁移选完整源组并复用共享 prepared 预检 | 有界模型调用 | 预检不收费/发送；真实发送再次检查，失败保留原历史
-- `WindowContextBuilder` / `WindowHistory`: 构造前缀一次，必要原文有界读取、流式源验证，原子提交窗口 | Sessions I/O | 不做二次历史裁剪；manual 长历史迁移保持原策略和用户原文
+- `WindowContextBuilder` / `WindowHistory`: 构造前缀一次，必要原文有界读取、流式源验证，原子提交窗口 | Sessions I/O | 显式request_client用于实际请求有效容量与最终prepared预检，包含persistent且无需HandoffWriter；未传时兼容handoff.client。提示/容量换窗阈值使用同一守卫，不扩Host/API额度、不重置累计预算。不做二次历史裁剪；manual 长历史迁移保持原策略和用户原文
 - `WindowToolService`、`context_tools`: 当前任务的历史检索、工作笔记与延后换窗请求 | Sessions I/O | 不接受模型指定跨任务 ID
 
 - `QueuedContextBoundary`: 手动请求的排队回执 | 无副作用 | 不冒充已经完成的压缩检查点

@@ -19,17 +19,18 @@ class WindowMigrationReport:
 
 
 class WindowContextBuilder:
-    def __init__(self, inner, sessions, policy, limits, counter, handoff):
+    def __init__(self, inner, sessions, policy, limits, counter, handoff, *, request_client=None):
         self._inner, self.sessions, self.policy = inner, sessions, policy
         self.limits, self.counter, self.handoff = limits, counter, handoff
+        self._request_client = request_client if request_client is not None else getattr(handoff, "client", None)
         self._history = WindowHistory(sessions)
 
     def _input_cap(self):
-        cap = getattr(getattr(self.handoff, "client", None), "effective_input_cap", None)
+        cap = getattr(self._request_client, "effective_input_cap", None)
         return cap() if callable(cap) else self.limits.input_cap(self.policy)
 
     async def _preflight_bundle(self, bundle, tools=()):
-        check = getattr(getattr(self.handoff, "client", None), "preflight_request", None)
+        check = getattr(self._request_client, "preflight_request", None)
         if callable(check):
             await check(bundle.system_prompt, bundle.messages, tools)
 

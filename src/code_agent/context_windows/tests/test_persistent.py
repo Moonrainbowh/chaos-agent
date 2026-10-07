@@ -27,6 +27,30 @@ class NoSummary:
 
 
 class PersistentTests(unittest.IsolatedAsyncioTestCase):
+    async def test_explicit_request_guard_limits_capacity_without_handoff(self):
+        from code_agent.context_windows.client import BudgetedWindowClient
+        from code_agent.context_windows.policy import RequestBudgetConstraints
+        policy = WindowPolicy(strategy="persistent", work_tokens=1000000, safety_tokens=100)
+        limits = ApiContextLimits(1000000, 1000)
+        counter = PromptTokenCounter()
+        guard = BudgetedWindowClient(object(), self.repo, lambda: self.thread, policy, limits,
+            counter, constraints=RequestBudgetConstraints(host_prompt_tokens=4000))
+        builder = PersistentContextBuilder(Prefix(), self.repo, policy, limits, counter, None,
+            request_client=guard)
+        self.assertEqual(builder._input_cap(), 3900)
+        await self.repo.append_message(self.thread, Message("assistant", "old evidence " * 3000))
+        original = await self.repo.load_messages(self.thread)
+        request = ContextRequest(self.thread, 1, (), "", (), TaskState(), CancellationToken())
+        bundle = await builder.build(request)
+        self.assertEqual(bundle.measurements["window_input_cap"], 3900)
+        self.assertEqual(bundle.measurements["window_number"], 1)
+        self.assertIsNone(builder.handoff)
+        windows = await self.repo.context_records(self.thread, "window")
+        self.assertEqual(windows[0]["reason"], "capacity_fallback")
+        self.assertEqual(windows[0]["carry"], "")
+        self.assertEqual(await self.repo.load_messages(self.thread), original)
+        self.assertEqual(await self.repo.context_records(self.thread, "usage"), ())
+
     async def asyncSetUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.path = Path(self.tmp.name) / "sessions.db"

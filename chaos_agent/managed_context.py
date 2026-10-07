@@ -34,6 +34,7 @@ def build_managed_context(config, rules, repo_map, skills, sessions, binding, cl
     if policy.strategy == "persistent":
         result = PersistentContextBuilder(
             scaffold, sessions, policy, limits, counter, None,
+            request_client=guarded,
             memory_project_id=memory_project_id,
             memory_user_scope_id=memory_user_scope_id,
             allow_user_memory=allow_user_memory,
@@ -41,7 +42,8 @@ def build_managed_context(config, rules, repo_map, skills, sessions, binding, cl
         actions = PersistentToolService(sessions, binding.current, result)
     else:
         result = WindowContextBuilder(scaffold, sessions, policy, limits, counter,
-                                     HandoffWriter(guarded, counter, policy, limits))
+                                     HandoffWriter(guarded, counter, policy, limits),
+                                     request_client=guarded)
         actions = WindowToolService(sessions, binding.current)
     return ContextAssembly(result, guarded, actions, snapshot)
 
