@@ -1,0 +1,749 @@
+{
+  "entry": "actual Host TaskService (not raw CLI run)",
+  "preflight": true,
+  "real_multiwindow": "NOT_EXERCISED_CHILD_ONLY_CASE",
+  "real_cancellation": "NOT_EXERCISED",
+  "credential_audit_guard": {
+    "status": "PASS",
+    "long_substring_blocked": true,
+    "short_exact_scalar_blocked": true,
+    "normal_numbers_and_embedded_placeholder_text_allowed": true,
+    "live_credential_read": false
+  },
+  "tool_catalog": "当前注册且启用：23 · 首次请求默认可见：6\n● read\n● search\n● write\n● edit\n● execute\n· web\n● load_tool_contract\n· delegate_agent\n· search_threads\n· read_thread\n· list_agents\n· send_message\n· history_list_windows\n· history_list_items\n· history_read_item\n· history_search_contents\n· notes_list_files\n· notes_read_file\n· notes_search_contents\n· notes_write_file\n· notes_append_to_file\n· new_context\n· get_context_remaining",
+  "tool_prompt_tokens": 20000,
+  "provider_settings": {
+    "max_retries": 2,
+    "timeout_s": 60.0
+  },
+  "parent_runtime": {
+    "topology": "team",
+    "profile": "glm-5-3-flash",
+    "model": "glm-5.3-flash",
+    "protocol": "chat_completions",
+    "reasoning_effort": "medium",
+    "max_output_tokens": 4096,
+    "legacy_mode": "medium"
+  },
+  "child_agent": {
+    "id": "s16.sourceaudit",
+    "model": "glm-5.3-flash",
+    "effort": "medium",
+    "may_write": false,
+    "tools": [
+      "read_file",
+      "read_code_slices",
+      "list_files",
+      "search_text"
+    ]
+  },
+  "context": {
+    "version": 1,
+    "strategy": "persistent",
+    "policy": {
+      "strategy": "persistent",
+      "work_tokens": 1000000,
+      "prepare_ratio": 0.75,
+      "rotate_ratio": 0.875,
+      "safety_tokens": 16000,
+      "task_tokens": 1000000,
+      "handoff_tokens": 8192,
+      "keep_groups": 4
+    },
+    "context_window": 1000000,
+    "api_input_tokens": null,
+    "max_output_tokens": 4096,
+    "host_prompt_tokens": 300000,
+    "safety_tokens": 16000,
+    "counter_version": "prepared-json-v1"
+  },
+  "unchanged_mcp_constructor_deadlines": {
+    "start_timeout_s": 15.0,
+    "call_timeout_s": 60.0,
+    "close_timeout_s": 6.0
+  },
+  "parent_task_id": "86768fa67cfc47839b6e0c5a0bf9cc6d",
+  "parent_thread_id": "496980802d814a089c03000e1b60305a",
+  "initial_parent_budget": {
+    "model_name": "glm-5.3-flash",
+    "limits": {
+      "max_agent_rounds": 12,
+      "max_tool_calls": 40,
+      "max_tool_calls_per_round": 8,
+      "max_total_tokens": 1000000,
+      "max_assistant_chars": 1000000
+    },
+    "model_turns": 1,
+    "tool_calls": 0,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "repair_cycles": 0,
+    "repeated_failures": 0,
+    "last_failure_signature": null,
+    "active_seconds": 0,
+    "warned_at_80": false,
+    "warned_at_90": false,
+    "lease_tier": "standard",
+    "lease_model_turn_limit": 12,
+    "lease_tool_call_limit": 30,
+    "lease_renewals": 0,
+    "lease_final_extension": false,
+    "lease_progress_baseline": "7ae671c99b9b877b607a369013124c33833a81279019797ed48003ce70fe48ca",
+    "lease_last_reason": null
+  },
+  "parent_result": {
+    "version": 1,
+    "execution_status": "completed",
+    "changes": "unchanged",
+    "verification_status": "unverified",
+    "remaining": [
+      "risk-appropriate-validation"
+    ],
+    "stop_code": "completed",
+    "stop_reason": "task completed"
+  },
+  "parent_task": {
+    "id": "86768fa67cfc47839b6e0c5a0bf9cc6d",
+    "thread_id": "496980802d814a089c03000e1b60305a",
+    "contract": {
+      "objective": "Read-only. Load delegate_agent if absent; delegate once to s16.sourceaudit (300000 tokens,5 tools,240s), with those four paths as required_sources. Check advisory independently; no notes/new_context. Child: Read docs/current-contract.md, docs/legacy-notes.md, names.py and test_names.py in full. Use available read schema. Compare current/legacy constraints, code/tests; cite physical 1-based path:line counting blanks. No edits, commands/tests, outside sources or delegation; unverified, tests unexecuted.",
+      "authorization": {
+        "workspace_root": "C:\\Users\\Windows11\\.codex\\worktrees\\s16-source-completion\\chaos-16-agent\\docs\\next-version\\s16-source-completion\\owned-cases-p4\\s16-source-completion-p4-72d041646622\\workspace",
+        "allow_workspace_write": true,
+        "allow_local_execute": true,
+        "allow_network": false,
+        "allow_outside_workspace": false
+      },
+      "max_active_seconds": 1200,
+      "max_repair_cycles": 3,
+      "max_repeated_failure_signatures": 3,
+      "intent": "analyze",
+      "profile_id": "glm-5-3-flash",
+      "model": "glm-5.3-flash",
+      "protocol": "chat_completions",
+      "endpoint_host": "127.0.0.1",
+      "agent_topology": "team",
+      "reasoning_effort": "medium",
+      "runtime_mode": "medium",
+      "runtime_selection_digest": "cc76fd5a540a5b5133ce46054e7f2f46e0b913f0898996a448d4571c94b1c3b4",
+      "interaction_mode": "code",
+      "context_selection": {
+        "api_input_tokens": null,
+        "context_window": 1000000,
+        "counter_version": "prepared-json-v1",
+        "host_prompt_tokens": 300000,
+        "max_output_tokens": 4096,
+        "policy": {
+          "handoff_tokens": 8192,
+          "keep_groups": 4,
+          "prepare_ratio": 0.75,
+          "rotate_ratio": 0.875,
+          "safety_tokens": 16000,
+          "strategy": "persistent",
+          "task_tokens": 1000000,
+          "work_tokens": 1000000
+        },
+        "safety_tokens": 16000,
+        "strategy": "persistent",
+        "version": 1
+      }
+    },
+    "status": "completed",
+    "stop_reason": "task completed",
+    "created_at": "2026-10-07T11:52:12.027432+00:00",
+    "updated_at": "2026-10-07T11:52:17.235534+00:00"
+  },
+  "parent_budget": {
+    "model_name": "glm-5.3-flash",
+    "limits": {
+      "max_agent_rounds": 12,
+      "max_tool_calls": 40,
+      "max_tool_calls_per_round": 8,
+      "max_total_tokens": 1000000,
+      "max_assistant_chars": 1000000
+    },
+    "model_turns": 6,
+    "tool_calls": 10,
+    "input_tokens": 300,
+    "output_tokens": 30,
+    "repair_cycles": 0,
+    "repeated_failures": 0,
+    "last_failure_signature": null,
+    "active_seconds": 3,
+    "warned_at_80": false,
+    "warned_at_90": false,
+    "lease_tier": "standard",
+    "lease_model_turn_limit": 12,
+    "lease_tool_call_limit": 30,
+    "lease_renewals": 0,
+    "lease_final_extension": false,
+    "lease_progress_baseline": "7ae671c99b9b877b607a369013124c33833a81279019797ed48003ce70fe48ca",
+    "lease_last_reason": null
+  },
+  "usage_records": [
+    {
+      "id": "b4ec6c622f7a591fa884a2bad219e117",
+      "purpose": "main",
+      "reserved": 38787,
+      "status": "settled",
+      "task_limit": 1000000,
+      "origin_thread_id": "496980802d814a089c03000e1b60305a",
+      "budget_owner_thread_id": "496980802d814a089c03000e1b60305a",
+      "projected_tokens": 55,
+      "charged": 55,
+      "usage": {
+        "input_tokens": 50,
+        "output_tokens": 5,
+        "cached_input_tokens": 0
+      },
+      "estimated_input": 18691
+    },
+    {
+      "id": "d998a2731f535d4aa883afe100696f25",
+      "purpose": "main",
+      "reserved": 40259,
+      "status": "settled",
+      "task_limit": 1000000,
+      "origin_thread_id": "496980802d814a089c03000e1b60305a",
+      "budget_owner_thread_id": "496980802d814a089c03000e1b60305a",
+      "projected_tokens": 55,
+      "charged": 55,
+      "usage": {
+        "input_tokens": 50,
+        "output_tokens": 5,
+        "cached_input_tokens": 0
+      },
+      "estimated_input": 20163
+    },
+    {
+      "id": "1afc4ce9aa8e5254899af2ff340255d9",
+      "purpose": "main",
+      "reserved": 32148,
+      "status": "settled",
+      "task_limit": 1000000,
+      "origin_thread_id": "4f5a6d5b65f5468881a9119f40748f23",
+      "budget_owner_thread_id": "496980802d814a089c03000e1b60305a",
+      "projected_tokens": 55,
+      "charged": 55,
+      "usage": {
+        "input_tokens": 50,
+        "output_tokens": 5,
+        "cached_input_tokens": 0
+      },
+      "estimated_input": 12052
+    },
+    {
+      "id": "5c19933cdb505f568b4373a5ea03a872",
+      "purpose": "main",
+      "reserved": 36038,
+      "status": "settled",
+      "task_limit": 1000000,
+      "origin_thread_id": "4f5a6d5b65f5468881a9119f40748f23",
+      "budget_owner_thread_id": "496980802d814a089c03000e1b60305a",
+      "projected_tokens": 55,
+      "charged": 55,
+      "usage": {
+        "input_tokens": 50,
+        "output_tokens": 5,
+        "cached_input_tokens": 0
+      },
+      "estimated_input": 15942
+    },
+    {
+      "id": "d7515caabf715b6aad59e48190fb365f",
+      "purpose": "main",
+      "reserved": 41872,
+      "status": "settled",
+      "task_limit": 1000000,
+      "origin_thread_id": "496980802d814a089c03000e1b60305a",
+      "budget_owner_thread_id": "496980802d814a089c03000e1b60305a",
+      "projected_tokens": 55,
+      "charged": 55,
+      "usage": {
+        "input_tokens": 50,
+        "output_tokens": 5,
+        "cached_input_tokens": 0
+      },
+      "estimated_input": 21776
+    },
+    {
+      "id": "857418783ee7567caa901dd5cbf15890",
+      "purpose": "main",
+      "reserved": 45708,
+      "status": "settled",
+      "task_limit": 1000000,
+      "origin_thread_id": "496980802d814a089c03000e1b60305a",
+      "budget_owner_thread_id": "496980802d814a089c03000e1b60305a",
+      "projected_tokens": 55,
+      "charged": 55,
+      "usage": {
+        "input_tokens": 50,
+        "output_tokens": 5,
+        "cached_input_tokens": 0
+      },
+      "estimated_input": 25612
+    }
+  ],
+  "request_records": [],
+  "window_records": [],
+  "note_records": [],
+  "note_files": [],
+  "children": [
+    {
+      "run_id": "816514e283e85968bf467fd8cbfd3199",
+      "thread_id": "4f5a6d5b65f5468881a9119f40748f23",
+      "relation": {
+        "thread_id": "4f5a6d5b65f5468881a9119f40748f23",
+        "parent_thread_id": "496980802d814a089c03000e1b60305a",
+        "child_thread_ids": []
+      },
+      "task": null,
+      "budget": null,
+      "bindings": [
+        {
+          "id": "561659a67b295dc6a228b636466fb571",
+          "owner_thread_id": "496980802d814a089c03000e1b60305a",
+          "parent_task_id": "86768fa67cfc47839b6e0c5a0bf9cc6d",
+          "delegate_request_id": "parent-1-0",
+          "max_total_tokens": 300000,
+          "max_tool_calls": 5,
+          "max_agent_rounds": 100,
+          "max_children": 8,
+          "required_sources": [
+            "docs/current-contract.md",
+            "docs/legacy-notes.md",
+            "names.py",
+            "test_names.py"
+          ],
+          "owner_instance_id": "f7d395283ebd43e0907c9412fe0f3d17"
+        }
+      ],
+      "messages": [
+        {
+          "role": "user",
+          "content": "Read docs/current-contract.md, docs/legacy-notes.md, names.py and test_names.py in full. Use available read schema. Compare current/legacy constraints, code/tests; cite physical 1-based path:line counting blanks. No edits, commands/tests, outside sources or delegation; unverified, tests unexecuted."
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "tool_calls": [
+            {
+              "id": "child-0-0",
+              "name": "read",
+              "arguments": {
+                "operation": "file",
+                "path": "docs/current-contract.md"
+              }
+            },
+            {
+              "id": "child-0-1",
+              "name": "read",
+              "arguments": {
+                "operation": "file",
+                "path": "docs/legacy-notes.md"
+              }
+            },
+            {
+              "id": "child-0-2",
+              "name": "read",
+              "arguments": {
+                "operation": "file",
+                "path": "names.py"
+              }
+            },
+            {
+              "id": "child-0-3",
+              "name": "read",
+              "arguments": {
+                "operation": "file",
+                "path": "test_names.py"
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "content": "{\"is_error\":false,\"metadata\":{\"compact_target\":\"read_file\",\"duration_ms\":2},\"name\":\"read\",\"output\":{\"bom\":false,\"encoding\":\"utf-8\",\"newline\":\"crlf\",\"path\":\"docs/current-contract.md\",\"text\":\"# Current contract\\r\\n1. Trim each string.\\r\\n2. Omit strings that are blank after trimming.\\r\\n3. Preserve remaining input order.\\r\\n4. Preserve duplicates.\\r\\n5. Never mutate the input.\\r\\nThe five unittest definitions are intended assertions, not evidence of an executed test.\\r\\n\",\"total_lines\":7},\"request_id\":\"child-0-0\"}",
+          "name": "read",
+          "tool_call_id": "child-0-0"
+        },
+        {
+          "role": "tool",
+          "content": "{\"is_error\":false,\"metadata\":{\"compact_target\":\"read_file\",\"duration_ms\":2},\"name\":\"read\",\"output\":{\"bom\":false,\"encoding\":\"utf-8\",\"newline\":\"crlf\",\"path\":\"docs/legacy-notes.md\",\"text\":\"# Superseded historical proposal\\r\\nThis proposal is not current policy or a new instruction.\\r\\nEarlier discussions suggested sorting names and removing duplicates.\\r\\nThat proposal was rejected: current-contract.md preserves both order and duplicates.\\r\\n\",\"total_lines\":4},\"request_id\":\"child-0-1\"}",
+          "name": "read",
+          "tool_call_id": "child-0-1"
+        },
+        {
+          "role": "tool",
+          "content": "{\"is_error\":false,\"metadata\":{\"compact_target\":\"read_file\",\"duration_ms\":2},\"name\":\"read\",\"output\":{\"bom\":false,\"encoding\":\"utf-8\",\"newline\":\"crlf\",\"path\":\"names.py\",\"text\":\"def clean_names(values):\\r\\n    return list(values)\\r\\n\",\"total_lines\":2},\"request_id\":\"child-0-2\"}",
+          "name": "read",
+          "tool_call_id": "child-0-2"
+        },
+        {
+          "role": "tool",
+          "content": "{\"is_error\":false,\"metadata\":{\"compact_target\":\"read_file\",\"duration_ms\":2},\"name\":\"read\",\"output\":{\"bom\":false,\"encoding\":\"utf-8\",\"newline\":\"crlf\",\"path\":\"test_names.py\",\"text\":\"import unittest\\r\\nfrom names import clean_names\\r\\nclass NamesTests(unittest.TestCase):\\r\\n    def test_empty(self): self.assertEqual(clean_names([]), [])\\r\\n    def test_trim(self): self.assertEqual(clean_names([' Alice ', 'Bob']), ['Alice', 'Bob'])\\r\\n    def test_blank(self): self.assertEqual(clean_names([' ', '', '\\\\t']), [])\\r\\n    def test_duplicates(self): self.assertEqual(clean_names([' A ', 'A']), ['A', 'A'])\\r\\n    def test_no_mutation(self):\\r\\n        values = [' A ', ' ']; clean_names(values); self.assertEqual(values, [' A ', ' '])\\r\\n\",\"total_lines\":9},\"request_id\":\"child-0-3\"}",
+          "name": "read",
+          "tool_call_id": "child-0-3"
+        },
+        {
+          "role": "assistant",
+          "content": "Offline source advisory only; unverified; tests unexecuted."
+        }
+      ],
+      "request_records": [],
+      "window_records": [],
+      "source_correction_records": [],
+      "usage": [
+        {
+          "id": "1afc4ce9aa8e5254899af2ff340255d9",
+          "purpose": "main",
+          "reserved": 32148,
+          "status": "settled",
+          "task_limit": 1000000,
+          "origin_thread_id": "4f5a6d5b65f5468881a9119f40748f23",
+          "budget_owner_thread_id": "496980802d814a089c03000e1b60305a",
+          "projected_tokens": 55,
+          "charged": 55,
+          "usage": {
+            "input_tokens": 50,
+            "output_tokens": 5,
+            "cached_input_tokens": 0
+          },
+          "estimated_input": 12052
+        },
+        {
+          "id": "5c19933cdb505f568b4373a5ea03a872",
+          "purpose": "main",
+          "reserved": 36038,
+          "status": "settled",
+          "task_limit": 1000000,
+          "origin_thread_id": "4f5a6d5b65f5468881a9119f40748f23",
+          "budget_owner_thread_id": "496980802d814a089c03000e1b60305a",
+          "projected_tokens": 55,
+          "charged": 55,
+          "usage": {
+            "input_tokens": 50,
+            "output_tokens": 5,
+            "cached_input_tokens": 0
+          },
+          "estimated_input": 15942
+        }
+      ]
+    }
+  ],
+  "child_entry_observations": [
+    {
+      "agent_id": "s16.sourceaudit",
+      "required_sources": [
+        "docs/current-contract.md",
+        "docs/legacy-notes.md",
+        "names.py",
+        "test_names.py"
+      ],
+      "token_budget": 300000,
+      "tool_budget": 5,
+      "active_seconds": 240,
+      "run_id": "816514e283e85968bf467fd8cbfd3199"
+    }
+  ],
+  "parent_messages": [
+    {
+      "role": "user",
+      "content": "Read-only. Load delegate_agent if absent; delegate once to s16.sourceaudit (300000 tokens,5 tools,240s), with those four paths as required_sources. Check advisory independently; no notes/new_context. Child: Read docs/current-contract.md, docs/legacy-notes.md, names.py and test_names.py in full. Use available read schema. Compare current/legacy constraints, code/tests; cite physical 1-based path:line counting blanks. No edits, commands/tests, outside sources or delegation; unverified, tests unexecuted."
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "id": "parent-0-0",
+          "name": "load_tool_contract",
+          "arguments": {
+            "name": "delegate_agent"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "content": "{\"is_error\":false,\"metadata\":{\"disclosed_tool\":\"delegate_agent\"},\"name\":\"load_tool_contract\",\"output\":{\"availability\":\"next_model_turn\",\"digest\":\"7886e2beaef0f9e0937b6aac8e4c04c2134ae75d61012fcbd3545cab8eb37fe1\",\"name\":\"delegate_agent\"},\"request_id\":\"parent-0-0\"}",
+      "name": "load_tool_contract",
+      "tool_call_id": "parent-0-0"
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "id": "parent-1-0",
+          "name": "delegate_agent",
+          "arguments": {
+            "active_seconds": 240,
+            "agent_id": "s16.sourceaudit",
+            "objective": "Read docs/current-contract.md, docs/legacy-notes.md, names.py and test_names.py in full. Use available read schema. Compare current/legacy constraints, code/tests; cite physical 1-based path:line counting blanks. No edits, commands/tests, outside sources or delegation; unverified, tests unexecuted.",
+            "required_sources": [
+              "docs/current-contract.md",
+              "docs/legacy-notes.md",
+              "names.py",
+              "test_names.py"
+            ],
+            "token_budget": 300000,
+            "tool_budget": 5
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "content": "{\"is_error\":false,\"metadata\":{\"duration_ms\":1724},\"name\":\"delegate_agent\",\"output\":{\"advisory\":true,\"error\":null,\"references\":[\"4f5a6d5b65f5468881a9119f40748f23\"],\"result\":{\"changes\":\"unknown\",\"execution_status\":\"completed\",\"remaining\":[],\"stop_code\":\"completed\",\"stop_reason\":null,\"verification_status\":\"unknown\",\"version\":1},\"role\":\"custom\",\"run_id\":\"816514e283e85968bf467fd8cbfd3199\",\"status\":\"completed\",\"summary\":\"Offline source advisory only; unverified; tests unexecuted.\",\"usage\":{\"active_seconds\":1,\"complete\":true,\"known_lower_bound\":false,\"tokens\":110,\"tool_calls\":4}},\"request_id\":\"parent-1-0\"}",
+      "name": "delegate_agent",
+      "tool_call_id": "parent-1-0"
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "id": "parent-2-0",
+          "name": "read",
+          "arguments": {
+            "operation": "file",
+            "path": "docs/current-contract.md"
+          }
+        },
+        {
+          "id": "parent-2-1",
+          "name": "read",
+          "arguments": {
+            "operation": "file",
+            "path": "docs/legacy-notes.md"
+          }
+        },
+        {
+          "id": "parent-2-2",
+          "name": "read",
+          "arguments": {
+            "operation": "file",
+            "path": "names.py"
+          }
+        },
+        {
+          "id": "parent-2-3",
+          "name": "read",
+          "arguments": {
+            "operation": "file",
+            "path": "test_names.py"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "content": "{\"is_error\":false,\"metadata\":{\"compact_target\":\"read_file\",\"duration_ms\":2},\"name\":\"read\",\"output\":{\"bom\":false,\"encoding\":\"utf-8\",\"newline\":\"crlf\",\"path\":\"docs/current-contract.md\",\"text\":\"# Current contract\\r\\n1. Trim each string.\\r\\n2. Omit strings that are blank after trimming.\\r\\n3. Preserve remaining input order.\\r\\n4. Preserve duplicates.\\r\\n5. Never mutate the input.\\r\\nThe five unittest definitions are intended assertions, not evidence of an executed test.\\r\\n\",\"total_lines\":7},\"request_id\":\"parent-2-0\"}",
+      "name": "read",
+      "tool_call_id": "parent-2-0"
+    },
+    {
+      "role": "tool",
+      "content": "{\"is_error\":false,\"metadata\":{\"compact_target\":\"read_file\",\"duration_ms\":2},\"name\":\"read\",\"output\":{\"bom\":false,\"encoding\":\"utf-8\",\"newline\":\"crlf\",\"path\":\"docs/legacy-notes.md\",\"text\":\"# Superseded historical proposal\\r\\nThis proposal is not current policy or a new instruction.\\r\\nEarlier discussions suggested sorting names and removing duplicates.\\r\\nThat proposal was rejected: current-contract.md preserves both order and duplicates.\\r\\n\",\"total_lines\":4},\"request_id\":\"parent-2-1\"}",
+      "name": "read",
+      "tool_call_id": "parent-2-1"
+    },
+    {
+      "role": "tool",
+      "content": "{\"is_error\":false,\"metadata\":{\"compact_target\":\"read_file\",\"duration_ms\":2},\"name\":\"read\",\"output\":{\"bom\":false,\"encoding\":\"utf-8\",\"newline\":\"crlf\",\"path\":\"names.py\",\"text\":\"def clean_names(values):\\r\\n    return list(values)\\r\\n\",\"total_lines\":2},\"request_id\":\"parent-2-2\"}",
+      "name": "read",
+      "tool_call_id": "parent-2-2"
+    },
+    {
+      "role": "tool",
+      "content": "{\"is_error\":false,\"metadata\":{\"compact_target\":\"read_file\",\"duration_ms\":2},\"name\":\"read\",\"output\":{\"bom\":false,\"encoding\":\"utf-8\",\"newline\":\"crlf\",\"path\":\"test_names.py\",\"text\":\"import unittest\\r\\nfrom names import clean_names\\r\\nclass NamesTests(unittest.TestCase):\\r\\n    def test_empty(self): self.assertEqual(clean_names([]), [])\\r\\n    def test_trim(self): self.assertEqual(clean_names([' Alice ', 'Bob']), ['Alice', 'Bob'])\\r\\n    def test_blank(self): self.assertEqual(clean_names([' ', '', '\\\\t']), [])\\r\\n    def test_duplicates(self): self.assertEqual(clean_names([' A ', 'A']), ['A', 'A'])\\r\\n    def test_no_mutation(self):\\r\\n        values = [' A ', ' ']; clean_names(values); self.assertEqual(values, [' A ', ' '])\\r\\n\",\"total_lines\":9},\"request_id\":\"parent-2-3\"}",
+      "name": "read",
+      "tool_call_id": "parent-2-3"
+    },
+    {
+      "role": "assistant",
+      "content": "Offline source investigation delivered; unverified; tests unexecuted."
+    }
+  ],
+  "lifecycle": [
+    {
+      "run_id": "816514e283e85968bf467fd8cbfd3199",
+      "parent_run_id": "86768fa67cfc47839b6e0c5a0bf9cc6d",
+      "agent_id": "s16.sourceaudit",
+      "role": "custom",
+      "mode": "medium",
+      "status": "queued",
+      "may_write": false,
+      "objective": "Read docs/current-contract.md, docs/legacy-notes.md, names.py and test_names.py in full. Use available read schema. Compare current/legacy constraints, code/tests; cite physical 1-based path:line counting blanks. No edits, commands/tests, outside sources or delegation; unverified, tests unexecuted.",
+      "usage": {
+        "total_tokens": 0,
+        "tool_calls": 0,
+        "active_seconds": 0
+      }
+    },
+    {
+      "run_id": "816514e283e85968bf467fd8cbfd3199",
+      "parent_run_id": "86768fa67cfc47839b6e0c5a0bf9cc6d",
+      "agent_id": "s16.sourceaudit",
+      "role": "custom",
+      "mode": "medium",
+      "status": "running",
+      "may_write": false,
+      "objective": "Read docs/current-contract.md, docs/legacy-notes.md, names.py and test_names.py in full. Use available read schema. Compare current/legacy constraints, code/tests; cite physical 1-based path:line counting blanks. No edits, commands/tests, outside sources or delegation; unverified, tests unexecuted.",
+      "usage": {
+        "total_tokens": 0,
+        "tool_calls": 0,
+        "active_seconds": 0
+      }
+    },
+    {
+      "run_id": "816514e283e85968bf467fd8cbfd3199",
+      "parent_run_id": "86768fa67cfc47839b6e0c5a0bf9cc6d",
+      "agent_id": "s16.sourceaudit",
+      "role": "custom",
+      "mode": "medium",
+      "status": "completed",
+      "may_write": false,
+      "objective": "Read docs/current-contract.md, docs/legacy-notes.md, names.py and test_names.py in full. Use available read schema. Compare current/legacy constraints, code/tests; cite physical 1-based path:line counting blanks. No edits, commands/tests, outside sources or delegation; unverified, tests unexecuted.",
+      "usage": {
+        "total_tokens": 110,
+        "tool_calls": 4,
+        "active_seconds": 1
+      }
+    }
+  ],
+  "parent_delivery": {
+    "nonempty_final_assistant": true,
+    "final_message_index": 10,
+    "parent_request_count": 4,
+    "final_request_body_file": "preflight-wire-request-6.json",
+    "semantic_acceptance": "REQUIRES_INDEPENDENT_REVIEW"
+  },
+  "provider_calls": 0,
+  "transport_attempts": 0,
+  "audit_entries": [
+    {
+      "audit_entry": 1,
+      "stage": "offline_response_only",
+      "external_send_attempt": null
+    },
+    {
+      "audit_entry": 2,
+      "stage": "offline_response_only",
+      "external_send_attempt": null
+    },
+    {
+      "audit_entry": 3,
+      "stage": "offline_response_only",
+      "external_send_attempt": null
+    },
+    {
+      "audit_entry": 4,
+      "stage": "offline_response_only",
+      "external_send_attempt": null
+    },
+    {
+      "audit_entry": 5,
+      "stage": "offline_response_only",
+      "external_send_attempt": null
+    },
+    {
+      "audit_entry": 6,
+      "stage": "offline_response_only",
+      "external_send_attempt": null
+    }
+  ],
+  "audit_entry_count": 6,
+  "wire": [
+    {
+      "model": "glm-5.3-flash",
+      "reasoning_effort": "medium",
+      "max_tokens": null,
+      "max_completion_tokens": 4096,
+      "max_output_tokens": null,
+      "thread_id": "496980802d814a089c03000e1b60305a",
+      "body_file": "preflight-wire-request-1.json",
+      "body_sha256": "1d24513f9b86d3e7efc77dee36ed563654dcfae60aac8a6add21f59cc2aa06a6",
+      "body_bytes": 18435,
+      "credential_absent_from_body": true,
+      "audit_entry": 1,
+      "external_send_attempt": null
+    },
+    {
+      "model": "glm-5.3-flash",
+      "reasoning_effort": "medium",
+      "max_tokens": null,
+      "max_completion_tokens": 4096,
+      "max_output_tokens": null,
+      "thread_id": "496980802d814a089c03000e1b60305a",
+      "body_file": "preflight-wire-request-2.json",
+      "body_sha256": "500042fa95e17bc8c89fa84e2232120989a38ca0e2c7f900538d5d7cd2e664dd",
+      "body_bytes": 19907,
+      "credential_absent_from_body": true,
+      "audit_entry": 2,
+      "external_send_attempt": null
+    },
+    {
+      "model": "glm-5.3-flash",
+      "reasoning_effort": "medium",
+      "max_tokens": null,
+      "max_completion_tokens": 4096,
+      "max_output_tokens": null,
+      "thread_id": "4f5a6d5b65f5468881a9119f40748f23",
+      "body_file": "preflight-wire-request-3.json",
+      "body_sha256": "b29366e9c22a16793329acbd453f2d3138dd3e204f9ada79a1499b05cd439cf3",
+      "body_bytes": 11796,
+      "credential_absent_from_body": true,
+      "audit_entry": 3,
+      "external_send_attempt": null
+    },
+    {
+      "model": "glm-5.3-flash",
+      "reasoning_effort": "medium",
+      "max_tokens": null,
+      "max_completion_tokens": 4096,
+      "max_output_tokens": null,
+      "thread_id": "4f5a6d5b65f5468881a9119f40748f23",
+      "body_file": "preflight-wire-request-4.json",
+      "body_sha256": "01134cf58258e40f1c61ef32c0886fbac9957084f01cb3bdcba939d18d626364",
+      "body_bytes": 15686,
+      "credential_absent_from_body": true,
+      "audit_entry": 4,
+      "external_send_attempt": null
+    },
+    {
+      "model": "glm-5.3-flash",
+      "reasoning_effort": "medium",
+      "max_tokens": null,
+      "max_completion_tokens": 4096,
+      "max_output_tokens": null,
+      "thread_id": "496980802d814a089c03000e1b60305a",
+      "body_file": "preflight-wire-request-5.json",
+      "body_sha256": "390419c823e6c8146dc8604e19978f9e9118c5255eaeb71a674ce01ffae4d4fc",
+      "body_bytes": 21520,
+      "credential_absent_from_body": true,
+      "audit_entry": 5,
+      "external_send_attempt": null
+    },
+    {
+      "model": "glm-5.3-flash",
+      "reasoning_effort": "medium",
+      "max_tokens": null,
+      "max_completion_tokens": 4096,
+      "max_output_tokens": null,
+      "thread_id": "496980802d814a089c03000e1b60305a",
+      "body_file": "preflight-wire-request-6.json",
+      "body_sha256": "56a5b8064847a19a65448611e60a257e3f7ac0e2d6071ac4e422010b6ee32435",
+      "body_bytes": 25356,
+      "credential_absent_from_body": true,
+      "audit_entry": 6,
+      "external_send_attempt": null
+    }
+  ],
+  "offline_script_counts": {
+    "parent": 4,
+    "child": 2
+  },
+  "status": "OFFLINE_PUBLIC_PREFLIGHT_ONLY"
+}

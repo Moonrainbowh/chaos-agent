@@ -1,0 +1,6 @@
+# Preserve runtime state locally; publish explicit request/event/source evidence only.
+*/home/
+*/managed/
+*/config/
+*/preflight-state/chaos-agent/rewind/
+*/state/chaos-agent/rewind/

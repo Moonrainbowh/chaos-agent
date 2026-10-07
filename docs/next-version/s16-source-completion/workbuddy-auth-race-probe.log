@@ -1,0 +1,2 @@
+{"probe": "original_test_immediate_credential_resolution", "result": "EXPECTED_SAME_CI_TYPEERROR", "error": "object NoneType can't be used in 'await' expression", "http_calls": 0}
+{"probe": "event_barrier_and_captured_task_proposal", "result": "PASS_ORIGINAL_SEMANTICS_AND_VISIBLE_RETRY", "slot_cleared": true, "http_calls": 0}

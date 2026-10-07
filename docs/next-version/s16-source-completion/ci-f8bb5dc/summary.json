@@ -1,0 +1,293 @@
+{
+  "run_id": "37616626754",
+  "candidate": "f8bb5dc75bd4808598e75100ee879248758ab9ce",
+  "status": "completed",
+  "conclusion": "failure",
+  "url": "https://github.com/Moonrainbowh/chaos-agent/actions/runs/37616626754",
+  "jobs": [
+    {
+      "name": "Windows Python 3.13",
+      "id": 112776410037,
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/Moonrainbowh/chaos-agent/actions/runs/37616626754/job/112776410037",
+      "test_step_seconds": 1893.0,
+      "log": "job-112776410037.log",
+      "log_sha256": "32be18389afc332021083aa8ecc8e5cda8a58423e55ff95f0fe86773913ddd97",
+      "checkout_sha_seen": true,
+      "failed_steps": [
+        "Run uv run --locked python scripts/run_tests.py --suite-timeout 600 --split-root-modules"
+      ],
+      "suite_count": 30,
+      "totals": {
+        "discovered": 3520,
+        "errors": 1,
+        "expected_failures": 0,
+        "failures": 0,
+        "run": 3520,
+        "skipped": 17,
+        "unexpected_successes": 0
+      },
+      "failed_suites": 1,
+      "unrun_suites": [],
+      "root_coverage": {
+        "groups": 138,
+        "coverage_complete": true,
+        "expected_discovered": 767,
+        "executed_unique": 767,
+        "discovered_union": 767,
+        "executed_union": 767,
+        "ids_equal": true,
+        "unrun_groups": []
+      },
+      "failed_groups": [
+        {
+          "source": "test_workbuddy_switch.py",
+          "exit_code": 1,
+          "counts": {
+            "discovered": 4,
+            "errors": 1,
+            "expected_failures": 0,
+            "failures": 0,
+            "run": 4,
+            "skipped": 0,
+            "unexpected_successes": 0
+          }
+        }
+      ],
+      "packaging_steps": {
+        "python -m build --no-isolation": "skipped",
+        "uv export --locked": "skipped",
+        "python -m pip download": "skipped",
+        "python -m build benchmarks": "skipped",
+        "scripts/check_wheel_install.py": "skipped"
+      },
+      "runtime_wheel_probe": null,
+      "benchmark_references": [],
+      "benchmark_host": null,
+      "issues": [
+        "job not success",
+        "test suites failed",
+        "suite failed or invalid counts: tests",
+        "packaging/install step not success",
+        "clean wheel/runtime/benchmark checks not completed"
+      ]
+    },
+    {
+      "name": "Windows Python 3.10",
+      "id": 112776410304,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Moonrainbowh/chaos-agent/actions/runs/37616626754/job/112776410304",
+      "test_step_seconds": 1891.0,
+      "log": "job-112776410304.log",
+      "log_sha256": "7320a810f0c0596b8d7b1f63ccc67b1e5dabb94b6b897f194de08cb7e0727e54",
+      "checkout_sha_seen": true,
+      "failed_steps": [],
+      "suite_count": 30,
+      "totals": {
+        "discovered": 3520,
+        "errors": 0,
+        "expected_failures": 0,
+        "failures": 0,
+        "run": 3520,
+        "skipped": 17,
+        "unexpected_successes": 0
+      },
+      "failed_suites": 0,
+      "unrun_suites": [],
+      "root_coverage": {
+        "groups": 138,
+        "coverage_complete": true,
+        "expected_discovered": 767,
+        "executed_unique": 767,
+        "discovered_union": 767,
+        "executed_union": 767,
+        "ids_equal": true,
+        "unrun_groups": []
+      },
+      "failed_groups": [],
+      "packaging_steps": {
+        "python -m build --no-isolation": "success",
+        "uv export --locked": "success",
+        "python -m pip download": "success",
+        "python -m build benchmarks": "success",
+        "scripts/check_wheel_install.py": "success"
+      },
+      "runtime_wheel_probe": {
+        "status": "PASS",
+        "python": "C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\chaos-wheel-check-noffql_f\\venv\\Scripts\\python.exe",
+        "mcp": "1.29.1",
+        "entrypoints": 4,
+        "resources": 3,
+        "owned_history_queries": 3,
+        "provider_calls": 0,
+        "runtime_execution": 0
+      },
+      "benchmark_references": [
+        "v1",
+        "v2"
+      ],
+      "benchmark_host": {
+        "mode": "offline",
+        "passed": true,
+        "cleanup": true
+      },
+      "issues": []
+    },
+    {
+      "name": "ubuntu-latest Python 3.10",
+      "id": 112776410332,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Moonrainbowh/chaos-agent/actions/runs/37616626754/job/112776410332",
+      "test_step_seconds": 256.0,
+      "log": "job-112776410332.log",
+      "log_sha256": "8823a9912c2315da7688ba83ec91ace90af7ec3accfa53e72a6a0b2db29a6a0c",
+      "checkout_sha_seen": true,
+      "failed_steps": [],
+      "suite_count": 30,
+      "totals": {
+        "discovered": 3520,
+        "errors": 0,
+        "expected_failures": 0,
+        "failures": 0,
+        "run": 3520,
+        "skipped": 199,
+        "unexpected_successes": 0
+      },
+      "failed_suites": 0,
+      "unrun_suites": [],
+      "packaging_steps": {
+        "python -m build --no-isolation": "success",
+        "uv export --locked": "success",
+        "python -m pip download": "success",
+        "python -m build benchmarks": "success",
+        "scripts/check_wheel_install.py": "success"
+      },
+      "runtime_wheel_probe": {
+        "status": "PASS",
+        "python": "/tmp/chaos-wheel-check-p3uezo44/venv/bin/python",
+        "mcp": "1.29.1",
+        "entrypoints": 4,
+        "resources": 3,
+        "owned_history_queries": 3,
+        "provider_calls": 0,
+        "runtime_execution": 0
+      },
+      "benchmark_references": [
+        "v1",
+        "v2"
+      ],
+      "benchmark_host": {
+        "mode": "offline",
+        "passed": true,
+        "cleanup": true
+      },
+      "issues": []
+    },
+    {
+      "name": "ubuntu-latest Python 3.13",
+      "id": 112776410395,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Moonrainbowh/chaos-agent/actions/runs/37616626754/job/112776410395",
+      "test_step_seconds": 428.0,
+      "log": "job-112776410395.log",
+      "log_sha256": "203d2e726a8cb7f49aa69849589d1ec3c20e038180cd1dd2a8e4630c70184a9e",
+      "checkout_sha_seen": true,
+      "failed_steps": [],
+      "suite_count": 30,
+      "totals": {
+        "discovered": 3520,
+        "errors": 0,
+        "expected_failures": 0,
+        "failures": 0,
+        "run": 3520,
+        "skipped": 199,
+        "unexpected_successes": 0
+      },
+      "failed_suites": 0,
+      "unrun_suites": [],
+      "packaging_steps": {
+        "python -m build --no-isolation": "success",
+        "uv export --locked": "success",
+        "python -m pip download": "success",
+        "python -m build benchmarks": "success",
+        "scripts/check_wheel_install.py": "success"
+      },
+      "runtime_wheel_probe": {
+        "status": "PASS",
+        "python": "/tmp/chaos-wheel-check-cnr7v_3v/venv/bin/python",
+        "mcp": "1.29.1",
+        "entrypoints": 4,
+        "resources": 3,
+        "owned_history_queries": 3,
+        "provider_calls": 0,
+        "runtime_execution": 0
+      },
+      "benchmark_references": [
+        "v1",
+        "v2"
+      ],
+      "benchmark_host": {
+        "mode": "offline",
+        "passed": true,
+        "cleanup": true
+      },
+      "issues": []
+    },
+    {
+      "name": "macos-latest Python 3.13",
+      "id": 112776410437,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Moonrainbowh/chaos-agent/actions/runs/37616626754/job/112776410437",
+      "test_step_seconds": 503.0,
+      "log": "job-112776410437.log",
+      "log_sha256": "080c972f9a798ff55c0eb670ac70e33aefbc28417e10d7432c3bc084d1411a24",
+      "checkout_sha_seen": true,
+      "failed_steps": [],
+      "suite_count": 30,
+      "totals": {
+        "discovered": 3520,
+        "errors": 0,
+        "expected_failures": 0,
+        "failures": 0,
+        "run": 3520,
+        "skipped": 199,
+        "unexpected_successes": 0
+      },
+      "failed_suites": 0,
+      "unrun_suites": [],
+      "packaging_steps": {
+        "python -m build --no-isolation": "success",
+        "uv export --locked": "success",
+        "python -m pip download": "success",
+        "python -m build benchmarks": "success",
+        "scripts/check_wheel_install.py": "success"
+      },
+      "runtime_wheel_probe": {
+        "status": "PASS",
+        "python": "/private/var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/chaos-wheel-check-mx5r276h/venv/bin/python",
+        "mcp": "1.29.1",
+        "entrypoints": 4,
+        "resources": 3,
+        "owned_history_queries": 3,
+        "provider_calls": 0,
+        "runtime_execution": 0
+      },
+      "benchmark_references": [
+        "v1",
+        "v2"
+      ],
+      "benchmark_host": {
+        "mode": "offline",
+        "passed": true,
+        "cleanup": true
+      },
+      "issues": []
+    }
+  ],
+  "audit": "BLOCKED"
+}

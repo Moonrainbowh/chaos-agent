@@ -61,3 +61,11 @@ P3 agent已反馈：delegate.required_sources optional list[str]（≤32、每pa
 独审发现旧provider_calls包含本地审计拒绝，已修：SendAuditCounter.audit_entries在JSON检查前记录审计序号/stage，wire文件仍用该序号；external_send_attempts仅在紧邻原original_send调用前递增（真实重试也计入）。Provider calls/transport attempts均投影external_send_attempts；preflight只返回offline fake，始终0。本地JSON/凭据/保存拒绝只留audit entry与原失败，不冒充Provider请求。wire metadata附audit_entry和external_send_attempt（离线或本地未发送为None），result保存全部audit_entries与数量。
 
 pure synthetic自检：一条本地拒绝audit entry计Provider0，第二条实际发送标记计1（不执行HTTP）；两个审计序号和发送序号保持关联。仅脚本/notes/selfcheck修改，未生产/测试/helper，未prepare/Host/HTTP/Provider。
+
+## 首次公开预检的harness顺序修复
+
+Root在f8bb5dc候选执行owned `s16-source-completion-p4-8bc3b259ade8`公开preflight：exit1，validate_offline_observations读取result.wire时KeyError；wire汇总原在validate之后。这是harness确定性错误，非模型/Provider失败。实际preflight-failure.json已由原except保存：6 audit entries/6 wire、Provider0、1 child，父completed/unchanged/unverified及4次parent请求/非空final；initial自然STANDARD12/30、0renew、hard12/40。原sqlite只读mode=ro检查sessions有2threads/18messages/118events/1task，旧owned全部保持。
+
+最小修复：把wire、audit entries和发送计数汇总移动到validate之前；成功status仍只在validate之后赋值。原except仍保存partial failure并raise，非零exit不吞。按Root确认不更换错误保存结构、不写假成功preflight.json。
+
+实际验证：1文件py_compile、pure selfcheck、git diff --check通过；额外只读导入harness调用validator解析旧preflight-failure.json和6个旧wire，全部既有观测断言通过（不修改旧failure、不称fresh预检成功）。未prepare、未启动Host/HTTP/Provider；只由Root fresh prepare/preflight，新harness hash与旧owned freeze分别保留。生产/测试/plan/helper未改。

@@ -1,0 +1,23 @@
+Task exception was never retrieved
+future: <Task finished name='Task-1305' coro=<WorkflowService.observe() done, defined at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\src\code_agent\workflows\service.py:46> exception=ValueError('title must be non-blank bounded text')>
+Traceback (most recent call last):
+  File "C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\src\code_agent\workflows\service.py", line 50, in observe
+    snapshot = await self._child(observation)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\src\code_agent\workflows\service.py", line 102, in _child
+    WorkflowNode(
+    ~~~~~~~~~~~~^
+        node_id,
+        ^^^^^^^^
+    ...<5 lines>...
+        _text(observation.role, "role"),
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "<string>", line 17, in __init__
+  File "C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\src\code_agent\workflows\models.py", line 78, in __post_init__
+    object.__setattr__(self, "title", _text(self.title, "title", 512))
+                                      ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\src\code_agent\workflows\models.py", line 150, in _text
+    raise ValueError(f"{name} must be non-blank bounded text")
+ValueError: title must be non-blank bounded text

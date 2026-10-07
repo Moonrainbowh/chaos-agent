@@ -257,11 +257,13 @@ async def worker(owned, *, preflight):
         result['lifecycle'] = views
         assert_initial_standard_lease(result['initial_parent_budget'])
         result['parent_delivery'] = parent_delivery_observations(result, wire)
+        # Observations must exist before the validator reads them. Status is assigned only after validation.
+        result.update(provider_calls=send_counts.external_send_attempts, transport_attempts=send_counts.external_send_attempts,
+                      audit_entries=send_counts.audit_entries, audit_entry_count=len(send_counts.audit_entries), wire=wire)
         if preflight:
             validate_offline_observations(result, owned)
             result['offline_script_counts'] = offline_counts
-        result.update(status='OFFLINE_PUBLIC_PREFLIGHT_ONLY' if preflight else 'ATTEMPT_COMPLETED_REQUIRES_REVIEW', provider_calls=send_counts.external_send_attempts, transport_attempts=send_counts.external_send_attempts,
-                      audit_entries=send_counts.audit_entries, audit_entry_count=len(send_counts.audit_entries), wire=wire)
+        result.update(status='OFFLINE_PUBLIC_PREFLIGHT_ONLY' if preflight else 'ATTEMPT_COMPLETED_REQUIRES_REVIEW')
         return result
     except Exception as error:
         result.update(status='ATTEMPT_FAILED_PRESERVED', provider_calls=send_counts.external_send_attempts,

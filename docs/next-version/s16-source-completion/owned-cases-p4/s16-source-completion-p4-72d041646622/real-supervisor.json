@@ -1,0 +1,14 @@
+{
+  "actual_exit": 0,
+  "elapsed_seconds": 72.64868470001966,
+  "after_hashes": {
+    "AGENTS.md": "a15dc42f16962b8a82f87b5824b492a40a81a394d1931c5268e4ddc261122c51",
+    "docs/current-contract.md": "be72365ff9fc2c4eacfdeea55042c1809458114cca8e56124f045e04b3c1ca99",
+    "docs/legacy-notes.md": "9f8696bb5da4892a5878933993c1c3195418a6e1488609a6ba4e33ba06a36926",
+    "names.py": "535f5bbca3e53d261caad12d6f5f36a42226e5b5f3d74aecf67e1bfe6e082697",
+    "test_names.py": "8ee56921a646ea63058ba9c2b165729d21a9394188070ee83b6d54166af11df2"
+  },
+  "status": "REQUIRES_INDEPENDENT_REVIEW",
+  "database_preserved": true,
+  "real_attempts": 1
+}

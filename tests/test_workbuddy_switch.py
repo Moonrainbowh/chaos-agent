@@ -62,14 +62,29 @@ class WorkBuddyModelSelectionTests(unittest.IsolatedAsyncioTestCase):
     async def test_discovery_failure_retains_login_and_a_visible_retry_choice(self):
         app = make_app(runtime_selection=Runtime())
         app.authentication = self.control
-        with patch("code_agent.authentication.workbuddy_catalog.discover", new=AsyncMock(side_effect=ValueError("private"))):
+        started, release = asyncio.Event(), asyncio.Event()
+
+        async def discover(*args, **kwargs):
+            started.set()
+            await release.wait()
+            raise ValueError("private")
+
+        with patch("code_agent.authentication.workbuddy_catalog.discover", new=discover):
             self.assertTrue(await app.submit("/model workbuddy:oauth"))
-            await app._auth_task
+            loading = app._auth_task
+            self.assertIsNotNone(loading)
+            try:
+                await asyncio.wait_for(started.wait(), 3)
+            finally:
+                release.set()
+                await asyncio.wait_for(loading, 3)
         text = "\n".join(e.text for e in app.state.entries)
         self.assertIn("discovery failed", text)
         self.assertNotIn("private", text)
         self.assertIsNotNone(self.store.get("workbuddy", "oauth"))
         self.assertEqual(app.runtime_selection.current.profile, "gpt56_sol")
+        self.assertEqual(app.input.text, "/model workbuddy:oauth")
+        self.assertIsNone(app._auth_task)
 
     async def test_antigravity_picker_opens_a_filtered_second_level_without_switching(self):
         self.store.set("antigravity", Credential("oauth", "test-secret"))

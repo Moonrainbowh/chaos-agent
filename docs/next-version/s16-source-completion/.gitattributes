@@ -1,0 +1,9 @@
+# Captured request/source/log bytes are SHA256 evidence, preserve their line endings.
+owned-cases-p4/** -text
+ci-*/** -text
+run_real_source_completion.py -text
+s16_fixture.py -text
+source-fixture/fixture.json -text
+source-fixture/shared-rules.md -text
+p4-origin.json -text
+plan.md -text
