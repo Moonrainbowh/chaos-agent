@@ -1,0 +1,56 @@
+test_real_source_guards_run_off_loop_with_context (tests.test_source_completion_contract.SourceCompletionContractTests.test_real_source_guards_run_off_loop_with_context) ... Executing <Task pending name='Task-1' coro=<SourceCompletionContractTests.asyncSetUp() running at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_source_completion_contract.py:59> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at D:\soft\miniconda3\Lib\asyncio\tasks.py:975, Task.task_wakeup()] created at D:\soft\miniconda3\Lib\asyncio\base_events.py:459> cb=[_run_until_complete_cb() at D:\soft\miniconda3\Lib\asyncio\base_events.py:181] created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.422 seconds
+FAIL
+test_cancelled_guard_inspection_replays_durable_receipt (tests.test_source_completion_contract.SourceCompletionContractTests.test_cancelled_guard_inspection_replays_durable_receipt) ... Executing <Task pending name='Task-141' coro=<SourceCompletionContractTests.asyncSetUp() running at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_source_completion_contract.py:59> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at D:\soft\miniconda3\Lib\asyncio\tasks.py:975, Task.task_wakeup()] created at D:\soft\miniconda3\Lib\asyncio\base_events.py:459> cb=[_run_until_complete_cb() at D:\soft\miniconda3\Lib\asyncio\base_events.py:181] created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.403 seconds
+FAIL
+
+======================================================================
+FAIL: test_real_source_guards_run_off_loop_with_context (tests.test_source_completion_contract.SourceCompletionContractTests.test_real_source_guards_run_off_loop_with_context)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\soft\miniconda3\Lib\asyncio\runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "D:\soft\miniconda3\Lib\asyncio\base_events.py", line 725, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_source_completion_contract.py", line 107, in test_real_source_guards_run_off_loop_with_context
+    self.assertTrue(all(thread != loop_thread and value == 'frozen-child-context'
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        for thread, value in observations), observations)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : [(27864, 'frozen-child-context'), (27864, 'frozen-child-context'), (27864, 'frozen-child-context')]
+
+======================================================================
+FAIL: test_cancelled_guard_inspection_replays_durable_receipt (tests.test_source_completion_contract.SourceCompletionContractTests.test_cancelled_guard_inspection_replays_durable_receipt)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\soft\miniconda3\Lib\asyncio\runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "D:\soft\miniconda3\Lib\asyncio\base_events.py", line 725, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_source_completion_contract.py", line 153, in test_cancelled_guard_inspection_replays_durable_receipt
+    await inspection
+  File "C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\chaos_agent\source_completion.py", line 103, in snapshot
+    path = self._full_read(call, message)
+  File "C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\chaos_agent\source_completion.py", line 63, in _full_read
+    paths = canonical_sources((resolved.arguments.get('path'),), self.authorization)
+  File "C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\chaos_agent\source_completion.py", line 14, in canonical_sources
+    guard = WorkspacePathGuard(authorization.workspace_root)
+  File "D:\soft\miniconda3\Lib\unittest\mock.py", line 1167, in __call__
+    return self._mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "D:\soft\miniconda3\Lib\unittest\mock.py", line 1171, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "D:\soft\miniconda3\Lib\unittest\mock.py", line 1232, in _execute_mock_call
+    result = effect(*args, **kwargs)
+  File "C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_source_completion_contract.py", line 136, in paused_real_guard
+    raise AssertionError('source Guard blocked the event loop')
+AssertionError: source Guard blocked the event loop
+
+----------------------------------------------------------------------
+Ran 2 tests in 3.459s
+
+FAILED (failures=2)

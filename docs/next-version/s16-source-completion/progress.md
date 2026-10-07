@@ -11,7 +11,9 @@
 | P0 | PASS_TEST_DESIGN | 实施与独审均4 tests/7预期断言失败/0 errors；p0-report.md、p0-independent-review.md及原始日志；该PASS只指红判据有效 |
 | P1 | PASS_P1 | p1-report.md/p1-independent-review.md；Context191、completion6、integration21绿；独审37+增量8绿；阶段测试只余P3来源门1红 |
 | P2 | PASS_P2 | 17披露/预算测试绿；阶段8中7绿、1项P3预期红；独审19项绿，来源字节及真实prepared body核验通过 |
-| P3 | REVIEW_PENDING | 聚焦38与邻近38通过；Core203/Sessions281（2skip）/Orchestration24及重开数据库恢复通过；包含独审复现后补的TEAM初始租约、空答复与最终摘要边界 |
+| P3 | PASS_P3_LOCAL | Spec独立3.10相关50项+supervisor13项绿；路径Guard三调用点已移至to_thread，新增2项红→绿，包含它们的52项邻近回归通过；增量Spec无阻断，Standards独立3.10共30项/100.696s通过，原P2消除 |
 | P4 | HARNESS_PREPARATION_ONLY | 并行准备新脚本，未进行真实复验；维持 GLM5.3-flash / medium，须P3、回归及离线预检通过 |
 
-实际 Provider 请求：本次尚未发起。CI、最终候选和 S16 总体验收均未宣称通过。
+本地审查快照：98f9a744650890c69a305ae643443b384006123e。本worktree .venv 的Windows分组整仓入口已完成exit0：30套、3518发现=执行、零失败错误、30 skipped、无未运行套件。日志 full-98f9a74.log，摘要 full-98f9a74-summary.json。运行期间生产源码保持该快照；最后路径I/O补丁随后应用并单独复验，最终候选由五平台CI绑定。
+
+实际 Provider 请求：本次尚未发起。CI、最终候选和 S16 总体验收均未宣称通过。P4脚本的发送计数独审问题已修，静态/纯自检复核通过，尚未运行公开预检。

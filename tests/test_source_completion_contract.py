@@ -1,8 +1,11 @@
 """Source gate receipt, atomic correction, recovery and budget counterexamples."""
+import asyncio
 import json
+import threading
 import tempfile
 import unittest
 from dataclasses import replace
+from contextvars import ContextVar
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -84,6 +87,85 @@ class SourceCompletionContractTests(unittest.IsolatedAsyncioTestCase):
         return ChildSourceCompletion(self.app.sessions,
             RestrictedDispatcher(self.factory._dispatcher, self.agent.effective_tools, compact_tools=True,
                                  frozen_authorization=self.auth), self.auth)
+
+    async def test_real_source_guards_run_off_loop_with_context(self):
+        from code_agent.workspace.paths import WorkspacePathGuard
+        loop_thread = threading.get_ident()
+        probe = ContextVar('source-guard-test-context', default=None)
+        token = probe.set('frozen-child-context')
+        observations = []
+
+        def real_guard(*args, **kwargs):
+            observations.append((threading.get_ident(), probe.get()))
+            return WorkspacePathGuard(*args, **kwargs)
+
+        try:
+            with patch('chaos_agent.source_completion.WorkspacePathGuard', side_effect=real_guard):
+                result = await self.run_child([read(), text()])
+                self.assertEqual(result.status.value, 'completed')
+                self.assertTrue(observations)
+                self.assertTrue(all(thread != loop_thread and value == 'frozen-child-context'
+                                    for thread, value in observations), observations)
+                # Fresh history inspection exercises the actual paired receipt path.
+                observations.clear()
+                host = self.host()
+                self.assertEqual((await host.snapshot(self.child)).completed, ('a.txt',))
+                self.assertTrue(observations)
+                self.assertTrue(all(thread != loop_thread and value == 'frozen-child-context'
+                                    for thread, value in observations), observations)
+                # Cached history means this call constructs only the supplied-path Guard.
+                observations.clear()
+                await host.snapshot(self.child, ('a.txt',))
+                self.assertEqual(len(observations), 1)
+                self.assertNotEqual(observations[0][0], loop_thread)
+                self.assertEqual(observations[0][1], 'frozen-child-context')
+        finally:
+            probe.reset(token)
+
+    async def test_cancelled_guard_inspection_replays_durable_receipt(self):
+        from code_agent.workspace.paths import WorkspacePathGuard
+        await self.run_child([read(), text()])
+        host = self.host()
+        loop = asyncio.get_running_loop()
+        loop_thread = threading.get_ident()
+        entered, finished = asyncio.Event(), asyncio.Event()
+        release = threading.Event()
+
+        def paused_real_guard(*args, **kwargs):
+            if threading.get_ident() == loop_thread:
+                raise AssertionError('source Guard blocked the event loop')
+            loop.call_soon_threadsafe(entered.set)
+            try:
+                if not release.wait(5):
+                    raise AssertionError('test did not release source Guard worker')
+                return WorkspacePathGuard(*args, **kwargs)
+            finally:
+                loop.call_soon_threadsafe(finished.set)
+
+        with patch('chaos_agent.source_completion.WorkspacePathGuard', side_effect=paused_real_guard):
+            inspection = asyncio.create_task(host.snapshot(self.child))
+            try:
+                # Await either entry or an immediate failure without waiting for the timeout.
+                entry = asyncio.create_task(entered.wait())
+                done, _ = await asyncio.wait((inspection, entry), timeout=5,
+                                             return_when=asyncio.FIRST_COMPLETED)
+                if inspection in done:
+                    await inspection
+                self.assertTrue(entered.is_set())
+                inspection.cancel()
+                with self.assertRaises(asyncio.CancelledError):
+                    await inspection
+                self.assertNotIn(self.child, host._history)
+            finally:
+                release.set()
+                entry.cancel()
+                await asyncio.gather(entry, return_exceptions=True)
+                if entered.is_set():
+                    await asyncio.wait_for(finished.wait(), 5)
+                if not inspection.done():
+                    inspection.cancel()
+                    await asyncio.gather(inspection, return_exceptions=True)
+        self.assertEqual((await host.snapshot(self.child)).completed, ('a.txt',))
 
     async def test_empty_file_is_complete_and_final_answer_is_delivered(self):
         result = await self.run_child([read('empty.txt'), text()], ('empty.txt',), tools=1)

@@ -14,6 +14,8 @@
     "normal_numbers_and_embedded_placeholder_text_allowed": true,
     "live_credential_read": false
   },
+  "synthetic_audit_rejection_provider_zero": true,
+  "synthetic_external_send_count_one": true,
   "synthetic_persistent_wire_suffix_guards": true,
   "synthetic_bad_wire_suffix_rejections": 6,
   "synthetic_child_entry_guards": true,

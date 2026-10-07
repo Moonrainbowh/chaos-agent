@@ -353,4 +353,3 @@ class S16ProductionRegressionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(results[0]["error"], "source_requirements_unmet")
         self.assertEqual(results[0]["result"]["remaining"], ["test_names.py"])
         self.assertEqual(len(children[0].bodies), 4)
-

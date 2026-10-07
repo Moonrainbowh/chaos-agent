@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
 from contextvars import ContextVar, Token
 from inspect import Parameter, signature
@@ -69,7 +70,8 @@ class EngineChildRunner:
             if authorization is None or self._sessions is None:
                 raise ValueError('required sources require durable child authority')
             from .source_completion import canonical_sources
-            request = replace(request, required_sources=canonical_sources(request.required_sources, authorization))
+            sources = await asyncio.to_thread(canonical_sources, request.required_sources, authorization)
+            request = replace(request, required_sources=sources)
         thread_id = None
         if self._sessions is not None:
             thread_id = await self._sessions.create_thread(parent_thread_id=parent.owner_thread_id)

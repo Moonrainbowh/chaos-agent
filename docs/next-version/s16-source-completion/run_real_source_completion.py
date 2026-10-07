@@ -91,6 +91,23 @@ def selected_profile():
 
 
 
+class SendAuditCounter:
+    def __init__(self):
+        self.audit_entries = []
+        self.external_send_attempts = 0
+
+    def begin_audit(self):
+        entry = {'audit_entry': len(self.audit_entries) + 1, 'stage': 'json_decode', 'external_send_attempt': None}
+        self.audit_entries.append(entry)
+        return entry
+
+    def before_external_send(self, entry):
+        assert entry['external_send_attempt'] is None
+        self.external_send_attempts += 1
+        entry.update(stage='external_send_attempted', external_send_attempt=self.external_send_attempts)
+        return self.external_send_attempts
+
+
 async def worker(owned, *, preflight):
     import httpx
     from chaos_agent.app import create_application
@@ -108,27 +125,34 @@ async def worker(owned, *, preflight):
         return await original_child_run(runner, request, cancellation)
 
     EngineChildRunner.run = frozen_child_entry
-    attempts, wire, offline_counts = [], [], {}
+    send_counts, wire, offline_counts = SendAuditCounter(), [], {}
     original_send = httpx.AsyncClient.send
 
     async def audit_send(client, request, *args, **kwargs):
-        attempts.append(1)
+        entry = send_counts.begin_audit()
         body = json.loads(request.content)
+        entry['stage'] = 'credential_check'
         active_key = 'S16-DUMMY-OFFLINE-KEY' if preflight else selected_profile().provider.resolve_api_key()
         assert active_key, 'Expected configured credential environment is missing'
         assert active_key == os.environ.get('S16_REAL_MODEL_KEY'), 'Configured credential source changed'
         credential_found, sanitized = redact_body_credential(body, active_key)
         if credential_found:
-            save(owned / (('preflight' if preflight else 'real') + '-wire-request-' + str(len(attempts)) + '-REDACTED.json'), sanitized)
+            entry['stage'] = 'credential_rejected'
+            save(owned / (('preflight' if preflight else 'real') + '-wire-request-' + str(entry["audit_entry"]) + '-REDACTED.json'), sanitized)
             raise RuntimeError('CREDENTIAL_IN_BODY_AUDIT_BLOCKED')
-        body_path = owned / (('preflight' if preflight else 'real') + '-wire-request-' + str(len(attempts)) + '.json')
+        body_path = owned / (('preflight' if preflight else 'real') + '-wire-request-' + str(entry["audit_entry"]) + '.json')
         body_path.write_bytes(request.content)  # Exact outgoing bytes; headers/URL/credentials are never saved.
-        wire.append({**{name: body.get(name) for name in ('model', 'reasoning_effort', 'max_tokens', 'max_completion_tokens', 'max_output_tokens')},
+        record = {**{name: body.get(name) for name in ('model', 'reasoning_effort', 'max_tokens', 'max_completion_tokens', 'max_output_tokens')},
                      'thread_id': app.controller._engine._model.current_thread(),
                      'body_file': body_path.name, 'body_sha256': hashlib.sha256(request.content).hexdigest(),
-                     'body_bytes': len(request.content), 'credential_absent_from_body': True})
+                     'body_bytes': len(request.content), 'credential_absent_from_body': True,
+                     'audit_entry': entry['audit_entry'], 'external_send_attempt': None}
+        wire.append(record)
+        entry['stage'] = 'body_saved'
         if preflight:
+            entry['stage'] = 'offline_response_only'
             return offline_response(request, body, offline_counts, is_child=app.controller._engine._model.current_thread() != task.thread_id)
+        record['external_send_attempt'] = send_counts.before_external_send(entry)
         return await original_send(client, request, *args, **kwargs)
 
     httpx.AsyncClient.send = audit_send  # Read-only audit: delegates the exact request unchanged.
@@ -236,11 +260,13 @@ async def worker(owned, *, preflight):
         if preflight:
             validate_offline_observations(result, owned)
             result['offline_script_counts'] = offline_counts
-        result.update(status='OFFLINE_PUBLIC_PREFLIGHT_ONLY' if preflight else 'ATTEMPT_COMPLETED_REQUIRES_REVIEW', provider_calls=0 if preflight else len(attempts), transport_attempts=len(attempts), wire=wire)
+        result.update(status='OFFLINE_PUBLIC_PREFLIGHT_ONLY' if preflight else 'ATTEMPT_COMPLETED_REQUIRES_REVIEW', provider_calls=send_counts.external_send_attempts, transport_attempts=send_counts.external_send_attempts,
+                      audit_entries=send_counts.audit_entries, audit_entry_count=len(send_counts.audit_entries), wire=wire)
         return result
     except Exception as error:
-        result.update(status='ATTEMPT_FAILED_PRESERVED', provider_calls=0 if preflight else len(attempts),
-                      transport_attempts=len(attempts), wire=wire, child_entry_observations=child_entry_observations,
+        result.update(status='ATTEMPT_FAILED_PRESERVED', provider_calls=send_counts.external_send_attempts,
+                      transport_attempts=send_counts.external_send_attempts, audit_entries=send_counts.audit_entries,
+                      audit_entry_count=len(send_counts.audit_entries), wire=wire, child_entry_observations=child_entry_observations,
                       error_type=type(error).__name__)
         # Preserve owned durable records after failure; never launch a recovery model request.
         if 'task' in locals():
@@ -524,6 +550,14 @@ def main():
         assert list(FIXTURE['source_sha256']) == list(SOURCE_PATHS)
         assert len(set(SOURCE_PATHS)) == 4
         assert FIXTURE['runtime']['reasoning_effort'] == 'medium'
+        synthetic_counts = SendAuditCounter()
+        rejected = synthetic_counts.begin_audit()
+        rejected['stage'] = 'synthetic_local_rejection'
+        assert len(synthetic_counts.audit_entries) == 1 and synthetic_counts.external_send_attempts == 0
+        transmitted = synthetic_counts.begin_audit()
+        assert synthetic_counts.before_external_send(transmitted) == 1
+        assert len(synthetic_counts.audit_entries) == 2 and synthetic_counts.external_send_attempts == 1
+        assert rejected['external_send_attempt'] is None and transmitted['external_send_attempt'] == 1
         synthetic_tool = {'is_error': False, 'output': {'text': 'Original body\n[history_ref window=fake item=fake]'}}
         raw = json.dumps(synthetic_tool)
         suffix = '\n[history_ref window=' + 'a' * 32 + ' item=' + 'b' * 32 + ']'
@@ -583,6 +617,7 @@ def main():
                 raise AssertionError('Missing parent delivery was not rejected')
         print(json.dumps({'status': 'OFFLINE_SELF_CHECK_ONLY', 'parent_chars': len(PROMPT),
               'source_sha256': FIXTURE['source_sha256'], 'credential_audit': credential_audit_selfcheck(),
+              'synthetic_audit_rejection_provider_zero': True, 'synthetic_external_send_count_one': True,
               'synthetic_persistent_wire_suffix_guards': True, 'synthetic_bad_wire_suffix_rejections': 6,
               'synthetic_child_entry_guards': True, 'synthetic_child_rejections': 9, 'synthetic_source_order_and_normalization_guards': True,
               'synthetic_standard_and_quick_guards': True, 'synthetic_final_delivery_guards': True,

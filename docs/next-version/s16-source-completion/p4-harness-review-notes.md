@@ -55,3 +55,9 @@ Root补充集合语义已同步：入口与完成后binding断言均按规范化
 ## P3最终接口同步
 
 P3 agent已反馈：delegate.required_sources optional list[str]（≤32、每path≤1024）；child_budget平面payload.required_sources为canonical list。纠正记录kind=`source_correction`、payload.completed为已满足路径；记录id及developer notice/baseline同事务；无另存proof表。harness采集kind已从待确认source_completion改为source_correction，完整child events/messages可核对notice。失败投影source_requirements_unmet/remaining，来源齐但空答复empty_summary；真假语义仍独审。仅接口采集名更新，无Host/HTTP/Provider。
+
+## 审计进入与实际发送分别计数
+
+独审发现旧provider_calls包含本地审计拒绝，已修：SendAuditCounter.audit_entries在JSON检查前记录审计序号/stage，wire文件仍用该序号；external_send_attempts仅在紧邻原original_send调用前递增（真实重试也计入）。Provider calls/transport attempts均投影external_send_attempts；preflight只返回offline fake，始终0。本地JSON/凭据/保存拒绝只留audit entry与原失败，不冒充Provider请求。wire metadata附audit_entry和external_send_attempt（离线或本地未发送为None），result保存全部audit_entries与数量。
+
+pure synthetic自检：一条本地拒绝audit entry计Provider0，第二条实际发送标记计1（不执行HTTP）；两个审计序号和发送序号保持关联。仅脚本/notes/selfcheck修改，未生产/测试/helper，未prepare/Host/HTTP/Provider。

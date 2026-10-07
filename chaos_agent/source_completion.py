@@ -1,4 +1,5 @@
 """Host adaptation of genuine paired full-file receipts to source facts."""
+import asyncio
 import json
 from collections.abc import Mapping
 from pathlib import PurePosixPath
@@ -70,8 +71,10 @@ class ChildSourceCompletion:
     async def snapshot(self, thread_id, supplied=None):
         required, correction = await self.sessions.source_completion_state(thread_id)
         required = freeze_sources(required)
-        if supplied is not None and canonical_sources(supplied, self.authorization) != required:
-            raise ValueError('required sources differ from frozen child binding')
+        if supplied is not None:
+            canonical = await asyncio.to_thread(canonical_sources, supplied, self.authorization)
+            if canonical != required:
+                raise ValueError('required sources differ from frozen child binding')
         if not required:
             return SourceCompletionSnapshot()
         # Replay complete durable history in byte/row bounded pages; neither
@@ -100,7 +103,7 @@ class ChildSourceCompletion:
                 elif message.role == 'tool':
                     call = open_calls.pop(message.tool_call_id, None)
                     if call is not None:
-                        path = self._full_read(call, message)
+                        path = await asyncio.to_thread(self._full_read, call, message)
                         if path in required:
                             completed.add(path)
                 if len(open_calls) > 1000:
