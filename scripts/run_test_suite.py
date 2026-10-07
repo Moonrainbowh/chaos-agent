@@ -64,6 +64,10 @@ class StructuredTextResult(unittest.TextTestResult):
         self._active_ids: dict[int, str] = {}
 
     def startTest(self, test: object) -> None:
+        coverage = getattr(self, "coverage", None)
+        if coverage is not None:
+            from scripts.suite_manifest import coverage_test_id
+            coverage["run_ids"].append(coverage_test_id(test)[0])
         self._active_ids[id(test)] = strict_test_id(test)
         progress = getattr(self, "progress_path", None)
         if progress:
@@ -113,15 +117,21 @@ class StructuredTextResult(unittest.TextTestResult):
 class StructuredRunner(unittest.TextTestRunner):
     resultclass = StructuredTextResult
 
+    def run(self, test):
+        self.discovered = test.countTestCases()
+        coverage_path = getattr(self, "coverage_path", None)
+        if coverage_path:
+            from scripts.suite_manifest import discovery_manifest, write_coverage
+            self.coverage = discovery_manifest(test, Path(self.coverage_start))
+            write_coverage(coverage_path, self.coverage)
+        return super().run(test)
+
     def _makeResult(self):
         result = super()._makeResult()
         result.progress_path = os.environ.get("CHAOS_TEST_PROGRESS")
         result.discovered = getattr(self, "discovered", 0)
+        result.coverage = getattr(self, "coverage", None)
         return result
-
-    def run(self, test):
-        self.discovered = test.countTestCases()
-        return super().run(test)
 
 
 def _test_sources(suite: Path, pattern: str):
@@ -134,7 +144,8 @@ def _test_sources(suite: Path, pattern: str):
                        if path.is_dir() and (path / "__init__.py").is_file())
 
 
-def run_suite(root: Path, start_dir: str, pattern: str) -> int:
+def run_suite(root: Path, start_dir: str, pattern: str, *, discovery_only: bool = False,
+              coverage: bool = False) -> int:
     root = Path(root).resolve()
     relative, suite = _resolve_suite(root, start_dir)
     prioritize_source_tree(root)
@@ -146,10 +157,20 @@ def run_suite(root: Path, start_dir: str, pattern: str) -> int:
                      if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))]
         if any(name.startswith("test_") for name in functions) and "load_tests" not in functions:
             raise RuntimeError(f"unittest cannot discover module-level tests in {path.relative_to(suite).as_posix()}; use TestCase or load_tests")
+    if discovery_only:
+        from scripts.suite_manifest import discovery_manifest, write_coverage
+        discovered = unittest.TestLoader().discover(str(suite), pattern=pattern)
+        coverage = discovery_manifest(discovered, suite)
+        write_coverage(os.environ.get("CHAOS_TEST_COVERAGE"), coverage)
+        return 0
+    class SuiteRunner(StructuredRunner):
+        coverage_start = str(suite)
+        coverage_path = os.environ.get("CHAOS_TEST_COVERAGE") if coverage else None
+
     program = unittest.main(
         module=None,
         argv=["unittest", "discover", "-s", str(suite), "-p", pattern],
-        testRunner=StructuredRunner,
+        testRunner=SuiteRunner,
         testLoader=unittest.TestLoader(),
         exit=False,
     )
@@ -157,6 +178,9 @@ def run_suite(root: Path, start_dir: str, pattern: str) -> int:
     if not isinstance(result, StructuredTextResult):
         raise RuntimeError("structured unittest result is unavailable")
     returncode = 0 if result.wasSuccessful() else 1
+    if SuiteRunner.coverage_path:
+        from scripts.suite_manifest import write_coverage
+        write_coverage(SuiteRunner.coverage_path, result.coverage)
     if not result.testsRun and result.wasSuccessful():
         returncode = 2
     counts = {"discovered": getattr(result, "discovered", result.testsRun),
@@ -211,6 +235,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
     parser.add_argument("--start-dir", required=True)
     parser.add_argument("--pattern", default="test_*.py")
     parser.add_argument("--supervised", action="store_true")
+    parser.add_argument("--discovery-only", action="store_true")
     parser.add_argument("--timeout", type=float, default=300)
     options = parser.parse_args(arguments)
     if options.supervised:
@@ -219,7 +244,10 @@ def main(arguments: Sequence[str] | None = None) -> int:
         faulthandler.dump_traceback_later(options.timeout)
 
     try:
-        return run_suite(repository_root(), options.start_dir, options.pattern)
+        if options.discovery_only:
+            return run_suite(repository_root(), options.start_dir, options.pattern, discovery_only=True)
+        return run_suite(repository_root(), options.start_dir, options.pattern,
+                         coverage=options.supervised and bool(os.environ.get("CHAOS_TEST_COVERAGE")))
     except (RuntimeError, ValueError) as error:
         print(f"test suite runner error: {error}", file=sys.stderr)
         return 2

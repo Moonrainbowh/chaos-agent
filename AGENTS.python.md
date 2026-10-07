@@ -9,6 +9,7 @@
 ## 检查与运行
 - 全量：项目`.venv`或 `uv run --locked python scripts/run_tests.py`，动态全部Feature+remote+根集成。套件默认600s，线程栈宽限2s，timeout124；普通失败/超时继续汇总，清理失败中止并列未运行，零发现失败；末尾JSON必须是真实数量。
 - `suite_process.py`复用Windows Job；管道放行后才发现测试，超时输出末测试/线程栈，确认Job清空；临时进度只IPC，失败沿用结构化输出。
+- Windows CI 显式 `--split-root-modules`：根集成按源模块分别受同一600s监督，先在Job放行后的子进程发现完整ID，组发现并集与实际运行ID核对；组明细另列，根仍为一个逻辑套件。普通失败/超时继续，清理失败即停并列未运行组；默认与其他平台不拆组，不改变数据库持久化或测试断言。
 - Feature `python -m unittest discover -s src/code_agent/<feature>/tests -p 'test_*.py'`；根 `python -m unittest discover -s tests -p 'test_*.py'`；打包 `python -m build`。
 - PowerShell多于3行、含嵌套引号或中文的Python必须落盘`.py`再执行；python-c只限轻量单行无嵌套引号探测。
 

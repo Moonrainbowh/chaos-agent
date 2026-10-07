@@ -65,7 +65,8 @@ def discover_test_suites(root: Path) -> tuple[Path, ...]:
     return tuple(suites)
 
 
-def run_test_suites(root: Path, suites: Sequence[Path], suite_timeout: float = 600) -> int:
+def run_test_suites(root: Path, suites: Sequence[Path], suite_timeout: float = 600,
+                    *, split_root_modules: bool = False) -> int:
     prioritize_source_tree(root)
     github_actions = os.environ.get("GITHUB_ACTIONS", "").casefold() == "true"
     results = []
@@ -76,7 +77,11 @@ def run_test_suites(root: Path, suites: Sequence[Path], suite_timeout: float = 6
         from scripts.suite_process import run_supervised_suite
 
         try:
-            completed = run_supervised_suite(root, relative, suite_timeout)
+            if split_root_modules and relative == Path("tests"):
+                from scripts.grouped_suite import run_grouped_suite
+                completed = run_grouped_suite(root, relative, suite_timeout)
+            else:
+                completed = run_supervised_suite(root, relative, suite_timeout)
         except Exception as error:
             # A cleanup/control failure is unsafe to continue. Still make the
             # unfinished scope explicit instead of claiming a complete run.
@@ -88,6 +93,13 @@ def run_test_suites(root: Path, suites: Sequence[Path], suite_timeout: float = 6
             break
         results.append({"suite": relative.as_posix(), "exit_code": completed.returncode,
                         "counts": getattr(completed, "test_counts", None)})
+        if hasattr(completed, "groups"):
+            results[-1].update({key: getattr(completed, key, None) for key in (
+                "groups", "preflight_exit", "coverage_complete", "expected_discovered",
+                "executed_unique", "unrun_groups", "infrastructure_error")})
+            if getattr(completed, "infrastructure_error", None):
+                exit_code = exit_code or completed.returncode or 2
+                break
         if completed.returncode != 0:
             print(
                 f"test suite failed: {relative.as_posix()}",
@@ -131,6 +143,8 @@ def main(arguments: Sequence[str] | None = None) -> int:
     )
     parser.add_argument("--suite-timeout", type=float, default=600,
                         help="seconds per suite (default: 600); dump stacks then clean up")
+    parser.add_argument("--split-root-modules", action="store_true",
+                        help="supervise each root integration module separately; same deadline")
     options = parser.parse_args(arguments)
     if not math.isfinite(options.suite_timeout) or options.suite_timeout <= 0:
         parser.error("--suite-timeout must be finite and positive")
@@ -144,7 +158,8 @@ def main(arguments: Sequence[str] | None = None) -> int:
         for suite in suites:
             print(suite.relative_to(root).as_posix())
         return 0
-    return run_test_suites(root, suites, options.suite_timeout)
+    return run_test_suites(root, suites, options.suite_timeout,
+                           split_root_modules=options.split_root_modules)
 
 
 if __name__ == "__main__":
