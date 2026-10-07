@@ -1,5 +1,6 @@
 """Business permissions must not invalidate a correctly paired device."""
 from pathlib import Path
+from contextlib import ExitStack
 from types import SimpleNamespace
 import tempfile
 import unittest
@@ -24,7 +25,9 @@ class PermissionBoundaryTests(unittest.TestCase):
         self.credential = self.pairing.pair(self.pairing.issue_token())
         app, _ = create_host_app(SimpleNamespace(foreground_tasks=SimpleNamespace()),
             pairing=self.pairing, project_store=ProjectStore(projects))
-        self.client = self.enterContext(TestClient(app))
+        stack = ExitStack()
+        self.addCleanup(stack.close)
+        self.client = stack.enter_context(TestClient(app))
         self.headers = {"authorization": "Bearer " + self.credential}
 
     def test_business_permission_denied_preserves_device_and_hides_details(self):

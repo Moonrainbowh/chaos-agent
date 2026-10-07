@@ -19,6 +19,10 @@ from code_agent.mcp.lifecycle_owner import McpBeforeCallError, McpBusyError
 
 class RealFaultLifecycleTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
+        # Resolve client SDK modules before starting fault-response deadlines.
+        # The real child process still imports its SDK and handshakes within
+        # the unchanged 1.5s budget; cold default startup is checked separately.
+        from mcp import ClientSession  # noqa: F401
         self.temporary = tempfile.TemporaryDirectory(prefix="s13-mcp-")
         self.root = Path(self.temporary.name).resolve()
         assert self.root.is_absolute() and self.root.name.startswith("s13-mcp-")

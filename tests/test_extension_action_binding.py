@@ -219,9 +219,10 @@ class ExtensionHostTests(unittest.IsolatedAsyncioTestCase):
             cancellation = CancellationToken()
             second = asyncio.create_task(self.dispatcher.dispatch(
                 ActionRequest('queued-plugin', 'fixture.write', {'value': 1}), cancellation))
-            async with asyncio.timeout(1):
+            async def wait_until_queued():
                 while manager._adapters['fixture'].queue.qsize() != 1:
                     await asyncio.sleep(0)
+            await asyncio.wait_for(wait_until_queued(), timeout=1)
             if cancel_only:
                 cancellation.cancel()
             else:

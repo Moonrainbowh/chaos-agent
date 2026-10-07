@@ -5,6 +5,7 @@ import math
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 
+from .deadlines import timeout
 from .registry import McpServer, McpTool
 from .lifecycle_owner import LifecycleOwner, McpBeforeCallError, McpBusyError
 
@@ -51,7 +52,7 @@ class StdioMcpManager:
         owner = LifecycleOwner(self._factory(server), server, self)
         self._adapters[server.name] = owner
         try:
-            async with asyncio.timeout(self._start_timeout_s + self._close_timeout_s * 2):
+            async with timeout(self._start_timeout_s + self._close_timeout_s * 2):
                 return await asyncio.shield(owner.started)
         except BaseException:
             await owner.stop()
@@ -67,7 +68,7 @@ class StdioMcpManager:
         try: owner.queue.put_nowait(((tool, dict(arguments), before_call), future))
         except asyncio.QueueFull: raise McpBusyError("MCP server is busy") from None
         try:
-            async with asyncio.timeout(self._call_timeout_s * 2):
+            async with timeout(self._call_timeout_s * 2):
                 return await asyncio.shield(future)
         except (McpBeforeCallError, McpBusyError):
             raise

@@ -13,6 +13,7 @@
 ## Units
 - `McpRegistry`: 列出配置状态并生成受限 server/tool 命名空间 | 维护服务状态 | 未配置、未批准或未映射工具显式拒绝
 - `McpSdkAdapter`、`StdioMcpManager`: 隔离 SDK 并管理 stdio 服务生命周期 | 子进程/协议 I/O | 所有超时和取消有界且可关闭
+- `deadlines.timeout`：Python 3.11+ 使用原生 `asyncio.timeout`，3.10 使用 `async-timeout` backport 并统一为 builtin `TimeoutError`；在当前 Task 执行，保持 SDK owner 与持久 CancelScope 生命周期，不用跨 Task 的 `wait_for` 或包围 SDK 的 AnyIO timeout scope。队列等待单独捕获 `asyncio.TimeoutError`，兼容 3.10 的异常类别。
 - `LifecycleOwner`：单一 Task 持有 SDK 生命周期及有界调用队列；启动含握手/发现、调用/健康探测、关闭各有期限，取消请求只通知 owner，本 Task 清理；故障不自动重放，须显式重启。健康含 configured/ready/last_success/fault/error_type，只记错误类别，不复制服务 stderr。
 - SDK 1.29.1 的 stdio pre-yield 取消可能跳过 shutdown finally；启动 watchdog 只通过本 adapter 的 SDK context 取其进程/stream句柄，用 SDK 自带进程树终止及 stream关闭回收，不枚举 PID、不改协议；取消scope仍由原 owner退出。私有适配点变更须重跑真实 SDK pre-yield 故障测试。
 - 关闭 watchdog 同样覆盖 deadline 打断 SDK shutdown finally 的窗口；小于 SDK 默认宽限的合法 close预算仍须回收其所属进程，不能只返回超时后留后台服务。

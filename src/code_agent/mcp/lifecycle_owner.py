@@ -4,6 +4,8 @@ from __future__ import annotations
 import asyncio
 import time
 
+from .deadlines import timeout
+
 
 class McpBeforeCallError(PermissionError):
     """A queued action lost authorization before any SDK call began."""
@@ -28,7 +30,7 @@ class LifecycleOwner:
 
     async def watch_startup(self) -> None:
         try:
-            async with asyncio.timeout(self.manager._start_timeout_s + self.manager._close_timeout_s):
+            async with timeout(self.manager._start_timeout_s + self.manager._close_timeout_s):
                 await asyncio.shield(self.started)
         except TimeoutError:
             await self.terminate_on_deadline()
@@ -37,7 +39,7 @@ class LifecycleOwner:
 
     async def watch_close(self) -> None:
         try:
-            async with asyncio.timeout(self.manager._close_timeout_s):
+            async with timeout(self.manager._close_timeout_s):
                 await asyncio.shield(self.task)
         except TimeoutError:
             await self.terminate_on_deadline()
@@ -48,7 +50,7 @@ class LifecycleOwner:
         terminate = getattr(self.adapter, "terminate_owned_process", None)
         if callable(terminate):
             try:
-                async with asyncio.timeout(self.manager._close_timeout_s):
+                async with timeout(self.manager._close_timeout_s):
                     await terminate()
             except Exception as error:
                 # This task owns observing fallback failures; don't report a
@@ -58,7 +60,7 @@ class LifecycleOwner:
     async def run(self) -> None:
         current = None
         try:
-            async with asyncio.timeout(self.manager._start_timeout_s):
+            async with timeout(self.manager._start_timeout_s):
                 await self.adapter.start(self.server)
                 tools = await self.adapter.list_tools()
             self.ready, self.last_success = True, time.time()
@@ -67,10 +69,10 @@ class LifecycleOwner:
             while True:
                 try:
                     command, current = await asyncio.wait_for(self.queue.get(), 0.5)
-                except TimeoutError:
+                except asyncio.TimeoutError:
                     ping = getattr(self.adapter, "ping", None)
                     if callable(ping):
-                        async with asyncio.timeout(self.manager._call_timeout_s):
+                        async with timeout(self.manager._call_timeout_s):
                             await ping()
                         self.last_success = time.time()
                     continue
@@ -89,7 +91,7 @@ class LifecycleOwner:
                             current.set_exception(McpBeforeCallError("MCP queued action no longer authorized"))
                         current = None
                         continue
-                async with asyncio.timeout(self.manager._call_timeout_s):
+                async with timeout(self.manager._call_timeout_s):
                     result = await self.adapter.call(name, arguments)
                 self.last_success = time.time()
                 if not current.done(): current.set_result(result)
@@ -107,7 +109,7 @@ class LifecycleOwner:
             self.close_watchdog = asyncio.create_task(self.watch_close(),
                 name=f"mcp-close-watchdog:{self.server.name}")
             try:
-                async with asyncio.timeout(self.manager._close_timeout_s):
+                async with timeout(self.manager._close_timeout_s):
                     await self.adapter.cancel()
                     await self.adapter.close()
             except BaseException as error:
@@ -127,7 +129,7 @@ class LifecycleOwner:
                 self.task.cancel()
         # Caller cancellation cannot transfer SDK cleanup ownership.
         try:
-            async with asyncio.timeout(self.manager._start_timeout_s + self.manager._close_timeout_s * 2):
+            async with timeout(self.manager._start_timeout_s + self.manager._close_timeout_s * 2):
                 await asyncio.shield(self.task)
         except asyncio.CancelledError:
             if not self.task.done() or not self.task.cancelled(): raise
