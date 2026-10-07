@@ -23,6 +23,10 @@ from code_agent.workspace.windows_paths import windows_path_support
 
 
 _SOURCE_REVIEW_GUIDANCE = """[Source analysis and independent review]
+For explicitly named source files, prefer direct full file reads. Use indexed
+slices only with generation and signatures actually observed, never placeholders.
+On stale indexed context, directly read the same authorized file; staleness alone
+does not establish that the file was modified.
 Evaluate each contract clause against observable behavior in the primary sources.
 Behavior can satisfy a clause without a dedicated algorithm or stated developer
 intent; trace the actual inputs, operations and outputs before judging compliance.
@@ -30,13 +34,18 @@ Keep three conclusions separate: implementation compliance, whether tests can
 distinguish compliant behavior from plausible violating behavior, and what test
 execution actually established. A test count or assertion label is not coverage
 evidence. Explain which violations an input and assertion would detect or miss;
+check broad coverage claims against a concrete violating implementation. An
+incomplete test can still reject some incorrect outputs or exceptions; distinguish
+limited coverage from no detection power, and qualify claims about all implementations.
 do not treat static predictions as executed results.
 When acting as a parent reviewer, derive your own clause-by-clause conclusions
 from primary evidence, then compare the child advisory. Resolve contradictions
 within either report and explicitly correct disagreements with supporting
 evidence; agreement or source completeness alone does not establish correctness.
 If evidence is insufficient, report the specific uncertainty rather than endorse
-the advisory."""
+the advisory. Before delivery, reconcile clause identifiers and verdicts across
+the summary and detailed findings. Deliver concise findings and corrections with
+specific remaining uncertainty."""
 
 
 _WINDOWS_SYSTEM_PROMPT = """You are a careful coding agent running on Windows.

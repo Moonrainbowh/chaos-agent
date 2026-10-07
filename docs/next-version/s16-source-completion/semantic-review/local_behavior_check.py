@@ -48,6 +48,16 @@ def main():
         finally:
             sys.modules.pop("names", None)
         assert result.testsRun == 5 and len(result.failures) == 3 and not result.errors
+        empty_rejections = {}
+        for name, invalid in (
+            ("returns_none", lambda values: None),
+            ("returns_nonempty", lambda values: ["unexpected"]),
+            ("raises_on_empty", lambda values: values[0]),
+        ):
+            tests.clean_names = invalid
+            probe = unittest.TextTestRunner(stream=io.StringIO()).run(tests.NamesTests("test_empty"))
+            empty_rejections[name] = not probe.wasSuccessful()
+        assert all(empty_rejections.values())
         # Wrong ordering implementations can satisfy existing example outputs.
         duplicate_expected = ["A", "A"]
         trim_expected = ["Alice", "Bob"]
@@ -64,6 +74,7 @@ def main():
             "frozen_fixture_tests": {"run": result.testsRun, "failures": len(result.failures),
                                      "errors": len(result.errors)},
             "coverage_discrimination": coverage,
+            "empty_test_rejects_violations": empty_rejections,
             "scope": "Reviewer-only temporary copies; model remains read-only and tests-unexecuted.",
         }
         (Path(__file__).parent / "local-behavior-check.json").write_text(

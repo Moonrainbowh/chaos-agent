@@ -1,0 +1,41 @@
+{
+  "independent_patch_reviews": {
+    "standards": "PASS",
+    "spec": "No patch blocker; real semantic result pending"
+  },
+  "tests": [
+    {
+      "runner": "implementation subagent",
+      "seconds": 49.798,
+      "run": 12,
+      "command": ".venv/Scripts/python.exe -m unittest tests.test_s16_source_completion",
+      "proves": "Production prompt delivery, role isolation, source-gate regressions, platform prompt assembly; not semantic quality",
+      "result": "OK"
+    },
+    {
+      "runner": "root",
+      "seconds": 12.985,
+      "run": 8,
+      "command": ".venv/Scripts/python.exe -m unittest tests.test_builtin_tool_prompt_budget tests.test_child_result_contract",
+      "proves": "Prompt budget and advisory child-result contract",
+      "result": "OK"
+    }
+  ],
+  "candidate": "86875b2",
+  "baseline": "5a907f5",
+  "full_platform_tests": "NOT_RUN_PER_USER_REQUEST",
+  "incremental_reruns": [
+    {
+      "seconds": 5.832,
+      "result": "OK",
+      "run": 2,
+      "stage": "direct-read and summary guidance"
+    },
+    {
+      "seconds": 5.571,
+      "result": "OK",
+      "run": 2,
+      "stage": "final counterexample guidance"
+    }
+  ]
+}

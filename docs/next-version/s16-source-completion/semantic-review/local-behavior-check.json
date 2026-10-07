@@ -18,5 +18,10 @@
     "trim_example_rejects_sorting": false,
     "distinct_unsorted_example_rejects_sorting": true
   },
+  "empty_test_rejects_violations": {
+    "returns_none": true,
+    "returns_nonempty": true,
+    "raises_on_empty": true
+  },
   "scope": "Reviewer-only temporary copies; model remains read-only and tests-unexecuted."
 }
