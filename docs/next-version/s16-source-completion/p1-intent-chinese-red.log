@@ -1,0 +1,13 @@
+======================================================================
+FAIL: test_greeting_variants_are_analysis_but_work_requests_remain_modifications (code_agent.core.tests.test_completion_idle.CompletionIdleTests.test_greeting_variants_are_analysis_but_work_requests_remain_modifications)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\src\code_agent\core\tests\test_completion_idle.py", line 84, in test_greeting_variants_are_analysis_but_work_requests_remain_modifications
+    self.assertEqual(infer_task_intent(text, "code"), TaskIntent.MODIFY)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: <TaskIntent.ANALYZE: 'analyze'> != <TaskIntent.MODIFY: 'modify'>
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.022s
+
+FAILED (failures=1)

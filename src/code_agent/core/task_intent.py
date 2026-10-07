@@ -41,7 +41,16 @@ _NEGATION_PHRASES = (
     "不要改", "别改", "不用改", "先不改", "不要写", "别写", "不要动代码",
     "只分析不修改", "仅供参考无需修改", "不需要修改", "不用改动", "不需修改",
     "do not modify", "don't modify", "dont modify", "do not edit", "don't edit",
-    "do not change", "don't change", "no changes", "read only", "readonly",
+    "do not change", "don't change", "no changes",
+)
+_READ_ONLY_QUALIFIER = re.compile(
+    r"(?<![\w./\\-])read(?:[ \t]+|[-‐‑‒–—])?only(?![\w/\\-]|\.[\w])"
+)
+_AFFIRMATIVE_WRITE_PREFIX = re.compile(
+    r"^(?:(?:please|(?:can|could|would) you|help me)\s+){0,3}"
+    r"(?:fix|refactor|implement|add|remove|update|modify|rewrite|change|"
+    r"delete|create|build|commit|patch|edit|repair|test|verify|run)\b|"
+    r"^(?:请)?(?:帮我|去|进行)?(?:修复|修改|重构|实现|增加|添加|删除|编写|改写|替换|运行|执行|安装)"
 )
 _EXPLANATION_PATTERNS = (
     "是什么意思", "什么意思", "是什么原理", "什么原理", "原理是什么", "逻辑是什么",
@@ -68,6 +77,8 @@ def infer_task_intent(prompt: str, interaction_mode: str) -> TaskIntent:
     explicitly_negated = (
         any(phrase in text for phrase in _NEGATION_PHRASES)
         or any(text.startswith(prefix) for prefix in _NEGATION_PREFIXES)
+        or (_READ_ONLY_QUALIFIER.search(text) is not None
+            and _AFFIRMATIVE_WRITE_PREFIX.match(text) is None)
     )
     if explicitly_negated:
         return TaskIntent.ANALYZE

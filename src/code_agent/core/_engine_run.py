@@ -35,6 +35,7 @@ from .task_supervisor import TaskSupervisor
 from .exploration_repeat import ExplorationRepeatObserver, ToolOnlyConvergenceGuard
 from .runtime_timing import phase_duration_ms, phase_started_at
 from .debug_trace import trace_event
+from .source_completion import SourceCompletionSnapshot
 
 
 @dataclass(slots=True)
@@ -61,6 +62,7 @@ class _RunState:
     last_failed_call: tuple[str, str] | None = None
     progress_digest: str = ""
     candidate_digest: str = ""
+    source_snapshot: SourceCompletionSnapshot | None = None
 
 
 @dataclass(slots=True)

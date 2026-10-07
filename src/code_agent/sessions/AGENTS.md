@@ -47,6 +47,7 @@
 - 配置/实验边界见`docs/context-boundary-experiment.md`、`docs/context-boundary-results.md`；候选值可配，实验不自动改变默认策略。
 
 ## Units
+- S16：必要来源随既有 `context:child_budget` 冻结；旧记录缺字段等价空，有来源的记录不能以空或冲突集合覆盖。`source_completion_state`、`append_source_correction` 使用既有 checkpoints/messages；纠正 completed baseline 与 developer notices 同事务落地，CAS拒绝旧边界，不重置预算或建立子 TaskRecord。
 - `ApprovalRepositoryMixin`：v26卡CAS | SQLite I/O | 8KiB/100条/TTL≤1h；待决定只收无owner暂停/中断/等待；同响应绑定有效才幂等，consumed_now区分首次；等待决定可同事务显式failed/accepted_partial。
 - `HistoryQuery/Display/ContextRepositoryMixin`：双有界页、旧UUID原文片段、Unicode检索、窗口/用量聚合和进展cursor CAS；v25触发器保配对索引与恢复revision，旧库一次分页回填。
 - recovery_checklist/resolve_pending_action/recovery_mutation_receipt：事务版本核对与绑定动作回执；决定/反馈同事务追加，可信本地文件核验由Host完成。

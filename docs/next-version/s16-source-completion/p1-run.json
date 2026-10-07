@@ -1,0 +1,79 @@
+{
+  "cwd": "C:\\Users\\Windows11\\.codex\\worktrees\\s16-source-completion\\chaos-16-agent",
+  "provider_network_requests": 0,
+  "checks": [
+    {
+      "label": "context",
+      "command": [
+        "C:\\Users\\Windows11\\.codex\\worktrees\\s16-source-completion\\chaos-16-agent\\.venv\\Scripts\\python.exe",
+        "-X",
+        "utf8",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "src/code_agent/context/tests",
+        "-p",
+        "test_*.py",
+        "-q"
+      ],
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "test_count": 191,
+      "outcome": "OK"
+    },
+    {
+      "label": "stage-regression",
+      "command": [
+        "C:\\Users\\Windows11\\.codex\\worktrees\\s16-source-completion\\chaos-16-agent\\.venv\\Scripts\\python.exe",
+        "-X",
+        "utf8",
+        "-m",
+        "unittest",
+        "tests.test_s16_source_completion",
+        "-v"
+      ],
+      "exit_code": 1,
+      "expected_exit_code": 1,
+      "test_count": 6,
+      "outcome": "FAILED (failures=1)"
+    },
+    {
+      "label": "completion",
+      "command": [
+        "C:\\Users\\Windows11\\.codex\\worktrees\\s16-source-completion\\chaos-16-agent\\.venv\\Scripts\\python.exe",
+        "-X",
+        "utf8",
+        "-m",
+        "unittest",
+        "code_agent.core.tests.test_completion_idle",
+        "-q"
+      ],
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "test_count": 6,
+      "outcome": "OK"
+    },
+    {
+      "label": "integration",
+      "command": [
+        "C:\\Users\\Windows11\\.codex\\worktrees\\s16-source-completion\\chaos-16-agent\\.venv\\Scripts\\python.exe",
+        "-X",
+        "utf8",
+        "-m",
+        "unittest",
+        "tests.test_prepared_context_assembly",
+        "tests.test_production_child_factory",
+        "tests.test_child_authorization_ceiling",
+        "tests.test_child_execution_scope",
+        "tests.test_child_result_contract",
+        "tests.test_runtime_partial_build_cleanup",
+        "-q"
+      ],
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "test_count": 21,
+      "outcome": "OK"
+    }
+  ]
+}

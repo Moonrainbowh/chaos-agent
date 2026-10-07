@@ -1,0 +1,86 @@
+{
+  "case": "next-version-s16-investigation-v7-09b160648af4",
+  "worker_result_sha256": "c47c9b1eec8ba796ae8db8e29bd400c43e2c5dd54c59a468c25f226d8e5b4af6",
+  "provider_calls": 6,
+  "parent_result": {
+    "version": 1,
+    "execution_status": "waiting_decision",
+    "changes": "unchanged",
+    "verification_status": "unverified",
+    "remaining": [
+      "workspace change or explicit acceptance of no-change delivery"
+    ],
+    "stop_code": "waiting_decision",
+    "stop_reason": "Requested modification produced no workspace file changes. Continue with implementation, or explain why no change is required and request explicit acceptance of the unchanged partial delivery."
+  },
+  "children": [
+    {
+      "run_id": "83f7bde44f535df38626e247263d6e67",
+      "thread_id": "f828d878b1274052a92d5a7467751d77",
+      "relation": {
+        "thread_id": "f828d878b1274052a92d5a7467751d77",
+        "parent_thread_id": "21b65ad4b45d44b2be75fcdf38dd5d71",
+        "child_thread_ids": []
+      },
+      "task": null,
+      "budget": null,
+      "bindings": [
+        {
+          "id": "37ed0c336d5a53818133b30a742e0f05",
+          "owner_thread_id": "21b65ad4b45d44b2be75fcdf38dd5d71",
+          "parent_task_id": "f7f8cfadb5ee4dccaec5bb90375dac57",
+          "delegate_request_id": "call_03c23ee111cd423ebffed232",
+          "max_total_tokens": 300000,
+          "max_tool_calls": 5,
+          "max_agent_rounds": 100,
+          "max_children": 8,
+          "owner_instance_id": "0572368936dc49868f0bee681d8b9ee6"
+        }
+      ],
+      "usage": [
+        {
+          "id": "bd46f5ef65f75e75a8dad0985f99a54e",
+          "purpose": "main",
+          "reserved": 34203,
+          "status": "settled",
+          "task_limit": 1000000,
+          "origin_thread_id": "f828d878b1274052a92d5a7467751d77",
+          "budget_owner_thread_id": "21b65ad4b45d44b2be75fcdf38dd5d71",
+          "projected_tokens": 3185,
+          "charged": 3185,
+          "usage": {
+            "input_tokens": 3156,
+            "output_tokens": 29,
+            "cached_input_tokens": 0,
+            "cache_read_known": true
+          },
+          "estimated_input": 14107
+        },
+        {
+          "id": "62289a29661d504e8f83ba408530dab8",
+          "purpose": "main",
+          "reserved": 35042,
+          "status": "settled",
+          "task_limit": 1000000,
+          "origin_thread_id": "f828d878b1274052a92d5a7467751d77",
+          "budget_owner_thread_id": "21b65ad4b45d44b2be75fcdf38dd5d71",
+          "projected_tokens": 3473,
+          "charged": 3473,
+          "usage": {
+            "input_tokens": 3381,
+            "output_tokens": 92,
+            "cached_input_tokens": 0,
+            "cache_read_known": true
+          },
+          "estimated_input": 14946
+        }
+      ]
+    }
+  ],
+  "legacy_unknown_usage": {
+    "v2": 80703,
+    "v6": 95586
+  },
+  "acceptance_matrix_reference": "docs/next-version/s16/acceptance-matrix.md",
+  "status": "HISTORICAL_EVIDENCE_NOT_RESETTLED"
+}

@@ -26,6 +26,10 @@
 - MODEL_STARTED记真实模型，保存最近披露名供Host；Usage输入含缓存、cache读写/可用性兼容旧数据。AgentEvent生成UTC；CONTEXT_BUILT只白名单非负整数本地计数，PHASE_COMPLETED仅有界phase/duration/action，无prompt/output；phase计时单调非负有界不计active-time。trace默认Host启、CHAOS_DEBUG_TRACE=0关，只日志有界计数/短digest，不含prompt/源码/凭据/完整路径。
 
 ## Units
+- S16 source completion：仅消费 Host typed snapshot；可选必要完整来源在子启动冻结，无工具结束缺项时原预算内持久反馈，有反馈而无新增必要读取则 failed/source_requirements_unmet/remaining。取消和硬预算优先；读齐还须当前非空最终答复，来源门不升级 verification、不判断正文语义；无要求保持原行为。
+- 新任务初始软租约：明确 deep 优先，Host 冻结 topology=team 至少 STANDARD（也包括简单团队问答），single/legacy analyze 保持 QUICK。硬额度和 child 不可续父租约不变；已持久预算不迁移，不把该 floor 当复杂度判断。
+- `SourceCompletionSnapshot`/`SourceCompletionHost`：有界要求、已读取集合与持久纠正基线 | 纯类型及注入协议 | Core 不读文件、解析工具结果或访问 SQLite。
+- 新任务 intent：只读限定支持 read only / readonly / 常用连字符 read-only；文件名中的限定词与明确肯定修改命令不构成只读任务。仅新任务冻结时分类，不重算既有持久 TaskContract.intent，不改变 TaskAuthorization。
 - `AgentEngine.inherited_authorization`：子执行继承冻结父任务授权并使用真实子 thread 作为动作 origin；须绑定具体父 task lineage，不向子 Core 注入父 TaskRecord，不使子结果完成或验证父任务。
 - TaskResult/ResultCollector：有界交付投影，执行/变更/验证/剩余项分开；旧完成事件不证明验证，无终态流不冒报成功，不另存权威状态。
 - pending_calls：按持久顺序与原ID/name配对未决动作；重复ID保守阻断，模型续接不可重用旧ID。

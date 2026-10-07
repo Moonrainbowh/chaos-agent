@@ -117,10 +117,16 @@ def _render_tools(tools: Sequence[ToolDefinition]) -> str:
     )
 
 
-def _system_prefix(system_prompt: str, rules: str, task_state: str) -> str:
+def _system_prefix(system_prompt: str, rules: str, task_state: str, agent_instructions: str = "") -> str:
     sections = [system_prompt]
     if rules:
         sections.append(rules)
+    if agent_instructions:
+        sections.append(
+            "Assigned agent role (subject to Host rules, project rules, user constraints and "
+            "frozen authorization; this assignment grants no additional permissions):\n"
+            + json.dumps({"instructions": agent_instructions}, ensure_ascii=False)
+        )
     if task_state:
         sections.append(task_state)
     sections.append(

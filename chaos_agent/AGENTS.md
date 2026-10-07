@@ -25,6 +25,10 @@ Windows/Linux/macOS共享TUI/CLI/JSON Host，发布chaos-agent保agent/本地状
 - UI唯一Muted Slate，宽追加/手机有界，mode≠permission，diff/rewind只读不改index；完整能力status，不接管终端设置。Provider Markdown结果前置/短层级/有意义强调，不装饰虚构重要性。
 
 ## Units
+- `ChildSourceCompletion`：将真实子线程成对的 built-in read_file/compact read(file) 完整文本回执适配为 typed source snapshot；插件/MCP同名、模型 metadata、失败/截断/slices/父读取不算。完整历史按有界页与增量 cursor/epoch 核对，恢复重建事实，纠正要求不能从 context tail 或正文猜测；不新增 child 跨 owner 重启能力。
+- 来源型 ChildResult 仅取最后非空无工具 assistant 答复，避免纠正前计划挤掉最终交付；缺省任务保持历史聚合，建议不成为验证 evidence。
+- 工具披露说明区分模型请求与用户消息：当前已有完整 schema 的工具直接可用；缺失能力成功披露后供下一模型请求使用。仅提示措辞，不变 availability=next_model_turn、digest 或权限检查。
+- Child role context：原 child factory 将 AgentDefinition.instructions 作为显式只属于该 child 的参数传入 ContextConfig；真实固定上下文预算前渲染，不放进 objective/user 历史；首轮、工具续轮和上下文重建沿用配置。角色文本不改变父冻结权限、工具筛选或验证事实。
 - create_application/CLI/RuntimeSelection：共享入口/切换恢复；CLI按TaskResult退出/查询0，child须终态，未知/取消非完成、建议非evidence。
 - Child composition：分配Provider前须typed父ActionExecutionContext/task/TaskAuthorization，持久父冻结授权/root/owner，child同根/角色收窄/父共享token-tool预算不猜UIthread；生产首次task-owned supervisor从持久冻结TaskBudget派生token/tool上限，显式ParentBudget仅收紧；同Task release/resume保留累计ledger及unknown预留，不因profile切换扩额，runtime关闭清缓存；taskless维持原默认。父owner/checkpoint释放前取消等待真实runner/closer；S8已迁生产测试才删旧装配。
 - ContextAssembly/ContextScopedDispatcher：经原dispatcher/policy，异常取消恢复scope不盖Root。

@@ -1,0 +1,89 @@
+
+[2K· agent review · queued · Review names.py
+
+
+[2K· agent review · running · Review names.py
+
+
+[2K· agent review · completed · Review names.py · 1s · 110 tokens · 1 tools
+
+
+[2K· agent custom · queued · Read docs/current-contract.md, docs/legacy-notes.md, names.py and test_n
+· ames.py 
+
+
+[2K· agent custom · running · Read docs/current-contract.md, docs/legacy-notes.md, names.py and test_
+· names.py 
+
+
+[2K· agent custom · completed · Read docs/current-contract.md, docs/legacy-notes.md, names.py and tes
+· t_names.py  · 1s · 110 tokens · 4 tools
+
+
+[2K· agent custom · queued · Disclose the read contract first; next turn read docs/current-contract.m
+· d, docs/
+
+
+[2K· agent custom · running · Disclose the read contract first; next turn read docs/current-contract.
+· md, docs/
+
+
+[2K· agent custom · completed · Disclose the read contract first; next turn read docs/current-contrac
+· t.md, docs/ · 2s · 110 tokens · 1 tools
+
+
+[2K· agent custom · queued · Read names.py and report.
+
+
+[2K· agent custom · running · Read names.py and report.
+
+
+[2K· agent custom · completed · Read names.py and report. · 1s · 110 tokens · 1 tools
+
+
+[2K· agent custom · queued · Read names.py and report.
+
+
+[2K· agent custom · running · Read names.py and report.
+
+
+[2K· agent custom · completed · Read names.py and report. · 1s · 110 tokens · 1 tools
+
+test_builtin_review_role_reaches_actual_body_without_write_tools (tests.test_s16_source_completion.S16ProductionRegressionTests.test_builtin_review_role_reaches_actual_body_without_write_tools) ... Executing <Task finished name='Task-1' coro=<S16ProductionRegressionTests.asyncSetUp() done, defined at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_s16_source_completion.py:70> result=None created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.416 seconds
+ok
+test_loader_description_distinguishes_model_requests_from_user_messages (tests.test_s16_source_completion.S16ProductionRegressionTests.test_loader_description_distinguishes_model_requests_from_user_messages) ... Executing <Task finished name='Task-367' coro=<S16ProductionRegressionTests.asyncSetUp() done, defined at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_s16_source_completion.py:70> result=None created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.420 seconds
+ok
+test_new_fixture_child_reads_four_sources_directly_with_frozen_original_bytes (tests.test_s16_source_completion.S16ProductionRegressionTests.test_new_fixture_child_reads_four_sources_directly_with_frozen_original_bytes) ... Executing <Task finished name='Task-498' coro=<S16ProductionRegressionTests.asyncSetUp() done, defined at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_s16_source_completion.py:70> result=None created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.413 seconds
+ok
+test_original_v7_child_cannot_complete_after_disclosure_with_zero_reads (tests.test_s16_source_completion.S16ProductionRegressionTests.test_original_v7_child_cannot_complete_after_disclosure_with_zero_reads) ... Executing <Task finished name='Task-892' coro=<S16ProductionRegressionTests.asyncSetUp() done, defined at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_s16_source_completion.py:70> result=None created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.403 seconds
+FAIL
+test_original_v7_parent_prompt_is_frozen_as_analyze_at_public_start (tests.test_s16_source_completion.S16ProductionRegressionTests.test_original_v7_parent_prompt_is_frozen_as_analyze_at_public_start) ... Executing <Task finished name='Task-1361' coro=<S16ProductionRegressionTests.asyncSetUp() done, defined at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_s16_source_completion.py:70> result=None created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.406 seconds
+ok
+test_read_only_spelling_and_explicit_modification_filename_controls (tests.test_s16_source_completion.S16ProductionRegressionTests.test_read_only_spelling_and_explicit_modification_filename_controls) ... Executing <Task finished name='Task-1492' coro=<S16ProductionRegressionTests.asyncSetUp() done, defined at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_s16_source_completion.py:70> result=None created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.400 seconds
+ok
+test_resumed_legacy_contract_keeps_its_original_modify_intent (tests.test_s16_source_completion.S16ProductionRegressionTests.test_resumed_legacy_contract_keeps_its_original_modify_intent) ... Executing <Task finished name='Task-2527' coro=<S16ProductionRegressionTests.asyncSetUp() done, defined at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_s16_source_completion.py:70> result=None created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.414 seconds
+ok
+test_role_instructions_reach_both_child_requests_without_sibling_leak (tests.test_s16_source_completion.S16ProductionRegressionTests.test_role_instructions_reach_both_child_requests_without_sibling_leak) ... Executing <Task finished name='Task-2647' coro=<S16ProductionRegressionTests.asyncSetUp() done, defined at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_s16_source_completion.py:70> result=None created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.398 seconds
+ok
+
+======================================================================
+FAIL: test_original_v7_child_cannot_complete_after_disclosure_with_zero_reads (tests.test_s16_source_completion.S16ProductionRegressionTests.test_original_v7_child_cannot_complete_after_disclosure_with_zero_reads)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\soft\miniconda3\Lib\asyncio\runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "D:\soft\miniconda3\Lib\asyncio\base_events.py", line 725, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_s16_source_completion.py", line 294, in test_original_v7_child_cannot_complete_after_disclosure_with_zero_reads
+    self.assertNotEqual(results[0]["status"], "completed",
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        "RED: production ChildResult reports completion after disclosure with zero source reads")
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'completed' == 'completed' : RED: production ChildResult reports completion after disclosure with zero source reads
+
+----------------------------------------------------------------------
+Ran 8 tests in 29.551s
+
+FAILED (failures=1)

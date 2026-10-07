@@ -58,18 +58,23 @@ class RuntimeDispatcherFactory:
             reasoning_effort=agent.mode.effective_reasoning_effort,
         )
         try:
+            from .source_completion import ChildSourceCompletion
+            context = self._context_for.for_child(agent.mode, client, profile, root, sessions,
+                                                 agent_instructions=agent.instructions)
+            dispatcher = RestrictedDispatcher(self._dispatcher, agent.effective_tools, compact_tools=True,
+                                              frozen_authorization=authorization)
             engine = engine_for(
                 client,
                 profile,
-                self._context_for.for_child(agent.mode, client, profile, root, sessions),
-                RestrictedDispatcher(self._dispatcher, agent.effective_tools, compact_tools=True,
-                                     frozen_authorization=authorization),
+                context,
+                dispatcher,
                 sessions,
                 root,
                 agent.mode,
                 capability_strategy=self.capability_strategy,
                 action_lineage=ActionLineage(parent.owner_thread_id, parent.task_id, parent.request_id),
                 inherited_authorization=authorization,
+                source_completion=ChildSourceCompletion(sessions, dispatcher, authorization),
             )
             return engine, client
         except BaseException:

@@ -49,6 +49,7 @@ async def collect_child_result(stream, request, *, sessions=None):
     started = time.monotonic()
     collected = ResultCollector()
     answers, references = [], []
+    final_answer = ''
     tokens = tool_calls = request_tokens = 0
     try:
         async for event in stream:
@@ -68,6 +69,8 @@ async def collect_child_result(stream, request, *, sessions=None):
                     message = Message.from_dict(raw)
                     if message.role == 'assistant' and message.content:
                         answers.append(message.content)
+                        if request.required_sources and not message.tool_calls and message.content.strip():
+                            final_answer = message.content
             elif event.kind is EventKind.MODEL_EVENT:
                 raw = event.payload.get('event')
                 if isinstance(raw, Mapping):
@@ -106,7 +109,7 @@ async def collect_child_result(stream, request, *, sessions=None):
               'cancelled': RunStatus.CANCELLED, 'waiting_decision': RunStatus.WAITING_DECISION,
               'paused': RunStatus.PAUSED, 'accepted_partial': RunStatus.WAITING_DECISION}.get(
                   result.execution_status, RunStatus.INTERRUPTED)
-    summary = '\n\n'.join(answers).strip()[:16_384]
+    summary = (final_answer if request.required_sources else '\n\n'.join(answers)).strip()[:16_384]
     if not summary and status is RunStatus.COMPLETED:
         summary = 'Child execution completed without an advisory message; verification is ' + result.verification_status + '.'
     return ChildRunResult(request.run_id, status, summary,

@@ -63,6 +63,10 @@ class CompletionIdleTests(unittest.IsolatedAsyncioTestCase):
             "这个修改的原理是什么",
             "do not modify, just explain why it fails",
             "no need to edit, only analyze",
+            "read-only: inspect test_names.py",
+            "read‑only: inspect test_names.py",
+            "只读分析 read-only 模式的实现，不要修改",
+            "Within this workspace, delegate once to read-only medium sourceaudit; report test targets.",
         ):
             self.assertEqual(infer_task_intent(text, "code"), TaskIntent.ANALYZE)
         for text in (
@@ -70,6 +74,11 @@ class CompletionIdleTests(unittest.IsolatedAsyncioTestCase):
             "write a hello function", "分析图片并修改代码", "解释后删除文件",
             "有没有办法修改现有代理配置？",
             "你能运行测试吗？", "请执行检查？", "可以安装这个项目吗？",
+            "Modify readonly.md to correct its typo.",
+            "Modify read-only.md to correct its typo.",
+            "Fix read-only behavior in the editor.",
+            "Please fix read only behavior in the editor.",
+            "请修复 read-only 模式不生效的问题",
         ):
             self.assertFalse(is_small_talk(text))
             self.assertEqual(infer_task_intent(text, "code"), TaskIntent.MODIFY)

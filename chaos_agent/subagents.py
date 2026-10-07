@@ -127,6 +127,7 @@ class SubagentTool:
             int(arguments.get("tool_budget", 16)),
             int(arguments.get("active_seconds", 300)),
             run_id=uuid5(NAMESPACE_URL, f"{self._parent_run_id or request.id}:{request.id}").hex,
+            required_sources=arguments.get("required_sources", ()),
         )
 
 

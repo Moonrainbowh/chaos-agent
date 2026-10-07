@@ -47,6 +47,33 @@ def _context_request(**updates: object) -> ContextRequest:
 
 
 class WorkspaceContextBuilderTests(unittest.IsolatedAsyncioTestCase):
+    async def test_assigned_role_is_mandatory_context_after_rules_and_survives_rebuild(self):
+        from dataclasses import replace
+        config = replace(self.config, agent_instructions="ROLE_CONTEXT_82719")
+        guard = WorkspacePathGuard(self.root)
+        files = WorkspaceFiles(guard, IgnoreRules.from_workspace(self.root))
+        for revision in (1, 2):
+            builder = WorkspaceContextBuilder(config, RuleLoader(guard, files, config),
+                RepoMapBuilder(files, config), DeterministicCompactor(config))
+            bundle = await builder.build(_context_request(revision=revision, user_input="Explain code"))
+            self.assertIn("ROLE_CONTEXT_82719", bundle.system_prompt)
+            self.assertGreater(bundle.system_prompt.index("ROLE_CONTEXT_82719"),
+                               bundle.system_prompt.index("PROJECT_RULE"))
+            self.assertNotIn("ROLE_CONTEXT_82719", str(bundle.messages))
+
+    async def test_oversized_role_fails_fixed_budget_before_optional_repository_context(self):
+        from dataclasses import replace
+        from code_agent.context.errors import PromptBudgetError
+        config = replace(self.config, agent_instructions="Required role instruction. " * 20000)
+        guard = WorkspacePathGuard(self.root)
+        files = WorkspaceFiles(guard, IgnoreRules.from_workspace(self.root))
+        builder = WorkspaceContextBuilder(config, RuleLoader(guard, files, config),
+            RepoMapBuilder(files, config), DeterministicCompactor(config))
+        with patch.object(builder.repo_map, "render_with_metrics") as repo_render:
+            with self.assertRaises(PromptBudgetError):
+                await builder.preflight(_context_request(user_input="Explain code"))
+            repo_render.assert_not_called()
+
     async def test_combined_system_rule_budget_fails_before_optional_work(self) -> None:
         from dataclasses import replace
         from code_agent.context.errors import PromptBudgetError

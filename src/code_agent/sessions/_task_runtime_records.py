@@ -22,15 +22,86 @@ from .errors import SessionNotFound
 class TaskRuntimeRepositoryMixin:
     _database: object
 
+    async def source_completion_state(self, thread_id):
+        """Read the child binding and last bounded correction, never context tail."""
+        from ._shared_budget import binding
+        from ._context_journal import _rows
+        from ._records import _require_thread
+        import json
+        def read(connection):
+            _require_thread(connection, thread_id)
+            bound = binding(connection, thread_id)
+            rows = _rows(connection, thread_id, 'source_correction')
+            if len(rows) > 32:
+                raise ValueError('source correction count exceeded')
+            latest = {"id": rows[-1]['id'], **json.loads(rows[-1]['metadata'])} if rows else None
+            return tuple(bound.get('required_sources', ())) if bound else (), latest
+        return await self._database.read(read)
+
+    async def source_completion_budget_exhausted(self, thread_id):
+        """Inspect existing local/shared hard ledgers without reserving capacity."""
+        from ._shared_budget import binding, token_spent, require_active_parent
+        from ._task_budget import task_budget
+        def read(connection):
+            bound = binding(connection, thread_id)
+            if bound is None:
+                return None
+            require_active_parent(connection, bound)
+            for target in (thread_id, bound['owner_thread_id']):
+                row = connection.execute('SELECT * FROM task_budgets WHERE thread_id=?', (target,)).fetchone()
+                if row is None and target == thread_id:
+                    continue  # Frozen child binding can precede its first engine run.
+                budget = task_budget(row)
+                if budget.model_turns >= budget.limits.max_agent_rounds:
+                    return 'shared model turn budget exceeded' if target != thread_id else 'model turn budget exceeded'
+                if budget.tool_calls >= budget.limits.max_tool_calls:
+                    return 'shared tool call budget exceeded' if target != thread_id else 'tool call budget exceeded'
+                if token_spent(connection, target) >= budget.limits.max_total_tokens:
+                    return 'shared token budget exceeded' if target != thread_id else 'token budget exceeded'
+            if token_spent(connection, bound['owner_thread_id'], thread_id) >= bound['max_total_tokens']:
+                return 'child token budget exceeded'
+            return None
+        return await self._database.read(read)
+
+    async def append_source_correction(self, thread_id, completed, notices, *, expected_tail):
+        """Atomically save the correction boundary and its paired Host notices."""
+        from code_agent.core.source_completion import freeze_sources
+        from ._shared_budget import binding
+        from ._context_journal import _rows, _insert, _id
+        from ._thread_content import append_message_record
+        import json
+        completed = freeze_sources(completed)
+        notices = tuple(notices)
+        if not 1 <= len(notices) <= 34 or any(not isinstance(m, Message) or m.role != 'developer' or len(m.content) > 1000 for m in notices):
+            raise ValueError('invalid source notices')
+        timestamp = encode_datetime(utc_now())
+        def write(connection):
+            bound = binding(connection, thread_id)
+            required = tuple(bound.get('required_sources', ())) if bound else ()
+            if not required or not set(completed).issubset(required):
+                raise ValueError('source correction outside frozen requirements')
+            rows = _rows(connection, thread_id, 'source_correction')
+            if len(rows) >= len(required) or (rows[-1]['id'] if rows else None) != expected_tail:
+                raise ValueError('source correction boundary changed')
+            if rows and not set(completed).difference(json.loads(rows[-1]['metadata'])['completed']):
+                raise ValueError('source correction requires new source progress')
+            identifier = _id(thread_id, 'source_correction', len(rows))
+            for message in notices:
+                append_message_record(connection, thread_id, message, timestamp)
+            _insert(connection, thread_id, 'source_correction', identifier, {'completed': list(completed)})
+            return identifier
+        return await self._database.write(write)
+
     async def bind_child_budget(self, child_thread_id, owner_thread_id, parent_task_id,
                                 delegate_request_id, *, max_total_tokens, max_tool_calls,
-                                max_agent_rounds=100, max_children=8):
+                                max_agent_rounds=100, max_children=8, required_sources=()):
         """Freeze a child ceiling and delegation identity; never allocate twice."""
         from ._shared_budget import bind_child
         return await bind_child(self._database, child_thread_id, owner_thread_id,
                                 parent_task_id, delegate_request_id,
                                 max_total_tokens=max_total_tokens, max_tool_calls=max_tool_calls,
-                                max_agent_rounds=max_agent_rounds, max_children=max_children)
+                                max_agent_rounds=max_agent_rounds, max_children=max_children,
+                                required_sources=required_sources)
 
     async def get_or_create_task_budget(
         self,

@@ -1,0 +1,29 @@
+{
+  "status": "PREPARED_FIXTURE_ONLY",
+  "source_sha256": {
+    "docs/current-contract.md": "be72365ff9fc2c4eacfdeea55042c1809458114cca8e56124f045e04b3c1ca99",
+    "docs/legacy-notes.md": "9f8696bb5da4892a5878933993c1c3195418a6e1488609a6ba4e33ba06a36926",
+    "names.py": "535f5bbca3e53d261caad12d6f5f36a42226e5b5f3d74aecf67e1bfe6e082697",
+    "test_names.py": "8ee56921a646ea63058ba9c2b165729d21a9394188070ee83b6d54166af11df2"
+  },
+  "runtime": {
+    "model": "glm-5.3-flash",
+    "reasoning_effort": "medium",
+    "parent_token_budget": 1000000,
+    "parent_base_mode": "medium",
+    "child_base_mode": "medium",
+    "child_token_budget": 300000,
+    "host_prompt_tokens": 300000,
+    "tool_schema_tokens": 20000,
+    "max_output_tokens": 4096,
+    "max_agent_rounds": 12,
+    "max_tool_calls": 40,
+    "max_tool_calls_per_round": 8,
+    "child_tool_budget": 5,
+    "child_active_seconds": 240,
+    "parent_watchdog_seconds": 880,
+    "total_seconds": 900,
+    "transport_timeout_seconds": 60,
+    "transport_max_retries": 2
+  }
+}

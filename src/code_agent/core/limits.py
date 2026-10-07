@@ -48,6 +48,8 @@ def select_budget_lease(contract: TaskContract) -> BudgetLeaseTier:
         raise TypeError("contract must be a TaskContract")
     if any(_DEEP_REQUEST.search(clause) for clause in explicit_positive_clauses(contract.objective)):
         return BudgetLeaseTier.DEEP
+    if contract.agent_topology == 'team':
+        return BudgetLeaseTier.STANDARD
     if contract.intent is TaskIntent.ANALYZE:
         return BudgetLeaseTier.QUICK
     return BudgetLeaseTier.STANDARD

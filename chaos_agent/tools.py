@@ -65,8 +65,8 @@ TOOL_DEFINITIONS: tuple[ToolDefinition, ...] = (
     ),
     ToolDefinition(
         "load_tool_contract",
-        "Make one capability available next turn; returns name, digest, and "
-        "availability only.",
+        "Use provided tools now; load missing capability for next model request, "
+        "not next user message. Name/digest/availability.",
         _object_schema({"name": _nonempty_text_schema()}, ("name",)),
     ),
     ToolDefinition(
@@ -236,6 +236,8 @@ TOOL_DEFINITIONS: tuple[ToolDefinition, ...] = (
                 "token_budget": _integer_schema(256, 300000),
                 "tool_budget": _integer_schema(0, 128),
                 "active_seconds": _integer_schema(1, 1800),
+                "required_sources": {"type": "array", "maxItems": 32,
+                                     "items": {"type": "string", "minLength": 1, "maxLength": 1024}},
             },
             ("objective",),
         ),

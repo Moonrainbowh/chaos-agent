@@ -101,7 +101,7 @@ class RuntimeContextFactory:
                 profile.api_input_tokens), configured_counter(profile.provider.model),
             constraints=constraints)
 
-    def for_child(self, mode, client, profile, root, sessions):
+    def for_child(self, mode, client, profile, root, sessions, *, agent_instructions=""):
         """Freeze child reads to the same authorized root as child actions."""
         factory = RuntimeContextFactory(root,
             git_available=self._git_available, repo_map_enabled=self._repo_map_enabled,
@@ -114,7 +114,7 @@ class RuntimeContextFactory:
         # Resolve services on the original factory, whose source root is authoritative.
         factory._guard, factory._files, factory._repo_index = self._workspace_parts(root)
         guarded = factory._budgeted_client(mode, client, profile)
-        result = factory._build(mode, guarded, profile, root)
+        result = factory._build(mode, guarded, profile, root, agent_instructions=agent_instructions)
         return replace(result, compact_binding=self._thread_binding)
 
     def _build(
@@ -123,6 +123,8 @@ class RuntimeContextFactory:
         client: object,
         profile: ModelProfile,
         root: Path,
+        *,
+        agent_instructions: str = "",
     ) -> object:
         guard, files, repo_index = self._workspace_parts(root)
         powershell = self._powershell.resolve() if os.name == "nt" else None
@@ -139,6 +141,7 @@ class RuntimeContextFactory:
             prompt,
             prompt_budget=_profile_prompt_budget(profile, mode),
             repo_map_enabled=self._repo_map_enabled,
+            agent_instructions=agent_instructions,
         )
         rules = RuleLoader(guard, files, config)
         repo_map = RepoMapBuilder(
@@ -356,6 +359,7 @@ def engine_for(
     capability_strategy: CapabilityStrategy = CapabilityStrategy.HYBRID,
     action_lineage: ActionLineage | None = None,
     inherited_authorization: TaskAuthorization | None = None,
+    source_completion=None,
 ) -> AgentEngine:
     # Inherit the Host's existing path capability, never mobile/model arguments.
     verification_allow_sensitive = getattr(dispatcher,
@@ -397,4 +401,5 @@ def engine_for(
         capability_strategy=capability_strategy,
         action_lineage=action_lineage,
         inherited_authorization=inherited_authorization,
+        source_completion=source_completion,
     )

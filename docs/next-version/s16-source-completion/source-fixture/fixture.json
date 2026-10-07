@@ -1,0 +1,47 @@
+{
+  "version": "s16-source-fixture-p2",
+  "origin": "next-version-s16-investigation-v7-09b160648af4",
+  "status": "OFFLINE_FIXTURE_ONLY",
+  "parent_input": "Read-only. Load delegate_agent if absent; next model request delegate once to s16.sourceaudit (300000 tokens,5 tools,240s). Check advisory against sources; no notes/new_context. Child: Read docs/current-contract.md, docs/legacy-notes.md, names.py and test_names.py in full. Use available read schema. Compare current/legacy constraints, code/tests; cite physical 1-based path:line counting blanks. No edits, commands/tests, outside sources or delegation; unverified, tests unexecuted.",
+  "child_objective": "Read docs/current-contract.md, docs/legacy-notes.md, names.py and test_names.py in full. Use available read schema. Compare current/legacy constraints, code/tests; cite physical 1-based path:line counting blanks. No edits, commands/tests, outside sources or delegation; unverified, tests unexecuted.",
+  "agent_instructions": "Read the authorized sources only. Return source-grounded advisory analysis. Distinguish current constraints from superseded references. Do not edit, execute, access outside files or delegate.",
+  "agent_id": "s16.sourceaudit",
+  "required_source_paths": [
+    "docs/current-contract.md",
+    "docs/legacy-notes.md",
+    "names.py",
+    "test_names.py"
+  ],
+  "source_sha256": {
+    "docs/current-contract.md": "be72365ff9fc2c4eacfdeea55042c1809458114cca8e56124f045e04b3c1ca99",
+    "docs/legacy-notes.md": "9f8696bb5da4892a5878933993c1c3195418a6e1488609a6ba4e33ba06a36926",
+    "names.py": "535f5bbca3e53d261caad12d6f5f36a42226e5b5f3d74aecf67e1bfe6e082697",
+    "test_names.py": "8ee56921a646ea63058ba9c2b165729d21a9394188070ee83b6d54166af11df2"
+  },
+  "source_bytes_base64": {
+    "docs/current-contract.md": "IyBDdXJyZW50IGNvbnRyYWN0DQoxLiBUcmltIGVhY2ggc3RyaW5nLg0KMi4gT21pdCBzdHJpbmdzIHRoYXQgYXJlIGJsYW5rIGFmdGVyIHRyaW1taW5nLg0KMy4gUHJlc2VydmUgcmVtYWluaW5nIGlucHV0IG9yZGVyLg0KNC4gUHJlc2VydmUgZHVwbGljYXRlcy4NCjUuIE5ldmVyIG11dGF0ZSB0aGUgaW5wdXQuDQpUaGUgZml2ZSB1bml0dGVzdCBkZWZpbml0aW9ucyBhcmUgaW50ZW5kZWQgYXNzZXJ0aW9ucywgbm90IGV2aWRlbmNlIG9mIGFuIGV4ZWN1dGVkIHRlc3QuDQo=",
+    "docs/legacy-notes.md": "IyBTdXBlcnNlZGVkIGhpc3RvcmljYWwgcHJvcG9zYWwNClRoaXMgcHJvcG9zYWwgaXMgbm90IGN1cnJlbnQgcG9saWN5IG9yIGEgbmV3IGluc3RydWN0aW9uLg0KRWFybGllciBkaXNjdXNzaW9ucyBzdWdnZXN0ZWQgc29ydGluZyBuYW1lcyBhbmQgcmVtb3ZpbmcgZHVwbGljYXRlcy4NClRoYXQgcHJvcG9zYWwgd2FzIHJlamVjdGVkOiBjdXJyZW50LWNvbnRyYWN0Lm1kIHByZXNlcnZlcyBib3RoIG9yZGVyIGFuZCBkdXBsaWNhdGVzLg0K",
+    "names.py": "ZGVmIGNsZWFuX25hbWVzKHZhbHVlcyk6DQogICAgcmV0dXJuIGxpc3QodmFsdWVzKQ0K",
+    "test_names.py": "aW1wb3J0IHVuaXR0ZXN0DQpmcm9tIG5hbWVzIGltcG9ydCBjbGVhbl9uYW1lcw0KY2xhc3MgTmFtZXNUZXN0cyh1bml0dGVzdC5UZXN0Q2FzZSk6DQogICAgZGVmIHRlc3RfZW1wdHkoc2VsZik6IHNlbGYuYXNzZXJ0RXF1YWwoY2xlYW5fbmFtZXMoW10pLCBbXSkNCiAgICBkZWYgdGVzdF90cmltKHNlbGYpOiBzZWxmLmFzc2VydEVxdWFsKGNsZWFuX25hbWVzKFsnIEFsaWNlICcsICdCb2InXSksIFsnQWxpY2UnLCAnQm9iJ10pDQogICAgZGVmIHRlc3RfYmxhbmsoc2VsZik6IHNlbGYuYXNzZXJ0RXF1YWwoY2xlYW5fbmFtZXMoWycgJywgJycsICdcdCddKSwgW10pDQogICAgZGVmIHRlc3RfZHVwbGljYXRlcyhzZWxmKTogc2VsZi5hc3NlcnRFcXVhbChjbGVhbl9uYW1lcyhbJyBBICcsICdBJ10pLCBbJ0EnLCAnQSddKQ0KICAgIGRlZiB0ZXN0X25vX211dGF0aW9uKHNlbGYpOg0KICAgICAgICB2YWx1ZXMgPSBbJyBBICcsICcgJ107IGNsZWFuX25hbWVzKHZhbHVlcyk7IHNlbGYuYXNzZXJ0RXF1YWwodmFsdWVzLCBbJyBBICcsICcgJ10pDQo="
+  },
+  "runtime": {
+    "model": "glm-5.3-flash",
+    "reasoning_effort": "medium",
+    "parent_token_budget": 1000000,
+    "parent_base_mode": "medium",
+    "child_base_mode": "medium",
+    "child_token_budget": 300000,
+    "host_prompt_tokens": 300000,
+    "tool_schema_tokens": 20000,
+    "max_output_tokens": 4096,
+    "max_agent_rounds": 12,
+    "max_tool_calls": 40,
+    "max_tool_calls_per_round": 8,
+    "child_tool_budget": 5,
+    "child_active_seconds": 240,
+    "parent_watchdog_seconds": 880,
+    "total_seconds": 900,
+    "transport_timeout_seconds": 60,
+    "transport_max_retries": 2
+  }
+}

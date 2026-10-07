@@ -1,0 +1,10 @@
+test_correction_atomic_rollback_and_long_notice_coverage (tests.test_source_completion_contract.SourceCompletionContractTests.test_correction_atomic_rollback_and_long_notice_coverage) ... Executing <Task pending name='Task-1' coro=<SourceCompletionContractTests.asyncSetUp() running at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_source_completion_contract.py:56> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at D:\soft\miniconda3\Lib\asyncio\tasks.py:975, Task.task_wakeup()] created at D:\soft\miniconda3\Lib\asyncio\base_events.py:459> cb=[_run_until_complete_cb() at D:\soft\miniconda3\Lib\asyncio\base_events.py:181] created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.418 seconds
+ok
+test_child_partial_client_closes_for_error_and_cancellation (tests.test_runtime_partial_build_cleanup.PartialBuildCleanupTests.test_child_partial_client_closes_for_error_and_cancellation) ... ok
+test_initial_partial_client_closes_for_error_and_cancellation (tests.test_runtime_partial_build_cleanup.PartialBuildCleanupTests.test_initial_partial_client_closes_for_error_and_cancellation) ... ok
+test_main_partial_client_closes_for_error_and_cancellation (tests.test_runtime_partial_build_cleanup.PartialBuildCleanupTests.test_main_partial_client_closes_for_error_and_cancellation) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 1.897s
+
+OK

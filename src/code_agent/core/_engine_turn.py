@@ -238,6 +238,42 @@ class AgentEngineTurnMixin(AgentEngineConvergenceMixin, AgentEngineDispatchMixin
     async def _finish_without_calls(
         self, state: _RunState, turn: _TurnState
     ) -> AsyncIterator[AgentEvent]:
+        if state.source_snapshot is not None and state.source_snapshot.required:
+            state.token.raise_if_cancelled()
+            snapshot = await self._source_completion.snapshot(state.thread_id, None)
+            state.token.raise_if_cancelled()
+            state.source_snapshot = snapshot
+            if snapshot.remaining:
+                if snapshot.budget_exhausted is not None:
+                    raise EngineLimitError(snapshot.budget_exhausted)
+                if state.budget.model_turns >= state.budget.limits.max_agent_rounds:
+                    raise EngineLimitError('model turn budget exceeded')
+                if state.budget.tool_calls >= state.budget.limits.max_tool_calls:
+                    raise EngineLimitError('tool call budget exceeded')
+                if state.budget.input_tokens + state.budget.output_tokens >= state.budget.limits.max_total_tokens:
+                    raise EngineLimitError('token budget exceeded')
+                if not snapshot.stalled:
+                    notices = await self._source_completion.correct(state.thread_id, snapshot)
+                    for message in notices:
+                        state.messages += (message,)
+                        event = self._journal.message_added(message)
+                        await self._journal.append_event(state.thread_id, event)
+                        yield event
+                    return
+                from .task_result import TaskResult
+                result = TaskResult('failed', remaining=snapshot.remaining,
+                    stop_code='source_requirements_unmet', stop_reason='Required full source reads are missing.')
+            elif not ''.join(turn.text_parts).strip():
+                from .task_result import TaskResult
+                result = TaskResult('failed', stop_code='empty_summary', stop_reason='Source task has no final answer.')
+            else:
+                result = None
+            if result is not None:
+                failed = AgentEvent(EventKind.TASK_RESULT, {'thread_id': state.thread_id, 'result': result.to_dict()})
+                await self._journal.append_event(state.thread_id, failed)
+                yield failed
+                state.stop_requested = True
+                return
         if state.task is not None:
             async for event in self._finish_task_without_calls(state, turn):
                 yield event
