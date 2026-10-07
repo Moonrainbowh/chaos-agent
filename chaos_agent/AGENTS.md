@@ -29,6 +29,7 @@ Windows/Linux/macOS共享TUI/CLI/JSON Host，发布chaos-agent保agent/本地状
 - 来源型 ChildResult 仅取最后非空无工具 assistant 答复，避免纠正前计划挤掉最终交付；缺省任务保持历史聚合，建议不成为验证 evidence。
 - 工具披露说明区分模型请求与用户消息：当前已有完整 schema 的工具直接可用；缺失能力成功披露后供下一模型请求使用。仅提示措辞，不变 availability=next_model_turn、digest 或权限检查。
 - Child role context：原 child factory 将 AgentDefinition.instructions 作为显式只属于该 child 的参数传入 ContextConfig；真实固定上下文预算前渲染，不放进 objective/user 历史；首轮、工具续轮和上下文重建沿用配置。角色文本不改变父冻结权限、工具筛选或验证事实。
+- Shared source review guidance：主子共用且平台无关的 system prompt 按来源可观察行为逐条判断契约；区分实现满足、测试辨别能力与实际执行结果。父先据原始证据独立得出结论，再比较 advisory，显式纠正分歧及内部矛盾；提示传递测试不证明模型分析质量，不新增语义完成门。
 - create_application/CLI/RuntimeSelection：共享入口/切换恢复；CLI按TaskResult退出/查询0，child须终态，未知/取消非完成、建议非evidence。
 - Child composition：分配Provider前须typed父ActionExecutionContext/task/TaskAuthorization，持久父冻结授权/root/owner，child同根/角色收窄/父共享token-tool预算不猜UIthread；生产首次task-owned supervisor从持久冻结TaskBudget派生token/tool上限，显式ParentBudget仅收紧；同Task release/resume保留累计ledger及unknown预留，不因profile切换扩额，runtime关闭清缓存；taskless维持原默认。父owner/checkpoint释放前取消等待真实runner/closer；S8已迁生产测试才删旧装配。
 - ContextAssembly/ContextScopedDispatcher：经原dispatcher/policy，异常取消恢复scope不盖Root。

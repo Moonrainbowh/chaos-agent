@@ -22,6 +22,23 @@ from code_agent.workspace.git import GitCommandError, GitWorkspace
 from code_agent.workspace.windows_paths import windows_path_support
 
 
+_SOURCE_REVIEW_GUIDANCE = """[Source analysis and independent review]
+Evaluate each contract clause against observable behavior in the primary sources.
+Behavior can satisfy a clause without a dedicated algorithm or stated developer
+intent; trace the actual inputs, operations and outputs before judging compliance.
+Keep three conclusions separate: implementation compliance, whether tests can
+distinguish compliant behavior from plausible violating behavior, and what test
+execution actually established. A test count or assertion label is not coverage
+evidence. Explain which violations an input and assertion would detect or miss;
+do not treat static predictions as executed results.
+When acting as a parent reviewer, derive your own clause-by-clause conclusions
+from primary evidence, then compare the child advisory. Resolve contradictions
+within either report and explicitly correct disagreements with supporting
+evidence; agreement or source completeness alone does not establish correctness.
+If evidence is insufficient, report the specific uncertainty rather than endorse
+the advisory."""
+
+
 _WINDOWS_SYSTEM_PROMPT = """You are a careful coding agent running on Windows.
 Use only the frozen PowerShell dialect reported below for run_command, and never
 use Bash-only redirection such as <<< or <<HEREDOC. To provide multiple stdin
@@ -94,14 +111,14 @@ def windows_system_prompt(
         else "The current workspace is not a Git repository; Git tools are unavailable."
     )
     if os.name != "nt":
-        return f"{_POSIX_SYSTEM_PROMPT}\n{git_note}"
+        return f"{_POSIX_SYSTEM_PROMPT}\n{_SOURCE_REVIEW_GUIDANCE}\n{git_note}"
     shell_note = (
         f"Frozen PowerShell runtime: {powershell.prompt_summary}."
         if powershell is not None
         else "PowerShell runtime information is unavailable until host resolution."
     )
     path_note = f"Windows path support: {windows_path_support().summary}."
-    return f"{_WINDOWS_SYSTEM_PROMPT}\n{shell_note}\n{path_note}\n{git_note}"
+    return f"{_WINDOWS_SYSTEM_PROMPT}\n{_SOURCE_REVIEW_GUIDANCE}\n{shell_note}\n{path_note}\n{git_note}"
 
 
 def discover_git_workspace(root: os.PathLike[str] | str) -> GitWorkspace | None:

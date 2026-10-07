@@ -23,6 +23,7 @@ from code_agent.plugins.registry import PluginRegistryBuilder
 from code_agent.providers.config import ApiProtocol, ConfiguredApiKey, ProviderConfig
 from code_agent.providers.openai_responses import OpenAIResponsesClient
 from tests.agent_app_test_support import _isolated_application
+from chaos_agent.tool_support import _SOURCE_REVIEW_GUIDANCE, windows_system_prompt
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "s16-v7.json"
@@ -154,6 +155,17 @@ class S16ProductionRegressionTests(unittest.IsolatedAsyncioTestCase):
                     self.assertNotIn(MARKERS[index], json.dumps(body["input"]))
         self.assertNotIn(MARKERS[0], json.dumps(parent.bodies))
         self.assertNotIn(MARKERS[1], json.dumps(parent.bodies))
+        # Request capture proves prompt delivery and continuity, not semantic quality.
+        for provider in (parent, *children):
+            for body in provider.bodies:
+                self.assertIn(_SOURCE_REVIEW_GUIDANCE, body["instructions"])
+                self.assertNotIn(_SOURCE_REVIEW_GUIDANCE, json.dumps(body["input"]))
+
+    def test_shared_source_review_guidance_is_platform_independent(self):
+        for platform in ("nt", "posix"):
+            with self.subTest(platform=platform), patch("chaos_agent.tool_support.os.name", platform):
+                prompt = windows_system_prompt(git_available=False)
+                self.assertEqual(prompt.count(_SOURCE_REVIEW_GUIDANCE), 1)
 
     async def test_original_v7_parent_prompt_is_frozen_as_analyze_at_public_start(self):
         task, _, _, _, _ = await self.run_parent(self.fixture["parent_prompt"], [[answer("Analysis.")]])
