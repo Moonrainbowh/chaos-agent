@@ -1,30 +1,20 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Generic, TypeVar
 
-from code_agent.capabilities import CapabilityStrategy
 from code_agent.core._json import JSONValue
-from code_agent.core.action_execution import ActionExecutionContext, ActionLineage
-from code_agent.core.engine import AgentEngine
-from code_agent.core.limits import EngineLimits
-from code_agent.orchestration.models import AgentDefinition, ModeSnapshot
-from code_agent.providers.config import ModelProfile
 from code_agent.sessions.rewind_models import CoverageToken, RewindBaseline
 from code_agent.sessions.rewind_repository import RewindSessionRepository
-from code_agent.verification.task_service import LedgerTaskVerificationService
 from code_agent.workspace.edits import WorkspaceEditor
 from code_agent.workspace.paths import WorkspacePathGuard
 from code_agent.workspace.snapshot_store import WorkspaceSnapshotStore
 
 from chaos_agent.rewind_capture import RewindCaptureCoordinator
 from chaos_agent.rewind_gate import WorkspaceMutationGate
-from chaos_agent.subagents import RestrictedDispatcher
-from chaos_agent.task_verification import TaskScopedVerificationService
-from chaos_agent.verification_mode import structured_verification_enabled
 
 
 _Result = TypeVar("_Result")
@@ -103,102 +93,6 @@ class RewindWriteSide:
     gate: WorkspaceMutationGate
 
 
-def build_engine(
-    model: object,
-    profile: ModelProfile,
-    context: object,
-    dispatcher: object,
-    sessions: object,
-    workspace_root: Path,
-    mode: ModeSnapshot,
-    *,
-    action_lineage: ActionLineage | None = None,
-    capability_strategy: CapabilityStrategy = CapabilityStrategy.HYBRID,
-) -> AgentEngine:
-    mode_limits = mode.definition.limits
-    limits = EngineLimits(
-        min(profile.max_agent_rounds, mode_limits.max_agent_rounds),
-        min(profile.max_tool_calls, mode_limits.max_tool_calls),
-        min(
-            profile.max_tool_calls_per_round,
-            mode_limits.max_tool_calls_per_round,
-        ),
-        min(
-            profile.context_window + profile.max_output_tokens,
-            mode_limits.max_total_tokens,
-        ),
-        mode_limits.max_assistant_chars,
-    )
-    semantic_snapshot = getattr(context, "semantic_snapshot_for_root", None)
-    initial_verification = LedgerTaskVerificationService(
-        workspace_root, sessions
-    )
-    verification_enabled = structured_verification_enabled()
-    return AgentEngine(
-        model,
-        context,
-        dispatcher,
-        sessions,
-        limits=limits,
-        model_name=profile.provider.model,
-        verification=TaskScopedVerificationService(
-            sessions,
-            semantic_snapshot if callable(semantic_snapshot) else None,
-            (workspace_root, initial_verification),
-            enable_structured_verification=verification_enabled,
-        ),
-        require_verification=verification_enabled,
-        action_lineage=action_lineage,
-        capability_strategy=capability_strategy,
-    )
-
-
-def build_child_engine_factory(
-    host: object,
-    model_factory: Callable[..., object],
-    context_factory: Callable[[ModeSnapshot, object], object],
-) -> Callable[
-    [AgentDefinition, ActionExecutionContext | None], tuple[object, object]
-]:
-    def child_engine(
-        agent: AgentDefinition, parent: ActionExecutionContext | None = None
-    ) -> tuple[object, object]:
-        capability_strategy = getattr(
-            getattr(host, "runtime_config", None),
-            "capability_strategy",
-            CapabilityStrategy.HYBRID,
-        )
-        profile = host.profiles[agent.mode.profile_id]
-        client = model_factory(
-            profile.provider,
-            reasoning_effort=agent.mode.effective_reasoning_effort,
-        )
-        restricted = RestrictedDispatcher(
-            host.dispatcher, agent.effective_tools, compact_tools=True
-        )
-        sessions = (
-            host.sessions
-            if parent is None
-            else host.sessions.for_owner(parent.owner_thread_id)
-        )
-        lineage = (
-            None
-            if parent is None
-            else ActionLineage(
-                parent.owner_thread_id, parent.task_id, parent.request_id
-            )
-        )
-        engine = build_engine(
-            client, profile, context_factory(agent.mode, sessions),
-            restricted, sessions, host.root, agent.mode,
-            action_lineage=lineage,
-            capability_strategy=capability_strategy,
-        )
-        return engine, client
-
-    return child_engine
-
-
 def build_rewind_write_side(
     guard: WorkspacePathGuard,
     editor: WorkspaceEditor,
@@ -266,7 +160,5 @@ def _owner(value: object, *, optional: bool = False) -> str | None:
 __all__ = [
     "CoordinatedSessionRepository",
     "RewindWriteSide",
-    "build_child_engine_factory",
-    "build_engine",
     "build_rewind_write_side",
 ]

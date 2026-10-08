@@ -103,7 +103,7 @@ class TuiCommandTests(unittest.TestCase):
                 "theme", "layout",
                 "clear", "compact", "cost", "status", "doctor", "exit",
                 "diff", "map", "review", "test", "rewind", "attach", "login", "model", "mode",
-                "effort", "permission", "mcp", "plugin", "tasks", "tree", "tools", "help",
+                "effort", "permission", "mcp", "plugin", "tasks", "memory", "tree", "tools", "help",
                 "sessions", "new", "resume", "accept",
                 "evidence", "recovery", "checkpoint", "flow", "skill",
             ),

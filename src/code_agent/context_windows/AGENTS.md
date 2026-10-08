@@ -2,6 +2,9 @@
 在同一个持久任务内按 API 能力和可配置策略切换上下文，保留可追溯历史并独立核算任务消耗。
 
 ## 边界
+- S10：原文 suffix 有界物化、旧窗口 metadata 流式校验只保留必要引用；首次源 hash/ID+name 闭合验证，journal fingerprint+epoch 允许热复用。UUIDv5、Unicode 原文偏移和冻结策略不变。
+- 显式 compact 遇原文或最终请求超限可按闭合组迁移：persistent 空 carry，summary/boundary 复用原 HandoffWriter 与最终 prepared preflight；每批 revision/CAS 成功才推进，可取消后续进。builder/remaining 复用 Guard 有效 cap；实际 source 长度推进，尾组不丢。默认不自动迁移，未知/无名结果、损坏来源或必要组超限不覆盖。
+- S10：主/辅助共享最终 prepared 核算，Host/API/辅助额度取最小值；复用 S7 唯一预留结算。文本附件按已校验块计数，缺图像政策在 HTTP 前拒绝。
 - 新增 `persistent`：本地 History/Notes 对齐 Codex 主动换窗语义；不生成或携带模型交接摘要，提示剩余额度、稳定窗口/条目引用，接近容量提醒保存笔记，硬上限兜底换窗。
 - `persistent` 在同一任务内读取原始持久消息（含工具参数/结果）、按路径维护笔记；保留最新真实用户请求。笔记不自动全部注入，新窗口提示按需恢复；不开放跨任务读取，不调用 Codex 私有后端。
 - 旧 `summary`/`boundary` 及其冻结评测保持语义；本次不修改私人配置或推广为全局默认。有效容量不足以承载单条必要用户消息时明确失败。
@@ -15,6 +18,8 @@
 - 不负责：把估算 token 当作 provider 实测，或把机制回放当作真实模型效果。
 
 ## Units
+- `RequestBudgetConstraints`：冻结 Host 总提示及辅助输入额外上限 | 无副作用 | 仅收缩 API/work cap，版本校验；Host 总额含 safety，辅助输入 cap 已扣预留
+- `BudgetedWindowClient`：每个真实 Provider 请求先在共享 owner 预算预留输入、最大输出与安全余量；结算为实际用量唯一事务投影点，`accounts_task_usage` 明确禁止 Core/摘要/交接重复计费。未完结部分用量是下界并保留未知负债；该调用守卫也用于 Host 默认 semantic 路径，不改变其窗口策略。
 - `PersistentContextBuilder`: 剩余额度提示、主动/硬容量换窗及恢复引用 | Sessions I/O | 不调用 HandoffWriter、不注入整份笔记，完整工具组落盘后才切换
 - `PersistentContextBuilder` optional memory projection: when host supplies an explicit project identity, injects at most four active lexical memory references into the counted system prompt; user scope requires explicit opt-in | Sessions I/O | memory text is reference-only and never overrides current user instructions or permissions
 - `PersistentToolService`、`history_action`、`notes_action`: 稳定窗口/条目定位、含工具参数的原文检索、按路径笔记及有界分页 | Sessions I/O | 当前任务隔离；工具名用下划线适配现有 API，原文保持不变
@@ -22,8 +27,8 @@
 - `PromptTokenCounter`: 对最终系统提示、消息、工具协议统一估算 | 可选 tokenizer | provider usage 为实测；未校准模态拒绝
 - `BudgetedWindowClient`: 每次主/辅助调用前原子预留、调用后核算 | Provider 和 Sessions I/O | 中断无用量保留预留，不重复扣缓存 token
 - `closed_group_ends`、`select_window`、`carried_messages`: 保持工具组、原始用户请求和来源锚点 | 无副作用 | 过期锚点拒绝恢复
-- `HandoffWriter`: 等源范围、等输出额度的自由摘要/显式字段交接 | 有界模型调用 | 失败保留原历史
-- `WindowContextBuilder`: 完整前缀构造一次后选择持久原文、检查阈值、原子提交新窗口 | Sessions I/O | 不调用旧的二次历史裁剪
+- `HandoffWriter`: 自由摘要/显式字段交接；迁移选完整源组并复用共享 prepared 预检 | 有界模型调用 | 预检不收费/发送；真实发送再次检查，失败保留原历史
+- `WindowContextBuilder` / `WindowHistory`: 构造前缀一次，必要原文有界读取、流式源验证，原子提交窗口 | Sessions I/O | 显式request_client用于实际请求有效容量与最终prepared预检，包含persistent且无需HandoffWriter；未传时兼容handoff.client。提示/容量换窗阈值使用同一守卫，不扩Host/API额度、不重置累计预算。不做二次历史裁剪；manual 长历史迁移保持原策略和用户原文
 - `WindowToolService`、`context_tools`: 当前任务的历史检索、工作笔记与延后换窗请求 | Sessions I/O | 不接受模型指定跨任务 ID
 
 - `QueuedContextBoundary`: 手动请求的排队回执 | 无副作用 | 不冒充已经完成的压缩检查点

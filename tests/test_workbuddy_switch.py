@@ -39,9 +39,21 @@ class WorkBuddyModelSelectionTests(unittest.IsolatedAsyncioTestCase):
         app = make_app(runtime_selection=Runtime())
         app.authentication = self.control
         app.input.replace("/model work")
-        with patch("code_agent.authentication.workbuddy_catalog.discover", new=AsyncMock(return_value=(self.model,))):
+        started, release = asyncio.Event(), asyncio.Event()
+
+        async def discover(*args, **kwargs):
+            started.set()
+            await release.wait()
+            return (self.model,)
+
+        with patch("code_agent.authentication.workbuddy_catalog.discover", new=discover):
             await app.handle_key("\r")
             loading = app._auth_task
+            self.assertIsNotNone(loading)
+            try:
+                await asyncio.wait_for(started.wait(), 3)
+            finally:
+                release.set()
             await asyncio.wait_for(loading, 3)
         self.assertEqual(app.input.text, "/model workbuddy:oauth ")
         self.assertIn("cloud-test", "\n".join(app.interactions.rows(app)))

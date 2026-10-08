@@ -55,6 +55,7 @@ def compose_ui(
     costs: object | None = None,
     doctor: object | None = None,
     semantic_graph: object | None = None,
+    project_memory: object | None = None,
 ) -> tuple[object, ModeAwareWindowsTerminalApp, WorkflowService]:
     parts = UiComposition(
         controller, approvals, sessions, root, profile_supplier,
@@ -65,7 +66,7 @@ def compose_ui(
         plugin_discover, on_plugin_change, tui_ref, plugin_command_registry,
         refresh_plugin_surfaces, _current_diff_task, _subscribe_child_workflows,
         _invalidate_workflow_verification, attachment_draft,
-        task_modes, costs, doctor, semantic_graph,
+        task_modes, costs, doctor, semantic_graph, project_memory,
     )
     return compose_ui_runtime(parts)
 

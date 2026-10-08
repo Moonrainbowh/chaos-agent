@@ -35,13 +35,19 @@ def secure_atomic_write(
     timeout_s: float = DEFAULT_WINDOWS_FILE_LOCK_TIMEOUT_S,
     validate: Callable[[], None] | None = None,
     context: str = "restore",
-) -> None:
+) -> safety.PathIdentity:
+    """Publish bytes and return full identity from the owned temporary FD/handle.
+
+    A post-publication failure carries ``publication_committed`` and, when it
+    can be proven from that same object, ``output_identity``. The flag alone
+    never authorizes rollback of whatever now occupies the destination path.
+    """
     safety.verify_target_state(state, guard, created, context=context)
     try:
         if os.name == "posix":
-            _atomic_write_posix(state, content, guard, created, validate, context)
+            return _atomic_write_posix(state, content, guard, created, validate, context)
         else:
-            _atomic_write_windows(
+            return _atomic_write_windows(
                 state, content, guard, created, timeout_s, validate, context
             )
     except (PathOutsideWorkspace, WorkspaceError):
@@ -54,6 +60,7 @@ def secure_atomic_write(
         )
         if getattr(error, "publication_committed", False):
             setattr(wrapped, "publication_committed", True)
+            setattr(wrapped, "output_identity", getattr(error, "output_identity", None))
         raise wrapped from error
 def _atomic_write_posix(
     state: safety.TargetState,
@@ -62,7 +69,7 @@ def _atomic_write_posix(
     created: Mapping[str, tuple[Path, safety.PathIdentity]],
     validate: Callable[[], None] | None,
     context: str,
-) -> None:
+) -> safety.PathIdentity:
     parent_fd = open_verified_directory(
         state.target.parent, state.parent, guard, created, context="restore"
     )
@@ -84,7 +91,7 @@ def _atomic_write_posix(
         cleanup_identity = temporary_identity
         _verify_visible_temp(state.target.parent / temporary_name, temporary_identity)
         owned_descriptor, descriptor = descriptor, None
-        _write_descriptor(owned_descriptor, content, restore_mode(state))
+        temporary_identity = _write_descriptor(owned_descriptor, content, restore_mode(state))
         _verify_posix_target(parent_fd, state, guard, created, context)
         if validate is not None:
             validate()
@@ -92,7 +99,11 @@ def _atomic_write_posix(
         _posix_io.replace(parent_fd, temporary_name, state.target.name)
         moved = True
         _verify_posix_result(parent_fd, state.target.name, temporary_identity, content)
+        return temporary_identity
     except BaseException as error:
+        if moved:
+            setattr(error, "publication_committed", True)
+            setattr(error, "output_identity", temporary_identity)
         primary = error
         raise
     finally:
@@ -117,7 +128,7 @@ def _atomic_write_windows(
     timeout_s: float,
     validate: Callable[[], None] | None,
     context: str,
-) -> None:
+) -> safety.PathIdentity:
     temporary_path: Path | None = None
     temporary_identity: safety.PathIdentity | None = None
     temporary_created = False
@@ -138,6 +149,7 @@ def _atomic_write_windows(
             cleanup_identity = temporary_identity
             _verify_visible_temp(temporary_path, temporary_identity)
             _write_stream(stream, content)
+            temporary_identity = identity_from_fd(stream.fileno(), temporary_path)
         def verify_attempt() -> None:
             if validate is not None:
                 validate()
@@ -153,9 +165,9 @@ def _atomic_write_windows(
             _verify_visible_temp(temporary_path, temporary_identity)
 
         def replace_attempt() -> None:
-            nonlocal moved
+            nonlocal moved, temporary_identity
             try:
-                publish_windows_temp(
+                output = publish_windows_temp(
                     temporary_path,
                     temporary_identity,
                     state,
@@ -164,9 +176,13 @@ def _atomic_write_windows(
                     validate,
                     context=context,
                 )
+                if type(output) is not safety.PathIdentity:
+                    raise WorkspaceError("publication did not return output identity")
+                temporary_identity = output
             except BaseException as error:
                 if getattr(error, "publication_committed", False):
                     moved = True
+                    temporary_identity = getattr(error, "output_identity", None)
                 raise
             moved = True
 
@@ -179,9 +195,11 @@ def _atomic_write_windows(
             validate=verify_attempt,
         )
         _verify_path_result(state.target, temporary_identity, content, guard)
+        return temporary_identity
     except BaseException as error:
         if moved or getattr(error, "publication_committed", False):
             setattr(error, "publication_committed", True)
+            setattr(error, "output_identity", temporary_identity)
         primary = error
         raise
     finally:
@@ -217,10 +235,11 @@ def _create_posix_temp(parent_fd: int) -> tuple[str, int]:
             continue
     raise WorkspaceError("cannot allocate a unique restore temporary file")
 
-def _write_descriptor(fd: int, content: bytes, mode: int) -> None:
+def _write_descriptor(fd: int, content: bytes, mode: int) -> safety.PathIdentity:
     with os.fdopen(fd, "wb") as stream:
         _write_stream(stream, content)
         os.fchmod(stream.fileno(), mode)
+        return identity_from_fd(stream.fileno(), Path("owned temporary"))
 
 def _write_stream(stream: BinaryIO, content: bytes) -> None:
     stream.write(content)

@@ -8,7 +8,7 @@ from code_agent.core.completion_contract import AcceptanceCriterion, CriterionRe
 from code_agent.verification.evidence import EvidenceRecord, evidence_satisfies_current_verifier
 from code_agent.core.task import TaskStatus
 
-from ._codec import encode_datetime, utc_now
+from ._codec import decode_task_state, encode_datetime, utc_now
 from ._records import _text
 from .errors import SessionCorruptionError, SessionNotFound
 
@@ -198,7 +198,7 @@ def _require_completion_state(
     subject_hash: str,
 ) -> None:
     task = connection.execute(
-        "SELECT status FROM tasks WHERE id = ?", (task_id,)
+        "SELECT status, thread_id FROM tasks WHERE id = ?", (task_id,)
     ).fetchone()
     run = connection.execute(
         "SELECT task_id, generation, subject_hash, status FROM verification_runs "
@@ -218,6 +218,12 @@ def _require_completion_state(
         raise ValueError("verification run is not completed")
     if run["generation"] != generation or run["subject_hash"] != subject_hash:
         raise ValueError("verification run does not match current subject")
+    current = connection.execute("SELECT payload FROM task_states WHERE thread_id=?", (task["thread_id"],)).fetchone()
+    if current is None:
+        raise ValueError("current task subject is unavailable")
+    state = decode_task_state(current["payload"])
+    if state.code_generation != generation or state.subject_hash != subject_hash:
+        raise ValueError("completion generation or subject is stale")
     if _decode_contract(latest["payload"]) != contract:
         raise ValueError("task contract revision is stale")
 

@@ -1,0 +1,3 @@
+# S11 需求与边界
+S10新85路径5a4fc346独立PASS与标准30套3285run/30skip/0error后串行进入。复用Sessions MemoryRecord/CRUD/生命周期/forget表，Host提供稳定原项目身份；跨project/user默认不共享。不动用户默认库、原auth、不提交推送或升级live。默认semantic真实注入明确保存active且当前条件适用的项目记忆，保持History原文、Notes待验证与Memory明确保存分层；不把记忆正文变成规则、权限或当前验证证据。用户入口必须可保存/查看来源及适用性/修订/撤回或删除，自动提取只candidate。搜索先scope/active/条件，再可控词法检索排序分页，较旧相关与中文可召回，不引入向量库或自动记忆Agent。原数据及忘记屏障保留。
+先读相关AGENTS与接口，需求→Unit实现→Root集成；同阶段可分工独立scope。所有新DB显式TemporaryDirectory，Repo前断言绝对路径归属；端到端用真实Application默认入口而非手工给builder注入project ID。通过标准完整入口与独立新监督后才S12。

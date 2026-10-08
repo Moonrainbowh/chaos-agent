@@ -1,0 +1,20 @@
+# Persistent request capacity and delegate schema: scoped diagnosis
+
+Two actual entry discrepancies were found; prior v4 remains a failed real attempt. This change is MAIN only; it does not modify the candidate or its running/finished attempt, personal config, credentials, or any previous result.
+
+Persistent production composition passed no handoff. `WindowContextBuilder` obtained both effective capacity and final prepared preflight only through `handoff.client`, so persistent fell back to API/work limits. The actual guarded client still enforced Host prompt capacity on send. Thus the window's remaining-capacity guidance and automatic capacity fallback could occur after send admission already refused the request. A frozen Host 8,000 / safety 100 / API 1m production HTTP-forbidden counterexample returned window cap 997,900 against actual request cap 7,900. Both root cases failed before the fix; see `persistent-request-capacity-red.log`.
+
+Feature implementation adds optional keyword-only `request_client` to `WindowContextBuilder`. Explicit client is used for effective capacity and prepared preflight; omitted client retains legacy `handoff.client` behavior. Persistent inherits the interface and needs no HandoffWriter or summary. Feature persistent Units passed before Host integration; Host then passed the exact original guarded client into managed builders. No guard, token estimator, accounting, safety reserve, history source, or cumulative limit changed.
+
+The original public `delegate_agent.token_budget` schema admitted at most 100,000. A user-authorized 300,000 request could not reach the child supervisor through Root dispatch, even though an earlier direct-runtime offline preflight admitted that amount. This was an incomplete preflight, not proof of public-tool reachability. The schema maximum is now bounded at 300,000; minimum 256, integer typing, default 20,000 and remaining policy/frozen-parent guards are unchanged. `delegate-request-budget-red.log` records the original `invalid argument type: token_budget` failure. Root reported v4's 5 settled HTTP requests and zero children; this fix does not relabel that failure as a pass.
+
+Validation:
+
+- Feature suite: 35 tests, exit 0, 328.927s (`persistent-request-capacity-feature.log`).
+- Relevant Feature and Host suites: Python 3.13.2 34 tests, exit 0, 9.114s; Python 3.10.20 34 tests, exit 0, 19.852s (`persistent-request-capacity-python313.log`, `persistent-request-capacity-python310.log`).
+- New capacity root tests use actual RuntimeContextFactory, real OpenAI Responses preparation and an HTTP-forbidden transport. Effective cap and prompt budget equal 7,900; long completed history triggers one capacity fallback, empty carry, unchanged durable source and no usage reservation. Builder preflight has the actual prepared-json estimate kind.
+- New delegation tests use actual production `compose_host` policy risk map, RestrictedDispatcher, TaskScopedDispatcher, RootActionDispatcher, production-composed SubagentRuntime and original ChildRunner. A local event-source engine verifies runner reachability only. Contract is loaded through the dispatcher. 300,000 reaches the child runner; 300,001 / bool / float / 255 and a frozen parent 200,000 fail before runner. No Provider is constructed for these delegation tests.
+
+Persistent automatic reset is a history boundary without an automatic summary, not a replenishment of cumulative task quota. At effective prompt capacity it retains the latest real user request and recovery references; older original messages remain durable. Necessary current content that cannot fit still fails closed. Parent cumulative 1m, child cumulative 300k, single-prompt 300k and API/work 1m remain separate constraints.
+
+An independently reviewed candidate snapshot, fresh CI/build and a new v5 public full-dispatch HTTP0 preflight remain required before Root records the existing human instruction and latest 1m/300k correction for a concrete owned execution. Local event/MockTransport tests are not real-model acceptance, and code-task waiting-decision behavior must remain a separate actual outcome.

@@ -108,12 +108,14 @@ class ForegroundCheckpointLifecycle:
             raise RuntimeError(
                 "only verifying or waiting tasks can be accepted partially"
             )
+        prior_result = await self._owner.result(task_id)
         task = await self._quiesce_to(
             task_id, reason, TaskStatus.ACCEPTED_PARTIAL, allowed
         )
         if task.status is not TaskStatus.ACCEPTED_PARTIAL:
             raise RuntimeError("task settled before partial acceptance")
         await self._capture_boundary(task, "task-accepted-partial", reason)
+        await self._owner._record_partial_result(task, prior_result)
         return task
 
     async def capture(

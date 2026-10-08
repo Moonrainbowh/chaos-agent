@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from pathlib import Path
 
 from code_agent.capabilities.catalog import CONTRACT_TOOL_NAME, contract_result
 from code_agent.core.action_execution import ActionExecutionContext
 from code_agent.core.cancellation import CancellationToken
 from code_agent.core.models import ActionRequest, ActionResult, ToolDefinition
+from code_agent.core.task import TaskAuthorization
+from code_agent.policy.classifier import classify_action
+from code_agent.policy.models import Capability
 from code_agent.capabilities.compact_tools import OPERATIONS, compact_definitions, expand_request
 
 
@@ -20,12 +24,16 @@ class RestrictedDispatcher:
         allow_delegation: bool = False,
         allow_coordination: bool = False,
         compact_tools: bool = False,
+        frozen_authorization: TaskAuthorization | None = None,
     ) -> None:
         if not isinstance(allow_delegation, bool):
             raise TypeError("allow_delegation must be a boolean")
         if not isinstance(allow_coordination, bool):
             raise TypeError("allow_coordination must be a boolean")
         self._inner = inner
+        if frozen_authorization is not None and not isinstance(frozen_authorization, TaskAuthorization):
+            raise TypeError("frozen_authorization must be TaskAuthorization")
+        self._authorization = frozen_authorization
         self._compact = compact_tools
         self._allow_delegation = allow_delegation
         self._allow_coordination = allow_coordination
@@ -33,6 +41,11 @@ class RestrictedDispatcher:
 
     def replace_allowed(self, allowed_tools: Sequence[str]) -> None:
         self._allowed = self._effective(allowed_tools)
+
+    @property
+    def verification_allow_sensitive_paths(self) -> bool:
+        """Forward a read-only Host capability without exposing its editor."""
+        return getattr(self._inner, "verification_allow_sensitive_paths", False)
 
     def update_allowed(
         self, *, add: Sequence[str] = (), remove: Sequence[str] = ()
@@ -77,6 +90,12 @@ class RestrictedDispatcher:
     def resolve_action(self, request):
         return expand_request(request, self._legacy_tools()) if self._compact else request
 
+    def resolve_supervision_action(self, request):
+        """Resolve observation identity without bypassing wrapper authorization."""
+        resolved = self.resolve_action(request)
+        resolver = getattr(self._inner, "resolve_supervision_action", None)
+        return resolver(resolved) if callable(resolver) else resolved
+
     def compatible_action_names(self, definitions):
         """Accept old names only for operations in the currently disclosed schema."""
         allowed = set()
@@ -107,6 +126,11 @@ class RestrictedDispatcher:
                 {"error": "child tool is outside its mode and role"},
                 is_error=True,
             )
+        if self._authorization is not None:
+            denied = self._authorization_denial(request, task_authorization)
+            if denied is not None:
+                return ActionResult(original.id, original.name, {"error": denied}, True)
+            task_authorization = self._authorization
         if request.name == CONTRACT_TOOL_NAME:
             if self._compact:
                 name = request.arguments.get("name")
@@ -124,3 +148,23 @@ class RestrictedDispatcher:
             return ActionResult(original.id,original.name,result.output,result.is_error,
                                 {**result.metadata,"compact_target":request.name})
         return result
+
+    def _authorization_denial(self, request, supplied):
+        authorization = self._authorization
+        if supplied is not None and supplied != authorization:
+            return "child authorization differs from its frozen parent authority"
+        resolver = getattr(self._inner, "resolve_supervision_action", None)
+        translated = resolver(request) if callable(resolver) else request
+        policy = getattr(self._inner, "policy", None)
+        risks = getattr(getattr(policy, "config", None), "mcp_risks", {})
+        limits = (
+            (Capability.WRITE, authorization.allow_workspace_write),
+            (Capability.EXECUTE, authorization.allow_local_execute),
+            (Capability.NETWORK, authorization.allow_network),
+            (Capability.OUTSIDE_WORKSPACE, authorization.allow_outside_workspace),
+        )
+        for item in (request, translated):
+            capabilities = classify_action(item, Path(authorization.workspace_root), risks).capabilities
+            if any(capability in capabilities and not allowed for capability, allowed in limits):
+                return "child action exceeds frozen parent authorization"
+        return None

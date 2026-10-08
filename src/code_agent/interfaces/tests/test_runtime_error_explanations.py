@@ -72,3 +72,17 @@ class RuntimeErrorExplanationTests(unittest.TestCase):
         self.assertIn("Project instructions exceed the context rule limit", explanation)
         self.assertNotIn("C:\\private", explanation)
         self.assertNotIn("secret", explanation)
+
+    def test_local_structured_rule_diagnostic_shows_files_usage_and_remedy(self) -> None:
+        from code_agent.context.errors import BudgetDiagnostic
+        cause = RuleLimitError('do not echo arbitrary body', diagnostic=BudgetDiagnostic(
+            ('AGENTS.md', 'src/code_agent/core/AGENTS.md'),
+            (('rendered_tokens', 3_400), ('max_rule_tokens', 3_000))))
+        error = ContextBuildError('context build failed')
+        error.__cause__ = cause
+        explanation = explain_runtime_error(error, status='error')
+        for text in ('rendered_tokens=3,400', 'max_rule_tokens=3,000',
+                     'src/code_agent/core/AGENTS.md', 'No mandatory rules were truncated',
+                     'explicitly adjust', 'minimum message reserves'):
+            self.assertIn(text, explanation)
+        self.assertNotIn('arbitrary body', explanation)

@@ -9,7 +9,9 @@ import asyncio
 from code_agent.context.repo_index import RepoIndexService
 from code_agent.core.debug_trace import trace_event
 from code_agent.interfaces.controller import AgentController
+from code_agent.interfaces.approval import ApprovalBroker
 from code_agent.interfaces.task_controller import ForegroundTaskController
+from code_agent.interfaces.task_service import TaskService
 from code_agent.interfaces.terminal_display import DisplayKind
 from code_agent.mcp.registry import McpController
 from code_agent.orchestration.models import ModeSnapshot
@@ -46,6 +48,7 @@ class Application:
     authentication: object | None = None
     model_preferences: object | None = None
     restore_model_selection: bool = False
+    project_memory: object | None = None
     _closed: bool = field(default=False, init=False, repr=False)
     _model_selection_restored: bool = field(default=False, init=False, repr=False)
     _repo_index_warmup_task: asyncio.Task[None] | None = field(
@@ -64,6 +67,16 @@ class Application:
             message, warning = await self._restore_model_selection()
             if message:
                 self.tui._append(DisplayKind.WARNING if warning else DisplayKind.METADATA, message)
+
+    @property
+    def tasks(self) -> TaskService:
+        """Shared public task service; all frontends use the same controller."""
+        return self.foreground_tasks
+
+    @property
+    def approvals(self) -> ApprovalBroker:
+        """Expose the dispatcher's central broker to every frontend."""
+        return self.dispatcher.approvals
 
     async def _warmup_repo_index(self) -> None:
         trace_event("repo_index.warmup", "started")

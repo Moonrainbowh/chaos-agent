@@ -4,5 +4,5 @@ import os
 
 
 def structured_verification_enabled() -> bool:
-    """Keep the structured verifier opt-in while it is unavailable in normal use."""
-    return os.getenv("CHAOS_STRUCTURED_VERIFICATION", "0") == "1"
+    """Use risk-adapted Host verification unless explicitly disabled for compatibility."""
+    return os.getenv("CHAOS_STRUCTURED_VERIFICATION", "1") == "1"

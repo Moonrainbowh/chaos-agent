@@ -83,6 +83,8 @@ class PluginEventRuntime:
             else:
                 return _outcome(proposal, False, "invalid_proposal")
             cancellation.raise_if_cancelled()
+            if getattr(result, 'is_error', False) is True:
+                return _outcome(proposal, False, 'host_action_failed', result)
             return _outcome(proposal, True, "ok", result)
         except CancellationError:
             raise

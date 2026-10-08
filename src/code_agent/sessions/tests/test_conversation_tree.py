@@ -64,6 +64,12 @@ class ConversationTreeTests(unittest.IsolatedAsyncioTestCase):
         await self.sessions.append_message(self.root,Message("user","existing"))
         with closing(sqlite3.connect(self.path)) as connection:
             connection.execute("PRAGMA foreign_keys=OFF")
+            connection.execute("DROP TABLE approval_requests")
+            from code_agent.sessions._history_schema import HISTORY_COLUMNS, TRIGGERS
+            for trigger in TRIGGERS:
+                connection.execute("DROP TRIGGER "+trigger)
+            for table in reversed(tuple(HISTORY_COLUMNS)):
+                connection.execute("DROP TABLE "+table)
             for table in ("conversation_heads","conversation_message_refs","conversation_nodes"):
                 connection.execute("DROP TABLE "+table)
             connection.execute("PRAGMA user_version=23")

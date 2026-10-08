@@ -13,6 +13,27 @@ from code_agent.runtime.output_codec import (
 
 
 class OutputCodecTests(unittest.TestCase):
+    def test_default_utf8_never_guesses_windows_ansi(self) -> None:
+        for page, text in ((936, "中文\n"), (1252, "café\n")):
+            raw = text.encode(f"cp{page}")
+            with self.subTest(page=page), patch(
+                "code_agent.runtime.output_codec._windows_code_page", return_value=page
+            ):
+                strict = decode_output(raw)
+                explicit = decode_output(raw, OutputEncoding.WINDOWS_ANSI)
+            self.assertIsNone(strict.text)
+            self.assertIs(strict.status, OutputDecodeStatus.UNKNOWN_OR_MIXED)
+            self.assertEqual(strict.base64_data, base64.b64encode(raw).decode("ascii"))
+            self.assertEqual(explicit.text, text)
+            self.assertEqual(explicit.code_page, page)
+
+    def test_truncated_cp936_keeps_bytes_when_explicitly_selected(self) -> None:
+        raw = "中".encode("cp936")[:1]
+        with patch("code_agent.runtime.output_codec._windows_code_page", return_value=936):
+            decoded = decode_output(raw, OutputEncoding.WINDOWS_ANSI, truncated=True)
+        self.assertIs(decoded.status, OutputDecodeStatus.INCOMPLETE_TAIL)
+        self.assertEqual(decoded.base64_data, base64.b64encode(raw).decode("ascii"))
+
     def test_default_is_strict_utf8_without_duplicate_base64(self) -> None:
         decoded = decode_output("中文✓".encode("utf-8"))
 

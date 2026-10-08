@@ -25,6 +25,7 @@ from code_agent.workspace.edits import WorkspaceEditor
 
 from chaos_agent.application_context import RuntimeContextFactory
 from chaos_agent.application_model import Application
+from chaos_agent.project_memory import ProjectMemoryControl
 from chaos_agent.context_runtime import build_context_runtime
 from chaos_agent.action_dispatcher import RootActionDispatcher
 from chaos_agent.host_composition import compose_host
@@ -153,7 +154,7 @@ class _ApplicationComposer:
             ignore_rules=self.services.files.ignore,
         )
         self.model_factory = profile_model_factory(_model_client, self.profiles, self.attachment_store)
-        self.approvals = ApprovalBroker()
+        self.approvals = ApprovalBroker(repository=self.sessions)
         self.process_rules = ProcessRuleStore(
             self.product_state_root / "permission-rules.sqlite3"
         )
@@ -194,6 +195,7 @@ class _ApplicationComposer:
         )
 
     def _configure_context(self) -> None:
+        self.project_memory = ProjectMemoryControl(self.sessions, self.root)
         self.context_for = RuntimeContextFactory(
             self.root,
             git_available=self.git is not None,
@@ -208,6 +210,7 @@ class _ApplicationComposer:
             workspace_runtime=self.workspace_runtime,
             powershell=self.powershell,
             context_runtime_factory=build_context_runtime,
+            project_memory=self.project_memory,
         )
 
     def _configure_host(self) -> None:
@@ -266,6 +269,7 @@ class _ApplicationComposer:
             authentication=self.authentication,
             model_preferences=self.model_preferences,
             restore_model_selection=self.restore_model_selection,
+            project_memory=self.project_memory,
         )
         self.application_ref.append(application)
         return application

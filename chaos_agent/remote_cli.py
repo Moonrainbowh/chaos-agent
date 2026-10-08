@@ -4,22 +4,26 @@ from collections.abc import Sequence
 
 from .remote.pairing import PairingStore
 from .remote.server import create_host_app
+from .remote.transport import parse_host_options
 
 
 async def serve_host(application: object, arguments: Sequence[str]) -> int:
-    bind, port = _parse(arguments)
-    bind = bind or "127.0.0.1"
+    transport = parse_host_options(arguments)
+    bind, port = transport.bind, transport.port
     app, pairing = create_host_app(application)
     token = pairing.issue_token()
-    print(f"Chaos Agent Host listening on http://{bind}:{port}")
+    print(f"Chaos Agent Host listening on {transport.scheme}://{bind}:{port}")
     print(f"Pairing token: {token}")
     if bind == "127.0.0.1":
-        print("Localhost-only mode; use --lan for same-Wi-Fi phone access.")
+        print("Localhost-only backend; use a protected HTTPS/WSS reverse-proxy entry for phones.")
+    if transport.insecure_lan_debug:
+        print("Explicit private-interface HTTP/WS debug mode; credentials are not encrypted on this link.")
     try:
         import uvicorn
     except ImportError as error:
         raise RuntimeError("host requires uvicorn; install the chaos-agent host dependencies") from error
-    config = uvicorn.Config(app, host=bind, port=port, log_level="info")
+    config = uvicorn.Config(app, host=bind, port=port, log_level="info",
+                            ssl_certfile=transport.certificate, ssl_keyfile=transport.private_key)
     server = uvicorn.Server(config)
     await server.serve()
     return 0
@@ -33,32 +37,7 @@ def revoke_device() -> int:
 
 
 def _parse(arguments: Sequence[str]) -> tuple[str | None, int]:
-    bind = None
-    port = 8787
-    seen: set[str] = set()
-    index = 0
-    while index < len(arguments):
-        option = arguments[index]
-        if option not in {"--bind", "--port", "--lan"} or option in seen:
-            raise ValueError("host accepts --lan, --bind <address>, --port <1..65535>, or revoke-device")
-        if option in {"--bind", "--lan"} and seen & {"--bind", "--lan"}:
-            raise ValueError("host --lan cannot be combined with --bind")
-        seen.add(option)
-        if option != "--lan" and (index + 1 >= len(arguments) or not arguments[index + 1] or arguments[index + 1].startswith("--")):
-            raise ValueError("host option requires a value")
-        if option == "--bind":
-            value = arguments[index + 1]
-            bind = value
-            index += 2
-        elif option == "--port":
-            value = arguments[index + 1]
-            port = int(value)
-            if not 1 <= port <= 65535:
-                raise ValueError("host port must be between 1 and 65535")
-            index += 2
-        elif option == "--lan":
-            bind = "0.0.0.0"
-            index += 1
-        else:
-            raise ValueError(f"unknown host option: {option}")
-    return bind, port
+    """Compatibility tuple; production uses the complete validated transport."""
+    transport = parse_host_options(arguments)
+    return (transport.bind if "--bind" in arguments or "--lan" in arguments else None,
+            transport.port)

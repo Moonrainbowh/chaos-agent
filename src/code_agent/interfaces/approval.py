@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import re
+import math
+import time
 from dataclasses import dataclass
 from typing import Mapping
 
@@ -112,12 +114,19 @@ class ApprovalRequest:
 class ApprovalBroker:
     """Bridge a policy dispatcher and an interactive approval surface."""
 
-    def __init__(self) -> None:
+    def __init__(self, repository=None, ttl_seconds=300, clock=time.time) -> None:
+        if isinstance(ttl_seconds, bool) or not isinstance(ttl_seconds, (int, float)) or not math.isfinite(ttl_seconds) or not 0 < ttl_seconds <= 3600:
+            raise ValueError("approval TTL must be positive and at most one hour")
+        if not callable(clock):
+            raise TypeError("clock must be callable")
+        from .approval_persistence import ApprovalPersistence
+        self._persistence = ApprovalPersistence(repository, ttl_seconds, clock)
         self._requests: asyncio.Queue[ApprovalRequest] = asyncio.Queue()
         self._pending: dict[str, asyncio.Future[bool]] = {}
 
     async def request(
-        self, request: ApprovalRequest, cancellation: CancellationToken
+        self, request: ApprovalRequest, cancellation: CancellationToken, *,
+        execution_context=None, workspace_root=None,
     ) -> bool:
         if not isinstance(cancellation, CancellationToken):
             raise TypeError("cancellation must be a CancellationToken")
@@ -126,18 +135,42 @@ class ApprovalBroker:
             raise ValueError("approval request id is already pending")
         decision: asyncio.Future[bool] = asyncio.get_running_loop().create_future()
         self._pending[request.request_id] = decision
-        await self._requests.put(request)
-        cancelled = asyncio.create_task(cancellation.wait_async())
+        live = None
+        cancelled = None
         try:
+            live = await self._persistence.register(request, decision, execution_context, workspace_root)
+            cancellation.raise_if_cancelled()
+            await self._requests.put(request)
+            cancelled = asyncio.create_task(cancellation.wait_async())
             done, _ = await asyncio.wait(
-                (decision, cancelled), return_when=asyncio.FIRST_COMPLETED
+                (decision, cancelled), return_when=asyncio.FIRST_COMPLETED,
+                timeout=self._persistence.ttl_seconds if live is not None else None,
             )
             if cancelled in done:
                 cancellation.raise_if_cancelled()
-            return decision.result()
+            if decision not in done:
+                return False
+            approved = decision.result()
+            if live is not None and not live.committed:
+                async with self._persistence.lock:
+                    await self._persistence.consume(live, approved)
+            return approved
         finally:
             self._pending.pop(request.request_id, None)
-            cancelled.cancel()
+            if not decision.done():
+                decision.cancel()
+            if cancelled is not None:
+                cancelled.cancel()
+                await asyncio.gather(cancelled, return_exceptions=True)
+            await self._persistence.cleanup(live)
+
+    async def pending(self, task_id: str):
+        """Read bounded durable cards without consuming the local UI queue."""
+        return await self._persistence.pending(task_id)
+
+    async def respond(self, request_id: str, **response):
+        """Authenticate and consume a bound decision before waking its live waiter."""
+        return await self._persistence.respond(request_id, **response)
 
     async def next_request(self) -> ApprovalRequest:
         while True:

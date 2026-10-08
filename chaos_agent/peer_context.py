@@ -140,7 +140,6 @@ class PeerContextBuilder:
 
     def __init__(self, inner: object, buffer: PeerDeliveryBuffer) -> None:
         self._wrapped, self._buffer = inner, buffer
-        self._inner = getattr(inner, "_inner", inner)
         self._staged: dict[str, tuple[tuple[PeerClaim, str, str], ...]] = {}
 
     def __getattr__(self, name: str) -> object:

@@ -19,6 +19,9 @@ from code_agent.core.tests._engine_support import (
 class _TaskSession(MemorySessionRepository):
     warned = False
 
+    async def load_task_for_thread(self, thread_id):
+        return getattr(self, "task", None)
+
     async def create_thread(self):
         self.thread_id = await super().create_thread()
         return self.thread_id
@@ -49,7 +52,7 @@ class _TaskSession(MemorySessionRepository):
 
 
 class EngineStagnationTests(unittest.IsolatedAsyncioTestCase):
-    async def test_tool_only_investigation_forces_a_final_summary_before_completion(self):
+    async def test_stalled_empty_investigation_forces_a_final_summary_before_completion(self):
         streams = []
         for index in range(5):
             call = ToolCall("read-" + str(index), "read_file", {"path": f"file-{index}.txt"})
@@ -68,13 +71,13 @@ class EngineStagnationTests(unittest.IsolatedAsyncioTestCase):
             "analysis-task",
             thread_id,
             TaskContract(
-                "inspect", TaskAuthorization.local_workspace("."), intent=TaskIntent.ANALYZE
+                "全仓库检查", TaskAuthorization.local_workspace("."), intent=TaskIntent.ANALYZE
             ),
             status=TaskStatus.RUNNING,
         )
         sessions.task = task
         actions = FakeActionDispatcher([
-            ActionResult(f"read-{index}", "read_file", {"content": str(index)})
+            ActionResult(f"read-{index}", "read_file", {"content": ""})
             for index in range(5)
         ])
         model = FakeModelClient(tuple(streams))
@@ -140,7 +143,7 @@ class EngineStagnationTests(unittest.IsolatedAsyncioTestCase):
         )
         sessions.task = task
         actions = FakeActionDispatcher([
-            ActionResult(f"read-{index}", "read_file", {"content": str(index)})
+            ActionResult(f"read-{index}", "read_file", {"content": ""})
             for index in range(5)
         ])
         model = FakeModelClient(tuple(streams))
@@ -198,7 +201,7 @@ class EngineStagnationTests(unittest.IsolatedAsyncioTestCase):
         thread_id = await sessions.create_thread()
         task = TaskRecord(
             "analysis-task", thread_id,
-            TaskContract("inspect", TaskAuthorization.local_workspace("."), intent=TaskIntent.ANALYZE),
+            TaskContract("全仓库检查", TaskAuthorization.local_workspace("."), intent=TaskIntent.ANALYZE),
             status=TaskStatus.RUNNING,
         )
         sessions.task = task
@@ -249,12 +252,12 @@ class EngineStagnationTests(unittest.IsolatedAsyncioTestCase):
         thread_id = await sessions.create_thread()
         task = TaskRecord(
             "analysis-task", thread_id,
-            TaskContract("inspect", TaskAuthorization.local_workspace("."), intent=TaskIntent.ANALYZE),
+            TaskContract("全仓库检查", TaskAuthorization.local_workspace("."), intent=TaskIntent.ANALYZE),
             status=TaskStatus.RUNNING,
         )
         sessions.task = task
         actions = FakeActionDispatcher([
-            ActionResult(f"read-{index}", "read_file", {"content": str(index)})
+            ActionResult(f"read-{index}", "read_file", {"content": ""})
             for index in range(5)
         ])
         model = FakeModelClient(tuple(streams))

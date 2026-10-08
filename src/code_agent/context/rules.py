@@ -9,7 +9,7 @@ from code_agent.workspace.errors import FileTooLargeError, WorkspaceError
 from code_agent.workspace.files import WorkspaceFiles
 from code_agent.workspace.paths import PathInput, WorkspacePathGuard
 
-from .errors import ContextError, RuleLimitError
+from .errors import BudgetDiagnostic, ContextError, RuleLimitError
 from .models import ContextConfig, ProjectRule
 from .tokens import estimate_tokens
 
@@ -62,7 +62,13 @@ class RuleLoader:
             total_bytes += byte_count
             if total_bytes > self.config.max_rules_total:
                 raise RuleLimitError(
-                    "project rules exceed the configured total byte limit"
+                    f"project rules exceed max_rules_total={self.config.max_rules_total:,} bytes: "
+                    f"{total_bytes:,} bytes through {path}; "
+                    f"loaded files: {', '.join(rule.path for rule in rules)}; "
+                    "no rules were truncated. Compress reference material or explicitly "
+                    "adjust max_rules_total within the total context budget.",
+                    diagnostic=BudgetDiagnostic(tuple(rule.path for rule in rules) + (path,),
+                       (("total_bytes", total_bytes), ("max_rules_total", self.config.max_rules_total))),
                 )
             rules.append(ProjectRule(path, loaded, depth))
         return tuple(rules)
@@ -86,8 +92,22 @@ class RuleLoader:
             )
         text = "\n".join(rendered)
         token_limit = self.config.prompt_budget.max_rule_tokens
-        if estimate_tokens(text) > token_limit:
-            raise RuleLimitError(f"project rules exceed {token_limit:,} tokens")
+        tokens = estimate_tokens(text)
+        if tokens > token_limit:
+            detail = "; ".join(
+                f"{rule.path} (depth={rule.scope_depth}, content_tokens={estimate_tokens(rule.content):,})"
+                for rule in checked
+            )
+            raise RuleLimitError(
+                f"project rules exceed {token_limit:,} tokens: rendered_tokens={tokens:,}, "
+                f"max_rule_tokens={token_limit:,}; files: {detail}. "
+                "No model request or action may proceed; no rules were truncated. "
+                "Move non-constraint reference material to docs or explicitly adjust "
+                "PromptBudget.max_rule_tokens, subject to max_prompt_tokens, system/tools "
+                "and minimum message reserves.",
+                diagnostic=BudgetDiagnostic(tuple(rule.path for rule in checked),
+                      (("rendered_tokens", tokens), ("max_rule_tokens", token_limit))),
+            )
         return text
 
     def _validate_cwd(self, cwd: PathInput) -> Path:

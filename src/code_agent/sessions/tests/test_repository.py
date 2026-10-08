@@ -353,6 +353,12 @@ class SQLiteSessionRepositoryTests(unittest.IsolatedAsyncioTestCase):
         await self.repository.append_verification_evidence("run-final", task.id, evidence)
         await self.repository.close_verification_run("run-final", "completed")
 
+        with self.assertRaisesRegex(ValueError, "current task subject is unavailable"):
+            await self.repository.finalize_task(task.id, "run-final", contract, 1, "subject")
+        await self.repository.save_task_state(thread_id, TaskState(code_generation=2, subject_hash="changed"))
+        with self.assertRaisesRegex(ValueError, "generation or subject is stale"):
+            await self.repository.finalize_task(task.id, "run-final", contract, 1, "subject")
+        await self.repository.save_task_state(thread_id, TaskState(code_generation=1, subject_hash="subject"))
         completed = await self.repository.finalize_task(task.id, "run-final", contract, 1, "subject")
 
         self.assertEqual(completed.status, TaskStatus.COMPLETED)
@@ -406,6 +412,7 @@ class SQLiteSessionRepositoryTests(unittest.IsolatedAsyncioTestCase):
             await self.repository.append_verification_evidence(run_id, task.id, evidence)
             await self.repository.close_verification_run(run_id, "completed")
 
+        await self.repository.save_task_state(thread_id, TaskState(code_generation=1, subject_hash="subject"))
         completed = await self.repository.finalize_task(task.id, "run-build", contract, 1, "subject")
 
         self.assertEqual(completed.status, TaskStatus.COMPLETED)

@@ -69,13 +69,12 @@ class CaseOnlyCrashRecoveryTests(unittest.IsolatedAsyncioTestCase):
             await sessions.transition_edit_batch(
                 record.mutation.mutation_id, EditBatchState.APPLYING
             )
-            self.assertEqual(
-                editor.apply_batch(plan).status, BatchApplyStatus.APPLIED
-            )
+            result = editor.apply_batch(plan)
+            self.assertEqual(result.status, BatchApplyStatus.APPLIED)
             self.assertEqual(os.listdir(root), ["MIXEDCASE.txt"])
             # The rename is durable and its ownership proof is on record, so the
             # restart must roll the case-only move back instead of refusing it.
-            await _persist_post_identities(capture, prepared, record)
+            await _persist_post_identities(capture, prepared, record, result)
 
             reopened = RewindSessionRepository(base / "sessions.sqlite3")
             recovered_editor = WorkspaceEditor(WorkspacePathGuard(root))

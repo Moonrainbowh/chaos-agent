@@ -134,6 +134,25 @@ class RuleLoaderTests(unittest.TestCase):
         with self.assertRaises(RuleLimitError):
             self.loader(max_rule_bytes=4).load()
 
+    def test_token_limit_reports_complete_inheritance_and_explicit_remedy(self) -> None:
+        from dataclasses import replace
+        from code_agent.context.budget import PromptBudget
+        self.write("AGENTS.md", "Mandatory constraint. " * 20)
+        self.write("src/feature/AGENTS.md", "Local mandatory constraint. " * 20)
+        config = replace(self.config(), repo_map_tokens=None, message_tokens=None,
+                         prompt_budget=PromptBudget(max_rule_tokens=5))
+        loader = RuleLoader(self.guard, self.files, config)
+        rules = loader.load()
+        with self.assertRaises(RuleLimitError) as caught:
+            loader.render(rules)
+        diagnostic = str(caught.exception)
+        for required in ("AGENTS.md", "src/feature/AGENTS.md", "max_rule_tokens", "5", "no rules were truncated"):
+            self.assertIn(required, diagnostic)
+        expanded = replace(config, prompt_budget=PromptBudget(max_rule_tokens=1_000))
+        rendered = RuleLoader(self.guard, self.files, expanded).render(rules)
+        self.assertIn(rules[0].content, rendered)
+        self.assertIn(rules[1].content, rendered)
+
     def test_enforces_total_rule_byte_limit_without_partial_results(self) -> None:
         self.write("AGENTS.md", "12345")
         self.write("AGENTS.python.md", "67890")

@@ -6,13 +6,14 @@ from pathlib import Path
 from acp import run_agent
 
 from code_agent.acp import ChaosAcpAgent
+from .acp_task_service import AcpTaskService
 
 
 async def serve_acp(application: object) -> None:
     """Serve one fully composed application over ACP stdio."""
     sessions = getattr(application, "sessions", None)
     root = getattr(application, "workspace_root", None)
-    controller = getattr(application, "controller", None)
+    controller = getattr(application, "tasks", getattr(application, "foreground_tasks", None))
     if sessions is None or controller is None or not isinstance(root, Path):
         raise RuntimeError("application does not expose ACP integration dependencies")
     dispatcher = getattr(application, "dispatcher", None)
@@ -22,10 +23,11 @@ async def serve_acp(application: object) -> None:
         current_version = package_version("chaos-agent")
     except PackageNotFoundError:
         current_version = "unknown"
+    bridge = AcpTaskService(controller, sessions, root)
     await run_agent(
         ChaosAcpAgent(
-            controller,
-            sessions,
+            bridge,
+            bridge,
             root,
             version=current_version,
             permission_scope=getattr(dispatcher, "permission_scope", None),

@@ -16,6 +16,7 @@ from code_agent.workspace.edits import WorkspaceEditor
 from chaos_agent.action_dispatcher import RootActionDispatcher
 from chaos_agent.verification_mode import structured_verification_enabled
 from chaos_agent.action_metrics import ActionMetricsCollector
+from chaos_agent.action_resolution import resolve_plugin_action
 from chaos_agent.workspace_mutation_pool import WorkspaceMutationPool
 from chaos_agent.workspace_models import WorkspaceServices
 
@@ -59,8 +60,17 @@ class TaskScopedDispatcher:
     def editor(self) -> WorkspaceEditor:
         return self._mutations.for_services(self._source).editor
 
+    @property
+    def verification_allow_sensitive_paths(self) -> bool:
+        """Freeze the Host path capability for task verification composition."""
+        return self._source.guard.allow_sensitive
+
     def tools(self) -> Sequence[ToolDefinition]:
         return self._dispatcher(self._source).tools()
+
+    def resolve_supervision_action(self, request: ActionRequest) -> ActionRequest:
+        """Resolve active plugin identity without constructing workspace services."""
+        return resolve_plugin_action(request, self.plugins)
 
     @property
     def workspace_fingerprint(self) -> str:
@@ -87,6 +97,7 @@ class TaskScopedDispatcher:
         task_authorization: TaskAuthorization | None = None,
         *,
         execution_context: object | None = None,
+        source_check: object | None = None,
     ) -> ActionResult:
         services = self._runtime.services_for_root(
             self._authorized_root(task_authorization)
@@ -96,6 +107,7 @@ class TaskScopedDispatcher:
             cancellation,
             task_authorization,
             execution_context=execution_context,
+            source_check=source_check,
         )
 
     def _authorized_root(self, authorization: TaskAuthorization | None) -> Path:

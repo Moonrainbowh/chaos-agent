@@ -127,6 +127,9 @@ class ApplicationGuardTests(unittest.IsolatedAsyncioTestCase):
     async def test_foreground_task_repairs_a_failed_test_then_checkpoints_completion(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()
+            # Bind the typed full-project verifier to an actual Host plan;
+            # a synthetic exit 0 without project identity is not completion proof.
+            (root / "pyproject.toml").write_text("[project]\nname='repair-note'\nversion='1'\n")
             (root / "note.txt").write_text("before\n", encoding="utf-8")
             runtime = _RecordingRuntime((1, 0))
             dispatcher = _task_dispatcher(root, runtime)
@@ -165,6 +168,9 @@ class ApplicationGuardTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual((await sessions.load_task_budget(task.id)).repair_cycles, 1)
             self.assertEqual(len(runtime.commands), 2)
             self.assertEqual(events[-1].kind, EventKind.COMPLETED)
+            proof = await LedgerTaskVerificationService(root, sessions).assess(
+                stored, await sessions.load_task_state(task.thread_id))
+            self.assertEqual(proof.assessment.kind.value, "verified")
 
     async def test_current_verification_evidence_expires_after_a_later_write(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

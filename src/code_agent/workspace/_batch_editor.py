@@ -78,9 +78,9 @@ class BatchWorkspaceEditorMixin:
     ) -> dict[str, PathIdentity | None]:
         """Observe the durable identity of every path a prepared batch touched.
 
-        Must be called after the batch was applied: an atomic replace installs a
-        new file index and a created file does not exist beforehand, so this is
-        the earliest moment the ownership proof exists.
+        Compatibility observation only, not authorship proof. External same-byte
+        replacements may already occupy these paths. Persist actual apply_batch
+        result receipts to authorize recovery; never claim ownership from this API.
         """
         from ._batch_recovery_prepare import post_identities
 

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import uuid
+import hashlib
+import json
 from dataclasses import replace
 from pathlib import Path
 from typing import Mapping
@@ -41,6 +43,8 @@ from .task_evidence import (
     verifier_outcome,
 )
 from .task_plans import PlannedCallRegistry
+from .task_assessment import final_plan_proof
+from .evidence import EvidenceOutcome, bounded_diagnostic
 
 
 class LedgerTaskVerificationService:
@@ -51,8 +55,12 @@ class LedgerTaskVerificationService:
         workspace_root: Path,
         sessions: object,
         planner: VerificationPlanner | None = None,
+        *,
+        allow_sensitive_paths: bool = False,
     ) -> None:
-        self._guard = WorkspacePathGuard(workspace_root)
+        if type(allow_sensitive_paths) is not bool:
+            raise TypeError("allow_sensitive_paths must be a bool")
+        self._guard = WorkspacePathGuard(workspace_root, allow_sensitive=allow_sensitive_paths)
         self._sessions = sessions
         self._planner = planner or VerificationPlanner(self._guard.root)
         self._active_changes: dict[str, set[str]] = {}
@@ -220,8 +228,13 @@ class LedgerTaskVerificationService:
             and item.generation == state.code_generation
             and item.subject_hash == state.subject_hash
         )
+        allowed, plan_diagnostics = final_plan_proof(self, task.id, state, current)
         candidates = tuple(
-            CompletionCandidate(item.criterion_id, evidence_satisfies_current_verifier(item), item.generation, item.subject_hash)
+            CompletionCandidate(item.criterion_id,
+                                evidence_satisfies_current_verifier(item)
+                                and (item.criterion_id != RISK_VALIDATION_CRITERION
+                                     or item.identifier in allowed),
+                                item.generation, item.subject_hash)
             for item in current
         )
         assessment = assess_completion(contract, state.code_generation, state.subject_hash, candidates)
@@ -230,8 +243,39 @@ class LedgerTaskVerificationService:
             task.id, state.code_generation, state.subject_hash
         )
         return VerificationAssessment(
-            assessment, outcome, state.code_generation, state.subject_hash, run_id
+            assessment, outcome, state.code_generation, state.subject_hash, run_id,
+            tuple(dict.fromkeys((*plan_diagnostics, *(
+                bounded_diagnostic(item.diagnostic[:512])
+                for item in current
+                if item.outcome in {EvidenceOutcome.FAIL, EvidenceOutcome.ERROR,
+                                    EvidenceOutcome.UNAVAILABLE, EvidenceOutcome.UNSTABLE}
+            ))))[-8:],
         )
+
+    async def progress_fingerprint(self, task: TaskRecord, state: TaskState) -> str:
+        """Accumulate trusted success observations for this subject, never retract them.
+
+        Completion uses latest outcomes separately. A later failed retry cannot
+        erase historical success and thereby make a changing digest renew a lease.
+        """
+        records = await self._sessions.list_completed_verification_evidence(task.id)
+        current = tuple(
+            item
+            for item in records
+            if isinstance(item, EvidenceRecord)
+            and item.generation == state.code_generation
+            and item.subject_hash == state.subject_hash
+        )
+        observations = sorted({
+            (item.criterion_id, item.verifier_identity or item.provenance.value)
+            for item in current
+            if item.outcome is EvidenceOutcome.PASS
+            and evidence_satisfies_current_verifier(item)
+        })
+        if not observations:
+            return ""
+        payload = [state.code_generation, state.subject_hash, observations]
+        return hashlib.sha256(json.dumps(payload, separators=(",", ":")).encode()).hexdigest()
 
     async def suggest_verification(self, task: TaskRecord, state: TaskState) -> ToolCall | None:
         """Choose the next Host-planned final-gate step for the current subject."""
@@ -330,9 +374,14 @@ class LedgerTaskVerificationService:
         )
 
     async def _snapshot(self, task: TaskRecord, state: TaskState, generation: int) -> TaskState:
+        guarded_save = getattr(self._sessions, "save_task_state_if_current", None)
+        expected = await self._sessions.load_task_state(task.thread_id) if callable(guarded_save) else None
         snapshot = snapshot_subject(self._guard, generation, state.files_changed)
         updated = replace(state, code_generation=generation, subject_hash=snapshot.subject_hash)
-        await self._sessions.save_task_state(task.thread_id, updated)
+        if callable(guarded_save):
+            await guarded_save(task.thread_id, updated, expected)
+        else:
+            await self._sessions.save_task_state(task.thread_id, updated)
         return updated
 
 

@@ -42,10 +42,11 @@ def select_budget_lease(contract: TaskContract) -> BudgetLeaseTier:
     """Choose an initial lease without changing the task's authorization."""
     from .completion_contract import TaskIntent
     from .task import TaskContract
+    from .host_progress import explicit_positive_clauses
 
     if not isinstance(contract, TaskContract):
         raise TypeError("contract must be a TaskContract")
-    if _DEEP_REQUEST.search(contract.objective):
+    if any(_DEEP_REQUEST.search(clause) for clause in explicit_positive_clauses(contract.objective)):
         return BudgetLeaseTier.DEEP
     if contract.intent is TaskIntent.ANALYZE:
         return BudgetLeaseTier.QUICK
@@ -96,7 +97,6 @@ class TaskProgressSnapshot:
     def digest(self) -> str:
         payload = {
             "action": self.action_fingerprint,
-            "failure": self.failure_fingerprint,
             "generation": self.code_generation,
             "interaction": self.interaction_revision,
             "subject": self.subject_hash if self.code_generation else "",
@@ -192,8 +192,8 @@ class TaskBudget:
             raise ValueError("model_turns exceeds task limit")
         if self.tool_calls > self.limits.max_tool_calls:
             raise ValueError("tool_calls exceeds task limit")
-        if self.input_tokens + self.output_tokens > self.limits.max_total_tokens:
-            raise ValueError("token usage exceeds task limit")
+        # Provider usage is a measured fact and may overrun its reservation.
+        # Admission stops subsequent requests; persistence must retain the fact.
         if self.last_failure_signature is not None and (not isinstance(self.last_failure_signature, str) or len(self.last_failure_signature) > 1024):
             raise ValueError("last_failure_signature must be bounded text or None")
         if not isinstance(self.warned_at_80, bool) or not isinstance(self.warned_at_90, bool):

@@ -100,7 +100,7 @@ class CommandExecutionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_ask_forwards_cli_attachment_references(self) -> None:
         attachment = AttachmentRef("a" * 64, "text/plain", 4, "note.txt")
-        tasks = _Tasks(())
+        tasks = _Tasks((AgentEvent(EventKind.COMPLETED),))
 
         status = await execute_command(
             parse_command(("ask", "inspect")),
@@ -116,7 +116,7 @@ class CommandExecutionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_json_run_uses_the_same_durable_task_event_stream(self) -> None:
         event = AgentEvent(EventKind.TASK_STATUS_CHANGED, {"task_id": "task-1", "status": "running"})
-        tasks = _Tasks((event,))
+        tasks = _Tasks((event, AgentEvent(EventKind.COMPLETED)))
         output: list[str] = []
 
         status = await execute_command(

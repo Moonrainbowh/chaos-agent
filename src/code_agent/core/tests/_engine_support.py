@@ -137,6 +137,9 @@ class MemorySessionRepository:
         self.task_states: dict[str, TaskState] = {}
         self.task_budgets: dict[str, TaskBudget] = {}
 
+    async def load_task_for_thread(self, thread_id: str):
+        return None
+
     async def create_thread(self) -> str:
         self.created += 1
         thread_id = f"thread-{self.created}"

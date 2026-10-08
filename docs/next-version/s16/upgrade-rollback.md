@@ -1,0 +1,15 @@
+# 升级、回退与限制
+
+本阶段仅做自有临时数据库演练，不迁移真实用户数据。当前候选schema26，S2冻结源码schema24；升级探针使用新venv中安装的正确运行wheel。第三轮完整实际exit0，upgrade-rollback.json保存升级/追加/重开/拒绝新库/保留新数据/恢复备份各步事实；旧消息和task ID保留，新Temp已正常清理。这个PASS只覆盖隔离旧消息与任务样本，不代表任意真实数据迁移已验证。
+
+实际升级前先停止所有使用目标数据库/工作区的Host和编辑器写入，保存旧可用程序、配置、SQLite一致备份及snapshot/blob工作区资产，记录备份路径/hash。数据库backup与文件快照必须来自同一已静止任务状态；复制单个仍活跃的SQLite文件不构成一致备份。本轮原8787Host继续保留，没有执行这些真实操作。
+
+新版本先在复制的数据/工作区上运行，核对旧消息、任务、授权/未决操作、预算、快照与迁移结果。未决副作用应先核对已有执行事实；无法确认就保持unknown，不用恢复或重启重放。当前测试证明的是记录和恢复守门契约，不能承诺任意损坏数据自动恢复。
+
+回退使用旧程序加升级前完整备份。先另存升级后的数据库和新产生的工作区/资产，保留这些事实后再恢复旧备份；备份时间之后的数据不会自动出现在旧备份中，不把回退当无损合并。禁止旧程序直接运行schema26数据库，也不降低PRAGMA user_version伪装兼容。拒绝未来schema可能已初始化SQLite WAL journal，不保证数据库header字节不变，因此必须在首次打开前备份。
+
+已知限制：真实模型小型CLI与自有真实VSCode ACP样本已有物证，手动多窗及笔记/历史恢复已有真实独审，子任务最后在额度与期限足够的v7仍未完成实际来源调查（模型只给计划），父分析亦有判断/行号错误；正式source-quality gate未放行，不覆盖用户原插件及未保存buffer。当前afbd五平台CI已全部通过，3482发现=执行；final-afbd-provenance-supervision独立确认升级probe至afbd的Sessions/Workspace源码无diff；仅MCP1.29.1及锁定依赖组合已测。S15 Windows30skip按套件为Attachments1、Runtime5、Sessions2、Workspace21、Remote1，其他平台跳过数不同，具体原因保留于日志，不全归为symlink权限。S14 public pause在 unresolved CONFLICTED batch 时会持久化PAUSED，但checkpointguard抛SessionStorageError，不产生新checkpoint。S12真实手机HTTPS/审批恢复证据单独保留，离线fixture不证明真实模型成功。
+
+探针首轮对子脚本添加reopen分支时错误放入try/except结构导致SyntaxError，日志保留。第二轮发现SQLite连接context manager不会close，备份持有handle使WAL检查和Windows Temp清理失败；属于探针错误，改用contextlib.closing后第三轮完整重跑actualexit0。没有把失败轮或仅安装成功算作升级回退PASS。
+
+第二轮失败自有Temp `C:/Users/Windows11/AppData/Local/Temp/chaos-s16-upgrade-vdm10jw5` 残留。主Agent核对绝对路径和所有权后尝试清理，平台以blocked by policy拒绝；未绕过，残留不计为产品数据风险或清理成功。

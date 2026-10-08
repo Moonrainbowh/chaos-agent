@@ -24,8 +24,10 @@ from code_agent.providers.config import ModelProfile
 from code_agent.providers.runtime_manager import ProviderRuntime, ProviderRuntimeManager
 from chaos_agent.app_ui import ModeAwareWindowsTerminalApp, PluginModeControl
 from chaos_agent.application_context import engine_for
+from chaos_agent.context_assembly import wrap_context
 from chaos_agent.runtime_dispatcher_factory import RuntimeDispatcherFactory
 from chaos_agent.runtime_client_cleanup import close_partial_client
+from chaos_agent.context_selection import context_selection_json, require_context_selection
 from chaos_agent.runtime_selection_control import (
     RuntimeSelectionControl,
     validate_profile_reasoning,
@@ -144,7 +146,7 @@ class ProviderControls:
         try:
             context = self._context_for(self._build_snapshot, client, profile)
             if self._context_wrapper is not None:
-                context = self._context_wrapper(context)
+                context = wrap_context(context, self._context_wrapper)
             runner = engine_for(
                 client, profile, context,
                 self._dispatcher_factory(self._build_snapshot),
@@ -222,6 +224,7 @@ class ProviderControls:
             selection.reasoning_effort.value,
             selection.legacy_mode.value,
             self._active_snapshot.digest,
+            context_selection_json(profile, self._active_snapshot),
         )
 
     async def resolve_profile(self, name: str) -> None:
@@ -252,10 +255,11 @@ class ProviderControls:
             contract.model, contract.protocol, contract.endpoint_host
         ):
             raise RuntimeError("recorded runtime selection no longer matches configuration")
+        snapshot = attach_runtime_selection(self._mode_snapshots[mode], selection)
+        require_context_selection(contract, profile, snapshot)
         active = self._active_snapshot
         if _active_matches(active, selection.digest, contract.runtime_selection_digest):
             return
-        snapshot = attach_runtime_selection(self._mode_snapshots[mode], selection)
         if snapshot.digest != contract.runtime_selection_digest:
             raise RuntimeError("recorded runtime mode identity is unavailable")
         await self._replace_runtime(snapshot)

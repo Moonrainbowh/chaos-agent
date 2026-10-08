@@ -85,18 +85,18 @@ class ModeSwitchIntegrationTests(unittest.IsolatedAsyncioTestCase):
                             application = create_application(root)
 
             previous_runner = application.controller._engine
-            previous_repo_map = previous_runner._context._inner.repo_map
+            previous_snapshot = previous_runner._verification._semantic_snapshot(root)
             selected = await application.tui.modes.use("high", idle=True)
-            rebuilt_repo_map = application.controller._engine._context._inner.repo_map
+            rebuilt_snapshot = application.controller._engine._verification._semantic_snapshot(root)
 
             self.assertEqual(selected.name, "high")
             self.assertEqual(application.mode.definition.mode.value, "high")
             self.assertEqual(application.tui.modes.current.name, "high")
             self.assertIsNot(application.controller._engine, previous_runner)
-            self.assertIs(rebuilt_repo_map.index, application.repo_index)
+            self.assertIs(rebuilt_snapshot, application.repo_index.snapshot_for_turn())
             self.assertIs(
-                rebuilt_repo_map.view_cache,
-                previous_repo_map.view_cache,
+                rebuilt_snapshot,
+                previous_snapshot,
             )
             await application.aclose()
 

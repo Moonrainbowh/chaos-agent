@@ -46,7 +46,9 @@ def _timeout_record(suite: Path, progress: Path, timeout: float, cleanup: str) -
               _escape_workflow_data(message), flush=True)
 
 
-def run_supervised_suite(root: Path, suite: Path, timeout: float) -> subprocess.CompletedProcess:
+def run_supervised_suite(root: Path, suite: Path, timeout: float, *,
+                         pattern: str | None = None, discovery_only: bool = False,
+                         coverage: bool = False) -> subprocess.CompletedProcess:
     """Gate suite discovery until Job assignment; bound execution and cleanup."""
     job = None
     if os.name == "nt":
@@ -55,12 +57,29 @@ def run_supervised_suite(root: Path, suite: Path, timeout: float) -> subprocess.
     try:
         with tempfile.TemporaryDirectory(prefix="chaos-suite-") as temporary:
             progress = Path(temporary) / "progress.json"
-            env = dict(os.environ, CHAOS_TEST_PROGRESS=str(progress), PYTHONUNBUFFERED="1")
+            result_path = Path(temporary) / "result.json"
+            coverage_path = Path(temporary) / "coverage.json"
+            env = dict(os.environ, CHAOS_TEST_PROGRESS=str(progress),
+                       CHAOS_TEST_RESULT=str(result_path), PYTHONUNBUFFERED="1")
+            env.pop("CHAOS_TEST_COVERAGE", None)
+            if coverage or discovery_only:
+                env["CHAOS_TEST_COVERAGE"] = str(coverage_path)
             command = (sys.executable, "-m", "scripts.run_test_suite", "--start-dir",
                        str(suite), "--supervised", "--timeout", str(timeout))
+            if pattern is not None:
+                command += ("--pattern", pattern)
+            if discovery_only:
+                command += ("--discovery-only",)
             process = subprocess.Popen(command, cwd=root, env=env, stdin=subprocess.PIPE,
                                        start_new_session=os.name != "nt")
-            return _wait_suite(process, job, command, suite, progress, timeout)
+            completed = _wait_suite(process, job, command, suite, progress, timeout)
+            completed.test_counts = None
+            completed.test_coverage = None
+            if result_path.is_file():
+                completed.test_counts = json.loads(result_path.read_text(encoding="utf-8"))
+            if coverage_path.is_file():
+                completed.test_coverage = json.loads(coverage_path.read_text(encoding="utf-8"))
+            return completed
     finally:
         if job is not None:
             job.close()

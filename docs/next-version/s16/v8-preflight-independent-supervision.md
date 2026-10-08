@@ -1,0 +1,9 @@
+# v8 high 离线候选独审
+
+决定：**PASS_OFFLINE_PREFLIGHT_SCOPE_PENDING_HUMAN_DECISION**。脚本SHA `315a7426b70459e1463ce3ed1bae166d6a8c627cfc2d1dfd5421ece0573bd155`，owned `next-version-s16-investigation-v8-22284a1e04b2`，冻结afbd候选。原公开TaskService/dispatcher/ChildRunner prepared-only物证actual0、HTTP0；本审查读取物证并独立运行纯合成credential guard反例，exit0，Provider0。
+
+四份来源原始字节与v7一致，父1m/子300k/prompt300k/tool20k、12回合40工具、子5工具240秒及整体900/watchdog880不变；Provider60秒2重试/MCP15、60、6不变。真实父/子prepared body均GLM/high，预检仅在发送前停止，不能当模型或来源质量通过。
+
+这不是仅effort改变或同prompt配对实验：child base_mode high伴随balanced→deliberate基础prompt policy，任务还强化了实际最终来源分析和物理行号要求。未提供金答案，也没有降低质量门。作者报告已如实标明这些差异。
+
+authorization明确false/null/PENDING_USER_EFFORT_CHANGE，execute/_worker真实路径要求另有EXPLICIT_HUMAN_AUTHORIZATION记录；当前尚无worker-result。Root必须从真人取得包含伴随policy/指令变化的high选择，原medium授权不适用。审查本身不能授权Provider；S16最终BLOCKED和旧失败/unknown不变。原public全链预算绑定的细节来自已保留预检物证，本审查未重新创建或执行真实模型样例。

@@ -128,6 +128,32 @@ class TaskRecordRepositoryMixin:
 
         def write(connection: sqlite3.Connection) -> None:
             _require_thread(connection, thread_id)
+            from ._child_action_state import reject_stale_parent_state
+            reject_stale_parent_state(connection, thread_id, state)
+            _upsert_task_state(connection, thread_id, payload, timestamp)
+            _touch_thread(connection, thread_id, timestamp)
+
+        await self._database.write(write)  # type: ignore[attr-defined]
+
+    async def save_task_state_if_current(
+        self, thread_id: str, state: TaskState, expected_state: TaskState
+    ) -> None:
+        """Publish a subject snapshot only if its pre-read durable state is unchanged."""
+        thread_id = _text(thread_id, "thread_id")
+        payload = encode_task_state(state)
+        expected = encode_task_state(expected_state)
+        timestamp = encode_datetime(utc_now())
+
+        def write(connection: sqlite3.Connection) -> None:
+            _require_thread(connection, thread_id)
+            row = connection.execute(
+                "SELECT payload FROM task_states WHERE thread_id=?", (thread_id,)
+            ).fetchone()
+            current = TaskState.empty() if row is None else decode_task_state(row["payload"])
+            if encode_task_state(current) != expected:
+                raise ValueError("task state changed during subject snapshot")
+            from ._child_action_state import reject_stale_parent_state
+            reject_stale_parent_state(connection, thread_id, state)
             _upsert_task_state(connection, thread_id, payload, timestamp)
             _touch_thread(connection, thread_id, timestamp)
 
@@ -143,6 +169,8 @@ class TaskRecordRepositoryMixin:
 
         def write(connection: sqlite3.Connection) -> TaskState:
             _require_thread(connection, thread_id)
+            from ._child_action_state import project_child_action
+            project_child_action(connection, thread_id, request, result, timestamp)
             row = connection.execute(
                 "SELECT payload FROM task_states WHERE thread_id = ?", (thread_id,)
             ).fetchone()

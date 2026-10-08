@@ -5,7 +5,9 @@ from .conversation_tree_control import ConversationTreeControl
 
 
 def configure_conversation_controls(tui,sessions,dispatcher,profile_supplier=None):
-    tui.user_commands = UserCommandControl(sessions,dispatcher)
+    memory = getattr(tui, "project_memory", None)
+    tui.user_commands = UserCommandControl(sessions, dispatcher,
+        on_thread_created=memory.bind_thread if memory is not None else None)
     tui.conversation_tree = ConversationTreeControl(sessions,tui.tasks)
     tui.usage_profile = profile_supplier or (lambda:None)
     tui.tool_catalog = lambda: tool_catalog(tui.controller)

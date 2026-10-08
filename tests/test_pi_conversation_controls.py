@@ -18,6 +18,7 @@ from code_agent.interfaces.windows_tui import WindowsTerminalApp
 from code_agent.interfaces.tui_lifecycle import close_tasks
 from code_agent.policy.engine import ActionPolicy, PolicyConfig
 from code_agent.runtime.local import WindowsLocalRuntime
+from code_agent.runtime.posix import PosixLocalRuntime
 from code_agent.sessions.repository import SQLiteSessionRepository
 from code_agent.workspace.paths import WorkspacePathGuard
 from code_agent.workspace.files import WorkspaceFiles
@@ -38,10 +39,11 @@ class ConversationControlsTests(unittest.IsolatedAsyncioTestCase):
         self.addCleanup(self.sessions.close)
         guard = WorkspacePathGuard(self.root)
         self.capture = SimpleNamespace(record_gap=AsyncMock())
+        runtime_type = WindowsLocalRuntime if os.name == "nt" else PosixLocalRuntime
         self.dispatcher = RootActionDispatcher(
             WorkspaceFiles(guard, IgnoreRules.from_workspace(self.root)),
             WorkspaceEditor(guard), ActionPolicy(PolicyConfig(workspace_root=self.root)),
-            ApprovalBroker(), runtime=WindowsLocalRuntime(self.root), capture=self.capture,
+            ApprovalBroker(), runtime=runtime_type(self.root), capture=self.capture,
         )
         self.commands = UserCommandControl(self.sessions,self.dispatcher)
 

@@ -6,6 +6,8 @@ import unittest
 from io import StringIO
 from pathlib import Path
 from types import SimpleNamespace
+from code_agent.core.action_execution import ActionExecutionContext
+from code_agent.core.task import TaskAuthorization
 from unittest.mock import AsyncMock, Mock, patch
 
 from code_agent.config.loader import LocalConfigError, load_runtime_config
@@ -86,7 +88,7 @@ class ApplicationConstructionTests(unittest.TestCase):
                         }
                         with patch.dict("os.environ", mode_env):
                             application = create_application(root)
-                            main_context = application.controller._engine._context._inner
+                            main_snapshot = application.controller._engine._verification._semantic_snapshot(root)
                             child_agent = AgentDefinition(
                                 "shared-index-child",
                                 AgentRole.SEARCH,
@@ -95,9 +97,10 @@ class ApplicationConstructionTests(unittest.TestCase):
                                 ("read_file",),
                             )
                             child_engine, _ = application.subagents._runner._factory(
-                                child_agent
+                                child_agent, ActionExecutionContext("parent", "parent", "delegate", "task"),
+                                TaskAuthorization(str(root), allow_workspace_write=False)
                             )
-                            child_context = child_engine._context._inner
+                            child_snapshot = child_engine._verification._semantic_snapshot(root)
 
         self.assertIs(application.tui.sessions, application.tui.history)
         self.assertIs(application.sessions, application.tui.sessions)
@@ -108,8 +111,8 @@ class ApplicationConstructionTests(unittest.TestCase):
         self.assertIsNotNone(application.plugins)
         self.assertIsNotNone(application.subagents)
         self.assertIsInstance(application.repo_index, RepoIndexService)
-        self.assertIs(main_context.repo_map.index, application.repo_index)
-        self.assertIs(child_context.repo_map.index, application.repo_index)
+        self.assertIs(main_snapshot, application.repo_index.snapshot_for_turn())
+        self.assertIs(child_snapshot, application.repo_index.snapshot_for_turn())
 
     def test_application_uses_workspace_routed_sessions_for_engine_and_foreground(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

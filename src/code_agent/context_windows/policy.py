@@ -50,6 +50,35 @@ class ApiContextLimits:
 
 
 @dataclass(frozen=True)
+class RequestBudgetConstraints:
+    """Additional frozen Host/auxiliary ceilings; never expand API/work capacity."""
+
+    host_prompt_tokens: int | None = None
+    auxiliary_input_tokens: int | None = None
+    auxiliary_total_tokens: int | None = None
+    counter_version: str = "prepared-json-v1"
+
+    def __post_init__(self):
+        for value in (self.host_prompt_tokens, self.auxiliary_input_tokens, self.auxiliary_total_tokens):
+            if value is not None and (isinstance(value, bool) or not isinstance(value, int) or value < 1):
+                raise ValueError("request ceilings must be positive integers")
+        if self.counter_version != "prepared-json-v1":
+            raise ValueError("unsupported request counter version")
+
+    def input_cap(self, api_cap, safety_tokens, output_tokens=0):
+        cap = api_cap
+        if self.host_prompt_tokens is not None:
+            cap = min(cap, self.host_prompt_tokens - safety_tokens)
+        if self.auxiliary_input_tokens is not None:
+            cap = min(cap, self.auxiliary_input_tokens)
+        if self.auxiliary_total_tokens is not None:
+            cap = min(cap, self.auxiliary_total_tokens - output_tokens - safety_tokens)
+        if cap <= 0:
+            raise ValueError("request capacity is exhausted by required reserves")
+        return cap
+
+
+@dataclass(frozen=True)
 class QueuedContextBoundary:
     request_id: str
     status: str = "queued"

@@ -103,6 +103,11 @@ class AgentEngineTurnMixin(AgentEngineConvergenceMixin, AgentEngineDispatchMixin
             yield event
         async for event in self._stream_model_events(state, turn, bundles[0]):
             yield event
+        # Reject ambiguous IDs before committing an assistant call that could never be reconciled.
+        if len({call.id for call in turn.calls}) != len(turn.calls) or any(
+            call.id in state.used_call_ids for call in turn.calls
+        ) or any([await self._journal.has_tool_call_id(state.thread_id,call.id) for call in turn.calls]):
+            raise ModelStreamError("model reused a tool call id")
         assistant, added = await self._persist_assistant_message(
             state.thread_id, turn.text_parts, turn.calls
         )
@@ -288,10 +293,11 @@ class AgentEngineTurnMixin(AgentEngineConvergenceMixin, AgentEngineDispatchMixin
                 break
             if verification_failed(automatic_events):
                 break
-        next_task = await self._resolve_task_completion(task, state.thread_id)
+        result_metadata = {}
+        next_task = await self._resolve_task_completion(task, state.thread_id, result_metadata)
         if ran_automatic and next_task.status is TaskStatus.RUNNING:
             return
-        async for event in self._persist_completion_events(state, next_task):
+        async for event in self._persist_completion_events(state, next_task, result_metadata):
             yield event
         state.stop_requested = True
 
@@ -314,12 +320,20 @@ class AgentEngineTurnMixin(AgentEngineConvergenceMixin, AgentEngineDispatchMixin
         return event
 
     async def _persist_completion_events(
-        self, state: _RunState, task: TaskRecord
+        self, state: _RunState, task: TaskRecord, result_metadata=None
     ) -> AsyncIterator[AgentEvent]:
         events = self._task_completion_events(
             state.thread_id, task, state.budget, state.total_usage
         )
+        from .task_result import result_from_task
+        task_state = await self._journal.load_task_state(state.thread_id)
+        result = result_from_task(task, task_state, **(result_metadata or {})).to_dict()
         for event in events:
+            event = AgentEvent(event.kind, {**event.payload, 'result': result,
+                               'task_updated_at': task.updated_at.isoformat(),
+                               'result_generation': task_state.code_generation,
+                               'result_subject_hash': task_state.subject_hash,
+                               'task_id': task.id}, event.timestamp)
             await self._journal.append_event(state.thread_id, event)
             yield event
 

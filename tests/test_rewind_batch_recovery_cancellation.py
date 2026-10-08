@@ -66,11 +66,11 @@ class RewindBatchRecoveryCancellationTests(unittest.IsolatedAsyncioTestCase):
             await sessions.transition_edit_batch(
                 record.mutation.mutation_id, EditBatchState.APPLYING
             )
-            editor.apply_batch(plan)
+            result = editor.apply_batch(plan)
             # A real interruption is observed after the apply-time ownership
             # proof is durable; without it recovery would refuse every POST
             # path instead of rolling the batch back.
-            await _persist_post_identities(capture, prepared, record)
+            await _persist_post_identities(capture, prepared, record, result)
             started = threading.Event()
             finish = threading.Event()
             real_recover = editor.recover_batch

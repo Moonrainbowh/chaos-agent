@@ -19,6 +19,14 @@ class VerificationAssessment:
     generation: int
     subject_hash: str
     verification_run_id: str | None = None
+    diagnostics: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        values = tuple(self.diagnostics)
+        if len(values) > 8 or any(not isinstance(item, str) or not item.strip()
+                                   or len(item) > 512 for item in values):
+            raise ValueError("verification diagnostics must be bounded non-blank text")
+        object.__setattr__(self, "diagnostics", values)
 
 
 class InFlightValidationError(RuntimeError):

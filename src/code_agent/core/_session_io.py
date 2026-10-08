@@ -31,6 +31,15 @@ class SessionJournal:
         except Exception:
             raise SessionPersistenceError("could not create session") from None
 
+    async def load_task_for_thread(self, thread_id: str) -> TaskRecord | None:
+        try:
+            task = await self._repository.load_task_for_thread(thread_id)
+            if task is not None and not isinstance(task, TaskRecord):
+                raise TypeError("session has invalid task")
+            return task
+        except Exception:
+            raise SessionPersistenceError("could not load task") from None
+
     async def load_messages(self, thread_id: str) -> tuple[Message, ...]:
         try:
             messages = tuple(await self._repository.load_messages(thread_id))
@@ -39,6 +48,76 @@ class SessionJournal:
             return messages
         except Exception:
             raise SessionPersistenceError("could not load session") from None
+
+    async def load_context_messages(self, thread_id):
+        read = getattr(self._repository, "load_context_messages", None)
+        if not callable(read):
+            return await self.load_messages(thread_id)
+        try:
+            return tuple(await read(thread_id))
+        except Exception:
+            raise SessionPersistenceError("required context history cannot fit bounded page") from None
+
+    async def has_pending_actions(self, thread_id):
+        read = getattr(self._repository, "pending_action_records", None)
+        if not callable(read):
+            from .pending_actions import pending_calls
+            return bool(pending_calls(await self.load_messages(thread_id)))
+        try:
+            return bool(await read(thread_id))
+        except Exception:
+            raise SessionPersistenceError("could not inspect durable pending actions") from None
+
+    async def has_tool_call_id(self, thread_id, call_id):
+        read = getattr(self._repository, "has_tool_call_id", None)
+        if not callable(read):
+            return any(call.id==call_id for message in await self.load_messages(thread_id) for call in message.tool_calls)
+        try:
+            return await read(thread_id,call_id)
+        except Exception:
+            raise SessionPersistenceError("could not inspect durable call identity") from None
+
+    async def host_progress(self, thread_id, objective, dispatcher, *, candidate_limit, hard_tool_limit):
+        from .host_progress import observe_host_progress, interaction_revision, fingerprint
+        store = self._repository
+        if not callable(getattr(store, "load_host_progress_projection", None)):
+            messages = await self.load_messages(thread_id)
+            return observe_host_progress(messages, objective, dispatcher,
+                candidate_limit=candidate_limit,hard_tool_limit=hard_tool_limit), interaction_revision(messages)
+        try:
+            for _ in range(3):
+                stats = await store.history_stats(thread_id)
+                prior = await store.load_host_progress_projection(thread_id)
+                epoch_valid = prior is not None and prior["epoch"]==stats["message_epoch"]
+                if epoch_valid and prior['cursor']>stats['message_sequence']:
+                    raise ValueError("progress cursor exceeds durable history")
+                valid = epoch_valid and prior['state'].get('identity')==fingerprint((objective,candidate_limit,hard_tool_limit))
+                cursor = prior["cursor"] if valid else 0
+                # A lease can change candidate limits. Rebuild facts boundedly,
+                # but compare the replacement against the durable old cursor.
+                start = prior['cursor'] if epoch_valid else 0
+                projection = prior["state"] if valid else {}
+                facts = observe_host_progress((),objective,dispatcher,candidate_limit=candidate_limit,
+                    hard_tool_limit=hard_tool_limit,projection=projection)
+                while cursor<stats["message_sequence"]:
+                    page = await store.read_history_page(thread_id,after_sequence=cursor,
+                        before_sequence=stats["message_sequence"]+1,limit=100,max_bytes=1048576)
+                    if not page:
+                        raise ValueError("history cursor missing durable source")
+                    facts = observe_host_progress(tuple(r.message for r in page),objective,dispatcher,
+                        candidate_limit=candidate_limit,hard_tool_limit=hard_tool_limit,projection=projection)
+                    cursor=page[-1].sequence
+                if valid and cursor==start:
+                    current = await store.history_stats(thread_id)
+                    if (current['message_epoch'],current['message_revision']) != (stats['message_epoch'],stats['message_revision']):
+                        continue
+                    return facts,len(projection.get("user_revisions",()))
+                if await store.save_host_progress_projection(thread_id,{"cursor":cursor,"state":projection},
+                        expected_cursor=start,expected_epoch=stats["message_epoch"]):
+                    return facts,len(projection.get("user_revisions",()))
+            raise ValueError("history projection changed concurrently")
+        except Exception:
+            raise SessionPersistenceError("could not project bounded Host progress") from None
 
     async def append_message(self, thread_id: str, message: Message) -> None:
         try:

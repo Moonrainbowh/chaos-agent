@@ -74,7 +74,7 @@ class CliFailureTests(unittest.IsolatedAsyncioTestCase):
 
         create.assert_not_called()
         self.assertIn("ask <prompt>", stdout.getvalue())
-        self.assertIn("run --json <prompt>", stdout.getvalue())
+        self.assertIn("run --json [--require-verified] <prompt>", stdout.getvalue())
 
     async def test_configuration_error_explains_the_next_action(self) -> None:
         stderr = StringIO()
@@ -83,7 +83,7 @@ class CliFailureTests(unittest.IsolatedAsyncioTestCase):
             "chaos_agent.cli.create_application",
             side_effect=LocalConfigError("base_url must be non-empty text"),
         ), patch("sys.stderr", stderr):
-            status = await run(("task", "list"))
+            status = await run(("ask", "inspect"))
 
         self.assertEqual(status, 2)
         self.assertIn(
@@ -130,7 +130,7 @@ class CliFailureTests(unittest.IsolatedAsyncioTestCase):
             with patch("sys.stderr", stderr):
                 status = await run(("ask", "inspect"))
 
-        self.assertEqual(status, 1)
+        self.assertEqual(status, 2)
         self.assertIn("RuntimeError", stderr.getvalue())
         self.assertNotIn("secret detail", stderr.getvalue())
 

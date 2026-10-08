@@ -16,9 +16,10 @@ from code_agent.sessions.errors import SessionError, SessionNotFound
 from code_agent.project_launcher.store import ProjectStore, ProjectStoreError
 from chaos_agent.app_paths import product_state_root
 
-from .errors import RemoteConflict, RemoteInputError, RemoteNotFound
+from .errors import DeviceAuthorizationError, RemoteConflict, RemoteInputError, RemoteNotFound
 from .pairing import PairingStore
 from .task_controller import RemoteTaskController
+from .requests import RemoteRequestControl
 
 
 def create_host_app(
@@ -29,6 +30,7 @@ def create_host_app(
     pairing = pairing or PairingStore()
     project_store = project_store or getattr(application, "project_store", None) or ProjectStore(product_state_root() / "projects.json")
     tasks = RemoteTaskController(application, application_factory=application_factory, project_store=project_store)
+    requests = RemoteRequestControl(tasks)
     static_path = Path(__file__).with_name("static") / "index.html"
 
     @asynccontextmanager
@@ -75,6 +77,10 @@ def create_host_app(
                 return JSONResponse({"error": "session storage is unavailable; retry"}, status_code=503)
             except RemoteConflict as error:
                 return JSONResponse({"error": str(error)}, status_code=409)
+            except DeviceAuthorizationError:
+                return JSONResponse({"error": "device authorization is revoked or invalid"}, status_code=401)
+            except PermissionError:
+                return JSONResponse({"error": "operation permission denied"}, status_code=403)
             except ValueError:
                 return JSONResponse({"error": "request is incompatible with the saved session"}, status_code=400)
             except RuntimeError:
@@ -165,6 +171,31 @@ def create_host_app(
         await tasks.stop(identifier)
         return {"status": "stopped"}
 
+    async def pending_requests(request: Any) -> dict[str, Any]:
+        identifier = _identifier(request.path_params["session_id"], "session_id")
+        return await requests.pending(identifier)
+
+    async def respond_request(request: Any) -> dict[str, Any]:
+        task_id = _identifier(request.path_params["task_id"], "task_id")
+        request_id = _identifier(request.path_params["request_id"], "request_id")
+        body = await _object_body(request)
+        if "request_id" in body and body["request_id"] != request_id:
+            raise RemoteInputError("request identity does not match the path")
+        body["request_id"] = request_id
+        header = request.headers.get("authorization", "")
+        credential = header.removeprefix("Bearer ") if header.startswith("Bearer ") else None
+        async def authenticate_response() -> bool:
+            if not await asyncio.to_thread(pairing.authenticate, credential):
+                raise DeviceAuthorizationError("device credential is revoked or invalid")
+            return True
+        # The same file lock serializes external CLI revocation with durable consumption.
+        async with pairing.authorized_response(credential):
+            try:
+                return await requests.respond(task_id, body,
+                    authenticate=authenticate_response)
+            except ValueError as error:
+                raise RemoteConflict("request expired, consumed or changed; refresh its durable snapshot") from error
+
     async def events(websocket: WebSocket) -> None:
         await websocket.accept()
         try:
@@ -176,6 +207,9 @@ def create_host_app(
             try:
                 identifier = _identifier(websocket.path_params["session_id"], "session_id")
                 since = _integer(websocket.query_params, "since", default=0, minimum=0, maximum=2**63 - 1)
+                epoch = websocket.query_params.get("epoch")
+                if epoch is not None:
+                    _identifier(epoch, "epoch")
             except RemoteInputError:
                 await websocket.close(code=4400)
                 return
@@ -185,7 +219,7 @@ def create_host_app(
                 except (RemoteNotFound, SessionNotFound):
                     await websocket.close(code=4404)
                     return
-            await _authenticated_events(websocket, tasks, pairing, credential, since, identifier)
+            await _authenticated_events(websocket, tasks, pairing, credential, since, identifier, epoch)
         except asyncio.TimeoutError:
             await websocket.close(code=4401)
         except (WebSocketDisconnect, RuntimeError):
@@ -208,6 +242,8 @@ def create_host_app(
         Route("/sessions/{session_id}/messages", authenticated(history), methods=["GET"]),
         Route("/sessions/{session_id}/messages", authenticated(message), methods=["POST"]),
         Route("/tasks/{task_id}/stop", authenticated(stop), methods=["POST"]),
+        Route("/sessions/{session_id}/requests", authenticated(pending_requests), methods=["GET"]),
+        Route("/tasks/{task_id}/requests/{request_id}/respond", authenticated(respond_request), methods=["POST"]),
         WebSocketRoute("/sessions/{session_id}/events", events),
     ]
     app = Starlette(routes=routes, lifespan=lifespan)
@@ -256,10 +292,11 @@ def _integer(parameters: Any, field: str, *, default: int, minimum: int, maximum
 
 async def _authenticated_events(
     websocket: WebSocket, tasks: RemoteTaskController, pairing: PairingStore,
-    credential: str, since: int, session_id: str = "current",
+    credential: str, since: int, session_id: str = "current", host_epoch: str | None = None,
 ) -> None:
     async def stream():
-        async for event in tasks.events(since, session_id):
+        events = tasks.events(since, session_id) if host_epoch is None else tasks.events(since, session_id, host_epoch=host_epoch)
+        async for event in events:
             if not await asyncio.to_thread(pairing.authenticate, credential):
                 await websocket.close(code=4401)
                 return

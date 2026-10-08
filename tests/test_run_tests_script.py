@@ -47,6 +47,7 @@ class TestSuiteDiscoveryTests(unittest.TestCase):
             for relative in (
                 "src/code_agent/zeta/tests/test_zeta.py",
                 "src/code_agent/alpha/tests/test_alpha.py",
+                "chaos_agent/remote/tests/test_remote.py",
                 "tests/test_root.py",
             ):
                 path = root / relative
@@ -60,6 +61,7 @@ class TestSuiteDiscoveryTests(unittest.TestCase):
             (
                 "src/code_agent/alpha/tests",
                 "src/code_agent/zeta/tests",
+                "chaos_agent/remote/tests",
                 "tests",
             ),
         )
@@ -90,6 +92,30 @@ class TestSuiteDiscoveryTests(unittest.TestCase):
 
 
 class TestSuiteDiagnosticsTests(unittest.TestCase):
+    def test_cleanup_failure_stops_and_lists_unrun_suites(self) -> None:
+        root = Path.cwd()
+        stdout = io.StringIO()
+        with mock.patch("scripts.suite_process.run_supervised_suite",
+                        side_effect=RuntimeError("unsafe cleanup")) as run, contextlib.redirect_stdout(stdout):
+            code = run_test_suites(root, (root / "first", root / "last"))
+        self.assertEqual(code, 2)
+        self.assertEqual(run.call_count, 1)
+        self.assertIn('"unrun_suites": ["last"]', stdout.getvalue())
+
+    def test_failed_and_timed_out_suites_do_not_hide_later_suites(self) -> None:
+        root = Path.cwd()
+        suites = tuple(root / name for name in ("first", "second", "last"))
+        stdout = io.StringIO()
+        with mock.patch("scripts.suite_process.run_supervised_suite",
+                        side_effect=[SimpleNamespace(returncode=1),
+                                     SimpleNamespace(returncode=124),
+                                     SimpleNamespace(returncode=0)]) as run, contextlib.redirect_stdout(stdout):
+            code = run_test_suites(root, suites)
+        self.assertEqual(code, 1)
+        self.assertEqual(run.call_count, 3)
+        self.assertIn('"failed_suites": 2', stdout.getvalue())
+        self.assertIn('"suite": "last"', stdout.getvalue())
+
     def test_parent_runner_prefers_source_tree_before_supervision(self) -> None:
         root = Path.cwd()
         suite = root / "tests"

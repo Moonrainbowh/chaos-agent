@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import uuid
 from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, AsyncIterator, Callable
 
 from code_agent.core.task import TaskStatus
+from code_agent.core.task_result import ResultCollector, TaskResult, result_from_task
 from code_agent.project_launcher.store import ProjectStore
 
 from .applications import RemoteApplications
@@ -17,6 +19,10 @@ from .protocol import MobileEvent, event_from_agent
 
 _TERMINAL = {"completed", "accepted_partial", "failed", "superseded"}
 _TRANSCRIPT_BYTES = 1024 * 1024
+
+
+class _HistoryChanged(RuntimeError):
+    """Retry a read-only snapshot whose pinned run changed across an await."""
 
 
 @dataclass
@@ -36,6 +42,7 @@ class _RemoteRun:
     transcript_bytes: int = 0
     assistant_open: bool = False
     snapshot_truncated: bool = False
+    result: dict[str, Any] | None = None
 
 
 class RemoteTaskController:
@@ -49,6 +56,38 @@ class RemoteTaskController:
         self._runs: dict[str, _RemoteRun] = {}
         self._lock = asyncio.Lock()
         self._closed = False
+        self.host_epoch = uuid.uuid4().hex
+
+    async def request_task(self, session_id: str):
+        """Resolve the exact persistent task selected by a catalog session."""
+        if session_id == 'current':
+            if self._active is None:
+                raise RemoteNotFound('no current task')
+            session_id = self._active.session_id
+        snapshot = await self.catalog.snapshot()
+        snapshot.session(session_id)
+        task = snapshot.tasks.get(session_id)
+        if task is None:
+            raise RemoteNotFound('session has no task')
+        return task
+
+    async def request_application(self, task_id: str):
+        """Use a persistent project identity without closing another active app."""
+        snapshot = await self.catalog.snapshot()
+        task = next((item for item in snapshot.tasks.values() if item.id == task_id), None)
+        if task is None:
+            raise RemoteNotFound('unknown task')
+        row = snapshot.session(task.thread_id)
+        project = snapshot.project(row['project_id'])
+        self.catalog.require_available(project)
+        for run in (self._active, self._runs.get(task.thread_id)):
+            if run is not None and run.task_id == task.id and (
+                    run.application is self.applications.primary or run.application is self.applications.child):
+                return run.application, task
+        active = self._active
+        if active is not None and active.runner is not None and not active.runner.done():
+            raise RemoteConflict('another task is executing; wait before opening this project')
+        return await self.applications.for_root(Path(project['path'])), task
 
     async def start(self, prompt: str, session_id: str = "current") -> dict[str, str]:
         async with self._lock:
@@ -130,30 +169,81 @@ class RemoteTaskController:
     async def status(self) -> dict[str, Any]:
         run = self._active
         if run is None:
-            return {"status": "idle", "task_id": None, "session_id": None, "sequence": 0}
-        return {"status": run.status, "task_id": run.task_id, "session_id": run.session_id, "sequence": run.sequence}
+            return {"status": "idle", "task_id": None, "session_id": None, "sequence": 0, "host_epoch": self.host_epoch}
+        await self._reconcile_finished_run(run)
+        if self._active is not run:
+            return await self.status()
+        return {"status": run.status, "task_id": run.task_id, "session_id": run.session_id, "sequence": run.sequence, "result": run.result, "host_epoch": self.host_epoch}
+
+    async def _reconcile_finished_run(self, run: _RemoteRun) -> None:
+        """Refresh a finished stream from its exact durable task, never a new run."""
+        sessions = getattr(run.application, 'sessions', None)
+        if not run.stream_done or sessions is None or self._runs.get(run.session_id) is not run:
+            return
+        task = await sessions.load_task(run.task_id)
+        if task.thread_id != run.session_id or task.status.value in {'created', 'running', 'verifying'}:
+            return
+        load_result = getattr(run.application.foreground_tasks, 'result', None)
+        result = await load_result(run.task_id) if callable(load_result) else result_from_task(task)
+        current = await sessions.load_task(run.task_id)
+        if (current.updated_at != task.updated_at or not run.stream_done
+                or self._runs.get(run.session_id) is not run):
+            return
+        # A result write may have failed after the durable decision transition.
+        # Report that task's execution fact without promoting stale verification.
+        if result.execution_status != task.status.value:
+            result = result_from_task(task)
+        run.status, run.result = result.execution_status, result.to_dict()
 
     async def history(self, session_id: str, *, before: int | None, limit: int) -> dict[str, Any]:
+        for _ in range(3):
+            try:
+                return await self._history_snapshot(session_id, before=before, limit=limit)
+            except _HistoryChanged:
+                continue
+        raise RemoteConflict('session changed during history snapshot; retry')
+
+    def _check_history_run(self, session_id, run):
+        if self._runs.get(session_id) is not run:
+            raise _HistoryChanged()
+
+    async def _history_snapshot(self, session_id: str, *, before: int | None, limit: int) -> dict[str, Any]:
+        run = self._runs.get(session_id)
         snapshot = await self.catalog.snapshot()
+        self._check_history_run(session_id, run)
         row = snapshot.session(session_id)
         task = snapshot.tasks.get(session_id)
-        run = self._runs.get(session_id)
+        if run is not None:
+            await self._reconcile_finished_run(run)
+            self._check_history_run(session_id, run)
         live = run is not None and not run.stream_done and run.status not in _TERMINAL | {"stopped"}
+        if live:
+            task = await self.catalog.sessions.load_task(run.task_id)
+            self._check_history_run(session_id, run)
+            if task.thread_id != session_id:
+                raise RemoteConflict('history run does not match its task session')
+            if row['status'] != 'archived':
+                row['status'] = task.status.value
         maximum = run.base_message_sequence if live else None
         page, next_before = await self.catalog.message_page(session_id, before=before, limit=limit, maximum=maximum)
+        self._check_history_run(session_id, run)
         if not live:
             task = await self.catalog.sessions.load_task_for_thread(session_id)
+            self._check_history_run(session_id, run)
             if task is not None and row["status"] != "archived":
                 row["status"] = task.status.value
         result = {
+            "host_epoch": self.host_epoch,
             "messages": page, "next_before": next_before, "session": row,
             "task": {"id": task.id, "status": task.status.value} if task is not None else None,
             "event_sequence": run.sequence if run is not None else 0,
             "active_prompt": None, "active_task": None, "assistant_open": False,
             "snapshot_truncated": False,
+            "result": None,
         }
         if live and run is not None:
             async with run.condition:
+                self._check_history_run(session_id, run)
                 result["event_sequence"] = run.sequence
                 live = not run.stream_done and run.status not in _TERMINAL | {"stopped"}
                 if live:
@@ -166,40 +256,72 @@ class RemoteTaskController:
             if not live:
                 # Completion may have arrived while the base page was loading.
                 page, next_before = await self.catalog.message_page(session_id, before=before, limit=limit)
+                self._check_history_run(session_id, run)
                 result["messages"], result["next_before"] = page, next_before
                 task = await self.catalog.sessions.load_task_for_thread(session_id)
+                self._check_history_run(session_id, run)
                 if task is not None:
                     result["task"] = {"id": task.id, "status": task.status.value}
                     result["session"]["status"] = task.status.value
+        if task is not None and not live and task.status.value not in {'created', 'running', 'verifying'}:
+            load_result = getattr(self._application.foreground_tasks, 'result', None)
+            if callable(load_result):
+                # This public projection reads the shared repository; no project
+                # application is created or swapped merely to view history.
+                durable = await load_result(task.id)
+                self._check_history_run(session_id, run)
+                current = await self.catalog.sessions.load_task(task.id)
+                self._check_history_run(session_id, run)
+                if current.updated_at != task.updated_at:
+                    raise _HistoryChanged()
+                result['result'] = durable.to_dict()
         return result
 
-    async def events(self, since: int = 0, session_id: str = "current") -> AsyncIterator[MobileEvent]:
+    async def events(self, since: int = 0, session_id: str = "current", *, host_epoch: str | None = None) -> AsyncIterator[MobileEvent]:
         # Resolve the alias once. A later task can never replace this stream.
         run = self._active if session_id == "current" else self._runs.get(session_id)
         if run is None:
             return
+        if host_epoch is not None and host_epoch != self.host_epoch:
+            yield self._gap(run, "host_restarted")
+            return
         next_sequence = max(1, since + 1)
         while True:
             async with run.condition:
+                gap = (next_sequence > run.sequence + 1 or
+                       bool(run.events and next_sequence < run.events[0].sequence))
                 pending = [event for event in run.events if event.sequence >= next_sequence]
-                if not pending and run.stream_done:
+                if not gap and not pending and run.stream_done:
                     return
-                if not pending:
+                if not gap and not pending:
                     await run.condition.wait()
                     continue
+            if gap:
+                yield self._gap(run, "cursor_gap")
+                return
             for event in pending:
                 next_sequence = event.sequence + 1
                 yield event
 
+    def _gap(self, run: _RemoteRun, reason: str) -> MobileEvent:
+        return MobileEvent("connection_state", task_id=run.task_id, session_id=run.session_id,
+            sequence=run.sequence, data={"reset": True, "snapshot_required": True,
+                                        "reason": reason, "host_epoch": self.host_epoch})
+
     async def _consume(self, run: _RemoteRun, instruction: str | None) -> None:
         run.status = "running"
+        collected = ResultCollector()
         try:
             foreground = run.application.foreground_tasks
             stream = foreground.events(run.task_id) if instruction is None else foreground.events(run.task_id, instruction)
             async for event in stream:
+                collected.observe(event)
                 mobile = event_from_agent(event, task_id=run.task_id, session_id=run.session_id, sequence=run.sequence + 1)
                 if mobile is not None:
-                    await self._publish(run, mobile)
+                    if mobile.event in {'task_completed', 'task_stopped'}:
+                        pass  # Final delivery follows the durable result lookup.
+                    else:
+                        await self._publish(run, mobile)
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -212,16 +334,28 @@ class RemoteTaskController:
                         await run.application.foreground_tasks.interrupt(run.task_id, "remote event stream failed")
                 except Exception:
                     pass
-            await self._publish(run, MobileEvent("task_failed", task_id=run.task_id, session_id=run.session_id, data={"error": "task execution failed"}))
         finally:
-            if run.status not in _TERMINAL | {"stopped"}:
-                sessions = getattr(run.application, "sessions", None)
-                if sessions is not None:
-                    try:
-                        with_task = await sessions.load_task(run.task_id)
-                        run.status = with_task.status.value
-                    except Exception:
-                        run.status = "failed"
+            result = collected.result
+            sessions = getattr(run.application, 'sessions', None)
+            if sessions is not None:
+                try:
+                    load_result = getattr(run.application.foreground_tasks, 'result', None)
+                    if callable(load_result):
+                        result = await load_result(run.task_id)
+                    else:
+                        result = result_from_task(await sessions.load_task(run.task_id))
+                except Exception:
+                    result = TaskResult(stop_code='state_read_failed')
+            elif run.status == 'failed':
+                result = TaskResult('failed', stop_code='execution_error')
+            if result.stop_code != 'state_read_failed':
+                result = collected.reconcile(result)
+            run.status = result.execution_status
+            run.result = result.to_dict()
+            terminal_name = {'completed': 'task_completed', 'failed': 'task_failed',
+                             'cancelled': 'task_stopped'}.get(result.execution_status)
+            await self._publish(run, MobileEvent(terminal_name or 'task_status', task_id=run.task_id,
+                session_id=run.session_id, data={'status': run.status, 'result': result.to_dict()}))
             async with run.condition:
                 run.stream_done = True
                 run.assistant_open = False
@@ -240,7 +374,8 @@ class RemoteTaskController:
             if event.event == "task_status":
                 run.status = str((event.data or {}).get("status", run.status))
             elif event.event in {"task_completed", "task_failed", "task_stopped"}:
-                run.status = event.event.removeprefix("task_")
+                result_status = ((event.data or {}).get('result') or {}).get('execution_status')
+                run.status = result_status or event.event.removeprefix("task_")
             run.condition.notify_all()
 
     @staticmethod

@@ -18,7 +18,7 @@ from .limits import EngineLimits, add_usage
 from .models import ContextBundle, ModelEventKind, ToolCall, Usage
 from .attachments import AttachmentRef
 from .protocols import ActionDispatcher, ContextBuilder, ModelClient, SessionRepository
-from .task import TaskRecord, TaskStatus
+from .task import TaskAuthorization, TaskRecord, TaskStatus
 from .task_supervisor import SupervisionKind
 from .task_verification import TaskVerificationService
 
@@ -43,6 +43,7 @@ class AgentEngine(
         context_mode_snapshot: Mapping[str, JSONValue] | None = None,
         context_permission_snapshot: Mapping[str, JSONValue] | None = None,
         action_lineage: ActionLineage | None = None,
+        inherited_authorization: TaskAuthorization | None = None,
         peer_tool_names: Sequence[str] = (),
         capability_strategy: CapabilityStrategy = CapabilityStrategy.HYBRID,
     ) -> None:
@@ -54,6 +55,12 @@ class AgentEngine(
         if action_lineage is not None and not isinstance(action_lineage, ActionLineage):
             raise TypeError("action_lineage must be an ActionLineage or None")
         self._action_lineage = action_lineage
+        if inherited_authorization is not None:
+            if not isinstance(inherited_authorization, TaskAuthorization):
+                raise TypeError("inherited_authorization must be a TaskAuthorization")
+            if action_lineage is None or action_lineage.task_id is None:
+                raise ValueError("inherited authorization requires parent task lineage")
+        self._inherited_authorization = inherited_authorization
         if not isinstance(model_name, str) or not model_name.strip():
             raise ValueError("model_name must be non-blank text")
         self._model_name = model_name
@@ -145,7 +152,7 @@ class AgentEngine(
         yield started
 
         try:
-            state.prior_messages = await self._journal.load_messages(
+            state.prior_messages = await self._journal.load_context_messages(
                 state.thread_id
             )
             state.messages = state.prior_messages

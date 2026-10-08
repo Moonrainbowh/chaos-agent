@@ -1,0 +1,13 @@
+# v4 真实子任务入口独立监督
+
+结论：**CHANGES_REQUESTED_FOR_REAL_CHILD_GATE**，绑定候选b1aad2f1。实际110.622秒/exit0，SYSTEM waiting_decision、unchanged、unverified；没有来源调查交付或真实child。不会把下层预检或进程成功当作整体验收通过。
+
+独立只读本次SQLite原始usage/checkpoints/task及实际JSONL，脚本 v4_actual_independent_review.py exit0。五HTTP请求均GLM5.3-flash/medium/output4096，五唯一usage均settled，真实input28514/output890与父预算精确相同，父累计1m冻结。源七文件before/after/current hash全部相同。raw库只有父task，无context:child_budget。
+
+真实工具链完成load_tool_contract1次、delegate_agent3次。第一次整数300000在Tool schema校验处拒绝（`invalid argument type: token_budget`）；后两次由`duplicate_failed_call_blocked`阻止重放同一失败调用。最后模型只输出尝试字符串形式的JSON正文，没有真实新调用，不得补造执行。初审从模型正文误述“两次schema拒绝”，现已按真实action结果精确纠正为一次schema拒绝、两次重复守门。
+
+源码 tools.py 的token_budget schema最大100000；内核ChildRunRequest与新父ledger能容纳300k，并不表示tool入口能接收。v4 preflight直接调用app.subagents.dispatch，属于真实下层装配/准备能力预检，**绕过了完整typed工具schema dispatcher**。先前PASS_PREFLIGHT_ONLY依然只可覆盖该下层范围，不能宣称生产全入口300k准入。应先离线验证已授权300k请求在完整生产schema/policy/dispatcher链可达，而不能再付费试错或降低请求值规避用户授权。
+
+另一个独立阻塞是 persistent 容量衔接：handoff=None时builder._input_cap/_preflight_bundle只查handoff.client，退回API1m的979904 cap；真实发送guard Host300k给284000。独立冻结候选零HTTP红反例 persistent_cap_initial_probe.py 实际exit1，原日志/exit保留。提前75%/87.5%提醒与自动capacity_fallback使用错误的大容量，发送仍正确闭合拒超额，不能称Provider守门被绕过。此问题与累计父1m预算不同；persistent本来无LLM摘要，闭合工具组reset保历史，不代表超过累计额度自动压缩。
+
+四路径父ledger修复通过的scope与旧候选CI/来源物证不被此次新发现撤销，但它们不能代替完整S16。后续schema/Feature/Host修复需要独立红绿反例、新snapshot与完整CI。旧v1/v2失败、v2 pending80703未知负债继续保留，不因v4新case全部settled消失。监督者没有Provider请求、修改产品/candidate或补模型回答。

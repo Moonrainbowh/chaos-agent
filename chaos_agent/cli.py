@@ -7,9 +7,7 @@ import traceback
 from collections.abc import Sequence
 from importlib.metadata import PackageNotFoundError, version as package_version
 
-from code_agent.config.loader import LocalConfigError, default_config_path, resolve_config_path
 from code_agent.interfaces.attachment_input import DEFAULT_ATTACHMENT_PROMPT
-from code_agent.interfaces.commands import CommandKind, execute_command, parse_command
 from code_agent.runtime.errors import RuntimeUnavailable
 from .cli_options import (
     _split_attachment_options,
@@ -27,11 +25,7 @@ from .workspace_policy import (
 
 _ATTACHMENT_COMMANDS = frozenset(
     {
-        CommandKind.TUI,
-        CommandKind.ASK,
-        CommandKind.RESUME,
-        CommandKind.RUN_JSON,
-        CommandKind.TASK_RESUME,
+        "tui", "ask", "resume", "run_json", "task_resume",
     }
 )
 
@@ -41,24 +35,33 @@ Commands:
   mobile                       Open saved projects for a phone SSH terminal
   auth <command>               Login, API keys, model catalog and configuration
   acp                          Serve ACP v1 over stdio for editor clients
-  host                         Serve the mobile PWA over localhost or the LAN
-  host --lan                   Allow same-Wi-Fi phone access (bind 0.0.0.0)
+  host                         Serve a localhost backend for an HTTPS/WSS phone entry
+  host --lan --tls-cert <cert> --tls-key <key>   Serve HTTPS on network interfaces
   host revoke-device           Revoke the currently paired phone
   ask <prompt>                 Run one request and print the result
   resume <thread-id> [prompt]  Resume a saved task or open it in the TUI
   run --json <prompt>          Stream machine-readable JSON events
+  history <thread-id>          Read saved messages and events as JSON
   task list                    List durable tasks
+  task result <task-id>        Query execution, changes and verification as JSON
   task resume <task-id> [text] Resume a durable task
+  task recovery <task-id>     Inspect unresolved actions and recovery version
+  task resolve <task-id> <call-id> <message-seq> <version> <decision> <reason> <evidence>
+                             Explicitly reconcile one stopped action; does not execute it
 
 Global options:
   --profile <name>             Select a configured provider profile
   --model <name>               Override the selected model
-  --mode <low|medium|high|ultra>
   --attach <path>              Attach a supported local file
   --isolated                   Run this invocation in an isolated Git worktree
   --reclaim-workspaces         Retire managed worktrees that hold no work, then exit
   -h, --help                   Show this help
   -V, --version                Show the installed version
+
+Advanced / compatibility options:
+  --mode <low|medium|high|ultra>
+                               Legacy profile/prompt preset; does not grant permission
+  See docs/advanced-configuration.md for environment aliases and internal strategies.
 
 Run without a command to open the interactive terminal UI.
 """
@@ -70,10 +73,11 @@ The process working directory is the single ACP workspace root.
 """
 
 _COMMAND_HELP = {
+    "history": "Usage: chaos-agent history <thread-id>\n\nRead persisted messages and events as JSON without starting or resuming a task.",
     "ask": "Usage: chaos-agent [global options] ask <prompt>\n\nRun one durable task and render its result.",
     "resume": "Usage: chaos-agent [global options] resume <thread-id> [prompt]\n\nResume a saved task or open its history in the TUI.",
-    "run": "Usage: chaos-agent [global options] run --json <prompt>\n\nRun one durable task and stream JSON lifecycle events.",
-    "task": "Usage: chaos-agent [global options] task list|resume <task-id> [prompt]\n\nInspect or resume durable tasks.",
+    "run": "Usage: chaos-agent [global options] run --json [--require-verified] <prompt>\n\nStream lifecycle events and a final task_result. Exit: 0 completed; 1 failed; 2 initialization/usage; 3 waiting decision; 4 interrupted/paused/unknown; 5 partial or required verification missing; 130 cancelled.",
+    "task": "Usage: chaos-agent [global options] task list|resume <task-id> [prompt]\n       chaos-agent task result <task-id>\n       chaos-agent task recovery <task-id>\n       chaos-agent task resolve <task-id> <call-id> <message-seq> <version> <decision> <reason> <evidence>\n\nDecisions: durable_receipt, local_mutation, operator_executed, operator_not_executed. Reconciliation requires a stopped task and does not execute its action. Operator reports are unverified.",
 }
 
 
@@ -90,6 +94,11 @@ async def serve_acp(application):
 async def serve_host(application, arguments):
     from .remote_cli import serve_host as serve
     return await serve(application, arguments)
+
+
+async def execute_command(*args, **kwargs):
+    from code_agent.interfaces.commands import execute_command as execute
+    return await execute(*args, **kwargs)
 
 
 async def run(arguments: Sequence[str], *, splash=None) -> int:
@@ -120,6 +129,15 @@ async def run(arguments: Sequence[str], *, splash=None) -> int:
                 raise ValueError("--attach is not supported by help or version")
             print(meta_output)
             return 0
+        from .read_only_history import is_history_query, run_history_query
+        if is_history_query(command_arguments):
+            if attachment_paths:
+                raise ValueError("--attach is not supported by history queries")
+            if splash is not None:
+                splash.stop()
+            return await run_history_query(command_arguments, sys.stdout.write)
+        from code_agent.interfaces.commands import CommandKind, parse_command
+        from code_agent.config.loader import LocalConfigError
         is_acp = command_arguments == ("acp",)
         is_host = bool(command_arguments and command_arguments[0] == "host")
         if (is_acp or is_host) and attachment_paths:
@@ -155,6 +173,7 @@ async def run(arguments: Sequence[str], *, splash=None) -> int:
             return 1
     isolation_token = request_task_isolation("explicit") if isolated else None
     application = None
+    initialized = False
     try:
         try:
             application = create_application(
@@ -169,6 +188,7 @@ async def run(arguments: Sequence[str], *, splash=None) -> int:
                 ),
             )
             await application.startup()
+            initialized = True
         finally:
             if splash is not None:
                 splash.stop()
@@ -221,7 +241,7 @@ async def run(arguments: Sequence[str], *, splash=None) -> int:
         print(f"agent error: {type(error).__name__}", file=sys.stderr)
         if os.environ.get("CHAOS_DEBUG_ERRORS") == "1":
             traceback.print_exc(file=sys.stderr)
-        return 1
+        return 1 if initialized else 2
     finally:
         if isolation_token is not None:
             reset_task_isolation(isolation_token)
@@ -290,6 +310,7 @@ def _meta_command_output(arguments: Sequence[str]) -> str | None:
 
 
 def _configuration_path() -> str:
+    from code_agent.config.loader import LocalConfigError, default_config_path, resolve_config_path
     try:
         return str(resolve_config_path())
     except LocalConfigError:
@@ -311,10 +332,8 @@ def _default_attachment_prompt(
     return values
 
 
-def _require_attachment_consumer(
-    kind: CommandKind, paths: Sequence[str]
-) -> None:
-    if paths and kind not in _ATTACHMENT_COMMANDS:
+def _require_attachment_consumer(kind, paths: Sequence[str]) -> None:
+    if paths and kind.value not in _ATTACHMENT_COMMANDS:
         raise ValueError(f"--attach is not supported by {kind.value}")
 
 

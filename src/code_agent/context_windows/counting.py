@@ -25,3 +25,12 @@ class PromptTokenCounter:
         for tool in tools:
             total += self.text(json.dumps(tool.to_dict(), ensure_ascii=False))
         return total + 256 + 16 * (len(messages) + len(tools))
+
+    def prepared(self, request):
+        """Estimate the exact admitted JSON text, with an explicit protocol reserve."""
+        from code_agent.providers.prepared import PreparedProviderRequest
+        if not isinstance(request, PreparedProviderRequest):
+            raise TypeError("expected a prepared Provider request")
+        if request.uncalibrated_images:
+            raise ValueError("image input requires an explicit calibrated token policy before HTTP")
+        return self.text(request.input_text) + 256

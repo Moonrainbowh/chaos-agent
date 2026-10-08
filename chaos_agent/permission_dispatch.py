@@ -42,6 +42,9 @@ async def authorize_action(
     task_authorization: TaskAuthorization | None,
     edit_authorization: EditPlanAuthorization,
     process_rule: ProcessRuleMatch | None,
+    *,
+    execution_context=None,
+    workspace_root: str | None = None,
 ) -> ActionResult | None:
     def evaluate(item: ActionRequest):
         risks = (
@@ -91,6 +94,8 @@ async def authorize_action(
             edit_authorization.view,
         ),
         cancellation,
+        execution_context=execution_context,
+        workspace_root=workspace_root,
     )
     return None if approved else error_result(request, "action denied by user")
 

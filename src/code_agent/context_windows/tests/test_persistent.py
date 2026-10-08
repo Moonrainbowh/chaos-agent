@@ -27,9 +27,34 @@ class NoSummary:
 
 
 class PersistentTests(unittest.IsolatedAsyncioTestCase):
+    async def test_explicit_request_guard_limits_capacity_without_handoff(self):
+        from code_agent.context_windows.client import BudgetedWindowClient
+        from code_agent.context_windows.policy import RequestBudgetConstraints
+        policy = WindowPolicy(strategy="persistent", work_tokens=1000000, safety_tokens=100)
+        limits = ApiContextLimits(1000000, 1000)
+        counter = PromptTokenCounter()
+        guard = BudgetedWindowClient(object(), self.repo, lambda: self.thread, policy, limits,
+            counter, constraints=RequestBudgetConstraints(host_prompt_tokens=4000))
+        builder = PersistentContextBuilder(Prefix(), self.repo, policy, limits, counter, None,
+            request_client=guard)
+        self.assertEqual(builder._input_cap(), 3900)
+        await self.repo.append_message(self.thread, Message("assistant", "old evidence " * 3000))
+        original = await self.repo.load_messages(self.thread)
+        request = ContextRequest(self.thread, 1, (), "", (), TaskState(), CancellationToken())
+        bundle = await builder.build(request)
+        self.assertEqual(bundle.measurements["window_input_cap"], 3900)
+        self.assertEqual(bundle.measurements["window_number"], 1)
+        self.assertIsNone(builder.handoff)
+        windows = await self.repo.context_records(self.thread, "window")
+        self.assertEqual(windows[0]["reason"], "capacity_fallback")
+        self.assertEqual(windows[0]["carry"], "")
+        self.assertEqual(await self.repo.load_messages(self.thread), original)
+        self.assertEqual(await self.repo.context_records(self.thread, "usage"), ())
+
     async def asyncSetUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.path = Path(self.tmp.name) / "sessions.db"
+        assert self.path.resolve().is_relative_to(Path(self.tmp.name).resolve())
         self.repo = SQLiteSessionRepository(self.path)
         self.thread = await self.repo.create_thread()
         self.policy = WindowPolicy(strategy="persistent", work_tokens=10000, safety_tokens=100)
@@ -56,7 +81,7 @@ class PersistentTests(unittest.IsolatedAsyncioTestCase):
             await self.repo.append_message(self.thread, Message("assistant", tool_calls=(ToolCall(key, name, args),)))
         result = await self.service.dispatch(request, CancellationToken())
         if persist:
-            await self.repo.append_message(self.thread, Message("tool", str(result.output), tool_call_id=key))
+            await self.repo.append_message(self.thread, Message("tool", str(result.output), tool_call_id=key, name=name))
         self.assertFalse(result.is_error, str(result.output))
         return result.output
 
@@ -85,7 +110,7 @@ class PersistentTests(unittest.IsolatedAsyncioTestCase):
         await self.tool("notes_write_file", {"path": "state.md", "text": "private checkpoint"})
         await self.repo.append_message(self.thread, Message("assistant", tool_calls=(
             ToolCall("read", "read_file", {"path": "hidden-in-arguments.py"}),)))
-        await self.repo.append_message(self.thread, Message("tool", "old evidence 原文", tool_call_id="read"))
+        await self.repo.append_message(self.thread, Message("tool", "old evidence 原文", tool_call_id="read", name="read_file"))
         before = await self.repo.load_messages(self.thread)
         first = await self.build()
         from code_agent.context.measurements import prompt_estimate
@@ -99,6 +124,7 @@ class PersistentTests(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn("old evidence", str(bundle.messages))
             self.assertNotIn("private checkpoint", bundle.system_prompt + str(bundle.messages))
             self.assertIn("Keep the API contract", str(bundle.messages))
+        assert self.path.resolve().is_relative_to(Path(self.tmp.name).resolve())
         self.repo = SQLiteSessionRepository(self.path)
         self.builder = self.make_builder()
         self.service = PersistentToolService(self.repo, lambda: self.thread, self.builder)

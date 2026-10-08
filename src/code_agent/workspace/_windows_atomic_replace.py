@@ -23,6 +23,7 @@ from ._windows_replace_native import (
     replace_file as _replace_file,
     open_file_guard as _open_file_guard,
     require_file_identity as _require_file_identity,
+    full_file_identity,
     set_handle_readonly as _set_handle_readonly,
 )
 from ._windows_replace_recovery import (
@@ -47,9 +48,10 @@ def publish_windows_temp(
     validate: Callable[[], None] | None,
     *,
     context: str,
-) -> None:
+) -> safety.PathIdentity:
     """Publish while a no-write handle protects the final validation."""
     committed = False
+    output_identity: safety.PathIdentity | None = None
     try:
         with _protected_parents(state, guard):
             temp_handle = _open_file_guard(
@@ -68,16 +70,24 @@ def publish_windows_temp(
                         guard, created, validate, context,
                     )
                 committed = True
+                output_identity = full_file_identity(temp_handle, temporary_identity.mode)
             except BaseException as error:
                 primary = error
                 if getattr(error, "publication_committed", False):
                     committed = True
+                    try:
+                        output_identity = full_file_identity(temp_handle, temporary_identity.mode)
+                    except BaseException:
+                        pass
                 raise
             finally:
                 _close_or_attach(temp_handle, primary)
+        assert output_identity is not None
+        return output_identity
     except BaseException as error:
         if committed:
             setattr(error, "publication_committed", True)
+            setattr(error, "output_identity", output_identity)
         raise
 
 

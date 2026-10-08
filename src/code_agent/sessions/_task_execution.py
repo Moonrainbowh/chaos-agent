@@ -4,15 +4,27 @@ import sqlite3
 import uuid
 from collections.abc import Callable
 
-from ._codec import encode_datetime, encode_metadata, utc_now
+from code_agent.core.task import TaskRecord, TaskStatus
+
+from ._codec import encode_datetime, encode_metadata, encode_task, utc_now
 from ._records import _touch_thread, _text
+from ._task_records import _task_row, row_task
 from .errors import SessionNotFound
 
 
 OwnerAlive = Callable[[int, float], bool]
 
 
-async def register(database: object, task_id: str, instance_id: str, owner_pid: int, owner_create_time: float) -> None:
+async def release(database: object, task_id: str, instance_id: str) -> bool:
+    """Release only this execution; an old finally cannot erase a newer owner."""
+    task_id, instance_id = _text(task_id, "task_id"), _text(instance_id, "instance_id")
+    def write(connection: sqlite3.Connection) -> bool:
+        return connection.execute("DELETE FROM task_executions WHERE task_id=? AND instance_id=?",
+            (task_id, instance_id)).rowcount == 1
+    return await database.write(write)
+
+
+def _identity(task_id: str, instance_id: str, owner_pid: int, owner_create_time: float) -> tuple[str, str, int, float]:
     task_id = _text(task_id, "task_id")
     instance_id = _text(instance_id, "instance_id")
     if len(instance_id) > 128:
@@ -21,7 +33,69 @@ async def register(database: object, task_id: str, instance_id: str, owner_pid: 
         raise ValueError("owner_pid must be a positive integer")
     if isinstance(owner_create_time, bool) or not isinstance(owner_create_time, (int, float)) or owner_create_time <= 0:
         raise ValueError("owner_create_time must be positive")
-    timestamp = encode_datetime(utc_now())
+    return task_id, instance_id, owner_pid, float(owner_create_time)
+
+
+def _same_owner(connection: sqlite3.Connection, task_id: str, instance_id: str,
+                owner_pid: int, owner_create_time: float) -> bool:
+    existing = connection.execute(
+        "SELECT instance_id, owner_pid, owner_create_time FROM task_executions WHERE task_id=?",
+        (task_id,),
+    ).fetchone()
+    if existing is None:
+        return False
+    if tuple(existing) == (instance_id, owner_pid, owner_create_time):
+        return True
+    raise ValueError("task execution already has a different owner; release or reconcile it first")
+
+
+def _register(connection: sqlite3.Connection, identity: tuple[str, str, int, float]) -> None:
+    if _same_owner(connection, *identity):
+        return
+    connection.execute(
+        "INSERT INTO task_executions(task_id, instance_id, owner_pid, owner_create_time, started_at) "
+        "VALUES (?, ?, ?, ?, ?)", (*identity, encode_datetime(utc_now())),
+    )
+
+
+async def begin(database: object, task_id: str, instance_id: str,
+                owner_pid: int, owner_create_time: float) -> TaskRecord:
+    """Claim and activate atomically; an exact repeat preserves all task facts.
+
+    Check ownership before transition so a denied resume cannot alter lifecycle.
+    The existing TaskRecord transition rules reject terminal activation.
+    """
+    identity = _identity(task_id, instance_id, owner_pid, owner_create_time)
+    task_id = identity[0]
+
+    def write(connection: sqlite3.Connection) -> TaskRecord:
+        row = _task_row(connection, "id", task_id)
+        if row is None:
+            raise SessionNotFound("task not found")
+        task = row_task(row)
+        if _same_owner(connection, *identity):
+            return task
+        updated = task if task.status is TaskStatus.RUNNING else task.transition(TaskStatus.RUNNING)
+        if updated is not task:
+            connection.execute(
+                "UPDATE tasks SET contract = ?, status = ?, stop_reason = ?, updated_at = ? WHERE id = ?",
+                (encode_task(updated), updated.status.value, updated.stop_reason,
+                 encode_datetime(updated.updated_at), updated.id),
+            )
+        _register(connection, identity)
+        return updated
+
+    return await database.write(write)  # type: ignore[attr-defined]
+
+
+async def register(database: object, task_id: str, instance_id: str, owner_pid: int, owner_create_time: float) -> None:
+    """Claim an unowned active task; only the exact existing owner is idempotent.
+
+    Registration never replaces an owner, including one believed to be stale.
+    Callers must explicitly release or reconcile the prior execution first.
+    """
+    identity = _identity(task_id, instance_id, owner_pid, owner_create_time)
+    task_id = identity[0]
 
     def write(connection: sqlite3.Connection) -> None:
         row = connection.execute("SELECT status FROM tasks WHERE id = ?", (task_id,)).fetchone()
@@ -29,7 +103,7 @@ async def register(database: object, task_id: str, instance_id: str, owner_pid: 
             raise SessionNotFound("task not found")
         if row["status"] not in {"running", "verifying"}:
             raise ValueError("only active tasks can register an execution")
-        connection.execute("INSERT INTO task_executions(task_id, instance_id, owner_pid, owner_create_time, started_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(task_id) DO UPDATE SET instance_id = excluded.instance_id, owner_pid = excluded.owner_pid, owner_create_time = excluded.owner_create_time, started_at = excluded.started_at", (task_id, instance_id, owner_pid, float(owner_create_time), timestamp))
+        _register(connection, identity)
 
     await database.write(write)  # type: ignore[attr-defined]
 

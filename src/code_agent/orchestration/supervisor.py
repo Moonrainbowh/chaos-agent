@@ -9,7 +9,6 @@ from code_agent.core.cancellation import CancellationError, CancellationToken
 
 from .budget import BudgetExceededError, BudgetLedger
 from .models import (
-    AgentUsage,
     ChildRunRequest,
     ChildRunResult,
     RunStatus,
@@ -52,47 +51,43 @@ class ChildRunSupervisor:
         return lambda: self._listeners.discard(listener)
 
     async def run(self, request: ChildRunRequest) -> ChildRunResult:
+        task = self.start(request)
+        try:
+            return await asyncio.shield(task)
+        except asyncio.CancelledError:
+            await self.cancel(request.run_id, "caller cancelled")
+            return await _await_finished(task)
+
+    async def _run(
+        self, request: ChildRunRequest, cancellation: CancellationToken
+    ) -> ChildRunResult:
         if not isinstance(request, ChildRunRequest):
             raise TypeError("request must be a ChildRunRequest")
-        lease = await self._ledger.reserve(request)
-        cancellation = CancellationToken()
-        async with self._lock:
-            if request.run_id in self._views:
-                await self._ledger.release(lease)
-                raise ValueError("run_id is already registered")
-            self._tokens[request.run_id] = cancellation
-            self._views[request.run_id] = RunView.from_request(request, RunStatus.QUEUED)
-            queued = self._views[request.run_id]
-        self._notify(queued)
+        lease = None
+        self._views[request.run_id] = RunView.from_request(request, RunStatus.QUEUED)
+        self._notify(self._views[request.run_id])
         parent_watch = asyncio.create_task(
             self._propagate_parent_cancellation(cancellation)
         )
         try:
-            async with self._concurrency:
-                self._parent_cancellation.raise_if_cancelled()
-                cancellation.raise_if_cancelled()
-                await self._set_status(request.run_id, RunStatus.RUNNING)
-                result = await self._execute(request, cancellation)
+            cancellation.raise_if_cancelled()
+            lease = await self._ledger.reserve(request)
+            self._parent_cancellation.raise_if_cancelled()
+            cancellation.raise_if_cancelled()
+            result = await self._execute(request, cancellation)
             if result.run_id != request.run_id:
                 raise ValueError("runner returned a mismatched run_id")
             try:
                 await self._ledger.settle(lease, result.usage)
             except BudgetExceededError as error:
-                result = ChildRunResult(
-                    request.run_id,
-                    RunStatus.FAILED,
-                    "",
-                    AgentUsage(
-                        min(result.usage.total_tokens, lease.token_budget),
-                        min(result.usage.tool_calls, lease.tool_budget),
-                        min(result.usage.active_seconds, lease.active_seconds),
-                    ),
-                    error=str(error),
+                result = replace(
+                    result, status=RunStatus.FAILED, error=str(error), result=None
                 )
             await self._set_result(result)
             return result
         except (CancellationError, asyncio.CancelledError) as error:
-            await self._ledger.release(lease)
+            if lease is not None:
+                await self._ledger.release(lease)
             result = ChildRunResult(
                 request.run_id,
                 RunStatus.CANCELLED,
@@ -102,7 +97,8 @@ class ChildRunSupervisor:
             await self._set_result(result)
             return result
         except Exception as error:
-            await self._ledger.release(lease)
+            if lease is not None:
+                await self._ledger.release(lease)
             result = ChildRunResult(
                 request.run_id,
                 RunStatus.FAILED,
@@ -118,9 +114,18 @@ class ChildRunSupervisor:
                 self._tokens.pop(request.run_id, None)
 
     def start(self, request: ChildRunRequest) -> asyncio.Task[ChildRunResult]:
-        task = asyncio.create_task(self.run(request))
+        if not isinstance(request, ChildRunRequest):
+            raise TypeError("request must be a ChildRunRequest")
+        if request.run_id in self._views or request.run_id in self._tokens:
+            raise ValueError("run_id is already registered")
+        cancellation = CancellationToken()
+        self._tokens[request.run_id] = cancellation
+        task = asyncio.create_task(self._run(request, cancellation))
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
+        task.add_done_callback(
+            lambda _: self._tokens.pop(request.run_id, None)
+        )
         return task
 
     async def cancel(self, run_id: str, reason: str = "cancelled") -> bool:
@@ -147,6 +152,58 @@ class ChildRunSupervisor:
         self,
         request: ChildRunRequest,
         cancellation: CancellationToken,
+    ) -> ChildRunResult:
+        started = asyncio.Event()
+        runner = asyncio.create_task(self._run_agent(request, cancellation, started))
+        stopped = asyncio.create_task(cancellation.wait_async())
+        active = asyncio.create_task(started.wait())
+        try:
+            await asyncio.wait(
+                (runner, stopped, active), return_when=asyncio.FIRST_COMPLETED
+            )
+            done, _ = await asyncio.wait(
+                (runner, stopped), timeout=request.active_seconds,
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            if runner not in done:
+                cancellation.cancel("child active-time budget exceeded")
+                runner.cancel()
+            try:
+                result = await asyncio.shield(runner)
+            except asyncio.CancelledError:
+                cancellation.raise_if_cancelled()
+                raise
+            if cancellation.is_cancelled:
+                return _cancelled_result(result, cancellation)
+            return result
+        except asyncio.CancelledError:
+            cancellation.cancel("child execution cancelled")
+            runner.cancel()
+            try:
+                return _cancelled_result(await _await_finished(runner), cancellation)
+            except asyncio.CancelledError:
+                cancellation.raise_if_cancelled()
+                raise
+        finally:
+            stopped.cancel()
+            active.cancel()
+            if not runner.done():
+                cancellation.cancel("child execution stopped")
+                runner.cancel()
+            await asyncio.gather(runner, stopped, active, return_exceptions=True)
+
+    async def _run_agent(
+        self, request: ChildRunRequest, cancellation: CancellationToken,
+        started: asyncio.Event,
+    ) -> ChildRunResult:
+        async with self._concurrency:
+            cancellation.raise_if_cancelled()
+            await self._set_status(request.run_id, RunStatus.RUNNING)
+            started.set()
+            return await self._run_with_write_lock(request, cancellation)
+
+    async def _run_with_write_lock(
+        self, request: ChildRunRequest, cancellation: CancellationToken
     ) -> ChildRunResult:
         if request.agent.may_write:
             async with self._write_lock:
@@ -185,3 +242,23 @@ class ChildRunSupervisor:
 def _safe_error(error: Exception) -> str:
     name = type(error).__name__
     return name if name else "child run failed"
+
+
+def _cancelled_result(
+    result: ChildRunResult, cancellation: CancellationToken
+) -> ChildRunResult:
+    return replace(
+        result, status=RunStatus.CANCELLED,
+        error=cancellation.reason or "cancelled", result=None,
+    )
+
+
+async def _await_finished(task: asyncio.Task[ChildRunResult]) -> ChildRunResult:
+    """Keep repeated caller cancellation from interrupting child cleanup."""
+    while not task.done():
+        try:
+            await asyncio.shield(task)
+        except asyncio.CancelledError:
+            if task.done():
+                break
+    return task.result()

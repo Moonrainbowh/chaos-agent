@@ -48,9 +48,52 @@ def _context_builder(
 
 
 class ThreadAwareContextBuilderTests(unittest.IsolatedAsyncioTestCase):
+    async def test_oversized_rules_block_semantic_provider_and_checkpoint(self) -> None:
+        from code_agent.context.budget import PromptBudget
+        from code_agent.context.builder import WorkspaceContextBuilder
+        from code_agent.context.rules import RuleLoader
+        from code_agent.context.repo_map import RepoMapBuilder
+        from code_agent.context.errors import RuleLimitError
+        from code_agent.workspace.paths import WorkspacePathGuard
+        from code_agent.workspace.files import WorkspaceFiles
+        from code_agent.workspace.ignore import IgnoreRules
+        class CountingSummarizer(Summarizer):
+            calls = 0
+            async def summarize(self, request, cancellation):
+                self.calls += 1
+                return await super().summarize(request, cancellation)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            (root / 'AGENTS.md').write_text('Mandatory constraint. ' * 100, encoding='utf-8')
+            assert root.resolve().is_relative_to(Path(directory).resolve())
+            repository = SQLiteSessionRepository(root / 'sessions.sqlite3')
+            thread_id = await repository.create_thread()
+            for index in range(6):
+                await repository.append_message(thread_id, Message(
+                    'user' if index % 2 == 0 else 'assistant', 'Closed exchange. ' * 30))
+            config = ContextConfig(root, root, 'system', repo_map_enabled=False,
+                                   prompt_budget=PromptBudget(max_rule_tokens=5))
+            guard = WorkspacePathGuard(root)
+            files = WorkspaceFiles(guard, IgnoreRules.from_workspace(root))
+            inner = WorkspaceContextBuilder(config, RuleLoader(guard, files, config),
+                    RepoMapBuilder(files, config), DeterministicCompactor(config))
+            summarizer = CountingSummarizer()
+            builder = ThreadAwareContextBuilder(repository,
+                SemanticCompactor(summarizer, DeterministicCompactor(config), keep_recent=2),
+                inner, context_limit=50, target_tokens=1_000)
+            with self.assertRaises(RuleLimitError):
+                await builder.build(thread_id, (), '', (), TaskState.empty(), CancellationToken())
+            self.assertEqual(summarizer.calls, 0)
+            self.assertEqual(await repository.load_semantic_checkpoints(thread_id), ())
+            with self.assertRaises(RuleLimitError):
+                await builder.compact_context(thread_id)
+            self.assertEqual(summarizer.calls, 0)
+            self.assertEqual(await repository.load_semantic_checkpoints(thread_id), ())
+
     async def test_non_overlapping_checkpoint_chain_keeps_all_summaries(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            assert root.resolve().is_relative_to(Path(directory).resolve())
             repository = SQLiteSessionRepository(root / "sessions.sqlite3")
             thread_id = await repository.create_thread()
             for index in range(10):
@@ -77,6 +120,7 @@ class ThreadAwareContextBuilderTests(unittest.IsolatedAsyncioTestCase):
     async def test_manual_compaction_is_persisted_and_reused(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            assert root.resolve().is_relative_to(Path(directory).resolve())
             repository = SQLiteSessionRepository(root / "sessions.sqlite3")
             thread_id = await repository.create_thread()
             for index in range(6):
@@ -106,6 +150,7 @@ class ThreadAwareContextBuilderTests(unittest.IsolatedAsyncioTestCase):
     ) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            assert root.resolve().is_relative_to(Path(directory).resolve())
             repository = SQLiteSessionRepository(root / "sessions.sqlite3")
             thread_id = await repository.create_thread()
             for index in range(6):
@@ -141,6 +186,7 @@ class ThreadAwareContextBuilderTests(unittest.IsolatedAsyncioTestCase):
     ) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            assert root.resolve().is_relative_to(Path(directory).resolve())
             repository = SQLiteSessionRepository(root / "sessions.sqlite3")
             thread_id = await repository.create_thread()
             durable = Message("user", "persisted request")

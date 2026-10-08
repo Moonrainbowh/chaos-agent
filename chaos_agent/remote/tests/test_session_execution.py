@@ -181,7 +181,9 @@ class SessionExecutionTests(NavigationFixture, unittest.TestCase):
                     while True:
                         event = websocket.receive_json()
                         self.assertNotIn("private-event-value", str(event))
-                        if event["event"] == "task_failed":
+                        if event["event"] == "task_status" and event.get('data', {}).get('result'):
+                            self.assertEqual(event['data']['status'], 'interrupted')
+                            self.assertEqual(event['data']['result']['execution_status'], 'interrupted')
                             break
             history = client.get(f"/sessions/{identifier}/messages", headers=self.headers).json()
             self.assertEqual(history["task"]["status"], "interrupted")

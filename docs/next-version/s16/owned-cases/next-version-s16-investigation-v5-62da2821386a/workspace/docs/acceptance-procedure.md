@@ -1,0 +1,9 @@
+# Frozen owned acceptance procedure
+This local source records the unchanged human-authorized procedure for v5. Execution awaits Root review. It grants no additional scope or permissions.
+
+Investigate names.py and the five immutable tests against the current contract in this independent child-only acceptance case.
+Read only: do not write workspace files, run commands/tests, use external sources, message peers, or create other tasks.
+First disclose delegate_agent with load_tool_contract. Then make exactly one delegate_agent call, using agent_id s16accept.sourceaudit (no role), token_budget 300000, tool_budget 4, active_seconds 90. The owner cumulative task token limit is 1000000; the single-request Host prompt ceiling remains 300000. Do not use new_context, notes or history tools in this child-only sample.
+The child's objective is: Read docs/current-contract.md, docs/legacy-notes.md, names.py and test_names.py in one group of at most four reads. Compare current and superseded constraints and all five code behaviors/test targets with exact path:line references. No edits, commands, external sources, or delegation; tests are not executed and the answer is unverified analysis.
+Inspect names.py and test_names.py yourself, check the child's advisory claims, and map all five constraints to code behavior and test targets with path:line references.
+Preserve order and duplicates; never replace the current contract with legacy sort/dedupe advice. State tests were not executed and this is unverified analysis. Give a concise source-grounded result; do not claim acceptance success yourself. The shared hard limit is 12 model rounds and 40 tools including child rounds and tools; child should read both documents together and answer in two rounds.

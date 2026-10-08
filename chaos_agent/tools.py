@@ -148,8 +148,9 @@ TOOL_DEFINITIONS: tuple[ToolDefinition, ...] = (
                             "end_line": _integer_schema(1, 2_147_483_647),
                             "expected_size_bytes": _integer_schema(0, 9_223_372_036_854_775_807),
                             "expected_modified_ns": _integer_schema(0, 9_223_372_036_854_775_807),
-                            "expected_device_id": _integer_schema(0, 9_223_372_036_854_775_807),
-                            "expected_file_id": _integer_schema(0, 9_223_372_036_854_775_807),
+                            # Windows stat exposes unsigned 64/128-bit identities.
+                            "expected_device_id": _integer_schema(0, (1 << 64) - 1),
+                            "expected_file_id": _integer_schema(0, (1 << 128) - 1),
                         },
                         (
                             "path", "start_line", "end_line",
@@ -232,7 +233,7 @@ TOOL_DEFINITIONS: tuple[ToolDefinition, ...] = (
                     "enum": ["subagent", "oracle", "review", "search", "librarian"],
                 },
                 "agent_id": _nonempty_text_schema(),
-                "token_budget": _integer_schema(256, 100000),
+                "token_budget": _integer_schema(256, 300000),
                 "tool_budget": _integer_schema(0, 128),
                 "active_seconds": _integer_schema(1, 1800),
             },

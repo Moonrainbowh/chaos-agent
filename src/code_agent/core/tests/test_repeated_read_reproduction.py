@@ -106,9 +106,10 @@ class RepeatedReadReproductionTests(unittest.TestCase):
         calls = [ToolCall(f"call-{n}", "write_file", {"path": "startup.ps1"}) for n in range(1, 4)]
         streams = tuple((ModelEvent(ModelEventKind.TOOL_CALL, tool_call=call), ModelEvent(ModelEventKind.COMPLETED)) for call in calls)
         model = FakeModelClient(streams + ((ModelEvent(ModelEventKind.COMPLETED),),))
-        result = ActionResult("result", "read_file", {"content": "ok"})
         sessions = MemorySessionRepository()
-        actions = FakeActionDispatcher((ActionResult("result", "write_file", {"changed": True}), ActionResult("result", "write_file", {"changed": True})))
+        actions = FakeActionDispatcher(tuple(
+            ActionResult(call.id, "write_file", {"changed": True}) for call in calls[:2]
+        ))
         actions._tools = (ToolDefinition("write_file", "Write", {"type": "object"}),)
         engine = AgentEngine(model, FakeContextBuilder(), actions, sessions)
         events = asyncio.run(self._collect(engine.run("inspect")))
@@ -116,7 +117,10 @@ class RepeatedReadReproductionTests(unittest.TestCase):
         self.assertEqual([event.kind for event in events].count(EventKind.ACTION_REQUESTED), 3)
         self.assertEqual([event.kind for event in events].count(EventKind.ACTION_STARTED), 2)
         self.assertEqual([event.kind for event in events].count(EventKind.ACTION_COMPLETED), 3)
-        self.assertEqual([event.kind for event in events].count(EventKind.MESSAGE_ADDED), 8)
+        self.assertEqual([event.kind for event in events].count(EventKind.MESSAGE_ADDED), 9)
+        notices = [message for message in model.calls[3][1] if message.role == "developer"]
+        self.assertEqual(len(notices), 1)
+        self.assertIn("no new Host-observed progress", notices[0].content)
         feedback = model.calls[3][1]
         blocked = [message for message in feedback if message.role == "tool" and message.tool_call_id == "call-3"]
         self.assertEqual(len(blocked), 1)

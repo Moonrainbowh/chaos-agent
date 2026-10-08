@@ -4,12 +4,16 @@ import asyncio
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from code_agent.core.action_execution import ActionExecutionContext
+from code_agent.core.task import TaskAuthorization
 
 from code_agent.orchestration.models import AgentDefinition, AgentMode, AgentRole
 from code_agent.orchestration.modes import ModeRegistry, standard_mode_definitions
 from code_agent.providers.config import ApiProtocol, ModelProfile, ProviderConfig
 from chaos_agent.runtime_dispatcher_factory import RuntimeDispatcherFactory
 from chaos_agent.runtime_provider_controls import ProviderControls
+from chaos_agent.runtime_controls import _initial_runtime
 
 
 class _Client:
@@ -52,6 +56,23 @@ def _snapshot(profile: ModelProfile):
 
 
 class PartialBuildCleanupTests(unittest.IsolatedAsyncioTestCase):
+    async def test_initial_partial_client_closes_for_error_and_cancellation(self):
+        profile, snapshot = _profile(), _snapshot(_profile())
+        for failure in (RuntimeError("initial context failed"), asyncio.CancelledError()):
+            with self.subTest(failure=type(failure).__name__):
+                client = _Client()
+                def fail(*args):
+                    raise failure
+                factory = RuntimeDispatcherFactory(root=Path.cwd(),
+                    profiles={profile.name: profile}, client_factory=lambda *a, **k: client,
+                    context_for=fail, dispatcher=object(), sessions=object(),
+                    plugin_bridge=object(), plugin_bindings=object())
+                with self.assertRaises(type(failure)):
+                    _initial_runtime(Path.cwd(), snapshot, profile,
+                        lambda *a, **k: client, fail, factory, object(), None)
+                await asyncio.gather(*tuple(factory._partial_closures))
+                self.assertTrue(client.closed)
+
     async def test_main_partial_client_closes_for_error_and_cancellation(self) -> None:
         profile = _profile()
         snapshot = _snapshot(profile)
@@ -93,14 +114,15 @@ class PartialBuildCleanupTests(unittest.IsolatedAsyncioTestCase):
                         root=Path(directory),
                         profiles={profile.name: profile},
                         client_factory=lambda *_args, **_kwargs: client,
-                        context_for=fail,
+                        context_for=SimpleNamespace(for_child=fail),
                         dispatcher=object(),
-                        sessions=object(),
+                        sessions=SimpleNamespace(for_owner=lambda _: object()),
                         plugin_bridge=object(),
                         plugin_bindings=object(),
                     )
                     with self.assertRaises(type(failure)):
-                        factory.child_engine(agent)
+                        factory.child_engine(agent, ActionExecutionContext("parent", "parent", "delegate", "task"),
+                            TaskAuthorization(directory))
                     await asyncio.gather(*tuple(factory._partial_closures))
                     self.assertTrue(client.closed)
 

@@ -5,28 +5,45 @@ import json
 from code_agent.core.models import Message
 
 
+class ToolGroupCursor:
+    """Constant-size state for one assistant/result group while streaming a range."""
+    def __init__(self):
+        self.pending = {}
+
+    def observe(self, message):
+        if message.tool_calls:
+            if self.pending:
+                raise ValueError("overlapping unfinished tool groups")
+            ids = tuple(call.id for call in message.tool_calls)
+            if len(set(ids)) != len(ids):
+                raise ValueError("duplicate tool call ids in context source")
+            self.pending = {call.id: call.name for call in message.tool_calls}
+        elif message.role == "tool":
+            if message.tool_call_id not in self.pending:
+                raise ValueError("orphan tool result in durable context")
+            if message.name != self.pending[message.tool_call_id]:
+                raise ValueError("tool result name does not match source call; pending action remains")
+            del self.pending[message.tool_call_id]
+        elif self.pending:
+            raise ValueError("unfinished tool group before next message")
+
+    def require_closed(self):
+        if self.pending:
+            raise ValueError("context source ends in an unfinished tool-call group")
+
+
 def source_digest(records):
     source = [(r.sequence, r.message.to_dict()) for r in records]
     return hashlib.sha256(json.dumps(source, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
 
 
 def closed_group_ends(records):
-    pending, ends = set(), []
+    group, ends = ToolGroupCursor(), []
     for index, record in enumerate(records, 1):
-        message = record.message
-        if message.tool_calls:
-            if pending:
-                raise ValueError("overlapping unfinished tool groups")
-            pending = {call.id for call in message.tool_calls}
-        elif message.role == "tool":
-            if message.tool_call_id not in pending:
-                raise ValueError("orphan tool result in durable context")
-            pending.remove(message.tool_call_id)
-        elif pending:
-            raise ValueError("unfinished tool group before next message")
-        if not pending:
+        group.observe(record.message)
+        if not group.pending:
             ends.append(index)
-    return tuple(ends), not pending
+    return tuple(ends), not group.pending
 
 
 def select_window(records, window):

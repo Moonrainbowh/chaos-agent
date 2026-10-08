@@ -13,6 +13,7 @@ class OfficialMcpSdkAdapter(McpSdkAdapter):
 
     def __init__(self, *, tool_risks: Mapping[str, McpRisk]) -> None:
         self._tool_risks, self._stack, self._session = dict(tool_risks), None, None
+        self._transport = None
 
     async def start(self, server: McpServer) -> None:
         try:
@@ -23,12 +24,16 @@ class OfficialMcpSdkAdapter(McpSdkAdapter):
         environment = {name: os.environ[name] for name in server.environment if name in os.environ}
         parameters = StdioServerParameters(command=server.command, args=list(server.args), env=environment, cwd=server.cwd)
         stack = AsyncExitStack()
+        self._stack = stack
+        stderr = stack.enter_context(open(os.devnull, "w", encoding="utf-8"))
         try:
-            read, write = await stack.enter_async_context(stdio_client(parameters))
+            self._transport = stdio_client(parameters, errlog=stderr)
+            read, write = await stack.enter_async_context(self._transport)
             session = await stack.enter_async_context(ClientSession(read, write))
             await session.initialize()
-        except Exception:
-            await stack.aclose()
+        except BaseException:
+            # The lifecycle owner closes even a partially entered stack with its
+            # shutdown deadline, in the same task that entered SDK contexts.
             raise
         self._stack, self._session = stack, session
 
@@ -53,6 +58,32 @@ class OfficialMcpSdkAdapter(McpSdkAdapter):
     async def cancel(self) -> None:
         # Closing the SDK session is the portable cancellation mechanism for stdio calls.
         await self.close()
+
+    async def ping(self) -> None:
+        if self._session is None: raise RuntimeError("MCP SDK session is not started")
+        await self._session.send_ping()
+
+    async def terminate_owned_process(self) -> None:
+        """Locked SDK 1.29.1 fallback for a cancelled transport enter/exit.
+
+        SDK exposes no process handle publicly. Only this adapter's still-active
+        stdio generator owns the handle; no PID enumeration or protocol parsing.
+        The original lifecycle task remains responsible for context exits.
+        """
+        from mcp.client.stdio import _terminate_process_tree
+        generator = getattr(self._transport, "gen", None)
+        frame = getattr(generator, "ag_frame", None)
+        process = frame.f_locals.get("process") if frame is not None else None
+        if process is not None:
+            streams = tuple(frame.f_locals.get(name) for name in
+                            ("read_stream", "read_stream_writer", "write_stream", "write_stream_reader"))
+            # The configured grace period has already expired. Do not add the
+            # SDK's default POSIX grace period before its force escalation.
+            await _terminate_process_tree(process, timeout_seconds=0)
+            # SDK's pre-yield failure skips its shutdown finally, including the
+            # memory-stream closes. Stream aclose owns no cancellation context.
+            for stream in streams:
+                if stream is not None: await stream.aclose()
 
     async def close(self) -> None:
         if self._stack is not None:

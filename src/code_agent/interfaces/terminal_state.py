@@ -24,6 +24,7 @@ class TerminalState:
     def __init__(self) -> None:
         self.thread_id: Optional[str] = None
         self.status = "idle"
+        self.result = None
         self.summary: list[str] = []
         self.transcript: list[str] = []
         self.entries: list[DisplayEntry] = []
@@ -66,8 +67,10 @@ class TerminalState:
     def restore(self, history: RestoredThread) -> None:
         """Project persisted thread records into a terminal-safe view model."""
         self.context_budget = ContextBudgetDisplay()
+        self.result = None
         self.usage = UsageAccumulator()
         self.thread_id = history.thread_id
+        self.task_id = self.task_status = self.task_stop_reason = None
         self.plan_text = ""
         self.plan_completed_steps = 0
         self.transcript = _transcript_lines(history.messages)
@@ -82,13 +85,26 @@ class TerminalState:
         self.diff = None
         self.status = "idle"
         for event in history.events:
+            if event.kind is EventKind.RUN_STARTED:
+                self.result = None
             self.usage.observe(event)
             self._capture_diff(event)
             self._update_status(event)
+            self._apply_delivery(event)
+        if history.task is not None:
+            self.task_id = history.task.id
+            self.task_stop_reason = history.task.stop_reason
+            self.task_status = history.task.status.value
+            self.status = self.task_status
+            if history.task_result is not None:
+                self.result = history.task_result
+                if history.task.status.is_terminal:
+                    self.status = self.task_status = history.task_result.execution_status
         self.summary = _summary_lines(history, self.status)
 
     def begin_run(self, *, preserve_plan: bool = False) -> None:
         """Reset transient progress so a new prompt cannot inherit the prior result."""
+        self.result = None
         self.status = "running"
         self.pending_decision = None
         if not preserve_plan:
@@ -184,6 +200,50 @@ class TerminalState:
             self._update_status(event)
         if event.kind is EventKind.COMPLETED:
             self._finish_display()
+        self._apply_delivery(event)
+
+    def _apply_delivery(self, event: AgentEvent) -> None:
+        """Only task events carry delivery facts; cancellation lasts for this run."""
+        from code_agent.core.task_result import TaskResult
+        if (event.kind is EventKind.TASK_STATUS_CHANGED
+                and event.payload.get('status') == 'running'
+                and isinstance(event.payload.get('run_instance_id'), str)):
+            self.result = None
+        if self.result is not None and self.result.execution_status == 'cancelled':
+            result = self.result
+        elif event.kind is EventKind.CANCELLED:
+            raw = event.payload.get('result')
+            result = TaskResult.from_dict(raw) if isinstance(raw, Mapping) else TaskResult(
+                'cancelled', stop_code='cancelled', stop_reason=event.payload.get('reason'))
+            if result.execution_status != 'cancelled':
+                result = TaskResult('cancelled', stop_code='cancelled')
+        elif event.kind in {EventKind.COMPLETED, EventKind.TASK_RESULT,
+                EventKind.TASK_STATUS_CHANGED, EventKind.TASK_PAUSED,
+                EventKind.TASK_DECISION_REQUIRED} and isinstance(event.payload.get('result'), Mapping):
+            result = TaskResult.from_dict(event.payload['result'])
+        elif event.kind in {EventKind.COMPLETED, EventKind.ERROR, EventKind.TASK_STATUS_CHANGED,
+                EventKind.TASK_PAUSED, EventKind.TASK_DECISION_REQUIRED}:
+            from code_agent.core.task_result import ResultCollector
+            legacy = ResultCollector()
+            legacy.observe(event)
+            result = legacy.result
+            if result.execution_status == 'unknown':
+                return
+            if (event.kind is EventKind.COMPLETED and self.result is not None
+                    and self.result.execution_status == 'completed'):
+                result = self.result
+        else:
+            return
+        if result is not None:
+            # Keep the existing pause presentation while retaining the cancelled run fact.
+            display_status = 'paused' if result.execution_status == 'cancelled' and self.status == 'paused' else result.execution_status
+            if event.kind is EventKind.ERROR and result.execution_status == 'failed':
+                display_status = 'error'
+            self.status = display_status
+            self.task_status = display_status
+            if result.stop_reason is not None or isinstance(event.payload.get('result'), Mapping):
+                self.task_stop_reason = result.stop_reason
+            self.result = result
 
     def _apply_decision(self, event: AgentEvent) -> None:
         reason = event.payload.get("reason")

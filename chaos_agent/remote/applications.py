@@ -24,6 +24,13 @@ class RemoteApplications:
         self.factory = factory or self._create_for_root
         self.child: object | None = None
         self.child_root: Path | None = None
+        self._enable_approvals(application)
+
+    @staticmethod
+    def _enable_approvals(application: object) -> None:
+        dispatcher = getattr(application, "dispatcher", None)
+        if dispatcher is not None:
+            dispatcher.interactive = True
 
     def _create_for_root(self, root: Path) -> object:
         runtime = getattr(self.primary, "runtime_selection", None)
@@ -46,6 +53,7 @@ class RemoteApplications:
             if callable(startup):
                 await startup()
             await self._inherit_selection(application)
+            self._enable_approvals(application)
         except BaseException:
             close = getattr(application, "aclose", None)
             if callable(close):

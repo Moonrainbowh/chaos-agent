@@ -20,8 +20,9 @@ from chaos_agent.remote_cli import _parse, serve_host
 class HostCliTests(unittest.IsolatedAsyncioTestCase):
     def test_bind_options_are_explicit_and_validated(self):
         self.assertEqual(_parse(()), (None, 8787))
-        self.assertEqual(_parse(("--lan",)), ("0.0.0.0", 8787))
-        self.assertEqual(_parse(("--bind", "192.168.1.10", "--port", "9000")), ("192.168.1.10", 9000))
+        with self.assertRaises(ValueError):
+            _parse(("--lan",))
+        self.assertEqual(_parse(("--bind", "192.168.1.10", "--port", "9000", "--insecure-lan-debug")), ("192.168.1.10", 9000))
         for arguments in (("--bind",), ("--port", "0"), ("--port", "65536"), ("--port", "abc"), ("--lan", "--bind", "127.0.0.1"), ("--lan", "--lan"), ("--port", "8787", "--port", "8788")):
             with self.subTest(arguments=arguments), self.assertRaises(ValueError):
                 _parse(arguments)
@@ -44,6 +45,11 @@ class HostCliTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(await run(("host", "revoke-device")), 0)
             create.assert_not_called()
             self.assertFalse(store.authenticate(credential))
+
+    async def test_invalid_plaintext_network_host_fails_before_agent_initialization(self):
+        with patch("chaos_agent.cli.create_application") as create, contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(await run(("host", "--lan")), 2)
+        create.assert_not_called()
 
     def test_real_revoke_subprocess_invalidates_running_store(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -25,6 +25,7 @@ from code_agent.thread_intelligence.models import anchor_message
 from code_agent.workspace.files import WorkspaceFiles
 from code_agent.workspace.ignore import IgnoreRules
 from code_agent.workspace.paths import WorkspacePathGuard
+from chaos_agent.context_assembly import ContextAssembly
 from chaos_agent.application_context import RuntimeContextFactory
 from chaos_agent.application_context import _ThreadRootContextBuilder
 from chaos_agent.runtime_extensions import BoundSkillContextBuilder
@@ -114,15 +115,16 @@ class ProductionThreadContextTests(unittest.IsolatedAsyncioTestCase):
     def test_factory_uses_frozen_model_thread_pipeline(self) -> None:
         context = self.factory(_mode(self.profile), self.model, self.profile)
 
-        self.assertIsInstance(context, BoundSkillContextBuilder)
-        thread_context = context._semantic
+        self.assertIsInstance(context.builder, BoundSkillContextBuilder)
+        thread_context = context.builder._semantic
         self.assertIsInstance(thread_context, ThreadAwareContextBuilder)
         self.assertEqual(thread_context._context_limit, 12_000)
         self.assertEqual(thread_context._target_tokens, 9_000)
         semantic = thread_context._compactor
         self.assertIsInstance(semantic, SemanticCompactor)
         self.assertIsInstance(semantic._summarizer, ModelSemanticSummarizer)
-        self.assertIs(semantic._summarizer._model, self.model)
+        self.assertIs(semantic._summarizer._model, context.model_client)
+        self.assertIs(context.model_client.model, self.model)
         self.assertEqual(
             semantic._summarizer._model_name, self.profile.provider.model
         )
@@ -130,7 +132,7 @@ class ProductionThreadContextTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsInstance(workspace, WorkspaceContextBuilder)
         self.assertIsNone(workspace.semantic_compactor)
         self.assertIs(semantic._fallback, workspace.compactor)
-        self.assertIs(context._inner, workspace)
+        self.assertTrue(callable(context.semantic_snapshot))
 
     async def test_checkpoint_is_published_and_searchable_with_one_skill_copy(
         self,
@@ -146,7 +148,7 @@ class ProductionThreadContextTests(unittest.IsolatedAsyncioTestCase):
                 message,
             )
         context = self.factory(_mode(self.profile), self.model, self.profile)
-        thread_context = context._semantic
+        thread_context = context.builder._semantic
         pressure_tokens = sum(
             estimate_tokens(message.content) + 4 for message in durable
         )
@@ -246,7 +248,7 @@ class StructuredHostContextTests(unittest.IsolatedAsyncioTestCase):
             factory = SimpleNamespace(
                 _root=root,
                 _workspace_runtime=runtime,
-                _build=lambda *args: builder,
+                _build=lambda *args: ContextAssembly(builder, object()),
             )
             context = _ThreadRootContextBuilder(
                 factory, object(), object(), object()  # type: ignore[arg-type]

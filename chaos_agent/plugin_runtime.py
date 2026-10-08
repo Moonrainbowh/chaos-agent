@@ -27,6 +27,11 @@ class PluginToolBridge:
     def __init__(self, host: PluginHost) -> None:
         self._host = host
 
+    @property
+    def generation(self) -> int:
+        """Read-only identity of the current trusted contribution snapshot."""
+        return self._host.generation
+
     def definitions(self) -> tuple[ToolDefinition, ...]:
         return tuple(
             ToolDefinition(
@@ -146,8 +151,8 @@ class PluginCommandController:
 class PluginProposalActionExecutor:
     """Apply plugin proposal risk, then delegate the target to Host policy again."""
 
-    def __init__(self, dispatcher: object) -> None:
-        self._dispatcher = dispatcher
+    def __init__(self, dispatcher: object, host: PluginHost | None = None) -> None:
+        self._dispatcher, self._host = dispatcher, host
 
     async def execute(
         self, proposal: PluginProposal, cancellation: CancellationToken
@@ -155,6 +160,11 @@ class PluginProposalActionExecutor:
         action = proposal.action
         if action is None:
             raise ValueError("plugin proposal has no action")
+        def check_source():
+            if self._host is not None and not self._host.is_active(
+                    proposal.plugin_id, proposal.plugin_digest, proposal.generation):
+                raise PermissionError('plugin proposal is stale')
+        check_source()
         source = ActionRequest(
             f"plugin-event:{proposal.plugin_id}:{proposal.subscription_id}",
             _event_policy_name(proposal.plugin_id, proposal.subscription_id),
@@ -180,6 +190,9 @@ class PluginProposalActionExecutor:
             if not approved:
                 raise PermissionError("plugin proposal rejected")
         target = ActionRequest(source.id, action.target, dict(action.arguments))
+        check_source()
+        if self._host is not None:
+            return await self._dispatcher.dispatch(target, cancellation, source_check=check_source)
         return await self._dispatcher.dispatch(target, cancellation)
 
 
@@ -194,7 +207,7 @@ class PluginEventCoordinator:
             host,
             DeclarativeEventRouter(host),
             interactions,
-            PluginProposalActionExecutor(dispatcher),
+            PluginProposalActionExecutor(dispatcher, host),
         )
 
     async def observe(

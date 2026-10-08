@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
 from code_agent.core.action_execution import ActionExecutionContext
@@ -47,7 +47,10 @@ from chaos_agent.action_support import (
     preflight_action,
     with_action_duration,
 )
+from chaos_agent.context_assembly import current_context_actions
 from chaos_agent.action_metrics import ActionMetricsCollector
+from chaos_agent.action_resolution import resolve_plugin_action
+from chaos_agent.extension_actions import capture_extension_action, ExtensionActionBinding
 from chaos_agent.thread_actions import execute_thread_action
 from chaos_agent.verification_action import run_verification_action
 from chaos_agent.workspace_actions import execute_workspace_action
@@ -120,6 +123,11 @@ class RootActionDispatcher:
         )
         self.interactive = False
 
+    @property
+    def verification_allow_sensitive_paths(self) -> bool:
+        """Read-only Host path capability; it does not authorize an action."""
+        return self.editor.guard.allow_sensitive
+
     def tools(self) -> Sequence[ToolDefinition]:
         powershell_info = getattr(self.runtime, "powershell_info", None)
         powershell = powershell_info() if callable(powershell_info) else None
@@ -144,8 +152,17 @@ class RootActionDispatcher:
             if self.peers is not None
             else ()
         )
-        managed = self.context_actions.definitions() if getattr(self, "context_actions", None) else ()
+        actions = current_context_actions(getattr(self, "context_actions", None))
+        managed = actions.definitions() if actions else ()
         return builtins + threads + peer_tools + mcp + plugins + managed
+
+    def resolve_supervision_action(self, request: ActionRequest) -> ActionRequest:
+        """Expose a current Host plugin target for observation only.
+
+        Dispatch still receives the qualified plugin name and checks both its
+        risk and the target's policy; MCP names remain distinct and opaque.
+        """
+        return resolve_plugin_action(request, self.plugins)
 
     async def dispatch(
         self,
@@ -154,6 +171,7 @@ class RootActionDispatcher:
         task_authorization: TaskAuthorization | None = None,
         *,
         execution_context: ActionExecutionContext | None = None,
+        source_check: Callable[[], None] | None = None,
     ) -> ActionResult:
         target = self.plugins.targets().get(request.name) if self.plugins else None
         translated = ActionRequest(request.id, target, request.arguments) if target else request
@@ -162,6 +180,12 @@ class RootActionDispatcher:
         rejected = preflight_action(request, translated)
         if rejected is not None:
             return rejected
+        try:
+            if source_check is not None:
+                source_check()
+            extension = capture_extension_action(self.mcp, self.plugins, request, translated)
+        except (RuntimeError, ValueError, PermissionError):
+            return _error(request, "extension definition or arguments are unavailable")
         try:
             edit_authorization = self.edit_plan_actions.authorization(
                 translated, execution_context
@@ -185,15 +209,25 @@ class RootActionDispatcher:
         rejected = await authorize_action(
             self.policy, self.approvals, self.interactive, request, translated,
             cancellation, task_authorization, edit_authorization, process_rule,
+            execution_context=execution_context,
+            workspace_root=str(self.editor.guard.root),
         )
         if rejected is not None:
             return rejected
+        try:
+            if source_check is not None:
+                source_check()
+            extension.check(self.mcp, self.plugins, request, translated)
+        except (RuntimeError, ValueError, PermissionError):
+            return _error(request, "extension definition changed; request a new action")
         return await self._run(
             request,
             translated,
             cancellation,
             execution_context,
             process_rule=process_rule,
+            extension=extension,
+            source_check=source_check,
         )
 
     async def _run(
@@ -204,10 +238,13 @@ class RootActionDispatcher:
         context: ActionExecutionContext | None,
         *,
         process_rule: ProcessRuleMatch | None = None,
+        extension: ExtensionActionBinding | None = None,
+        source_check: Callable[[], None] | None = None,
     ) -> ActionResult:
         started_at = time.perf_counter()
         try:
             plugin_target = translated is not request
+            extension_target = translated
             translated = bind_process_rule(translated, process_rule)
             plugin_gap = (
                 self.capture is not None
@@ -215,9 +252,18 @@ class RootActionDispatcher:
             )
             if plugin_gap:
                 await record_unknown_gap(self.capture, context, translated, cancellation)
+            def check_current():
+                cancellation.raise_if_cancelled()
+                if extension is not None:
+                    extension.check(self.mcp, self.plugins, request, extension_target)
+                if source_check is not None:
+                    source_check()
+            check_current()
             result = await with_action_duration(
                 self._execute(
-                    translated, cancellation, context, gap_recorded=plugin_gap
+                    translated, cancellation, context, gap_recorded=plugin_gap,
+                    mcp_generation=extension.mcp_generation if extension else None,
+                    source_check=check_current,
                 )
             )
             result = attach_permission_metadata(
@@ -260,10 +306,13 @@ class RootActionDispatcher:
         context: ActionExecutionContext | None,
         *,
         gap_recorded: bool,
+        mcp_generation: int | None = None,
+        source_check: Callable[[], None] | None = None,
     ) -> ActionResult:
         arguments = request.arguments
-        if getattr(self, "context_actions", None) and request.name in self.context_actions.names:
-            return await self.context_actions.dispatch(request, cancellation)
+        actions = current_context_actions(getattr(self, "context_actions", None))
+        if actions and request.name in actions.names:
+            return await actions.dispatch(request, cancellation)
         if request.name == CONTRACT_TOOL_NAME:
             return contract_result(request, self.tools())
         if request.name == "delegate_agent":
@@ -273,10 +322,11 @@ class RootActionDispatcher:
                 return await self.subagents.dispatch(request, cancellation, execution_context=context)
             return await self.subagents.dispatch(request, cancellation)
         if request.name in {"search_threads", "read_thread"}:
-            if self.threads is None or self.caller_thread is None:
+            caller = (lambda: context.origin_thread_id) if context is not None else self.caller_thread
+            if self.threads is None or caller is None:
                 return _error(request, "thread intelligence unavailable")
             return await execute_thread_action(
-                request, self.threads, self.caller_thread
+                request, self.threads, caller
             )
         if request.name in {"list_agents", "send_message"}:
             if self.peers is None:
@@ -291,7 +341,16 @@ class RootActionDispatcher:
                 self.mcp, request.name
             ):
                 await record_unknown_gap(self.capture, context, request, cancellation)
-            return _ok(request, {"result": await self.mcp.call(request.name, arguments)})
+            if source_check is not None:
+                source_check()
+            if mcp_generation is None:
+                result = await self.mcp.call(request.name, arguments)
+            else:
+                result = await self.mcp.call(request.name, arguments,
+                    expected_generation=mcp_generation, before_call=source_check)
+            if isinstance(result, Mapping) and result.get("isError") is True:
+                return ActionResult(request.id, request.name, {"result": result}, is_error=True)
+            return _ok(request, {"result": result})
         if request.name in {"web_retrieve", "web_search", "web_fetch", "site_api", "browser_fetch"}:
             if not self._web_access_enabled:
                 return _error(request, "web access is disabled")

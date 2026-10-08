@@ -163,14 +163,12 @@ class EditBatchRepositoryMixin:
         mutation_id: str,
         identities: Mapping[str, tuple[int, int] | None],
     ) -> EditBatchRecord:
-        """Persist the durable ownership proofs observed after apply.
+        """Persist durable proofs from the actual publication FD/handle receipt.
 
-        The journal row is written before the batch runs, at a moment when the
-        file index of the applied file cannot be known: an atomic replace
-        installs a new file object and a created file does not exist yet. The
-        caller therefore observes the identities once the batch has been
-        applied and hands them here, before any operation is marked committed,
-        so a crash can never settle a batch whose proof is missing.
+        The caller validates the receipt against its prepared batch before
+        committing operations. A later pathname observation cannot authorize
+        ownership: another writer may already have replaced the output. A crash
+        before recording proof leaves that output unprovable for recovery.
         """
         mutation_id = _text(mutation_id, "mutation_id")
         recorded = post_identity_map(identities)

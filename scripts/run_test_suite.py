@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import faulthandler
 import json
 import os
@@ -63,6 +64,10 @@ class StructuredTextResult(unittest.TextTestResult):
         self._active_ids: dict[int, str] = {}
 
     def startTest(self, test: object) -> None:
+        coverage = getattr(self, "coverage", None)
+        if coverage is not None:
+            from scripts.suite_manifest import coverage_test_id
+            coverage["run_ids"].append(coverage_test_id(test)[0])
         self._active_ids[id(test)] = strict_test_id(test)
         progress = getattr(self, "progress_path", None)
         if progress:
@@ -112,26 +117,84 @@ class StructuredTextResult(unittest.TextTestResult):
 class StructuredRunner(unittest.TextTestRunner):
     resultclass = StructuredTextResult
 
+    def run(self, test):
+        self.discovered = test.countTestCases()
+        coverage_path = getattr(self, "coverage_path", None)
+        if coverage_path:
+            from scripts.suite_manifest import discovery_manifest, write_coverage
+            self.coverage = discovery_manifest(test, Path(self.coverage_start))
+            write_coverage(coverage_path, self.coverage)
+        return super().run(test)
+
     def _makeResult(self):
         result = super()._makeResult()
         result.progress_path = os.environ.get("CHAOS_TEST_PROGRESS")
+        result.discovered = getattr(self, "discovered", 0)
+        result.coverage = getattr(self, "coverage", None)
         return result
 
 
-def run_suite(root: Path, start_dir: str, pattern: str) -> int:
+def _test_sources(suite: Path, pattern: str):
+    """Visit the root and importable subpackages, matching unittest discovery."""
+    pending = [suite]
+    while pending:
+        directory = pending.pop()
+        yield from sorted(directory.glob(pattern))
+        pending.extend(path for path in sorted(directory.iterdir(), reverse=True)
+                       if path.is_dir() and (path / "__init__.py").is_file())
+
+
+def run_suite(root: Path, start_dir: str, pattern: str, *, discovery_only: bool = False,
+              coverage: bool = False) -> int:
     root = Path(root).resolve()
     relative, suite = _resolve_suite(root, start_dir)
     prioritize_source_tree(root)
+    # unittest silently ignores module-level pytest functions. Do not accept a
+    # partially discovered suite; an explicit load_tests hook may adapt them.
+    for path in _test_sources(suite, pattern):
+        tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=path.name)
+        functions = [node.name for node in tree.body
+                     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))]
+        if any(name.startswith("test_") for name in functions) and "load_tests" not in functions:
+            raise RuntimeError(f"unittest cannot discover module-level tests in {path.relative_to(suite).as_posix()}; use TestCase or load_tests")
+    if discovery_only:
+        from scripts.suite_manifest import discovery_manifest, write_coverage
+        discovered = unittest.TestLoader().discover(str(suite), pattern=pattern)
+        coverage = discovery_manifest(discovered, suite)
+        write_coverage(os.environ.get("CHAOS_TEST_COVERAGE"), coverage)
+        return 0
+    class SuiteRunner(StructuredRunner):
+        coverage_start = str(suite)
+        coverage_path = os.environ.get("CHAOS_TEST_COVERAGE") if coverage else None
+
     program = unittest.main(
         module=None,
         argv=["unittest", "discover", "-s", str(suite), "-p", pattern],
-        testRunner=StructuredRunner,
+        testRunner=SuiteRunner,
+        testLoader=unittest.TestLoader(),
         exit=False,
     )
     result = program.result
     if not isinstance(result, StructuredTextResult):
         raise RuntimeError("structured unittest result is unavailable")
     returncode = 0 if result.wasSuccessful() else 1
+    if SuiteRunner.coverage_path:
+        from scripts.suite_manifest import write_coverage
+        write_coverage(SuiteRunner.coverage_path, result.coverage)
+    if not result.testsRun and result.wasSuccessful():
+        returncode = 2
+    counts = {"discovered": getattr(result, "discovered", result.testsRun),
+              "run": result.testsRun, "skipped": len(result.skipped),
+              "failures": len(result.failures), "errors": len(result.errors),
+              "unexpected_successes": len(result.unexpectedSuccesses),
+              "expected_failures": len(result.expectedFailures)}
+    print("CHAOS_SUITE_RESULT " + json.dumps({"suite": relative.as_posix(),
+          "exit_code": returncode, **counts}, sort_keys=True), flush=True)
+    result_path = os.environ.get("CHAOS_TEST_RESULT")
+    if result_path and root == repository_root():
+        Path(result_path).write_text(json.dumps(counts), encoding="utf-8")
+    if not result.testsRun and result.wasSuccessful():
+        print(f"test discovery error: {relative.as_posix()} discovered zero tests", file=sys.stderr)
     if returncode and os.environ.get("GITHUB_ACTIONS", "").casefold() == "true":
         _emit_github_failure(relative, returncode, result)
     return returncode
@@ -172,6 +235,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
     parser.add_argument("--start-dir", required=True)
     parser.add_argument("--pattern", default="test_*.py")
     parser.add_argument("--supervised", action="store_true")
+    parser.add_argument("--discovery-only", action="store_true")
     parser.add_argument("--timeout", type=float, default=300)
     options = parser.parse_args(arguments)
     if options.supervised:
@@ -180,7 +244,10 @@ def main(arguments: Sequence[str] | None = None) -> int:
         faulthandler.dump_traceback_later(options.timeout)
 
     try:
-        return run_suite(repository_root(), options.start_dir, options.pattern)
+        if options.discovery_only:
+            return run_suite(repository_root(), options.start_dir, options.pattern, discovery_only=True)
+        return run_suite(repository_root(), options.start_dir, options.pattern,
+                         coverage=options.supervised and bool(os.environ.get("CHAOS_TEST_COVERAGE")))
     except (RuntimeError, ValueError) as error:
         print(f"test suite runner error: {error}", file=sys.stderr)
         return 2

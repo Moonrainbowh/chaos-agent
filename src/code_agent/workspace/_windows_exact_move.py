@@ -17,6 +17,7 @@ from ._windows_guarded_open import _final_handle_path
 from .errors import CrossVolumeMoveError, WorkspaceError
 from .paths import WorkspacePathGuard
 from ._secure_io import PathIdentity
+from ._windows_replace_native import full_file_identity
 
 
 def validate_same_volume(
@@ -65,11 +66,12 @@ def move_no_replace(
     max_bytes: int,
     validate: Callable[[], None],
     expected_identity: PathIdentity,
-) -> None:
+) -> PathIdentity:
     parent_handles: list[int] = []
     source_handle: int | None = None
     primary: BaseException | None = None
     committed = False
+    output_identity: PathIdentity | None = None
     try:
         validate()
         parent_handles, destination_parent = open_protected_parents(
@@ -88,6 +90,7 @@ def move_no_replace(
                 raise _cross_volume_error(source, destination) from error
             raise
         committed = True
+        output_identity = full_file_identity(source_handle, expected_identity.mode)
         final = _final_handle_path(source_handle)
         if (
             os.path.normcase(str(final)) != os.path.normcase(str(destination))
@@ -96,10 +99,12 @@ def move_no_replace(
             raise WorkspaceError(
                 f"Windows move result has the wrong exact path: {destination}"
             )
+        return output_identity
     except BaseException as error:
         primary = error
         if committed:
             setattr(error, "publication_committed", True)
+            setattr(error, "output_identity", output_identity)
         raise
     finally:
         cleanup = close_handles(source_handle, parent_handles)
@@ -107,6 +112,7 @@ def move_no_replace(
             if primary is None:
                 if committed:
                     setattr(cleanup, "publication_committed", True)
+                    setattr(cleanup, "output_identity", output_identity)
                 raise cleanup
             setattr(primary, "cleanup_error", cleanup)
 

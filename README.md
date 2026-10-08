@@ -1,728 +1,97 @@
 # Chaos Agent
 
-`Chaos Agent` is an open-source, terminal-focused coding agent with a shared headless core, an append-only terminal UI, and non-interactive CLI/JSON modes.
-
-The core takes architectural lessons from projects such as uv-agent, Aider, Cline, OpenCode, mini-swe-agent, OpenHands, and Goose. Provider authentication and selected protocol adapters include MIT-licensed work adapted from URI Agent; see [third-party notices](THIRD_PARTY_NOTICES.md).
-
-## What It Does
-
-- Displays session token/cache statistics, runs `!` commands with model-visible output (`!!` excludes it), and provides `/tree` message branching and `/tools` tool visibility. See [conversation controls](docs/pi-conversation-controls.md).
-
-- Uses OpenAI Responses, Codex Responses, Chat Completions, Anthropic Messages, Google Generative AI and pi-messages through one streaming model interface, with provider-specific OAuth and API Key login.
-- Keeps sessions, messages, events, goals, and checkpoints in a versioned SQLite database.
-- Discovers hierarchical `AGENTS.md` rules, builds a bounded repository map, and creates source-anchored semantic checkpoints near context pressure with deterministic fallback.
-- Freezes `low`, `medium`, `high`, or `ultra` task modes to an actual provider profile, model, prompt policy, tool set, reasoning effort, and execution limits. Modes never grant permission.
-- Runs bounded advisory Subagent, Oracle, Review, Search, and Librarian children through the same typed tools, policy checks, cancellation tree, and cumulative parent budget.
-- Loads trusted declarative plugins without executing plugin Python, shell, URLs, or terminal control sequences. Tools, namespaced commands and modes, custom Agents, typed events, and Host-owned interactions are wired through bounded controllers and policy checks.
-- Uses five common model interfaces (`read`, `search`, `write`, `edit`, `execute`) plus a capability loader. The default `hybrid` strategy loads Web, plugin, and MCP extensions on demand. See [tools and Web Access](docs/compact-tools-and-web.md).
-- Routes file reads, edits, Git inspection, structured local verification, and platform-native shell commands through typed tools, central policy checks, audit events, and explicit approval.
-- Provides a terminal TUI (`chaos-agent`), a text CLI (`chaos-agent ask`), session resume (`chaos-agent resume`), machine-readable events (`chaos-agent run --json`), and an ACP v1 editor adapter (`chaos-agent-acp`). The legacy `agent` command remains available during migration.
-
-### Platform support
-
-The shared model, session, workspace-file, Git, CLI, and terminal-input paths run on Windows and Linux. The default TUI uses **Auto** mode: it freezes read-only prompts as Ask tasks and modification requests as Code tasks. Use `:mode ask`, `:mode plan`, or `:mode code` when an explicit contract is preferred.
-
-Windows uses Job Objects for process-tree control. Linux uses a dedicated POSIX process group for local commands, cancellation, timeouts, and output limits; it is exercised for TUI, provider, file-edit, and command flows. macOS uses the same POSIX path and runs the same automated suite in CI, but has
-not yet received equivalent manual end-to-end validation. Neither local runtime is an OS-level sandbox, and the project deliberately reports these capability differences rather than silently treating one platform as another.
+A terminal coding agent with durable tasks, policy-gated tools, CLI/JSON output, an ACP editor adapter and a paired phone interface. Task status and verification come from recorded execution facts.
 
 ## Install
 
-```powershell
-python -m pip install .
-```
-
-For development, install the runtime dependencies and run the test suites:
-
-```powershell
-python -m pip install -e .
-python scripts\run_tests.py
-```
-
-On Linux and macOS the same commands use forward slashes:
+Python 3.10 or newer is required. From a source checkout:
 
 ```sh
-python -m pip install -e .
-python scripts/run_tests.py
+python -m pip install .
+chaos-agent --help
 ```
 
-The full runner discovers every `src/code_agent/<feature>/tests` directory and
-then runs the root integration suite. Use the Feature-specific `unittest
-discover` command only for a focused edit; release and CI validation use the
-full runner. CI runs that same full runner on both matrices — Windows Python
-3.10/3.13 and portable Ubuntu Python 3.10/3.13 plus macOS Python 3.13 — so
-newly added Features cannot be dropped silently on either platform.
+`agent` remains compatible. Windows commands require PowerShell 7 (`pwsh`); Linux and macOS use `/bin/sh`. The runtime is not an OS sandbox. Windows uses Job Objects and POSIX uses process groups. Manual macOS end-to-end acceptance remains separate from automated tests.
 
-### Windows long paths
+## Configure a model
 
-Chaos Agent does not change machine-wide registry or Group Policy settings.
-For paths beyond the legacy-safe 240 UTF-16-code-unit budget, enable **Win32
-long paths** (`LongPathsEnabled=1`) and restart Windows before starting the agent.
-The current mode is shown by `/状态` and supplied to the coding model. When the
-policy is disabled, typed workspace operations fail before a filesystem side
-effect instead of silently omitting a deep file. Git for Windows is invoked
-with per-command `core.longPaths=true`; this does not modify global, repository,
-or user Git configuration. Managed Git worktree targets keep a separate
-215-unit/UTF-8-byte cap because Git's `$GIT_DIR` check is not relaxed by that
-setting. Snapshot roots are admitted against their longest derived blob path,
-so a save cannot return a handle that is already unreadable.
+Open `chaos-agent`, use `/login` to authenticate and `/model` to select a model. Credentials use hidden input. You can also configure an account before opening a workspace:
 
-## Configure A Provider
-
-Inside the TUI, `/login` opens provider/method choices and hidden credential input.
-`/model` selects configured profiles and models from saved OAuth/API logins. A
-changed selection opens a new conversation; pause a running task first. The last
-successful model selection is restored when the interactive TUI next starts.
-
-Use the authentication CLI before opening a workspace:
-
-```powershell
+```sh
 chaos-agent auth providers
 chaos-agent auth login openai-codex --method browser
-chaos-agent auth login openai --api-key
 chaos-agent auth models openai-codex
 chaos-agent auth configure openai-codex <model-id> --profile codex-account
 chaos-agent --profile codex-account
 ```
 
-The [provider login guide](docs/provider-login.md) lists the 10 account-login
-platforms and ordinary API Key providers. `auth status` shows saved login state;
-`auth logout <provider>` removes local credentials. On Windows saved credentials
-use user-scoped DPAPI. OAuth and API Key credentials can coexist for one platform;
-`auth configure ... --auth oauth|api_key` chooses which the profile uses.
-
-Create the platform-local `chaos-agent/config.toml` shown by a configuration
-error to configure a provider. Use an environment variable or OAuth by default;
-do not put API keys in a project file or commit them to source control:
+For a custom API, create the platform-local `chaos-agent/config.toml` at the path reported by a configuration error:
 
 ```toml
 [default]
-provider = "openai"
+provider = "custom"
 
-[providers.openai]
+[providers.custom]
 api = "responses"
-base_url = "https://api.openai.com"
-model = "gpt-4.1-mini"
-api_key_env = "OPENAI_API_KEY"
+base_url = "https://your-provider.example/v1"
+model = "your-model-id"
+api_key_env = "YOUR_PROVIDER_KEY"
 context_window = 128000
 max_output_tokens = 16384
-# Optional hard safety ceilings. The engine normally converges earlier from
-# task evidence; change these only to constrain unusually costly tasks.
-# max_agent_rounds = 50
-# max_tool_calls = 128
-# max_tool_calls_per_round = 50
-# Optional USD rates used by /cost. Configure both or neither.
-input_cost_per_million = 0.40
-output_cost_per_million = 1.60
-# Declare image only when this exact model/profile accepts image input.
-input_modalities = ["text", "image"]
-
-[agent]
-approval_mode = "auto"
-# Recommended default; alternatives are "legacy" and "progressive".
-capability_strategy = "hybrid"
-# Optional; "auto" probes PowerShell 7 (`pwsh`) only.
-# powershell_dialect = "powershell_7"
-# Optional alternatives:
-# approval_mode = "ask"
-# approval_mode = "unrestricted" # Explicit high-trust mode.
-# allow_sensitive_paths = true
 ```
 
-Every configured `[providers.<name>]` profile must declare `api`, `base_url`, `model`, one authentication source (`api_key`, `api_key_env`, or `auth` with `provider_id`), `context_window`, and `max_output_tokens`. Prefer `api_key_env` or OAuth; literal `api_key` remains only for compatibility and can expose a secret through backups or accidental commits. Optional `input_cost_per_million` and `output_cost_per_million` rates must be configured together; `/cost` always reports durable task tokens and adds an estimated USD breakdown only when those rates exist. Use `chaos-agent --profile <name>` or `CHAOS_PROFILE` to choose one; `CHAOS_CONFIG` may select another absolute config path. `CHAOS_API`, `CHAOS_BASE_URL`, `CHAOS_MODEL`, and `CHAOS_API_KEY_ENV` override only the selected profile; a key override cannot replace stored authentication. Legacy `CODE_AGENT_*` names remain fallback aliases during migration.
+Set the named key environment variable outside the project. Declare actual model limits; the example numbers do not prove provider capabilities. Do not commit API keys. See the [provider login guide](docs/provider-login.md) for supported login methods.
 
-For custom Chat Completions or Responses APIs, `/model` includes a
-`<profile> · 加载 API 模型` entry. Selecting it explicitly requests
-`<base_url>/v1/models` (or `<base_url>/models` when the base already ends in
-`/v1`) and opens a searchable second-level model list. Choose a model to
-switch and open a new conversation; the refresh item reloads the catalog.
-Discovered models inherit the source profile's protocol, credentials, context
-window, output limit, modalities, and budgets; the catalog does not prove these
-capabilities. No config file is rewritten. Cancelled or failed discovery keeps
-the current model and previous catalog. The last selected model and task
-profiles can be rebuilt from their source config after restart.
+The default flow selects its tool and context strategies. Model selection, reasoning effort, Ask/Code intent and permission remain independent. Advanced settings, environment aliases and the retained four-preset `--mode` option live in one [advanced reference](docs/advanced-configuration.md).
 
-On Windows, `[agent].powershell_dialect` accepts only `powershell_7`; omit it
-(or set `auto`) to probe `pwsh`. The Host performs a bounded no-Profile probe
-at startup, verifies the actual Core edition/version, and freezes one
-executable for the source workspace and all managed worktrees. If PowerShell 7
-is unavailable or invalid, startup fails rather than falling back to
-Windows PowerShell 5.1. On Linux, macOS, and WSL2, the local runtime uses
-POSIX `/bin/sh` instead.
-`CHAOS_POWERSHELL_DIALECT` overrides TOML and the legacy
-`CODE_AGENT_POWERSHELL_DIALECT` remains a fallback alias. `/状态` shows the
-full local selection, while Provider prompts receive only its basename and
-verified dialect/version.
+## Run a task
 
-`--mode low|medium|high|ultra` or `CHAOS_MODE` selects the task mode. By
-default every mode uses the selected provider profile, while
-`CHAOS_MODE_LOW_PROFILE`, `CHAOS_MODE_MEDIUM_PROFILE`,
-`CHAOS_MODE_HIGH_PROFILE`, and `CHAOS_MODE_ULTRA_PROFILE` can bind individual
-modes to other configured profiles. The mode/profile/model snapshot is frozen
-for the task; changing access policy is a separate operation.
-
-The API key is never written to a session or project file. The local file is suitable only for a personal Windows user: another process running as the same user can theoretically read it after explicit approval. Windows Credential Manager is a possible future enhancement, not a current dependency. The file tool rejects the local configuration directory even when it is used as a workspace.
-
-The environment-only flow remains supported:
-
-```powershell
-$env:OPENAI_API_KEY = "..."
-$env:CHAOS_API = "responses"
-$env:CHAOS_BASE_URL = "https://api.openai.com"
-$env:CHAOS_MODEL = "gpt-4.1-mini"
-```
-
-Profile limits belong in the TOML provider table. The default command panel
-contains these 19 English commands (the `/` prefix remains compatible with the
-primary `:` prefix):
-
-```text
-/clear  /compact  /cost  /status  /doctor  /exit
-/diff   /map      /review   /test  /rewind  /attach
-/model  /mode     /effort  /permission
-/mcp    /plugin   /tasks
-```
-
-`/model` and `/effort` open searchable menus showing the current selection.
-Use Up/Down to move, Enter to apply, Tab to complete, and Esc to return one
-level. `/model <profile>` and `/effort <level>` also accept direct values.
-They rebuild the runtime for the next task; if a paused or waiting task still
-owns a frozen configuration, finish it or use `/new` before changing settings.
-Command errors preserve the input for correction, and commands with missing
-arguments show their usage. `/sessions history` opens a session picker.
-
-The UI defaults to English. During workspace preparation, the status and
-animation stay active and Esc cancels preparation. A completed task clears
-the busy/queue indicator; a task lacking verification evidence shows
-`Waiting for decision` with the missing evidence instead of staying busy.
-
-`/mode auto|ask|code|plan` controls the next task contract. `auto` (the
-default) classifies the next prompt and freezes either an `ask` or `code`
-contract; it never persists an ambiguous `auto` task. `ask` and `plan` disable
-workspace writes and local execution, while `code` remains governed by
-`/permission auto|plan|ask|unrestricted`. `/compact` persists a
-traceable semantic checkpoint when enough closed history exists; `/doctor`
-runs bounded platform-native shell, Git, workspace, path-policy, and provider TCP checks.
-`/map` is the user-facing Unified Semantic Graph surface. Its secondary menu
-provides `overview`, `context`, `impact`, `tests`, `risk`, `review`, `refactor`,
-`locate`, and `dead-code`; every report shows the semantic generation and keeps
-heuristic bug/dead-code results explicitly marked as candidates.
-
-```text
-:map overview src/code_agent
-:map context "verification evidence"
-:map impact src/code_agent/core/engine.py
-:map tests src/code_agent/core/engine.py
-:map risk src/code_agent/interfaces
-:map review src/code_agent/core/engine.py
-:map refactor src/code_agent/core/engine.py
-:map locate "stale verification generation"
-:map dead-code src/code_agent
-:map overview src/code_agent/core/engine.py
-:map overview src/code_agent --limit=50 --offset=50
-```
-
-Reports use the active task's workspace and refresh its **existing** shared
-index (including externally edited, added, or deleted files). `context` and
-`locate` combine that generation's lexical source matches and semantic edges;
-no second scan cache or model call is created. Use an exact file path in
-`overview` to inspect symbols with line numbers and dependencies/consumers.
-Quote paths containing spaces. Aliases: `tree` = `overview`, `bug` = `locate`,
-`dead` = `dead-code`. Optional `--limit=1..50` (default 12) and
-`--offset=0..100000` page each section, with the total explicitly displayed;
-use `--` before query text beginning with option-like flags.
-
-Analysis runs on the full requested scope before display pagination. Change
-commands accept up to 256 resolved files; broader scopes must be narrowed,
-never silently truncated. Refactor plans separate cycle-dependent groups
-instead of claiming a safe linear order. Dependency/call analysis currently
-covers Python; other indexed languages have declaration/inventory support.
-The index's file/parse limits and unresolved dynamic behavior still apply.
-Bug and dead-code outputs are investigation candidates, not proven root causes
-or deletion authorization. `map tests` recommends priorities without executing
-tests; `map review` prepares scope, while `/review` starts the existing agent
-review workflow. None of these advisory reports count as verification evidence.
-
-Model and effort selections rebuild the main provider/runner while idle. The
-hidden compatibility command `/mode agent single|team` still controls whether
-bounded child-Agent delegation is exposed. The selected profile changes the actual provider model, while reasoning
-effort is serialized into supported provider requests. The full runtime
-selection is frozen into durable task contracts. The older `/mode
-low|medium|high|ultra` forms remain hidden compatibility entries. Runtime
-selection never accepts a URL, protocol, API key, or permission change.
-`anthropic_messages` currently has no confirmed structured effort mapping:
-its default `medium` remains prompt-only, other effort choices fail closed,
-and the capability view labels this limitation instead of claiming it applied.
-
-Provider selection values:
-
-| `CHAOS_API` | Protocol |
-| --- | --- |
-| `responses` | OpenAI Responses API |
-| `chat_completions` | OpenAI-compatible Chat Completions |
-| `anthropic_messages` | Anthropic Messages API |
-
-Use `CHAOS_API_KEY_ENV` when the key variable is not `OPENAI_API_KEY`.
-
-## Run
-
-```powershell
+```sh
 chaos-agent
-chaos-agent ask "inspect this repository" --model fast
-chaos-agent ask "explain this screenshot" --attach "C:\Screenshots\error.png"
-chaos-agent --profile fast ask "inspect this repository"
-chaos-agent --mode high ask "review this repository and run the relevant tests"
-chaos-agent ask "inspect this repository and explain the test layout"
+chaos-agent ask "Explain the request routing in this project"
+chaos-agent run --json "Fix the parser and run the relevant tests"
+```
+
+The interactive UI uses Auto intent, freezing read-only requests as Ask and modification requests as Code. `/model`, `/effort` and `/permission` control separate settings. `/help` lists commands, `/evidence` shows verification and `/memory` lets you inspect or withdraw project memory. [Conversation controls](docs/pi-conversation-controls.md) cover branching, history and `!` commands.
+
+## Resume and inspect
+
+```sh
+chaos-agent task list
+chaos-agent task result <task-id>
+chaos-agent task resume <task-id>
 chaos-agent resume <thread-id>
-chaos-agent resume <thread-id> "continue the previous task"
-chaos-agent run --json "list the relevant files"
+chaos-agent history <thread-id>
+chaos-agent task recovery <task-id>
 ```
 
-`resume <thread-id> "..."` 会先查找该 thread 关联的持久任务，并恢复任务创建时冻结的 profile、model、topology 和 reasoning effort；如果任务已进入终态，应只打开历史或创建新任务，不会静默用当前运行时重放旧任务。项目行为规范使用工作区根目录及当前目录链上的 `AGENTS.md`（以及根目录 `AGENTS.*.md`）在每次上下文构建时加载；`agent.md` 不是另一套并行规范文件。
+History and task queries read persisted state without initializing a model or command runtime. An unresolved action stays blocked until explicitly reconciled; recovery does not replay an unknown write. Use `chaos-agent task --help` for reconciliation arguments. Partial delivery or an unverified result does not imply successful validation.
 
-### ACP editor adapter
+## Permission and remote access
 
-Editors that support Agent Client Protocol v1 can launch Chaos Agent as a
-stdio process from the workspace root:
+Default `auto` permission permits ordinary operations within the selected workspace; network access, outside paths and protected actions retain policy checks. `ask` requires write/command approval. `unrestricted` is an explicit high-trust setting. Typed file tools protect `.git`, credentials and symlink/reparse paths. Sensitive files need a separate opt-in; approved shell commands run with your account's access.
 
-```json
-{
-  "command": "chaos-agent-acp",
-  "args": ["--profile", "fast"]
-}
+For a phone, use a paired HTTPS/WSS entry backed by `chaos-agent host`, or the [phone SSH guide](docs/mobile-ssh.md). The Host defaults to loopback; a LAN listener requires TLS. Pairing and action approval do not grant permanent permission. `chaos-agent-acp` exposes the shared task service over ACP stdio for editor clients.
+
+## Development and evaluation
+
+```sh
+python -m pip install uv==0.12.13
+uv sync --locked --group dev
+uv run --locked python scripts/run_tests.py
+uv run --locked python -m build --no-isolation
 ```
 
-`chaos-agent acp --profile fast` is the equivalent command. The adapter uses
-the normal provider configuration and persisted Chaos session IDs. It supports
-ACP initialization, session creation/listing/loading with message replay,
-prompt streaming, tool status updates, and cancellation. Text and resource
-links are accepted in prompts. Image/audio blocks, embedded resources,
-additional workspace roots, client-provided MCP servers, editor terminal
-proxying, and unsaved-buffer synchronization are not enabled in this first
-version. Stdout is reserved for ACP JSON-RPC while the adapter is running.
-New and loaded ACP sessions advertise `auto` and `session-all` modes. `auto`
-keeps the normal trusted-workspace behavior, including recognized local
-PowerShell. `session-all` applies explicit high-trust access only for that ACP
-session and is cleared when the session, connection, or process closes;
-unknown, critical, and protected actions remain blocked. ACP does not issue
-per-action `request_permission` calls.
+The checkout pins Python 3.13.7 in `.python-version`; verify the interpreter before testing. For local changes, run the affected unittest module or suite first. Push/PR CI selects tests on Windows Server 2025 (VS 2026) with Python 3.13.7 using the event baseline and actual checkout. Explicit documentation changes need no product tests; changed test modules/suites and reviewed local Units select affected tests. Shared, unknown, deleted-test or unavailable-baseline changes use the standard full runner, which discovers all Feature suites, phone backend tests and root integration tests. Shared test helpers also require full coverage. A dirty checkout conservatively selects full coverage.
 
-Tool contract disclosure is scoped to one Agent run. With the recommended
-`hybrid` strategy, the first model turn sees `load_tool_contract`, a compact
-name/category/summary directory, and the full provider definitions for
-`read_file`, `read_code_slices`, `list_files`, `search_text`, `git_status`, and
-`git_diff` when those built-ins are enabled. MCP, plugin, execution, editing,
-coordination, and other long-tail tools remain progressive. A successful
-contract lookup returns only `name`, a stable schema `digest`, and
-`availability`; the complete JSON Schema appears only as a provider tool
-definition on the next model turn. Disclosures are tracked only as tool name
-plus schema digest, so an MCP or plugin removal or schema-changing reload
-automatically hides the old definition until its current contract is loaded.
-`legacy` sends all active tool definitions
-without the loader, while `progressive` initially sends only the loader and
-directory. Configure `[agent].capability_strategy` or
-`CHAOS_CAPABILITY_STRATEGY`; the legacy `CODE_AGENT_CAPABILITY_STRATEGY` alias
-remains available. Tool execution continues through the same typed dispatcher.
-This deliberately stops short of a full Capability Manifest or lease layer;
-that boundary can be revisited when the tool inventory grows materially or a
-remote multi-user runtime creates a concrete need for generation and scope leases.
+Inspect a local selection without running tests:
 
-The Windows UI appends completed user, agent, tool, diff, warning, and error
-entries to the normal Windows Terminal buffer. Windows Terminal owns selection,
-copying, and scrollback. The default visual profile uses Unicode symbols,
-medium transcript spacing, cyan emphasis, dim-gray tool records, and green
-only for task-level completion. The live tail keeps a single bordered composer;
-pressing `Shift+:` opens a bordered command panel with search plus aligned
-command/description columns. `Up`/`Down` move, `Tab` completes, `Enter` executes
-or opens a child menu, and `Esc` closes the Picker. The old `/` prefix remains
-compatible. The root Picker contains the 19 commands listed above; `:help`
-remains directly available as an advanced command, and `:help all` shows the
-complete compatibility registry. Compound commands open a
-second-level action menu instead of flattening every action into the root.
-The status row keeps dynamic
-work on the left and model/elapsed context on the right when space allows.
-`NO_COLOR` disables ANSI color.
-
-While a foreground task is running, `Enter` defaults to durable `[排队]`: the
-message stays out of the current turn and is promoted FIFO when that turn
-reaches its safe completion boundary. `Tab` outside a command panel toggles the
-composer to `[转向]`; the next submission is persisted immediately and applies
-at the next model boundary without hard-killing an active tool. `Esc` shows
-`pausing` until cancellation and the pause checkpoint settle. Queued messages
-survive pause, interruption, and process restart.
-
-The default `auto` policy trusts recognized reads, writes, local PowerShell, and
-shell-free processes inside the selected workspace. Network operations,
-outside-workspace targets, protected paths/credentials, and irreversible
-system-level operations keep their approval or denial boundary. Approval cards
-default to reject and show action, target, risk, policy reason, and an
-allow-once choice.
-
-### Terminal appearance
-
-Android SSH terminals use the same TUI. Layout defaults to `auto`: at 64 columns
-or fewer it shows a compact composer and touch controls. Use `/layout compact`,
-`/layout wide`, or `/layout auto` to override it. See [mobile SSH usage and
-verification status](docs/mobile-ssh.md).
-
-The TUI uses **Muted Slate (方案 A / 冷萃冰阶)** as its single appearance:
-ice-blue accents, slate text, and pale gold activity feedback. A live status
-region sits above the follow-up composer while a task runs. The moving light
-rail indicates activity, not completion percentage. Responses, tools, Markdown,
-commands and input use the same palette; existing scrollback remains selectable.
-The application uses your terminal background and font without changing settings.
-
-#### Recommended Font & Display (推荐终端字体)
-
-为获得与 URI Agent 一致的高级感与清晰度，推荐使用支持字形连字与 CJK 宽字符的现代编程字体组合：
-- **等宽英文字体**：`Cascadia Code` / `Cascadia Mono` 或 `JetBrains Mono`（行高舒适、符号边缘锐利）
-- **中文字体回退**：`Microsoft YaHei UI` 或 `PingFang SC`（避免传统宋体锯齿）
-- **Windows Terminal 配置推荐**（`settings.json`）：
-  ```json
-  "font": {
-      "face": "Cascadia Code",
-      "size": 12.0,
-      "weight": "normal"
-  }
-  ```
-
-```text
-:theme motion off
-:theme motion on
+```sh
+uv run --locked python scripts/select_ci_tests.py --base <base-sha> --head HEAD --plan
 ```
 
-Theme switching has been removed; the retired `CHAOS_THEME` variable is ignored.
-`CHAOS_REDUCED_MOTION=1` or `NO_COLOR` disables decorative transitions.
-Input has a dark teal background. Markdown sections are separated by thin rules.
-The composer accepts up to 5120 UTF-8 bytes (about 1700 Chinese characters).
-Oversized insertions are rejected in full and retain the existing draft.
-Pasted newlines remain editable text; press Enter separately to send.
-Enter sends, Ctrl+J inserts a newline; while running, Enter queues, Tab chooses
-steering, and Esc pauses. Status and token totals come from runtime facts.
+Before release, or for dependency, packaging or platform changes, use the manual CI entry with `compatibility` enabled. It runs Windows and Ubuntu 22.04 with Python 3.10.20/3.13.7, and macOS 26 (arm64) with Python 3.13.7, including builds and clean installs. A configured matrix does not prove a particular candidate has passed it.
 
-Preview the production renderer offline (illustrative data, no provider calls):
+Development evaluation is excluded from the runtime wheel and provided separately; see [benchmarks](benchmarks/README.md) for build, installation and offline checks. Source scripts and historical imports remain compatible. Offline fixtures do not measure real model success.
 
-```powershell
-python -m code_agent.interfaces.theme_preview --animate
-python -m code_agent.interfaces.theme_preview --html docs/ui-preview/index.html
-```
-
-[Interactive state preview](docs/ui-preview/index.html).
-
-### Same-machine session messaging
-
-### 分层网络获取
-
-统一入口 `web_retrieve` 按固定顺序编排：`web_search`/`web_fetch`（通用检索与正文获取）→
-`site_api`（当前支持 GitHub、arXiv）→ 已批准的 MCP 工具 → 可选
-`browser_fetch`（Playwright，未安装时失败闭合）→ `run_process_v1`/
-`run_command` 作为 PowerShell/curl 兜底。所有新增网络工具都标记为
-`network` 高风险并经过同一 ActionPolicy；HTTP 层不自动跟随重定向，返回
-`layer`、URL、状态、标题、截断标记和正文，搜索候选必须再次 fetch 或通过
-站点 API 验证。MCP 的启用、批准和风险映射仍由现有 `/mcp` 配置负责。
-
-Open TUI instances for the same Windows user can exchange bounded plain text
-through the shared local session database:
-
-```text
-/会话 在线
-/会话 重命名 <name>
-/会话 发送 <name-or-ref> <text...>
-/会话 接收 auto|accept|hold|refuse
-/会话 待处理
-/会话 接受 <message-id>
-/会话 拒绝 <message-id>
-```
-
-`/list-agents`, `/peers`, and `/rename` are hidden compatibility aliases. A
-message contains no chat history, files, credentials, slash-command authority,
-permission, or user approval. Text must fit 4 KiB after safe JSON escaping; a
-message is acknowledged as delivered only when its complete text fits the
-reserved peer context—never after silent truncation. It enters model context
-only as token-bounded untrusted `PEER` JSON. Idle coordination turns use an
-isolated internal thread and can call only `list_agents` and `send_message`, so
-they neither consume nor replace the user's current task budget. Paused,
-waiting, and task-owned threads wait for the user's next resume instead of
-being restarted in the background. Permission mismatches can place messages
-in `held` for explicit acceptance. This implementation is local to one Windows
-machine and OS user; it is not a remote or cross-machine relay.
-
-Skills are discovered only from `%USERPROFILE%\.agents\skills\<id>` and
-`<workspace>\.agents\skills\<id>`, each containing `SKILL.md` with optional
-frontmatter. Matching IDs and digests merge their sources; different digests
-are isolated as conflicts. Workspace Skills require explicit activation and
-cannot register tools, execute scripts, call the network, or change policy.
-Use `/技能 列表|信息|来源|启用|禁用|重载` to manage the current thread's
-persisted activation snapshot.
-
-MCP configuration uses approved, structured stdio entries under
-`[mcp.servers.<name>]`: `command`, `args`, optional `cwd`, an environment-name
-allowlist, `tool_risks`, plus `enabled` and `approved`. Approved servers are
-started through the installed SDK, expose only tools with a local
-`read`/`write`/`network`/`critical` risk mapping, and route through the same
-policy and approval boundary as built-in tools.
-Use `/mcp list|status|tools|enable|disable|restart|diagnose` for the configured
-server inventory; lifecycle changes publish a new tool generation only after
-the SDK handshake succeeds.
-
-Declarative plugins are discovered from
-`%LOCALAPPDATA%\chaos-agent\plugins\<id>\plugin.json` and
-`<workspace>\.chaos-agent\plugins\<id>\plugin.json`. Activation requires the
-manifest SHA-256 digest to match `%LOCALAPPDATA%\chaos-agent\plugin-trust.json`.
-Plugin tools map only to known Host typed actions; both the plugin declaration
-risk and the mapped Host action risk must pass policy. Invalid namespaces,
-conflicts, unknown mappings, digest changes, and untrusted manifests are
-isolated without disabling built-in tools.
-Commands and modes are always namespaced. Plugin events can only emit bounded
-typed action proposals or `notify`/`confirm`/`input`/`select` requests owned by
-the Host UI; action proposals pass both the declared plugin risk and mapped
-Host action policy.
-Use `/插件 list|status|enable|disable|reload` for the live plugin inventory.
-Trusted manifests marked disabled on disk remain visible and can be enabled
-explicitly; untrusted manifests stay isolated.
-Enable and disable are idle-boundary operations. Reload discovered during an
-active foreground task is staged and applied when that task settles; a
-successful refresh updates commands, modes, tools, restricted dispatchers, and
-policy risks together.
-
-## Safety Defaults
-
-The defaults below are written from the Windows runtime and also apply on Linux
-and macOS, with two mechanics differences: `run_command` carries a `posix_sh`
-script executed as `/bin/sh -lc` instead of the frozen PowerShell dialect, and
-process-tree control uses the dedicated POSIX process group. Statements about
-"the current Windows user" mean the local account that runs the agent.
-
-- `CHAOS_APPROVAL_MODE=auto` is the default. Once the current workspace is selected, ordinary workspace reads, writes, and non-critical local commands run without per-action approval. Structured verification is currently disabled by default; set `CHAOS_STRUCTURED_VERIFICATION=1` before startup to enable it. With it disabled, modified tasks can finish with an explicit unverified status reason, and agents can still run tests through ordinary commands. Network access, protected paths, and paths outside that workspace still require approval; unknown and critical actions remain denied.
-- Use `:权限` (or the compatible `/权限` and English `permission` alias) while idle to select `unrestricted`, `plan`, `ask`, `auto`, `elevated`, or `full-local` for subsequent tasks. The same values are accepted by `[agent].approval_mode` and `CHAOS_APPROVAL_MODE`.
-- Use `/权限 允许命令 [--network] <program> [args...]` to persist one exact `run_process_v1` rule for the current workspace. `/权限 规则` lists these rules and `/权限 撤销 <id-prefix>` removes one. A rule binds the resolved executable, complete argument list, workspace identity, descendant cwd scope, and network declaration; it never grants raw PowerShell.
-- `plan` allows workspace reads only. `ask` approves writes and commands interactively. `auto` and `elevated` trust recognized actions inside the configured workspace. `full-local` also allows recognized non-critical local actions but asks at network and outside-workspace boundaries. Production typed file tools still fail closed at the workspace boundary; approving typed external-file access is not implemented yet.
-- `unrestricted` is an explicit high-trust mode: recognized non-critical raw PowerShell and network actions run without per-action approval, and raw PowerShell can reach paths available to the current Windows user. Typed file tools remain workspace-contained, typed actions that explicitly target protected paths still require approval, and critical or unknown actions remain denied.
-- `allow_sensitive_paths = true` (or `CHAOS_ALLOW_SENSITIVE_PATHS=true`) is a separate explicit opt-in for typed workspace file tools to access `.env` files and private-key names. It is not an OS sandbox: approved raw PowerShell, and raw PowerShell in explicit `unrestricted` mode, runs as the current Windows user and can bypass typed file guards. `.git`, `.code-agent`, local API configuration directories, cross-task `chaos-agent-workspaces` access, and symlink/reparse paths remain protected from typed file tools at every level.
-- Configurations that omit `approval_mode` now resolve to `auto`. Set `unrestricted` explicitly only when the legacy high-trust behavior is intended.
-- Unknown and critical actions are denied. Destructive commands and unbounded output are rejected.
-- `delegate_agent` is a normal typed action. It is policy checked before a child starts; child output is explicitly advisory and never counts as verification evidence or parent completion.
-- `run_command` represents model-provided raw PowerShell in the frozen dialect. Its UTF-8 wrapper preserves top-level `using`/`param`/`return`, uses `ErrorActionPreference=Stop` by default, and treats explicit catch/`Continue`/`SilentlyContinue`/`Ignore` as script-controlled recovery. It never sends native stdout/stderr through a PowerShell object pipeline, so raw bytes, missing final newlines, and control characters remain intact; genuine native stderr with exit zero succeeds, while the last nonzero native exit code has priority. `run_process_v1` instead accepts only `program`, literal `args`, optional workspace-relative `cwd`, a bounded timeout, and independent stdout/stderr encodings; it has no shell parsing, environment override, stdin, redirection, pipeline, glob, or variable expansion, and rejects shell launchers plus `.cmd/.bat`. In the default trusted-workspace flow, recognized non-critical commands run without per-action approval; network, protected-path, and outside-workspace signals still raise an approval card. Every actual attempt invalidates older verification evidence. `run_verification` accepts a registered kind plus constrained relative paths and lets the local adapter generate fixed argv for trusted verification.
-- Process output defaults to strict UTF-8; BOM or an explicit UTF-8/UTF-16/Windows ANSI/OEM selection is decoded per stream. Undecodable or mixed output is reported with exact Base64 and code-page metadata rather than replacement characters, and output-limit metadata identifies the stream that actually lost bytes. Typed file reads return encoding/BOM/newline/code-page metadata; edits preserve existing UTF-8/16/32 BOM and consistent newline style, while new files default to UTF-8 without BOM. Legacy ANSI/OEM files require an explicit encoding.
-- The local runtime is controlled process execution, not an OS-level sandbox. Typed verification executes user-authorized project code under the current user and therefore does not isolate that code's indirect filesystem or network effects.
-- On Windows 10/11, each local command gets an anonymous Job Object configured with `KILL_ON_JOB_CLOSE`. The root process is created suspended, identity-bound, assigned to the Job, and only then resumed. Timeout, cancellation, and output-limit termination target the Job first; assignment or Job API failures are reported instead of silently running without containment. The runtime waits for Job accounting to reach zero, closes the Job, and requires both pipe readers to reach EOF before returning; ordinary inherited children left after a normal root exit are terminated during the same finalization. This process ownership boundary is not an OS sandbox and does not claim to contain service-mediated or explicit breakaway execution.
-
-Sessions are stored at `%LOCALAPPDATA%\chaos-agent\sessions.sqlite3` by default;
-when `LOCALAPPDATA` is unset (the usual case on Linux and macOS), the same path
-is derived under `~/AppData/Local`. When that target is absent and the legacy `%LOCALAPPDATA%\code-agent\sessions.sqlite3` exists, Chaos Agent uses SQLite backup into a temporary target, checks integrity and key counts, then atomically publishes the copy while retaining the legacy database.
-
-## Replay Evaluation
-
-The fixed replay corpus contains 40 versioned scenarios: 12 single-feature bug
-repairs, 10 cross-file contract repairs, 10 idempotent recovery tasks, and 8
-safety or read-only completion decisions. Repair fixtures contain genuinely
-failing public checks plus hidden verifier checks; source-equivalent fixes are
-accepted, while edited tests, extra files, stale evidence, replayed effects,
-and model-authored success claims are rejected.
-
-Each scenario runs from a disposable workspace. Baseline hidden-verifier clones
-are removed before the executor starts, final verification uses a frozen
-snapshot, and reports share one canonical scenario record and corpus
-fingerprint. Missing SDKs, verifier timeouts, cleanup failures, and incomplete
-trusted traces are reported as infrastructure or grading failures rather than
-success. Live runs must use `ProcessScenarioExecutor` with a Host-trusted event
-adapter; connecting its envelope directly to raw model output is unsupported
-and intentionally fails closed when trusted trace evidence is absent.
-
-## Foreground Tasks
-
-Engineering requests in the Windows TUI run as durable foreground tasks. A task
-is scoped to its current workspace and may perform ordinary workspace edits and
-non-network local tests without a prompt for every action. Network access,
-paths outside the workspace, unknown tools, and critical commands remain
-blocked or require an explicit decision.
-
-Use `Esc` to pause and `/任务` to inspect tasks. Ordinary input submitted while
-a task is running queues guidance for that same task. Recovery uses `/会话` and
-`/恢复 <thread-id>`. Process commands are
-`chaos-agent task list` and `chaos-agent task resume <task-id> [instruction]`.
-Paths, commands, model names, Git refs, and raw tool data are never translated.
-
-Bracketed multi-line paste normalizes CRLF/CR to LF and inserts one bounded
-input block without submitting it. Pressing `Ctrl+C` once pauses/rejects/clears
-according to current state and arms a two-second exit window; only a second
-`Ctrl+C` exits the TUI.
-
-Running-task guidance is shown as `queued`, `steered`, `dequeued`, and
-`applied`. The last two states advance only after persisted `TURN_STARTED` and
-`CONTEXT_BUILT` events prove that Core consumed the control and rebuilt model
-context. Approval prompts remain visible above the composer, show action,
-target, risk, and reason, default to `No`, and require `Enter` or `Esc`.
-Use `/attach <path>`, `/attach clipboard`, `/attach list`,
-`/attach remove <index-or-digest>`, and `/attach clear` to manage the pending
-attachment draft. When the clipboard contains a bitmap or one or more image
-files copied from Explorer, `Ctrl+V` stages the whole image batch without
-submitting (up to eight attachments total); ordinary text remains a normal
-bracketed paste. A screenshot bitmap is one image, while browser HTML containing
-several images is not split into separate attachments. Dropping complete
-image/text file paths into Windows Terminal also stages them without submitting.
-The draft stores only content-addressed references in messages; unsupported
-image profiles fail before network I/O and retain the full draft.
-
-`/diff` opens a point-in-time keyboard viewer over staged, unstaged, and
-untracked changes. `↑`/`↓` and Page keys move lines, `←`/`→` switch files,
-`[`/`]` move hunks, `/` filters paths, `c` adds a line comment, `r` refreshes, and `s`
-sends all comments through the normal task/steering path. `Esc` or `Ctrl+C`
-requires confirmation before unsent comments are discarded.
-
-### Checkpoint And Rewind
-
-`/checkpoint list` shows usable workspace checkpoints;
-`/checkpoint create [label]` captures one manually. Managed Git tasks also
-capture real workspace snapshots automatically at task creation and settled
-lifecycle boundaries.
-Before capture or restore, the runtime cancels the foreground execution tree
-and waits for subagents and in-flight event handling to release the workspace.
-
-`/rewind [checkpoint-id]` opens the canonical keyboard flow: choose a
-checkpoint when needed, select code, session, or the combined mode, inspect the
-bounded preview, and explicitly confirm execution. Rewind first records a recoverable
-`pre-rewind` checkpoint, restores tracked and eligible untracked files from the
-content-addressed snapshot, verifies the resulting inventory digest, and then
-applies the requested session rewind. Checkpoints created by the older
-metadata-only path remain stored but are omitted from this executable picker.
-
-Tasks persist lifecycle state, checkpoints, and cumulative budgets. Closing the
-terminal, sleep, hibernate, shutdown, or reboot does not keep work running;
-the next foreground session resumes from a checkpoint and never replays an
-in-flight command. A foreground task runs **directly in the source workspace**
-by default; a managed Git worktree is used only when isolation is requested.
-
-Task autonomy uses recoverable soft budget leases inside the existing final
-hard limits. Read-only analysis starts at `quick` (4 model turns / 8 tool
-calls), modifications at `standard` (12 / 30), and explicitly deep,
-exhaustive, repository-wide, or cross-module work at `deep` (30 / 80). The
-Host renews `quick` to `standard`, `standard` to `deep`, or extends `deep` once
-to the configured hard limit only after durable trusted progress such as a new
-code generation, subject, verification result, failure fingerprint, or a
-different successful read. Model claims, repeated reads, repeated failures,
-and calls rejected before execution do not renew a lease. `/cost` shows the
-current soft lease separately from the final hard limit. Leases do not grant
-permissions, network access, a wider workspace, or additional provider
-capabilities.
-
-Durable checkpoints can restore tracked and eligible untracked code,
-session/task state, or both. Ignored files, secrets, build outputs, Git
-metadata, links/reparse targets, and in-flight commands are never captured or
-replayed. Rewind keeps the original task history and requires an explicit
-preview confirmation. This release deliberately has no daemon, remote observer,
-background continuation, OS sandbox, automatic commit, or push.
-
-## Workspace Modes
-
-`CHAOS_WORKSPACE_MODE` selects where a task reads and writes. The local
-workspace is the default execution environment; a managed Git worktree is an
-isolation mechanism for parallel or explicitly isolated tasks, not a
-prerequisite for starting a task.
-
-| Mode | Behavior |
-| --- | --- |
-| `auto` (default) | Uses the local workspace for normal tasks and an isolated worktree when the task is parallel (another task is already writing this root) or declares a background or explicit isolation reason. |
-| `direct` | Always operates directly in the current workspace. |
-| `managed` | Always runs the task inside an isolated managed Git worktree. |
-
-Isolation can also be asked for per invocation instead of process-wide:
-
-```
-chaos-agent --isolated ask "refactor this module"
-```
-
-`--isolated` asks for a managed worktree for that invocation. If the mode or
-the root cannot provide one — `direct`, or a workspace that is not a Git
-repository — the task is refused with the reason, never silently downgraded to
-the source workspace.
-
-An unknown value fails before the task starts. `managed` on a non-Git workspace
-reports that isolation needs a repository and stays local; `managed`
-initialization failures are reported and never fall back to the source root.
-
-A second task on a root that already has an active writer is isolated in its own
-worktree under `auto`; `direct`, and any root that cannot host a worktree, refuses
-it with `a foreground task is already active` so one root keeps one local writer.
-
-Ordinary tasks (`auto` or `direct`) do not probe Git, enumerate changed or
-untracked paths, snapshot them, or copy them, so a workspace holding large
-datasets, artifacts, logs, caches, or tens of thousands of untracked files
-starts at the same cost as an empty one. Only a managed worktree pays the
-dirty-state seed cost, and it keeps its bounded Git output/timeout protection:
-exceeding that budget is a clear error, not a silent partial copy.
-
-Every task owns a workspace lineage, including one that runs locally: a local
-lineage points its worktree root at the source root and creates no branch,
-directory, or copy. Local lifecycle boundaries stay metadata-only so task
-creation never snapshots the whole source workspace, while `/checkpoint` and
-`/rewind` still work on demand and restore the source workspace itself. Isolated
-tasks keep snapshotting every automatic boundary.
-
-Managed worktrees do not accumulate indefinitely. Each startup retires the ones
-that provably hold nothing: a worktree with no persisted lineage (creation was
-interrupted between `git worktree add` and the lineage write), or one whose task
-reached a terminal state, whose checkout is clean, whose branch carries no commit
-of its own, and whose lineage has no rewindable checkpoint. Anything else is kept
-and reported. `chaos-agent --reclaim-workspaces` runs the same pass while also
-accepting worktrees whose lineage still has checkpoints, and prints what it kept
-and why.
-
-## Context Budgets And Local Diagnostics
-
-Each model context has a deterministic ceiling of up to 20,000 tokens, further
-capped by the selected model profile's context window. The
-default allocations are 3,000 shared by the system prompt and rendered project rules, 1,500 for tool
-schemas, 1,000 for structured task state, up to 2,000 for the repository map,
-up to 12,000 for messages, and a 500-token safety reserve. The repository map
-shrinks before message history, which retains at least 2,000 tokens. A project
-rule set that exceeds its 3,000-token allocation fails locally with a typed
-rule-limit error before any provider request is made; rules are never silently
-truncated.
-
-Semantic compaction also budgets provider input before the request, reserving
-space for its output and protocol overhead. If that budget cannot be satisfied,
-it fails locally without provider I/O and falls back to deterministic summaries.
-
-Repository-map scans use a process-local, 5,000-entry LRU cache keyed by file
-size and nanosecond modification time. It is cleared on process restart and a
-successful workspace write invalidates that path, so unchanged files can be
-reused while the next turn reparses changed files.
-
-Resumable task state records durable, reducer-derived facts such as files read
-or changed, command outcomes, and verified observations. Model-authored
-working notes and open questions are bounded separately and are explicitly
-rendered as unverified; they do not become facts merely by being stored.
-
-Every `CONTEXT_BUILT` session event contains local numeric counters only:
-configured prompt budget, rule/tool/task-state/repository-map/message
-allocations, removed-message count, and repository-cache hits and misses. It
-contains no prompt text, project rules, source text, command output, API-key
-names, or external telemetry. Agent-round and tool-call limits are intentionally
-retained from the existing model profile and persistent budget work; this
-feature measures their context environment for later evidence-based tuning and
-does not tune those limits.
-
-The Context Builder receives the active `thread_id`, reads stable message
-sequences from SQLite, and persists semantic checkpoints plus searchable source
-anchors. `search_threads` and revision-aware `read_thread` derive their caller
-from Host execution context and enforce the persisted two-level parent/child
-thread tree. Semantic service or persistence failure falls back to the existing
-deterministic compactor.
-
-Every foreground task also owns a durable Workflow DAG. `/流程`, `/流程
-<node-id>`, `/流程 失败`, and `/流程 证据 <node-id>` render read-only snapshots
-derived from trusted task, child-run, verification, invalidation, and delivery
-observations; Workflow edges never grant thread access.
-
-## Development Status
-
-Chaos Agent is a cross-platform project. Windows 10/11, Linux, macOS, and WSL2
-use platform-specific runtime adapters while sharing the same core protocol,
-policy, workspace, and application layers. Windows uses PowerShell and Job
-Objects; POSIX systems use `/bin/sh` and process groups.
-
-## License And Acknowledgements
-
-Released under the [MIT License](LICENSE).
-
-This project acknowledges the public design work of uv-agent, Aider, Cline, OpenCode, mini-swe-agent, OpenHands, and Goose. They are references for problem framing and user experience, not code sources for this repository.
+Provider adapters include MIT-licensed work adapted from URI Agent; see [third-party notices](THIRD_PARTY_NOTICES.md). Released under the [MIT License](LICENSE).

@@ -60,20 +60,20 @@ class PromptBudgetTests(unittest.TestCase):
         self.assertLessEqual(allocation.total_tokens, budget.max_prompt_tokens)
 
     def test_system_prompt_has_capacity_beyond_project_rule_ceiling(self) -> None:
-        budget = PromptBudget()
+        budget = PromptBudget(max_prompt_tokens=20_000)
         allocation = budget.allocate(
-            system_and_rules_tokens=4_000,
+            system_and_rules_tokens=7_000,
             tool_tokens=1_500,
             task_state_tokens=1_000,
         )
 
-        self.assertEqual(budget.max_rule_tokens, 3_000)
-        self.assertEqual(allocation.rule_tokens, 4_000)
-        self.assertEqual(allocation.message_tokens, 12_000)
+        self.assertEqual(budget.max_rule_tokens, 6_000)
+        self.assertEqual(allocation.rule_tokens, 7_000)
+        self.assertEqual(allocation.message_tokens, 10_000)
         self.assertLessEqual(allocation.total_tokens, budget.max_prompt_tokens)
 
     def test_allocation_rejects_invalid_fixed_content_and_unsatisfiable_minimum(self) -> None:
-        budget = PromptBudget(max_prompt_tokens=7_000)
+        budget = PromptBudget(max_prompt_tokens=7_000, max_tool_tokens=2_000)
         for field, value in (
             ("system_and_rules_tokens", -1),
             ("tool_tokens", -1),
@@ -90,6 +90,20 @@ class PromptBudgetTests(unittest.TestCase):
                 tool_tokens=1_500,
                 task_state_tokens=1_000,
             )
+
+    def test_builtin_tool_reserve_keeps_total_and_explicit_ceiling_enforced(self) -> None:
+        budget = PromptBudget()
+        allocation = budget.allocate(system_and_rules_tokens=8_000,
+                                     tool_tokens=20_000, task_state_tokens=1_000)
+        self.assertEqual(budget.max_prompt_tokens, 300_000)
+        self.assertEqual(budget.max_tool_tokens, 20_000)
+        self.assertEqual(budget.min_message_tokens, 2_000)
+        self.assertLessEqual(allocation.total_tokens, budget.max_prompt_tokens)
+        self.assertGreaterEqual(allocation.message_tokens, budget.min_message_tokens)
+        with self.assertRaises(PromptBudgetError):
+            budget.allocate(tool_tokens=20_001)
+        with self.assertRaises(PromptBudgetError):
+            PromptBudget(max_tool_tokens=2_000).allocate(tool_tokens=2_025)
 
     def test_budget_models_are_frozen_and_validate_configuration(self) -> None:
         allocation = PromptAllocation(1, 2, 3, 4, 5, 6)

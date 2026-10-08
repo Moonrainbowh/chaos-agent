@@ -87,8 +87,14 @@ class ConversationTreeRepositoryMixin:
 def _ensure_nodes(connection, thread_id):
     from ._conversation_schema import record_message_node
     connection.execute("INSERT OR IGNORE INTO conversation_heads VALUES (?, ?, NULL)", (thread_id,thread_id))
-    for row in connection.execute("SELECT sequence FROM messages WHERE thread_id=? AND sequence NOT IN (SELECT message_sequence FROM conversation_message_refs) ORDER BY sequence", (thread_id,)).fetchall():
-        record_message_node(connection,thread_id,row[0])
+    cursor=0
+    while True:
+        rows=connection.execute("SELECT sequence FROM messages WHERE thread_id=? AND sequence>? AND sequence NOT IN (SELECT message_sequence FROM conversation_message_refs) ORDER BY sequence LIMIT 1000",(thread_id,cursor)).fetchall()
+        if not rows:
+            break
+        for row in rows:
+            record_message_node(connection,thread_id,row[0])
+        cursor=rows[-1][0]
 
 
 def _require_complete_tools(messages):

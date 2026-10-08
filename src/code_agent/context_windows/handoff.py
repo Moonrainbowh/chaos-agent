@@ -3,6 +3,8 @@ import asyncio
 import json
 
 from code_agent.core.models import Message, ModelEventKind
+from .client import RequestCapacityError
+from .history import closed_group_ends
 
 
 SUMMARY = (
@@ -25,7 +27,7 @@ class HandoffWriter:
     def __init__(self, client, counter, policy, limits):
         self.client, self.counter, self.policy, self.limits = client, counter, policy, limits
 
-    async def write(self, records, previous, cancellation):
+    def _request(self, records, previous):
         instruction = BOUNDARY if self.policy.strategy == "boundary" else SUMMARY
         instruction += f" Keep your response below {self.policy.handoff_tokens} tokens."
         source = "Previous historical handoff (unverified):\n" + previous + "\n\n"
@@ -34,6 +36,34 @@ class HandoffWriter:
             + (json.dumps([c.to_dict() for c in r.message.tool_calls], ensure_ascii=False)
                if r.message.tool_calls else "") for r in records)
         messages = (Message("user", source),)
+        return instruction, messages
+
+    async def migration_source(self, records, previous, cancellation):
+        """Select the largest complete prefix by the existing final request checker."""
+        ends, closed = closed_group_ends(records)
+        if not closed:
+            raise ValueError("handoff migration requires complete tool groups")
+        lower, upper, chosen = 0, len(ends)-1, None
+        while lower <= upper:
+            cancellation.raise_if_cancelled()
+            middle = (lower + upper)//2
+            instruction, messages = self._request(records[:ends[middle]], previous)
+            try:
+                preflight = getattr(self.client, "preflight_request", None)
+                if callable(preflight):
+                    await preflight(instruction, messages, ())
+                elif self.counter.request(instruction, messages, ()) > self.limits.input_cap(self.policy):
+                    raise RequestCapacityError("logical compatibility handoff source exceeds capacity")
+            except RequestCapacityError:
+                upper = middle-1
+            else:
+                chosen, lower = ends[middle], middle+1
+        if chosen is None:
+            raise ValueError("required complete tool group/previous handoff exceeds final request capacity")
+        return records[:chosen]
+
+    async def write(self, records, previous, cancellation):
+        instruction, messages = self._request(records, previous)
         if self.counter.request(instruction, messages, ()) > self.limits.input_cap(self.policy):
             raise ValueError("handoff source exceeds capacity; reduce tool result size before retrying")
         text, complete = await asyncio.wait_for(self._collect(instruction, messages, cancellation), 180)

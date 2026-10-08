@@ -9,6 +9,10 @@ class ConversationTreeControl:
     async def usage_events(self,thread_id):
         return await self.sessions.load_conversation_events(thread_id)
 
+    async def usage_summary(self, thread_id):
+        from code_agent.interfaces.usage_summary import UsageSummary
+        return UsageSummary(**await self.sessions.conversation_usage_summary(thread_id))
+
     async def label(self,thread_id,node_id,label):
         await self.sessions.label_conversation_node(thread_id,node_id,label)
 

@@ -7,7 +7,7 @@ from pathlib import Path
 from code_agent.core.attachments import AttachmentRef
 from code_agent.core.cancellation import CancellationToken
 from code_agent.core.events import EventKind
-from code_agent.core.limits import EngineLimits
+from code_agent.core.limits import EngineLimits, select_budget_lease
 from code_agent.core.models import ActionResult
 from code_agent.core.task import TaskContract, TaskStatus
 from code_agent.interfaces.task_controller import (
@@ -42,6 +42,10 @@ from chaos_agent.foreground_workspace_setup import (
 
 
 class IntegratedForegroundTaskController(ForegroundTaskController):
+    async def resolve_pending_action(self, task_id: str, **decision):
+        from chaos_agent.pending_action_recovery import resolve_pending_action
+        return await resolve_pending_action(self, task_id, decision)
+
     def __init__(
         self,
         *args: object,
@@ -102,7 +106,10 @@ class IntegratedForegroundTaskController(ForegroundTaskController):
         await self._sessions.load_thread_relation(identifier)
         source_task = await self._sessions.load_task_for_thread(identifier)
         if thread_id is not None:
-            if source_task is not None or await self._sessions.load_messages(identifier):
+            stats = getattr(self._sessions, "history_stats", None)
+            occupied = ((await stats(identifier))["message_count"] if callable(stats)
+                        else bool(await self._sessions.load_messages(identifier)))
+            if source_task is not None or occupied:
                 raise RuntimeError("only an empty conversation can receive a new task")
         elif source_task is not None:
             if not source_task.status.is_terminal:
@@ -141,6 +148,7 @@ class IntegratedForegroundTaskController(ForegroundTaskController):
                 thread_id,
                 getattr(engine, "_model_name", task.contract.model or "configured-model"),
                 getattr(engine, "_limits", EngineLimits()),
+                select_budget_lease(contract),
             )
             await bind_workspace(
                 self._workspace_runtime, thread_id, task.id, root, workspace
@@ -243,6 +251,7 @@ class IntegratedForegroundTaskController(ForegroundTaskController):
         prompt: str | None = None,
         *,
         attachments: Sequence[AttachmentRef] = (),
+        cancellation: CancellationToken | None = None,
     ):
         serial = self._checkpoint_lifecycle.begin_run(task_id)
         token = None
@@ -250,7 +259,7 @@ class IntegratedForegroundTaskController(ForegroundTaskController):
         try:
             token = self._subagents.activate(task_id)
             async for event in super().events(
-                task_id, prompt, attachments=attachments
+                task_id, prompt, attachments=attachments, cancellation=cancellation
             ):
                 await self._observe_workflow_event(task_id, event)
                 if self._plugin_events is not None:
@@ -264,13 +273,9 @@ class IntegratedForegroundTaskController(ForegroundTaskController):
         finally:
             plugin_token.cancel("task event stream closed")
             try:
-                try:
-                    if token is not None:
-                        await self._subagents.release(task_id)
-                finally:
-                    if token is not None:
-                        self._subagents.reset(token)
-                    self._checkpoint_lifecycle.settle_run(task_id, serial)
+                if token is not None:
+                    self._subagents.reset(token)
+                self._checkpoint_lifecycle.settle_run(task_id, serial)
             finally:
                 try:
                     await self._checkpoint_lifecycle.capture_settled(task_id, serial)
@@ -279,6 +284,9 @@ class IntegratedForegroundTaskController(ForegroundTaskController):
                         await self._notify_settled()
                     finally:
                         self._checkpoint_lifecycle.finalize_run(task_id, serial)
+
+    async def _settle_children(self, task_id: str) -> None:
+        await self._subagents.release(task_id)
 
     async def _notify_settled(self) -> None:
         for callback in tuple(self._settled_callbacks):

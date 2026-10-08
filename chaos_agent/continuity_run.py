@@ -79,9 +79,9 @@ def _v2_dimensions(record, journal, folder, arm):
 
 
 def _record(arm, options, stats, journal, receipts, grade, observation, started):
-    # The first persistent context is committed while the control arm starts.
-    # A has no host-scheduled switches, whereas B/C/D each add three.
-    expected = 1 if arm == "A" else 3
+    # The initial window is virtual; only scheduled switches persist window rows.
+    # Keep committed_windows a SQLite fact, distinct from logical window identity.
+    expected = 0 if arm == "A" else 3
     count = len(stats.get("windows", []))
     fresh = journal.get("fresh_agent_verification", False)
     usage = usage_metrics(stats.get("usage", []))
@@ -96,6 +96,7 @@ def _record(arm, options, stats, journal, receipts, grade, observation, started)
             "model": options.model, "reasoning_effort": options.effort,
             "task_token_limit": options.task_tokens, "failures": failures,
             "seconds": round(time.monotonic() - started, 3), "committed_windows": count,
+            "window_metrics_version": 2, "initial_window_persistence": "virtual",
             "fresh_agent_verification": fresh, "model_turns": stats.get("model_turns"),
             "tool_calls": stats.get("tool_calls"), "usage": usage,
             "api_usage_is_scripted": options.mode == "offline",

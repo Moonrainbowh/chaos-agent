@@ -53,9 +53,14 @@ class TaskCostControl:
         if task is None:
             raise RuntimeError("no durable task usage is available for this thread")
         budget = await self._sessions.load_task_budget(task.id)
-        usage_reader = getattr(self._sessions, "load_conversation_events", self._sessions.load_events)
-        usage = summarize_usage(await usage_reader(task.thread_id))
-        task_usage = summarize_usage(await self._sessions.load_events(task.thread_id))
+        aggregate = getattr(self._sessions, "conversation_usage_summary", None)
+        if callable(aggregate):
+            usage = UsageSummary(**await aggregate(task.thread_id))
+            task_usage = UsageSummary(**await aggregate(task.thread_id, conversation=False))
+        else:
+            usage_reader = getattr(self._sessions, "load_conversation_events", self._sessions.load_events)
+            usage = summarize_usage(await usage_reader(task.thread_id))
+            task_usage = summarize_usage(await self._sessions.load_events(task.thread_id))
         profile = self._profiles.get(task.contract.profile_id or "")
         input_rate = getattr(profile, "input_cost_per_million", None)
         output_rate = getattr(profile, "output_cost_per_million", None)

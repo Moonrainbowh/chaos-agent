@@ -12,6 +12,7 @@ from typing import Any
 
 from code_agent.interfaces.diff_view import DiffView
 from code_agent.verification.evidence import EvidenceOutcome, EvidenceRecord
+from code_agent.core.task_result import TaskResult
 
 
 @dataclass(frozen=True)
@@ -55,9 +56,12 @@ class ExperienceSnapshot:
     artifacts: tuple[ArtifactRef, ...] = ()
     error: str | None = None
     next_action: str = ""
+    delivery: TaskResult | None = None
 
     @property
     def can_claim_completion(self) -> bool:
+        if self.delivery is not None:
+            return self.delivery.execution_status == 'completed' and self.delivery.verification_status == 'verified'
         return self.status == "completed" and self.verification.failed == 0 and self.verification.unknown == 0 and (
             self.changed.files == 0 or self.verification.passed > 0
         )
@@ -88,6 +92,9 @@ def build_experience_snapshot(
     changed = _diff_facts(diff if diff is not None else getattr(state, "diff", None))
     verification = _verification_facts(evidence)
     status = _effective_status(raw_status, changed, verification, error)
+    delivery = getattr(state, 'result', None)
+    if isinstance(delivery, TaskResult):
+        status = delivery.execution_status
     message = _error_text(error)
     return ExperienceSnapshot(
         status=status,
@@ -97,12 +104,16 @@ def build_experience_snapshot(
         artifacts=tuple(artifacts),
         error=message,
         next_action=_next_action(status, changed, verification, message),
+        delivery=delivery if isinstance(delivery, TaskResult) else None,
     )
 
 
 def format_experience_summary(snapshot: ExperienceSnapshot) -> str:
     """Render a short, actionable summary; large artifacts stay behind locators."""
     lines = [snapshot.label]
+    if snapshot.delivery is not None:
+        lines.append('Changes: ' + snapshot.delivery.changes)
+        lines.append('Verification: ' + snapshot.delivery.verification_status)
     if snapshot.changed.files:
         lines.append(f"Changed: {snapshot.changed.files} files (+{snapshot.changed.additions} -{snapshot.changed.removals})")
         if snapshot.changed.sensitive_paths:

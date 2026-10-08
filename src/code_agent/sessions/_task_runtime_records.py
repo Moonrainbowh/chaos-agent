@@ -22,6 +22,16 @@ from .errors import SessionNotFound
 class TaskRuntimeRepositoryMixin:
     _database: object
 
+    async def bind_child_budget(self, child_thread_id, owner_thread_id, parent_task_id,
+                                delegate_request_id, *, max_total_tokens, max_tool_calls,
+                                max_agent_rounds=100, max_children=8):
+        """Freeze a child ceiling and delegation identity; never allocate twice."""
+        from ._shared_budget import bind_child
+        return await bind_child(self._database, child_thread_id, owner_thread_id,
+                                parent_task_id, delegate_request_id,
+                                max_total_tokens=max_total_tokens, max_tool_calls=max_tool_calls,
+                                max_agent_rounds=max_agent_rounds, max_children=max_children)
+
     async def get_or_create_task_budget(
         self,
         thread_id: str,
@@ -233,6 +243,13 @@ class TaskRuntimeRepositoryMixin:
 
         return await self._database.write(write)  # type: ignore[attr-defined]
 
+    async def begin_task_execution(
+        self, task_id: str, instance_id: str, owner_pid: int, owner_create_time: float
+    ) -> TaskRecord:
+        return await _task_execution.begin(
+            self._database, task_id, instance_id, owner_pid, owner_create_time
+        )
+
     async def register_task_execution(
         self,
         task_id: str,
@@ -248,6 +265,9 @@ class TaskRuntimeRepositoryMixin:
         self, owner_alive: _task_execution.OwnerAlive
     ) -> tuple[str, ...]:
         return await _task_execution.reconcile_stale(self._database, owner_alive)
+
+    async def release_task_execution(self, task_id: str, instance_id: str) -> bool:
+        return await _task_execution.release(self._database, task_id, instance_id)
 
     async def save_task_contract_revision(
         self, task_id: str, contract: object

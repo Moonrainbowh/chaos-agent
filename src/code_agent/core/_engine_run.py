@@ -9,14 +9,17 @@ from typing import AsyncIterator, Optional
 from ._json import plain
 from .cancellation import CancellationError, CancellationToken
 from .context_request import ContextRequest, budget_lease
-from .errors import AgentEngineError, ContextBuildError, EngineLimitError, ModelStreamError
+from .errors import AgentEngineError, ContextBuildError, EngineLimitError, ModelStreamError, PendingActionError
+from .pending_actions import pending_calls
 from .events import AgentEvent, EventKind
 from .limits import (
     TaskBudget,
     TaskProgressSnapshot,
     add_usage,
     select_budget_lease,
+    lease_limits,
 )
+from .host_progress import observe_host_progress, stable_value, interaction_revision
 from .models import (
     ActionResult,
     ContextBundle,
@@ -56,6 +59,8 @@ class _RunState:
     summary_retry_count: int = 0
     pending_runtime_notices: list[str] = field(default_factory=list)
     last_failed_call: tuple[str, str] | None = None
+    progress_digest: str = ""
+    candidate_digest: str = ""
 
 
 @dataclass(slots=True)
@@ -140,6 +145,9 @@ class AgentEngineRunMixin:
         active_thread = thread_id or await self._journal.create_thread()
         if task is not None and task.thread_id != active_thread:
             raise ValueError("task must belong to the active thread")
+        if await self._journal.has_pending_actions(active_thread):
+            raise PendingActionError("durable action outcome is unresolved; reconcile the recorded action before continuing")
+        prior_messages = await self._journal.load_context_messages(active_thread)
         budget = await self._journal.get_or_create_task_budget(
             active_thread,
             self._model_name,
@@ -148,6 +156,9 @@ class AgentEngineRunMixin:
         )
         supervisor = TaskSupervisor(task.contract, budget) if task else None
         state = _RunState(active_thread, token, task, budget, supervisor)
+        initial, facts = await self._host_progress_facts(active_thread, budget)
+        state.progress_digest = initial.digest
+        state.candidate_digest = facts.candidate_digest
         started = AgentEvent(
             kind=EventKind.RUN_STARTED,
             payload={"thread_id": active_thread},
@@ -158,45 +169,40 @@ class AgentEngineRunMixin:
     async def _task_progress_snapshot(
         self, thread_id: str, budget: TaskBudget
     ) -> TaskProgressSnapshot:
+        snapshot, _ = await self._host_progress_facts(thread_id, budget)
+        return snapshot
+
+    async def _host_progress_facts(self, thread_id: str, budget: TaskBudget):
         task_state = await self._journal.load_task_state(thread_id)
-        messages = await self._journal.load_messages(thread_id)
-        action_fingerprint = ""
+        task = await self._journal.load_task_for_thread(thread_id)
+        facts, revision = await self._journal.host_progress(thread_id, task.contract.objective if task else "",
+            getattr(self, "_actions", None), candidate_limit=lease_limits(budget.lease_tier, budget.limits)[1],
+            hard_tool_limit=budget.limits.max_tool_calls)
+        action_fingerprint = facts.renewal_digest
         verification_fingerprint = ""
         reason = "initial task state"
-        latest_tool = next(
-            (message for message in reversed(messages) if message.role == "tool"),
-            None,
-        )
-        if latest_tool is not None:
-            result = _tool_result(latest_tool)
-            if result is not None and latest_tool.name == "run_verification":
-                verification_fingerprint = _message_fingerprint(latest_tool, messages)
-                reason = "new verification result"
-            elif (
-                result is not None
-                and not result.is_error
-                and latest_tool.name in _READ_PROGRESS_TOOLS
-            ):
-                action_fingerprint = _message_fingerprint(latest_tool, messages)
-                reason = "new read result"
-        if not action_fingerprint and not verification_fingerprint:
-            if task_state.code_generation:
-                reason = "new code generation"
-            elif budget.last_failure_signature:
-                reason = "new validation failure"
-            elif sum(message.role == "user" for message in messages) > 1:
-                reason = "task revised by user input"
+        progress = getattr(getattr(self, "_verification", None), "progress_fingerprint", None)
+        if task is not None and callable(progress):
+            verification_fingerprint = await progress(task, task_state)
+        if task_state.code_generation:
+            reason = "new code generation"
+        elif verification_fingerprint:
+            reason = "new trusted verification result"
+        elif facts.resolved_count:
+            reason = "resolved related action failure"
+        elif facts.related_count:
+            reason = "new related read result"
+        elif revision > 1:
+            reason = "task revised by user input"
         return TaskProgressSnapshot(
             code_generation=task_state.code_generation,
             subject_hash=task_state.subject_hash,
             verification_fingerprint=verification_fingerprint,
             failure_fingerprint=budget.last_failure_signature or "",
             action_fingerprint=action_fingerprint,
-            interaction_revision=sum(
-                message.role == "user" for message in messages
-            ),
+            interaction_revision=revision,
             reason=reason,
-        )
+        ), facts
 
     async def _prepare_request(
         self,
@@ -205,7 +211,9 @@ class AgentEngineRunMixin:
         attachments: tuple[AttachmentRef, ...] = (),
     ) -> tuple[AgentEvent, Message]:
         state.token.raise_if_cancelled()
-        state.prior_messages = await self._journal.load_messages(state.thread_id)
+        if await self._journal.has_pending_actions(state.thread_id):
+            raise PendingActionError("durable action outcome is unresolved; reconcile the recorded action before continuing")
+        state.prior_messages = await self._journal.load_context_messages(state.thread_id)
         if state.task is not None and self._verification is not None:
             prepared = await self._verification.prepare(
                 state.task, await self._journal.load_task_state(state.thread_id)
@@ -215,6 +223,8 @@ class AgentEngineRunMixin:
             role="user", content=user_input, attachments=attachments
         )
         await self._journal.append_message(state.thread_id, user_message)
+        initial, facts = await self._host_progress_facts(state.thread_id, state.budget)
+        state.progress_digest, state.candidate_digest = initial.digest, facts.candidate_digest
         added = self._journal.message_added(user_message)
         await self._journal.append_event(state.thread_id, added)
         return added, user_message
@@ -223,7 +233,7 @@ class AgentEngineRunMixin:
         self, state: _RunState, turn: _TurnState, user_input: str
     ) -> ContextBundle:
         source_messages = (
-            await self._journal.load_messages(state.thread_id)
+            await self._journal.load_context_messages(state.thread_id)
             if state.task is not None
             else state.messages
         )
@@ -326,7 +336,8 @@ class AgentEngineRunMixin:
     ) -> AsyncIterator[AgentEvent]:
         state.total_usage = add_usage(state.total_usage, usage)
         if state.task is not None:
-            await self._journal.consume_task_usage(state.task.id, usage)
+            if not getattr(self._model, "accounts_task_usage", False):
+                await self._journal.consume_task_usage(state.task.id, usage)
             thresholds = await self._journal.mark_task_budget_warnings(
                 state.task.id
             )
@@ -348,19 +359,6 @@ class AgentEngineRunMixin:
                 yield warning
         if state.total_usage.total_tokens > self._limits.max_total_tokens:
             raise EngineLimitError("token budget exceeded")
-
-
-_READ_PROGRESS_TOOLS = frozenset(
-    {
-        "read_file",
-        "read_code_slices",
-        "list_files",
-        "search_text",
-        "load_tool_contract",
-        "git_status",
-        "git_diff",
-    }
-)
 
 
 def _tool_result(message: Message) -> ActionResult | None:
@@ -399,7 +397,7 @@ def _message_fingerprint(
             "name": message.name,
             "arguments": arguments,
             "is_error": result.is_error,
-            "output": plain(result.output),
+            "output": stable_value(result.output),
         },
         ensure_ascii=True,
         sort_keys=True,

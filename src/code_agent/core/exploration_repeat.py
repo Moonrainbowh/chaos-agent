@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from typing import Mapping
 
 from .models import ActionResult, ToolCall
-
-READ_ONLY_TOOLS = frozenset({"read_file", "search_text", "list_files"})
+from .action_semantics import READ_ONLY_TOOLS, operation_kind
+from ._json import plain
 
 
 @dataclass(frozen=True)
@@ -28,14 +28,11 @@ class ToolOnlyObservation:
 
 
 class ToolOnlyConvergenceGuard:
-    """Converge extended tool-only exploration using durable task evidence.
+    """Converge action turns without fresh Host facts, regardless of prose.
 
-    This guard intentionally observes turn shape, not fuzzy result similarity.
-    It is not a proof of a loop: a multi-step read-only investigation can need
-    several distinct tools. Exact repeated reads remain the separate hard-stop
-    signal. At the final threshold the engine stops requesting more model
-    actions and resolves the task from its actual workspace and verification
-    evidence instead of spending the global budget on another open-ended loop.
+    The engine supplies facts reconstructed from durable paired results and
+    subject state. Exact repeated reads remain the separate hard-stop signal.
+    Thresholds ask for a bounded summary, never manufacture completion proof.
     """
 
     def __init__(
@@ -69,10 +66,9 @@ class ToolOnlyConvergenceGuard:
         has_text: bool,
         calls: tuple[ToolCall, ...] | list[ToolCall],
         has_validation_error: bool = False,
+        has_host_progress: bool = False,
     ) -> ToolOnlyObservation | None:
-        if has_text or not calls or any(call.name in _PROGRESS_TOOLS for call in calls):
-            self.exploration_count = 0
-            self.correction_count = 0
+        if not calls:
             return None
 
         if has_validation_error:
@@ -87,21 +83,26 @@ class ToolOnlyConvergenceGuard:
                 )
             return None
 
+        if has_host_progress:
+            self.exploration_count = 0
+            self.correction_count = 0
+            return None
+
         self.correction_count = 0
         self.exploration_count += 1
         if self.exploration_count == self.force_at:
             return ToolOnlyObservation(
                 "finalize",
-                "task produced no answer text or edit/verification progress for "
-                f"{self.exploration_count} consecutive tool-only turns; resolve from the "
+                "task produced no new Host-observed progress for "
+                f"{self.exploration_count} consecutive action turns; resolve from the "
                 "current evidence instead of continuing broad exploration",
                 self.exploration_count,
             )
         if self.exploration_count == self.warn_at:
             return ToolOnlyObservation(
                 "warn",
-                "task produced no answer text or edit/verification progress for "
-                f"{self.exploration_count} consecutive tool-only turns; summarize current "
+                "task produced no new Host-observed progress for "
+                f"{self.exploration_count} consecutive action turns; summarize current "
                 "evidence and avoid broad repeated exploration",
                 self.exploration_count,
             )
@@ -110,15 +111,6 @@ class ToolOnlyConvergenceGuard:
     def reset(self) -> None:
         self.exploration_count = 0
         self.correction_count = 0
-
-
-_PROGRESS_TOOLS = frozenset({
-    "write_file",
-    "replace_text",
-    "apply_workspace_edit_plan_v1",
-    "run_verification",
-    "new_context",
-})
 
 
 class ExplorationRepeatObserver:
@@ -131,7 +123,7 @@ class ExplorationRepeatObserver:
         self._recent: OrderedDict[str, tuple[str, int, str]] = OrderedDict()
 
     def observe(self, call: ToolCall, result: ActionResult) -> RepeatObservation | None:
-        if call.name not in READ_ONLY_TOOLS:
+        if operation_kind(call) != "read":
             return None
         signature = f"{call.name}:{_canonical(call.arguments)}"
         fingerprint = _canonical(result.output)
@@ -153,8 +145,8 @@ class ExplorationRepeatObserver:
 def _canonical(value: object) -> str:
     if isinstance(value, Mapping):
         ignored = {"request_id", "duration", "duration_ms", "call_id"}
-        return json.dumps({str(k): value[k] for k in sorted(value, key=str) if str(k) not in ignored}, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
-    return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":"), default=str)
+        return json.dumps(plain({str(k): value[k] for k in sorted(value, key=str) if str(k) not in ignored}), sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    return json.dumps(plain(value), sort_keys=True, ensure_ascii=False, separators=(",", ":"), default=str)
 
 
 def _target(call: ToolCall) -> str:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import stat
 
 from code_agent.core.action_execution import ActionExecutionContext
 from code_agent.core.cancellation import CancellationError, CancellationToken
@@ -15,8 +16,10 @@ from code_agent.workspace.edits import (
     BatchApplyResult,
     BatchApplyStatus,
     BatchEditPlan,
+    PreparedBatchEdit,
 )
 from code_agent.workspace.snapshot_store import SnapshotHandle
+from code_agent.workspace._secure_io import PathIdentity
 
 from chaos_agent.rewind_edit_async import (
     ordered,
@@ -103,12 +106,9 @@ async def apply_edit_plan(
         if not isinstance(result, BatchApplyResult):
             raise TypeError("apply_batch must return BatchApplyResult")
         if result.status is BatchApplyStatus.APPLIED:
-            # Capture the ownership proof before honouring any cancellation. The
-            # files are on disk at this instant, and without a recorded proof
-            # recovery could not tell the agent's own output apart from a user
-            # replacement carrying identical bytes -- it would have to refuse
-            # the whole batch instead of rolling it back.
-            await _persist_post_identities(capture, prepared, record)
+            # Persist the actual publication receipt before cancellation, never
+            # a later pathname observation that could belong to another writer.
+            await _persist_post_identities(capture, prepared, record, result)
         if applied.cancellation is not None:
             raise applied.cancellation
         _check(cancellation)
@@ -161,22 +161,14 @@ async def _persist_post_identities(
     capture: object,
     prepared: object,
     record: EditBatchRecord,
+    result: BatchApplyResult,
 ) -> None:
-    """Persist the ownership proofs of the files this batch left behind.
+    """Persist plan-bound FD/handle receipts even during cancellation.
 
-    An atomic replace installs a new file index and a created file does not
-    exist before the write, so the value can only be observed now, after
-    ``apply_batch`` returned. Recording it before the operations are marked
-    committed keeps the journal self-sufficient: a crash at any later point can
-    still tell the agent's own output apart from a user replacement that happens
-    to carry identical bytes. A crash before this point leaves the proof
-    missing, and recovery refuses to guess instead of trusting content alone.
-
-    This write deliberately ignores cancellation. It is the difference between a
-    later recovery that rolls the batch back and one that must refuse every
-    path, so it runs to completion even while the task is being torn down.
+    Never observe current paths to infer authorship. Missing or malformed proof
+    fails closed; a crash before persistence leaves recovery unprovable.
     """
-    identities = await value(await thread(capture.editor.post_identities, prepared))
+    identities = _validated_post_identities(prepared, record, result)
     captured = {
         path: None if identity is None else (identity.device, identity.inode)
         for path, identity in identities.items()
@@ -184,6 +176,56 @@ async def _persist_post_identities(
     await value(await ordered(capture.sessions.record_edit_batch_post_identities(
         record.mutation.mutation_id, captured
     )))
+
+
+def _validated_post_identities(
+    prepared: PreparedBatchEdit,
+    record: EditBatchRecord,
+    result: BatchApplyResult,
+) -> dict[str, PathIdentity | None]:
+    """Accept only a complete receipt associated with this prepared journal."""
+    plan = prepared.plan
+    if (type(result) is not BatchApplyResult
+            or result.status is not BatchApplyStatus.APPLIED
+            or result.plan_id != plan.plan_id
+            or record.plan_digest != plan.plan_id
+            or result.applied_operations != tuple(range(len(record.operations)))
+            or result.rolled_back_operations or result.conflicts or result.error):
+        raise RuntimeError("invalid applied batch ownership receipt")
+    if type(result.post_identities) is not tuple:
+        raise RuntimeError("ownership receipt must be immutable")
+    identities = {}
+    for row in result.post_identities:
+        if type(row) is not tuple or len(row) != 2:
+            raise RuntimeError("invalid ownership endpoint receipt")
+        path, identity = row
+        if type(path) is not str or path in identities:
+            raise RuntimeError("duplicate or invalid ownership endpoint")
+        if identity is not None and (
+                type(identity) is not PathIdentity
+                or any(type(number) is not int or number < 0
+                       for number in (identity.device, identity.inode, identity.size))
+                or not stat.S_ISREG(identity.mode)):
+            raise RuntimeError("invalid ownership identity")
+        identities[path] = identity
+    if set(identities) != {path.relative_path for path in plan.paths}:
+        raise RuntimeError("ownership receipt paths do not match plan")
+    for item in record.operations:
+        operation = item.operation
+        for endpoint in (operation.source, operation.target):
+            if endpoint is None:
+                continue
+            identity = identities[endpoint.path]
+            exists = endpoint.after_existed or (
+                operation.case_only and endpoint is operation.source)
+            if exists != (identity is not None):
+                raise RuntimeError("ownership receipt existence mismatch")
+            size = operation.target.after_size if operation.case_only else endpoint.after_size
+            if identity is not None and identity.size != size:
+                raise RuntimeError("ownership receipt size mismatch")
+        if operation.case_only and identities[operation.source.path] != identities[operation.target.path]:
+            raise RuntimeError("case-only ownership receipt identity mismatch")
+    return identities
 
 
 async def _persist_apply_result(

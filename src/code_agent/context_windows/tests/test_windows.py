@@ -36,6 +36,7 @@ class WindowTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.path = Path(self.tmp.name) / "sessions.db"
+        assert self.path.resolve().is_relative_to(Path(self.tmp.name).resolve())
         self.repo = SQLiteSessionRepository(self.path)
         self.thread = await self.repo.create_thread()
         self.policy = WindowPolicy(work_tokens=4000, safety_tokens=100, keep_groups=2, handoff_tokens=500)
@@ -49,7 +50,7 @@ class WindowTests(unittest.IsolatedAsyncioTestCase):
         await self.repo.append_message(self.thread, Message("user", "Keep exact units and repair the regression."))
         for i in range(8):
             await self.repo.append_message(self.thread, Message("assistant", tool_calls=(ToolCall(f"c{i}", "read_file", {"path": "contract.py"}),)))
-            await self.repo.append_message(self.thread, Message("tool", "evidence " * 45, tool_call_id=f"c{i}"))
+            await self.repo.append_message(self.thread, Message("tool", "evidence " * 45, tool_call_id=f"c{i}", name="read_file"))
 
     def request(self, revision=1):
         return ContextRequest(self.thread, revision, (), "", (), TaskState(), CancellationToken())

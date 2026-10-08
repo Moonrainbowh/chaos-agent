@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import aclosing
 import json
 from collections.abc import AsyncIterator, Iterable, Mapping, Sequence
 from dataclasses import dataclass
@@ -22,6 +23,7 @@ from .attachments import AttachmentResolver, ProviderAttachmentEncoder
 from .config import ApiProtocol, InputModality, ProviderConfig
 from .errors import ProviderConfigError, ProviderProtocolError
 from ._request_payload import anthropic_payload, request_options
+from .prepared import contains_images
 from .transport import ProviderTransport, Sleep
 
 def _request_messages(
@@ -188,53 +190,64 @@ class AnthropicClient:
     async def stream(self, system_prompt: str, messages: Sequence[Message],
         tools: Sequence[ToolDefinition],
     ) -> AsyncIterator[ModelEvent]:
+        prepared = await self.prepare_request(system_prompt, messages, tools)
+        async with aclosing(self.stream_prepared(prepared)) as events:
+            async for event in events:
+                yield event
+
+    async def prepare_request(self, system_prompt: str, messages: Sequence[Message],
+        tools: Sequence[ToolDefinition],
+    ):
         system, request_messages = _request_messages(system_prompt, messages, self._attachments)
         payload = anthropic_payload(
             self._config, system, request_messages,
             [_request_tool(tool) for tool in tools],
             self._request_options,
         )
+        return await self._transport.prepare_request(self._config.anthropic_messages_path, payload, {"anthropic-version": "2023-06-01"}, auth_header="x-api-key", auth_scheme=None,
+            max_output_tokens=self._request_options.max_output_tokens,
+            uncalibrated_images=contains_images(messages))
+
+    async def stream_prepared(self, prepared):
         pending: dict[int, _PendingTool] = {}
         tool_budget = ToolBudget(self._config.max_tool_calls, self._config.max_tool_argument_bytes)
         usage = _UsageState()
-        async for sse in self._transport.stream_sse(
-            self._config.anthropic_messages_path, payload,
-            {"anthropic-version": "2023-06-01"}, auth_header="x-api-key", auth_scheme=None,
-        ):
-            value = _load_event(sse.data)
-            event_type = value.get("type", sse.event)
-            if not isinstance(event_type, str):
-                continue
-            if event_type == "error" or sse.event == "error":
-                raise ProviderProtocolError("Anthropic provider returned an error event")
-            if event_type == "message_start":
-                message = value.get("message")
-                if not isinstance(message, dict):
-                    raise ProviderProtocolError("Anthropic message_start is invalid")
-                if "usage" in message:
-                    yield usage.update(message["usage"])
-            elif event_type == "content_block_start":
-                self._start_block(value, pending, tool_budget)
-            elif event_type == "content_block_delta":
-                result = self._consume_delta(value, pending)
-                if result is not None:
-                    yield result
-            elif event_type == "content_block_stop":
-                index = self._index(value)
-                if index in pending:
-                    result = _finish_tool(pending[index])
+        async with aclosing(self._transport.stream_prepared(prepared)) as events:
+            async for sse in events:
+                value = _load_event(sse.data)
+                event_type = value.get("type", sse.event)
+                if not isinstance(event_type, str):
+                    continue
+                if event_type == "error" or sse.event == "error":
+                    raise ProviderProtocolError("Anthropic provider returned an error event")
+                if event_type == "message_start":
+                    message = value.get("message")
+                    if not isinstance(message, dict):
+                        raise ProviderProtocolError("Anthropic message_start is invalid")
+                    if "usage" in message:
+                        yield usage.update(message["usage"])
+                elif event_type == "content_block_start":
+                    self._start_block(value, pending, tool_budget)
+                elif event_type == "content_block_delta":
+                    result = self._consume_delta(value, pending)
                     if result is not None:
                         yield result
-            elif event_type == "message_delta":
-                if "usage" in value:
-                    yield usage.update(value["usage"])
-            elif event_type == "message_stop":
-                for index in sorted(pending):
-                    result = _finish_tool(pending[index])
-                    if result is not None:
-                        yield result
-                yield ModelEvent(kind=ModelEventKind.COMPLETED)
-                return
+                elif event_type == "content_block_stop":
+                    index = self._index(value)
+                    if index in pending:
+                        result = _finish_tool(pending[index])
+                        if result is not None:
+                            yield result
+                elif event_type == "message_delta":
+                    if "usage" in value:
+                        yield usage.update(value["usage"])
+                elif event_type == "message_stop":
+                    for index in sorted(pending):
+                        result = _finish_tool(pending[index])
+                        if result is not None:
+                            yield result
+                    yield ModelEvent(kind=ModelEventKind.COMPLETED)
+                    return
         raise ProviderProtocolError("Anthropic stream ended without message_stop")
     @classmethod
     def _start_block(

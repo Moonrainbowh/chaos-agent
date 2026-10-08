@@ -44,12 +44,11 @@ def snapshot_from_prepared(prepared: PreparedBatchEdit) -> WorkspaceSnapshot:
 def post_identities(
     editor: object, prepared: PreparedBatchEdit
 ) -> dict[str, PathIdentity | None]:
-    """Observe the durable identity of every path a prepared batch touches.
+    """Observe current path identities for compatibility, without claiming ownership.
 
-    This is the only moment the POST identity exists. An atomic replace installs
-    a new file index, and a created file does not exist before the write, so the
-    value cannot be derived at plan time. The caller persists the result as the
-    ownership proof recovery needs after a crash.
+    An external same-byte replacement may already occupy a path. This observation
+    cannot authorize recovery. Persist the plan-bound ``BatchApplyResult`` receipt,
+    whose identities originate from the actual publication FD or handle instead.
     """
     if type(prepared) is not PreparedBatchEdit:
         raise TypeError("prepared must be a PreparedBatchEdit")
@@ -70,8 +69,8 @@ def recovery_operations_from_prepared(
     PRE identities come from the preflight observations. POST identities cannot
     be known when the journal is written: an atomic replace yields a new file
     index, and a created file does not exist yet. They are therefore supplied
-    separately through ``post_identities`` once the batch has actually been
-    applied. A POST path left without an identity stays unprovable, and
+    separately through ``post_identities`` from the actual plan-bound apply
+    receipt, never from a later pathname observation. A POST path left without an identity stays unprovable, and
     recovery refuses to classify it rather than trusting content alone.
     """
     if type(prepared) is not PreparedBatchEdit:

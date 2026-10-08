@@ -15,6 +15,9 @@ from .tui_general_commands import handle_general_command
 
 
 async def handle_builtin_command(app: Any, command: TuiCommand) -> bool | None:
+    if command.kind is TuiCommandKind.MEMORY:
+        from .tui_memory_commands import handle_memory_command
+        return await handle_memory_command(app, command.instruction)
     if command.kind is TuiCommandKind.TREE:
         from .session_tree import show_session_tree
         return await show_session_tree(app)

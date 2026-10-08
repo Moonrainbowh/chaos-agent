@@ -6,6 +6,7 @@ from ._engine_run import _RunState, _TurnState
 from ._tool_feedback import tool_failure
 from .events import AgentEvent, EventKind
 from .models import Message
+from .action_semantics import resolve_supervision_call
 
 
 def queue_runtime_notice(state: _RunState, content: str) -> None:
@@ -39,10 +40,17 @@ class AgentEngineConvergenceMixin:
     ) -> AsyncIterator[AgentEvent]:
         if state.stop_requested:
             return
+        host_progress = False
+        if hasattr(self, "_host_progress_facts"):
+            snapshot, facts = await self._host_progress_facts(state.thread_id, state.budget)
+            host_progress = ((bool(state.progress_digest) and snapshot.digest != state.progress_digest)
+                or (bool(state.candidate_digest) and facts.candidate_digest != state.candidate_digest))
+            state.progress_digest, state.candidate_digest = snapshot.digest, facts.candidate_digest
         observation = state.tool_only_guard.observe(
             has_text=bool("".join(turn.text_parts).strip()),
-            calls=turn.calls,
+            calls=[resolve_supervision_call(call, getattr(self, "_actions", None)) for call in turn.calls],
             has_validation_error=getattr(turn, "has_validation_error", False),
+            has_host_progress=host_progress,
         )
         if observation is None:
             return
