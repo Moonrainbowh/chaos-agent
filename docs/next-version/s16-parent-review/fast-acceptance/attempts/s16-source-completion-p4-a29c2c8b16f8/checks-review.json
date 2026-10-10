@@ -1,0 +1,33 @@
+{
+  "attempt": "s16-source-completion-p4-a29c2c8b16f8",
+  "review_status": "INFRASTRUCTURE_BLOCKED",
+  "semantic_acceptance": "NOT_EVALUATED",
+  "verification_status": "unverified",
+  "reviewer_actions": {"provider_calls": 0, "tests_run": 0, "production_edits": 0},
+  "actual_exit": 1,
+  "failure": {"type": "ModelStreamError", "cause": "Provider transport ConnectError (127.0.0.1): All connection attempts failed", "specific_service_root_cause": "unknown"},
+  "parent_thread_id": "ca25529188cb435996fac7bfb86b3574",
+  "logical_model_turns_started": 1,
+  "transport_attempts": 3,
+  "internal_retries": 2,
+  "model_replies_observed": 0,
+  "wire": {"count": 3, "identical": true, "sha256": "6d3cb6113c4903d11352262682fe06096fe7678364af3860c36c41623576c291", "actual_hashes_match_worker": true, "model": "glm-5.3-flash", "reasoning_effort": "medium", "max_completion_tokens": 4096},
+  "usage": {"unique_record_count": 1, "id": "3f55230f82d154a39e2481c77f3eb6dd", "status": "pending", "reserved": 40615, "settled_record_count": 0, "charged_tokens": null, "total_tokens": null, "total_status": "unknown", "retries_not_double_counted": true, "historical_origin_usage_excluded": true},
+  "checks": {
+    "fixture_current_hashes_match_freeze_and_supervisor": "PASS",
+    "candidate_unchanged_supervisor_observation": true,
+    "budget_and_model_not_observed_enlarged": "PASS",
+    "child_delegation": "NOT_EVALUATED",
+    "full_source_reads": "NOT_EVALUATED",
+    "independent_comparison_isolation": "NOT_EVALUATED",
+    "precise_citations": "NOT_EVALUATED",
+    "five_actual_behaviors": "NOT_EVALUATED",
+    "test_discrimination_witnesses": "NOT_EVALUATED",
+    "current_legacy_distinction": "NOT_EVALUATED",
+    "child_report_reconciliation": "NOT_EVALUATED",
+    "rendered_chinese_delivery": "NOT_EVALUATED",
+    "production_unverified_final_state": "NOT_EVALUATED"
+  },
+  "durable_observations": {"parent_review_records": 0, "parent_review_attempt_records": 0, "assistant_messages": 0, "child_entry_observations": 0},
+  "evidence": ["freeze.json", "worker-result.json", "real-supervisor.json", "real-stderr.log", "real-events.jsonl", "real-wire-request-1.json", "real-wire-request-2.json", "real-wire-request-3.json", "durable-ca25529188cb435996fac7bfb86b3574.json"]
+}

@@ -35,7 +35,7 @@ def main():
             "omit_blank": names.clean_names([" ", "", "\t"]) == [],
             "preserve_order": observed == original,
             "preserve_duplicates": observed.count("Z") == 2,
-            "no_input_mutation": values == original and observed is not values,
+            "no_input_mutation": values == original,
         }
         assert list(behavior.values()) == [False, False, True, True, True]
         sys.modules["names"] = names
@@ -71,6 +71,8 @@ def main():
             "status": "PASS_LOCAL_ORACLE",
             "model_or_provider_calls": 0,
             "implementation_compliance": behavior,
+            "copy_observation": {"returns_distinct_object": observed is not values,
+                                 "required_by_contract": False},
             "frozen_fixture_tests": {"run": result.testsRun, "failures": len(result.failures),
                                      "errors": len(result.errors)},
             "coverage_discrimination": coverage,

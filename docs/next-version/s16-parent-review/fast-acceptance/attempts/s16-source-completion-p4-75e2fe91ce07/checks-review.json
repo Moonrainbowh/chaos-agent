@@ -1,0 +1,52 @@
+{
+  "attempt": "s16-source-completion-p4-75e2fe91ce07",
+  "review_status": "FAIL",
+  "semantic_acceptance": "NOT_ACCEPTED",
+  "reviewer_actions": {"provider_calls": 0, "tests_run": 0, "production_edits": 0},
+  "actual_exit": 1,
+  "infrastructure_blocked": false,
+  "parent_thread_id": "eb6289f4557840329ddfd4f1daccbd94",
+  "checks": {
+    "wire_hashes_match": "PASS",
+    "model_effort_output_budget": "PASS",
+    "four_complete_child_reads_match_disk": "PASS",
+    "fixture_hashes_preserved": "PASS",
+    "independent_stage_isolated": "PASS",
+    "valid_initial_checkpoint_before_comparison": "PASS",
+    "comparison_sources_identical": "PASS",
+    "complete_advisory_in_comparison": "PASS",
+    "five_implementation_behaviors": "PASS",
+    "five_static_test_pass_fail_directions": "PASS",
+    "current_legacy_distinction": "PASS",
+    "test_discrimination_semantics": "PARTIAL_WITH_ERRORS",
+    "child_report_reconciliation": "PARTIAL_WITH_ERRORS",
+    "final_rejected_output_persisted": "PASS",
+    "valid_comparison_repair": "FAIL",
+    "rendered_final_chinese_delivery": "FAIL",
+    "conservative_unverified_terminal": "PASS"
+  },
+  "structure": {
+    "independent_errors": [],
+    "first_comparison_error": {"path": "/comparisons/-", "missing_paragraphs": [5,9,12]},
+    "missing_paragraphs_are_pure_headings": true,
+    "heading_texts": {"5": "### 代码 vs 契约", "9": "### 测试 vs 契约", "12": "### 覆盖缺口（审查要点）"},
+    "final_repair_error": "repair must contain only 1..32 replacements for the reported paths",
+    "final_output_shape": "full review object instead of replacements wrapper",
+    "repair_used": true,
+    "delivered": false,
+    "attempt_raw_lengths": [5422,7559,8515]
+  },
+  "semantic_issues": [
+    "test_empty only non-empty output limitation misses None, empty tuple and exceptions",
+    "duplicate failure localization conflated with discrimination; dedup failure witness itself is valid",
+    "incorrectly correcting child test definition entry range 4..8 to 4..9",
+    "attributing missing-trim diagnosis to child without actual quoted child claim",
+    "last raw comparison misquotes paragraph 5 heading",
+    "first comparison uses indistinguishable duplicate exchange as ordering witness; last raw removes it without concrete suite-passing ordering mutant"
+  ],
+  "usage": {"unique_records": 8, "all_settled": true, "input_tokens": 36716, "output_tokens": 7060, "total_tokens": 43776, "parent_origin_tokens": 32393, "child_origin_tokens": 11383, "child_already_in_total": true},
+  "budget": {"shared_rounds": 8, "shared_tools": 11, "active_seconds": 157, "renewals": 0, "limits_unchanged": true},
+  "candidate_unchanged": "supervisor observation true",
+  "terminal": {"execution_status": "failed", "changes": "unchanged", "verification_status": "unverified", "stop_code": "parent_review_delivery_unmet"},
+  "scope_note": "No fixture/test execution. Heading-only coverage rejection, repair protocol violation and semantic issues are distinct; no acceptance threshold relaxed."
+}

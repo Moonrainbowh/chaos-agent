@@ -41,6 +41,25 @@ def answer(text):
     return {"type": "response.output_text.delta", "delta": text}
 
 
+def review_answers(root, path, advisory):
+    """Scripted structural delivery, never a semantic oracle."""
+    text = (root / path).read_bytes().decode('utf-8')
+    cite = {'path': path, 'version': hashlib.sha256(text.encode()).hexdigest(),
+            'start_line': 1, 'end_line': 1, 'quote': text.splitlines(keepends=True)[0]}
+    initial = {'findings': [{'requirement_id': key, 'judgment': 'Synthetic structural finding.',
+        'citations': [cite]} for key in ('implementation', 'contract_compliance', 'test_discrimination',
+                                      'task_objective', 'child_objective')],
+        'assertion_checks': [], 'unknowns': ['This structural fixture does not assess assertion semantics.']}
+    final = {**initial, 'comparisons': [{'child_claim': 'Synthetic advisory comparison.', 'paragraph_ids': [1],
+             'assessment': 'Unverified', 'rationale': 'Static review only.', 'citations': [cite]}]}
+    initial = {**initial, 'findings': [f for f in initial['findings'] if f['requirement_id'] != 'child_objective']}
+    final = {'confirmed_findings': [f['requirement_id'] for f in initial['findings']],
+             'finding_updates': [f for f in final['findings'] if f['requirement_id'] == 'child_objective'],
+             'confirmed_assertions': [], 'assertion_updates': [],
+             'unknowns': final['unknowns'], 'comparisons': final['comparisons']}
+    return [[answer(json.dumps(initial))], [answer(json.dumps(final))]]
+
+
 class OfflineProvider:
     """Real OpenAI preparation/serialization/parser, zero network transport."""
     def __init__(self, streams):
@@ -256,10 +275,11 @@ class S16ProductionRegressionTests(unittest.IsolatedAsyncioTestCase):
                 "objective": fixture["child_objective"], "token_budget": fixture["runtime"]["child_token_budget"],
                 "required_sources": fixture["required_source_paths"],
                 "tool_budget": fixture["runtime"]["child_tool_budget"],
-                "active_seconds": fixture["runtime"]["child_active_seconds"]})], [answer("Source advisory checked.")]],
+                "active_seconds": fixture["runtime"]["child_active_seconds"]})]] + review_answers(
+                    self.root, 'names.py', 'Offline synthetic source analysis; unverified.'),
             ((calls, [answer("Offline synthetic source analysis; unverified.")]),))
         self.assertEqual(task.contract.intent, TaskIntent.ANALYZE)
-        self.assertEqual(len(parent.bodies), 3)
+        self.assertEqual(len(parent.bodies), 4)
         self.assertEqual(parent.streams, [])
         self.assertEqual(task.status.value, 'completed')
         self.assertEqual(results[0]["status"], "completed")
@@ -346,7 +366,7 @@ class S16ProductionRegressionTests(unittest.IsolatedAsyncioTestCase):
         _, _, _, children, results = await self.run_parent("Read only: inspect names.py.",
             [[call("corrected-delegate", "delegate_agent", {"agent_id": "s16.alpha",
                 "objective": "Read names.py", "required_sources": ["names.py"], "token_budget": 60000})],
-             [answer("Checked.")]], (streams,))
+             [answer("Checked.")], [answer("Still no structured parent delivery.")]], (streams,))
         self.assertEqual(results[0]["status"], "completed", results)
         self.assertEqual(len(children[0].bodies), 3)
         self.assertEqual(results[0]["usage"]["tool_calls"], 1)

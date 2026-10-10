@@ -1,0 +1,56 @@
+{
+  "review_scope": "FROZEN_SEMANTIC_ACCEPTANCE_STATIC_ONLY",
+  "attempt": "s16-source-completion-p4-90c7abea4a20",
+  "status": "PARTIAL_WITH_ERRORS",
+  "semantic_acceptance": "NOT_ACCEPTED",
+  "source_execution": false,
+  "provider_calls_by_reviewer": 0,
+  "checks": {
+    "five_current_behaviors": "PASS",
+    "five_current_assertion_outcomes": "PASS",
+    "current_vs_legacy": "PASS",
+    "physical_source_citations": "PASS",
+    "duplicates_current_output_correction": "PASS",
+    "specific_sorted_mutant_limitation": "PASS_WITH_FINITE_SCOPE",
+    "literal_gate_is_not_semantic_proof": "PASS",
+    "chinese_final_prose": "PASS",
+    "unknown_and_unexecuted_status": "PASS",
+    "concrete_witness_consistency": "FAIL",
+    "all_key_child_claims_reconciled": "FAIL",
+    "explicit_initial_error_correction": "PARTIAL"
+  },
+  "current_static_outcomes": {
+    "test_empty": "pass",
+    "test_trim": "fail",
+    "test_blank": "fail",
+    "test_duplicates": "fail",
+    "test_no_mutation": "pass"
+  },
+  "errors": [
+    {
+      "id": "empty_missed_counterexample_conflict",
+      "location": "final:/assertion_checks/0/missed",
+      "claim": "实现清空所有输出",
+      "reported_counterexample_actual": [" Alice "],
+      "required_actual_for_that_same_behavior": [],
+      "reason": "The counterexample does not follow the stated mutant; initial and final retain the conflict."
+    },
+    {
+      "id": "empty_zero_discrimination_accepted",
+      "location": "final:/comparisons/6",
+      "reason": "Passing current implementation does not support child claim of no discrimination for all five constraints; final's own detected witness contradicts it."
+    },
+    {
+      "id": "duplicate_coverage_claim_unreconciled",
+      "location": "advisory paragraph 2; final:/comparisons/0",
+      "reason": "Child claim of no direct duplicate preservation coverage is omitted from comparison; trim-then-dedup yields ['A'] and fails expected ['A','A']."
+    },
+    {
+      "id": "mutation_witness_not_traced",
+      "location": "initial and final:/assertion_checks/4/detected",
+      "reason": "Initial sort/trim does not yield ['X']; final in-place trim does not yield ['A','A']; generic modification does not specify the operation producing that literal."
+    }
+  ],
+  "state_boundary": "Task completed and structure accepted are delivery facts; verification remains unverified and semantic acceptance remains NOT_ACCEPTED.",
+  "report": "independent-review.md"
+}

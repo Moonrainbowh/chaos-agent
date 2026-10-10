@@ -66,11 +66,15 @@ class TaskCostControl:
         output_rate = getattr(profile, "output_cost_per_million", None)
         input_cost = _cost(budget.input_tokens, input_rate)
         output_cost = _cost(budget.output_tokens, output_rate)
+        # Tasks own one thread; conversation-wide models belong to session usage only.
+        mixed_models = len(task_usage.models) > 1
+        if mixed_models:
+            input_cost = output_cost = None
         if task_usage.cache_read or task_usage.cache_write or task_usage.incomplete:
             input_cost = None
         return CostReport(
             task_id=task.id,
-            model=budget.model_name,
+            model=", ".join(sorted(task_usage.models)) if mixed_models else budget.model_name,
             input_tokens=budget.input_tokens,
             output_tokens=budget.output_tokens,
             model_turns=budget.model_turns,

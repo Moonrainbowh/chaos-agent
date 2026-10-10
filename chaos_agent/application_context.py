@@ -52,6 +52,7 @@ class RuntimeContextFactory:
         powershell: PowerShellRuntimeResolver | None = None,
         context_runtime_factory: object = build_context_runtime,
         project_memory: object | None = None,
+        parent_review_model_factory: object | None = None,
     ) -> None:
         self._root = root
         self._git_available = git_available
@@ -67,6 +68,7 @@ class RuntimeContextFactory:
         self._powershell = powershell or PowerShellRuntimeResolver()
         self._context_runtime_factory = context_runtime_factory
         self._project_memory = project_memory
+        self._parent_review_model_factory = parent_review_model_factory
 
     def __call__(
         self,
@@ -81,7 +83,9 @@ class RuntimeContextFactory:
                                      builder.semantic_snapshot_for_root)
         else:
             result = self._build(mode, guarded, profile, self._root)
-        return replace(result, compact_binding=self._thread_binding)
+        review = (self._parent_review_model_factory(guarded, profile, mode)
+                  if self._parent_review_model_factory is not None else None)
+        return replace(result, compact_binding=self._thread_binding, parent_review_model=review)
 
     def _budgeted_client(self, mode, client, profile):
         prompt_budget = _profile_prompt_budget(profile, mode)
@@ -364,7 +368,9 @@ def engine_for(
     # Inherit the Host's existing path capability, never mobile/model arguments.
     verification_allow_sensitive = getattr(dispatcher,
         "verification_allow_sensitive_paths", False)
+    review_model = None
     if isinstance(context, ContextAssembly):
+        review_model = context.parent_review_model if action_lineage is None else None
         model = context.model_client
         dispatcher = ContextScopedDispatcher(dispatcher, context.context_actions)
         snapshot = context.semantic_snapshot
@@ -383,6 +389,7 @@ def engine_for(
         mode_limits.max_assistant_chars,
     )
     verification_enabled = structured_verification_enabled()
+    from .parent_review import ParentSourceReview
     return AgentEngine(
         model,
         context,
@@ -402,4 +409,8 @@ def engine_for(
         action_lineage=action_lineage,
         inherited_authorization=inherited_authorization,
         source_completion=source_completion,
+        parent_review=ParentSourceReview(sessions, dispatcher,
+            review_model_identity=review_model.identity if review_model is not None else None)
+            if action_lineage is None else None,
+        parent_review_model=review_model,
     )

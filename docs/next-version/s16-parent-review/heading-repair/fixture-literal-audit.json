@@ -1,0 +1,23 @@
+{
+  "fixture_sha256": "8ee56921a646ea63058ba9c2b165729d21a9394188070ee83b6d54166af11df2",
+  "source_line_6": "    def test_blank(self): self.assertEqual(clean_names([' ', '', '\\t']), [])",
+  "input_values": [
+    " ",
+    "",
+    "\t"
+  ],
+  "input_codepoints": [
+    [
+      32
+    ],
+    [],
+    [
+      9
+    ]
+  ],
+  "expected": [],
+  "last_value_is_tab": true,
+  "last_value_is_literal_backslash_t": false,
+  "fixture_executed": false,
+  "provider_calls": 0
+}

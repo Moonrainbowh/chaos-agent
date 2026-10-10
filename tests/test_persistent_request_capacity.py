@@ -26,7 +26,12 @@ from tests.test_thread_intelligence_runtime import _profile, _mode
 
 class PersistentRequestCapacityTests(unittest.IsolatedAsyncioTestCase):
     async def exercise(self, long_history=False):
-        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {"CHAOS_MAX_PROMPT_TOKENS": "8000"}):
+        # This fixture isolates Host ceiling admission from unrelated default
+        # prose growth. The full Host prompt can legitimately exceed this cap.
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {"CHAOS_MAX_PROMPT_TOKENS": "8000"}), patch(
+            "chaos_agent.application_context.windows_system_prompt",
+            return_value="CAPACITY_HOST_FIXTURE Preserve all required user constraints.",
+        ):
             root = Path(directory)
             sessions = SQLiteSessionRepository(root / "sessions.sqlite3")
             self.addCleanup(sessions.close)
@@ -52,6 +57,7 @@ class PersistentRequestCapacityTests(unittest.IsolatedAsyncioTestCase):
                     sessions=sessions, thread_binding=ThreadRuntimeBinding(), skills=Skills(""))
                 assembly = factory(_mode(profile), model, profile)
                 bundle = await assembly.build(ContextRequest(thread, 1, (user,), "", (), TaskState(), CancellationToken()))
+                self.assertIn('CAPACITY_HOST_FIXTURE', bundle.system_prompt)
                 cap = assembly.model_client.effective_input_cap()
                 self.assertEqual(cap, 7900)
                 self.assertEqual(bundle.measurements['window_input_cap'], cap)
@@ -71,6 +77,19 @@ class PersistentRequestCapacityTests(unittest.IsolatedAsyncioTestCase):
                     self.assertNotIn('old evidence', str(bundle.messages))
                 else:
                     self.assertEqual(windows, ())
+                # A reset may remove old history, but must never make an
+                # oversized current user request fit by silently dropping it.
+                required = Message('user', 'REQUIRED_STATE_MARKER ' * 500)
+                await sessions.append_message(thread, required)
+                required_history = await sessions.load_messages(thread)
+                with self.assertRaisesRegex(ValueError, 'final input'):
+                    await assembly.model_client.preflight_request(bundle.system_prompt, (required,), ())
+                with self.assertRaisesRegex(ValueError, 'input cannot fit'):
+                    await assembly.build(ContextRequest(thread, 2, (required,), '', (), TaskState(), CancellationToken()))
+                self.assertEqual(calls, [])
+                self.assertEqual(await sessions.load_messages(thread), required_history)
+                self.assertEqual(await sessions.context_records(thread, 'window'), windows)
+                self.assertEqual(await sessions.context_records(thread, 'usage'), ())
 
     async def test_frozen_host_cap_is_the_persistent_threshold(self):
         await self.exercise()

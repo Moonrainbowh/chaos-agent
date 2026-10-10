@@ -14,7 +14,7 @@ from .engine_turn_feedback import (
 from .errors import EngineLimitError, ModelStreamError
 from .events import AgentEvent, EventKind
 from .limits import BudgetReservation, BudgetReserveStatus
-from .models import ContextBundle
+from .models import ContextBundle, Message
 from .runtime_timing import phase_duration_ms, phase_started_at
 from .completion_contract import TaskIntent
 from .task import TaskRecord, TaskStatus
@@ -33,6 +33,14 @@ class AgentEngineTurnMixin(AgentEngineConvergenceMixin, AgentEngineDispatchMixin
             yield event
         if state.stop_requested:
             return
+        await self._prepare_parent_review(state)
+        if state.parent_review is not None and state.parent_review.active:
+            if state.parent_review.data.get('budget_exhausted'):
+                raise EngineLimitError(state.parent_review.data['budget_exhausted'])
+            if state.parent_review.source_errors or state.parent_review.phase == 'delivered':
+                async for event in self._finish_task_without_calls(state, _TurnState(number, (), set()), allow_review_retry=False):
+                    yield event
+                return
         reservation = await self._journal.reserve_task_budget(
             state.thread_id,
             model_turns=1,
@@ -49,7 +57,7 @@ class AgentEngineTurnMixin(AgentEngineConvergenceMixin, AgentEngineDispatchMixin
             if state.task is None:
                 raise EngineLimitError("model turn soft lease exhausted")
             turn = _TurnState(number, (), set(), summary_only=True)
-            async for event in self._finish_task_without_calls(state, turn):
+            async for event in self._finish_task_without_calls(state, turn, allow_review_retry=False):
                 yield event
             return
         state.budget = reservation.budget
@@ -91,6 +99,9 @@ class AgentEngineTurnMixin(AgentEngineConvergenceMixin, AgentEngineDispatchMixin
                 yield event
         if summary_only:
             tools, tool_names = (), set()
+        if state.parent_review is not None and state.parent_review.active:
+            tools, tool_names = (), set()
+            summary_only = True
         turn = _TurnState(
             number,
             tools,
@@ -108,13 +119,19 @@ class AgentEngineTurnMixin(AgentEngineConvergenceMixin, AgentEngineDispatchMixin
             call.id in state.used_call_ids for call in turn.calls
         ) or any([await self._journal.has_tool_call_id(state.thread_id,call.id) for call in turn.calls]):
             raise ModelStreamError("model reused a tool call id")
-        assistant, added = await self._persist_assistant_message(
-            state.thread_id, turn.text_parts, turn.calls
-        )
+        isolated_review = state.parent_review is not None and state.parent_review.active
+        if isolated_review and not turn.calls:
+            assistant = Message('assistant', ''.join(turn.text_parts))
+            added = None
+        else:
+            assistant, added = await self._persist_assistant_message(
+                state.thread_id, [] if isolated_review else turn.text_parts, turn.calls
+            )
         state.messages += (assistant,)
         if not turn.calls and assistant.content.strip():
             state.has_user_visible_answer = True
-        yield added
+        if not isolated_review:
+            yield added
         if not turn.calls:
             if turn.summary_only and not "".join(turn.text_parts).strip():
                 async for event in self._report_empty_summary(state):
@@ -142,7 +159,7 @@ class AgentEngineTurnMixin(AgentEngineConvergenceMixin, AgentEngineDispatchMixin
             async for event in self._close_lease_calls(state, turn):
                 yield event
             if state.task is not None:
-                async for event in self._finish_task_without_calls(state, turn):
+                async for event in self._finish_task_without_calls(state, turn, allow_review_retry=False):
                     yield event
                 return
             raise EngineLimitError("tool call soft lease exhausted")
@@ -183,6 +200,9 @@ class AgentEngineTurnMixin(AgentEngineConvergenceMixin, AgentEngineDispatchMixin
                 EventKind.TASK_PAUSED,
                 {"task_id": task.id, "status": "paused", "reason": reason},
             )
+            review_result = await self._parent_review_pause_result(state, reason)
+            if review_result is not None:
+                paused = AgentEvent(paused.kind, {**paused.payload, 'result': review_result})
             await self._journal.append_event(state.thread_id, paused)
             yield paused
             state.stop_requested = True
@@ -203,6 +223,7 @@ class AgentEngineTurnMixin(AgentEngineConvergenceMixin, AgentEngineDispatchMixin
         user_input: str,
         bundles: list[ContextBundle],
     ) -> AsyncIterator[AgentEvent]:
+        turn.model_client, turn.model_name = self._select_request_model(state)
         started = AgentEvent(
             EventKind.TURN_STARTED, {"turn": turn.number}
         )
@@ -230,7 +251,7 @@ class AgentEngineTurnMixin(AgentEngineConvergenceMixin, AgentEngineDispatchMixin
         await self._journal.append_event(state.thread_id, built)
         yield built
         model_started = AgentEvent(
-            EventKind.MODEL_STARTED, {"turn": turn.number, "model": self._model_name}
+            EventKind.MODEL_STARTED, {"turn": turn.number, "model": turn.model_name}
         )
         await self._journal.append_event(state.thread_id, model_started)
         yield model_started
@@ -286,7 +307,7 @@ class AgentEngineTurnMixin(AgentEngineConvergenceMixin, AgentEngineDispatchMixin
         state.stop_requested = True
 
     async def _finish_task_without_calls(
-        self, state: _RunState, turn: _TurnState
+        self, state: _RunState, turn: _TurnState, *, allow_review_retry=True
     ) -> AsyncIterator[AgentEvent]:
         task = state.task
         assert task is not None
@@ -298,8 +319,16 @@ class AgentEngineTurnMixin(AgentEngineConvergenceMixin, AgentEngineDispatchMixin
         if followups is not None:
             yield followups
             return
+        if state.parent_review is None:
+            await self._prepare_parent_review(state)
+        handled, review_events = await self._finish_parent_review(state, turn, allow_retry=allow_review_retry)
+        for event in review_events:
+            yield event
+        if handled:
+            return
         ran_automatic = False
-        for _ in range(3):
+        reviewing = state.parent_review is not None and state.parent_review.active
+        for _ in range(0 if reviewing else 3):
             automatic = await self._run_suggested_verification(
                 state.thread_id,
                 task,
@@ -331,6 +360,8 @@ class AgentEngineTurnMixin(AgentEngineConvergenceMixin, AgentEngineDispatchMixin
                 break
         result_metadata = {}
         next_task = await self._resolve_task_completion(task, state.thread_id, result_metadata)
+        if reviewing:
+            result_metadata['verification'] = 'unverified'
         if ran_automatic and next_task.status is TaskStatus.RUNNING:
             return
         async for event in self._persist_completion_events(state, next_task, result_metadata):

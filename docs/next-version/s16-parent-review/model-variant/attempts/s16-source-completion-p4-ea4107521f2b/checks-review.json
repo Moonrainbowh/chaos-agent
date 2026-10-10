@@ -1,0 +1,66 @@
+{
+  "attempt":"s16-source-completion-p4-ea4107521f2b",
+  "status":"PASS",
+  "acceptance":"PASS_FINAL_STATIC_SEMANTIC_REVIEW",
+  "initial_status":"PARTIAL_WITH_ERRORS_CORRECTED_IN_FINAL",
+  "verification_status":"unverified",
+  "scope":"original frozen four-source semantic acceptance; one v4 model variant attempt",
+  "reviewer_provider_calls":0,
+  "reviewer_fixture_or_mutant_executions":0,
+  "reviewer_code_changes":false,
+  "evidence":{
+    "raw_initial":"real-response-5.sse and parent_review_attempts[0].raw_output",
+    "raw_delta":"real-response-6.sse and parent_review_attempts[1].raw_output",
+    "effective":"parent_review_attempts[1].effective_output",
+    "delivered_final":"parent_review delivered snapshot final/rendered",
+    "durable_file":"durable-6ea0103a7cbe49948553dc948499662e.json",
+    "initial_chars":6111,"delta_chars":8953,"effective_chars":15385,"final_chars":28258,
+    "finish_reason_initial":"stop","finish_reason_comparison":"stop",
+    "host_errors_independent":[],"host_errors_comparison":[],"repair_used":false,
+    "supervisor_exit":0,"elapsed_seconds":171.34450210000068
+  },
+  "initial_self_error":{
+    "pointer":"/findings/3/judgment",
+    "claim":"上级约束禁止工具和委派，因此未执行用户要求的 delegate_agent 加载及一次 s16.sourceaudit 委派",
+    "error":"tool-free independent review request scope cannot imply entire task did not delegate",
+    "attribution":"parent initial review own mistake, not child",
+    "delta_update":"/finding_updates/0",
+    "explicit_self_correction":true,"old_claim_replaced_in_effective_and_final":true,
+    "child_objective_initial_omission_falsely_alleged":false
+  },
+  "merge_semantics":{
+    "confirmed_findings":["implementation","contract_compliance","test_discrimination"],
+    "confirmed_assertions":["test_empty","test_trim","test_blank","test_no_mutation"],
+    "confirmed_model_records_preserved_after_host_binding":true,
+    "updated_findings":["task_objective"],"new_findings":["child_objective"],
+    "updated_assertions":["test_duplicates"],"new_assertions":["test_trim_order_witness"],
+    "effective_to_final_model_semantics_drift":false,
+    "effective_to_final_host_additions":"citation version/quote; derived scope/current_outcome; runtime_evidence for updated source_or_runtime findings",
+    "ids_and_structure_alone_used_as_semantic_proof":false
+  },
+  "assertion_checks_review":[
+    {"id":"test_empty","actual":[],"outcome":"pass","detected_actual":[""],"detected_fault_actual_correct":true,"missed_fault":"copy-only","missed_actual":[],"counterexample_input":[" A "],"counterexample_expected":["A"],"counterexample_actual":[" A "],"same_behavior":true,"contract_expected_correct":true,"judgment":"finite discrimination, not zero"},
+    {"id":"test_trim","actual":[" Alice ","Bob"],"outcome":"fail","detected_actual":[" Alice ","Bob"],"detected_fault_actual_correct":true,"missed_fault":"clean then ascending sort","missed_actual":["Alice","Bob"],"counterexample_input":["B","A"],"counterexample_expected":["B","A"],"counterexample_actual":["A","B"],"same_behavior":true,"contract_expected_correct":true,"judgment":"sorting happens to preserve this input, not zero order discrimination"},
+    {"id":"test_blank","actual":[" ","","\t"],"outcome":"fail","detected_actual":[" ","","\t"],"detected_fault_actual_correct":true,"missed_fault":"always return empty","missed_actual":[],"counterexample_input":["A"],"counterexample_expected":["A"],"counterexample_actual":[],"same_behavior":true,"contract_expected_correct":true},
+    {"id":"test_duplicates","actual":[" A ","A"],"outcome":"fail","detected_actual":["A"],"detected_fault":"clean then sort and dedup","detected_fault_actual_correct":true,"missed_fault":"clean then sort only","missed_actual":["A","A"],"counterexample_input":["B","A"],"counterexample_expected":["B","A"],"counterexample_actual":["A","B"],"same_behavior":true,"contract_expected_correct":true,"judgment":"trim+dedup rejected; sorting difference invisible in this duplicate input"},
+    {"id":"test_no_mutation","observed":"input after","actual":[" A "," "],"outcome":"pass","detected_actual":["A"],"detected_fault_actual_correct":true,"missed_fault":"copy-only with incorrect return","missed_actual":[" A "," "],"counterexample_observed":"return value explicitly distinguished","counterexample_input":[" A "," "],"counterexample_expected":["A"],"counterexample_actual":[" A "," "],"same_behavior":true,"contract_expected_correct":true},
+    {"id":"test_trim_order_witness","actual":[" Alice ","Bob"],"outcome":"fail","detected_actual":["Bob","Alice"],"detected_fault":"clean then reverse","detected_fault_actual_correct":true,"missed_actual":["Alice","Bob"],"missed_fault":"clean then sort","counterexample_input":["B","A"],"counterexample_expected":["B","A"],"counterexample_actual":["A","B"],"same_behavior":true,"contract_expected_correct":true,"new_test_executed":false}
+  ],
+  "advisory_review":{
+    "groups":[2,4,6,7,8,10,11,13],"comparison_records":11,
+    "all_key_claims_actually_reviewed":true,"same_group_multiple_claims_reviewed":true,
+    "group_reviews":[
+      {"id":2,"comparisons":[1],"claims":"all-read/line counts/analysis status","judgment":"counts correct, child process claims remain unverified"},
+      {"id":4,"comparisons":[2],"claims":"current five requirements/legacy rejection/citation ranges/sort-dedup ban","judgment":"contents correct, line ranges corrected to current2-6 and rejection4; ban limited to observable violations"},
+      {"id":6,"comparisons":[3],"claims":"list-only implementation and line","judgment":"correct agreement"},
+      {"id":7,"comparisons":[4],"claims":"all five compliance judgments and shared immutable strings","judgment":"all reviewed correctly, ordinary string list scope"},
+      {"id":8,"comparisons":[5],"claims":"missing trim/filter; targeted intent vs copying side effects","judgment":"behavior agreed; unsupported design intent corrected"},
+      {"id":10,"comparisons":[6],"claims":"five tests map well to five requirements","judgment":"not one-to-one or complete; empty/no_mutation/duplicate current failure supplied"},
+      {"id":11,"comparisons":[7,8,9,10],"claims":"test names/locations/order coverage/unexecuted line6/trim-blank failure/sort-dedup indirect constraint","judgment":"all separately reviewed; reverse caught vs sort missed; nonexecution statement corrected to line7; current outcomes correct; combo failure attributed to dedup"},
+      {"id":13,"comparisons":[11],"claims":"static failures/unexecuted/tests-only-four-files/no-other-call-sites","judgment":"static nature and bounded scope agreed; process self-report not independently proved"}
+    ],
+    "false_child_error_attributions":[],"known_final_semantic_errors":[]
+  },
+  "remaining_limits":["analyzed tests unexecuted; verification remains unverified","review runtime facts do not prove entire child process compliance","wire/budget/runtime acceptance audited separately by parent","single model-variant attempt does not establish general reliability"],
+  "report":"independent-review.md"
+}

@@ -1,0 +1,14 @@
+{
+  "full_suite_run": false,
+  "adapter": {"tests": 8, "passed": 8, "log": "focused-tests.log"},
+  "parent_review_core": {"tests": 64, "passed": 64, "seconds": 0.014, "log": "v4-core-tests.log"},
+  "related_integration": {
+    "distinct_tests": 47,
+    "first_run": {"passed": 46, "errors": 1, "seconds": 214.556, "log": "v4-integration-tests.log"},
+    "correction": "The synthetic review_answers helper still emitted the previous full comparison schema. Updated only that helper to the new explicit comparison delta; frozen source fixture bytes were unchanged.",
+    "targeted_retest": {"tests": 1, "passed": 1, "seconds": 9.788, "log": "v4-fixture-rerun.log"},
+    "result": "All 47 distinct checks covered after the targeted fixture correction; no blanket rerun"
+  },
+  "independent_code_review": "review_model_routing found no blocking issue in v4 merge/repair/prompt compatibility",
+  "not_established": ["full-suite acceptance", "cross-platform acceptance", "universal semantic reliability"]
+}

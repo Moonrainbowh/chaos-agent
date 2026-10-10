@@ -7,6 +7,7 @@
 - 新文件以300行为目标；历史超长Unit局部修复不强拆，新增复杂职责/模糊边界再拆。函数50行是拆分信号，多重解析/权限/副作用职责必须拆，不为行数碎拆。
 
 ## 检查与运行
+- 父来源复核涉及共享结束、预算及恢复路径：先运行 `python -m unittest tests.test_parent_source_review tests.test_s16_source_completion tests.test_source_completion_contract` 与相关 Core 测试，再以 Windows / Python 3.13.7 执行 `python scripts/run_tests.py --split-root-modules`；仅文档或离线评测脚本调整不重复整仓。真实模型 A/B 是独立语义实验，不替代生产回归或升级 `verification_status`。
 - 全量：项目`.venv`或 `uv run --locked python scripts/run_tests.py`，动态全部Feature+remote+根集成。套件默认600s，线程栈宽限2s，timeout124；普通失败/超时继续汇总，清理失败中止并列未运行，零发现失败；末尾JSON必须是真实数量。
 - `suite_process.py`复用Windows Job；管道放行后才发现测试，超时输出末测试/线程栈，确认Job清空；临时进度只IPC，失败沿用结构化输出。
 - Windows CI 显式 `--split-root-modules`：根集成按源模块分别受同一600s监督，先在Job放行后的子进程发现完整ID，组发现并集与实际运行ID核对；组明细另列，根仍为一个逻辑套件。普通失败/超时继续，清理失败即停并列未运行组；默认与其他平台不拆组，不改变数据库持久化或测试断言。

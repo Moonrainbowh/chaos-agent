@@ -196,6 +196,10 @@ class _ApplicationComposer:
 
     def _configure_context(self) -> None:
         self.project_memory = ProjectMemoryControl(self.sessions, self.root)
+        from chaos_agent.parent_review_model import ReviewModelFactory
+        review_profile = self.runtime_config.parent_review_profile
+        review_factory = (ReviewModelFactory(self.profiles[review_profile], _model_client)
+                          if review_profile is not None else None)
         self.context_for = RuntimeContextFactory(
             self.root,
             git_available=self.git is not None,
@@ -211,6 +215,7 @@ class _ApplicationComposer:
             powershell=self.powershell,
             context_runtime_factory=build_context_runtime,
             project_memory=self.project_memory,
+            parent_review_model_factory=review_factory,
         )
 
     def _configure_host(self) -> None:

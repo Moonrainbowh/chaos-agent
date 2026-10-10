@@ -8,6 +8,10 @@
     "preserve_duplicates": true,
     "no_input_mutation": true
   },
+  "copy_observation": {
+    "returns_distinct_object": true,
+    "required_by_contract": false
+  },
   "frozen_fixture_tests": {
     "run": 5,
     "failures": 3,

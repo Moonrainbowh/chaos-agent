@@ -224,15 +224,18 @@ TOOL_DEFINITIONS: tuple[ToolDefinition, ...] = (
     ),
     ToolDefinition(
         "delegate_agent",
-        "Delegate one bounded objective to an advisory subagent, Oracle, reviewer, searcher, or librarian.",
+        "Delegate one bounded objective to an advisory agent. Specify exactly one of role or agent_id, never both. "
+        "For a custom named agent, supply only agent_id and omit role; for a built-in role, supply only role and omit agent_id.",
         _object_schema(
             {
                 "objective": _nonempty_text_schema(),
                 "role": {
                     "type": "string",
                     "enum": ["subagent", "oracle", "review", "search", "librarian"],
+                    "description": "Built-in role. Specify exactly one of role or agent_id. Omit role when using a custom named agent_id.",
                 },
-                "agent_id": _nonempty_text_schema(),
+                "agent_id": {**_nonempty_text_schema(), "description":
+                    "Custom namespaced agent identifier. Specify exactly one of role or agent_id; for a custom named agent use only agent_id and omit role."},
                 "token_budget": _integer_schema(256, 300000),
                 "tool_budget": _integer_schema(0, 128),
                 "active_seconds": _integer_schema(1, 1800),

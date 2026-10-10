@@ -1,0 +1,80 @@
+{
+  "attempt": "s16-source-completion-p4-74e53e65f9c7",
+  "review_mode": "read_only_artifact_and_static_semantic_review",
+  "reviewer_started_provider_or_tests": false,
+  "overall": "FAIL_NOT_ACCEPTED",
+  "structural_delivery": "PASS",
+  "semantic_quality": "FAIL",
+  "wire": {
+    "count": 6,
+    "all_physical_sha256_match_worker": true,
+    "model": "glm-5.3-flash",
+    "reasoning_effort": "medium",
+    "max_completion_tokens": 4096,
+    "transport_attempts": 6,
+    "provider_calls": 6
+  },
+  "source_and_isolation": {
+    "required_sources": 4,
+    "all_full_reads": true,
+    "all_review_source_texts_match_disk": true,
+    "source_text_equal_across_stages": true,
+    "physical_line_counts": [7, 4, 2, 9],
+    "independent_wire": "real-wire-request-5.json",
+    "comparison_wire": "real-wire-request-6.json",
+    "review_tools_absent": true,
+    "independent_child_advisory_objective_history_notes_absent": true,
+    "comparison_advisory_equals_child_final": true,
+    "comparison_initial_equals_checkpoint": true,
+    "comparison_group_ids": [2, 4, 6, 7, 8, 10, 11, 13, 14],
+    "all_group_ids_covered": true
+  },
+  "durable_delivery": {
+    "phases": ["independent", "comparison", "delivered"],
+    "attempt_count": 2,
+    "all_attempt_errors_empty": true,
+    "repair_used": false,
+    "repair_requests": 0,
+    "final_visible_assistant": true,
+    "rendered_equals_visible_final": true,
+    "body_language": "predominantly_English_with_Chinese_labels",
+    "execution_status": "completed",
+    "changes": "unchanged",
+    "verification_status": "unverified",
+    "remaining": ["risk-appropriate-validation"]
+  },
+  "usage": {
+    "unique_settled_records": 6,
+    "owner_thread": "03628c16582d40afb9526ef09c2c26fa",
+    "input_tokens": 25976,
+    "output_tokens": 6032,
+    "total_tokens": 32008,
+    "child_tokens_included_in_total": 8277,
+    "parent_origin_tokens": 23731,
+    "model_turns": 6,
+    "tool_calls": 10,
+    "active_seconds": 148,
+    "lease_renewals": 0,
+    "original_parent_limits": {"tokens": 1000000, "rounds": 12, "tools": 40},
+    "original_child_request_limits": {"tokens": 300000, "tools": 5, "active_seconds": 240}
+  },
+  "workspace": {
+    "five_physical_file_hashes_match_freeze": true,
+    "supervisor_candidate_unchanged": true,
+    "fixture_tests_executed": false,
+    "tab_literal_suspected_issue": "RETRACTED_SOURCE_HAS_TAB_ESCAPE"
+  },
+  "semantic_findings": [
+    {"id": "duplicates_false_passing_witness", "status": "FAIL", "reason": "Untrimmed [' A ','A'] is not equal to expected ['A','A']; final judgment and paragraph13 rationale wrongly say it passes."},
+    {"id": "ordering_universal_nondetection", "status": "FAIL", "reason": "Trim then reverse yields ['Bob','Alice'] and fails test_trim; sorted-output blind spot does not imply no order faults are detected."},
+    {"id": "empty_detection_witness", "status": "INCOMPLETE_CORRECTION", "reason": "Initial no-fault-detection claim was softened, but final supplies only a passing behavior and no concrete faulty behavior rejected by the assertion."}
+  ],
+  "accepted_correct_observations": [
+    "Implementation fails trim and blank filtering while preserving list order, duplicates, and input.",
+    "Static current implementation outcomes: empty and no_mutation pass; trim, blank, duplicates fail.",
+    "Legacy sorting and dedup proposal is superseded.",
+    "Child one-to-one mapping claim internally conflicts with lack of a dedicated order test.",
+    "Conclusions remain labeled static and unverified."
+  ],
+  "unexercised": ["live_field_repair", "live_empty_patch_resume", "real_multiwindow", "real_cancellation"]
+}

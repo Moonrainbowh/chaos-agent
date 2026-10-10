@@ -1,0 +1,22 @@
+{
+  "attempt_id": "s16-source-completion-p4-2874dc205ca6",
+  "verdict": "BLOCKED_STRICT_TASK_PROCESS",
+  "semantic_review": "PASS",
+  "structural_delivery": "PASS",
+  "verification_status": "unverified",
+  "reviewer_execution": {"provider_calls": 0, "fixture_executions": 0, "mutant_executions": 0, "test_executions": 0, "source_analysis": "static first-principles before model result"},
+  "source_baseline": {"test_empty": "equal", "test_trim": "not_equal", "test_blank": "not_equal", "test_duplicates": "not_equal", "test_no_mutation": "equal_input_state_not_return_value"},
+  "initial_semantics": "PASS_NO_INITIAL_ERROR_FOUND",
+  "final_semantics": "PASS_CHILD_ERRORS_CORRECTED_INITIAL_RETAINED",
+  "atomic_child_claims": {"count": 27, "status": "ALL_SUBSTANTIVELY_COVERED", "evidence": "independent-review.md atomic coverage table; not paragraph-id union alone"},
+  "witnesses": {"five_initial_assertions": "PASS", "test_duplicates_sort_witness": "PASS_SORT_NOT_DETECTED_ON_A_A", "test_trim_order_witness": "PASS_REVERSE_DETECTED_SORT_MISSED", "independent_duplicate_order_counterexample": {"input": ["B", "A", "B"], "contract_output": ["B", "A", "B"], "sorted_output": ["A", "B", "B"], "distinguishable": true}, "identical_A_A_order": "NOT_DISTINGUISHABLE", "tab_literal_decoding": "PASS_LENGTH_1_CODEPOINT_9"},
+  "phase": "delivered",
+  "repair_used": false,
+  "review_attempts": [{"phase": "independent", "request": 6, "errors": []}, {"phase": "comparison", "request": 7, "errors": []}],
+  "real_request_partition": {"ordinary_parent": 3, "child": 2, "review": 2, "total": 7},
+  "binding": {"parent_task_id": "7381696d3c7a4f29ab0e323fa298b20e", "delegate_id": "call_0e0a6534a6404c658a3a8b7d", "child_thread_id": "da57c430b65d46ce8e1e9f232f727853", "matched_by": "parent_review.delegate_id == children.bindings.delegate_request_id"},
+  "task_process": {"exactly_one_successful_named_agent_delegation": "PASS", "strict_one_delegate_attempt": "FAIL", "attempted_delegate_calls": 2, "failed_wrong_role_calls": 1, "successful_requested_agent_calls": 1, "failure_preserved": true},
+  "blocking_findings": [{"id": "EXTRA_REJECTED_DELEGATION_ATTEMPT", "scope": "strict original task process instruction", "evidence": "durable parent messages call_0112788b05c14a8898d3e1af failed AssertionError before successful call_0e0a6534a6404c658a3a8b7d", "impact": "No unconditional full-task PASS when delegate once limits all attempts; source-review semantic PASS remains separate"}],
+  "limits": ["No fixture or mutants executed", "No promotion of production verification_status", "One source fixture does not prove generalization or other provider stability", "No old ea410 verdict reused"],
+  "report": "independent-review.md"
+}

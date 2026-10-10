@@ -1,0 +1,27 @@
+{
+  "artifact_audit": "PASS",
+  "delivery": "PASS",
+  "semantic_acceptance": "NOT_ACCEPTED",
+  "attempt": "s16-source-completion-p4-74e53e65f9c7",
+  "provider_responses": 6,
+  "settled_tokens": 32008,
+  "input_tokens": 25976,
+  "output_tokens": 6032,
+  "child_tokens_included_once": 8277,
+  "task_elapsed_seconds": 150.05,
+  "review_repairs": 0,
+  "parent_result": {
+    "version": 1,
+    "execution_status": "completed",
+    "changes": "unchanged",
+    "verification_status": "unverified",
+    "remaining": [
+      "risk-appropriate-validation"
+    ],
+    "stop_code": "completed",
+    "stop_reason": "task completed"
+  },
+  "candidate_and_sources_unchanged": true,
+  "audit_provider_calls": 0,
+  "fixture_execution": false
+}

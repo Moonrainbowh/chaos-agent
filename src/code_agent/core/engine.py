@@ -21,10 +21,14 @@ from .protocols import ActionDispatcher, ContextBuilder, ModelClient, SessionRep
 from .task import TaskAuthorization, TaskRecord, TaskStatus
 from .task_supervisor import SupervisionKind
 from .source_completion import SourceCompletionHost
+from .parent_review import ParentReviewHost
+from .parent_review_model import ParentReviewModel
+from ._engine_parent_review import AgentEngineParentReviewMixin
 from .task_verification import TaskVerificationService
 
 
 class AgentEngine(
+    AgentEngineParentReviewMixin,
     AgentEngineCompletionMixin,
     AgentEngineActionMixin,
     AgentEngineRunMixin,
@@ -48,6 +52,8 @@ class AgentEngine(
         peer_tool_names: Sequence[str] = (),
         capability_strategy: CapabilityStrategy = CapabilityStrategy.HYBRID,
         source_completion: SourceCompletionHost | None = None,
+        parent_review: ParentReviewHost | None = None,
+        parent_review_model: ParentReviewModel | None = None,
     ) -> None:
         self._model = model
         self._context = context
@@ -80,6 +86,10 @@ class AgentEngine(
             raise TypeError("capability_strategy must be a CapabilityStrategy")
         self._capability_strategy = capability_strategy
         self._source_completion = source_completion
+        self._parent_review = parent_review
+        if parent_review_model is not None and not isinstance(parent_review_model, ParentReviewModel):
+            raise TypeError("parent_review_model must be a ParentReviewModel or None")
+        self._parent_review_model = parent_review_model
         self._context_mode_snapshot = freeze_mapping({} if context_mode_snapshot is None else context_mode_snapshot, "context_mode_snapshot")
         self._context_permission_snapshot = freeze_mapping({} if context_permission_snapshot is None else context_permission_snapshot, "context_permission_snapshot")
 

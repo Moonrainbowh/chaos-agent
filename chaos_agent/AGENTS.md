@@ -25,8 +25,12 @@ Windows/Linux/macOS共享TUI/CLI/JSON Host，发布chaos-agent保agent/本地状
 - UI唯一Muted Slate，宽追加/手机有界，mode≠permission，diff/rewind只读不改index；完整能力status，不接管终端设置。Provider Markdown结果前置/短层级/有意义强调，不装饰虚构重要性。
 
 ## Units
+- `ReviewModelFactory`：可选 `[agent].parent_review_profile` 只为父来源复核构造独立 guarded client；普通/child profile不变。新snapshot首次保存时原子冻结模型/协议/端点摘要/effort/预算身份，旧无绑定snapshot保原模型，有绑定恢复须严格一致；每请求模型事件、发送、usage共用实际client。复用父task/thread/ledger并取不扩大容量、timeout/retry的交集；运行时切换、失败、关闭统一释放额外provider，未使用不分配网络资源。配置不自动改变默认profile，不把静态分析升级为验证。
+- `ParentSourceReview`：ANALYZE 中带 required_sources 的真实内置 delegate及持久child绑定自动触发，失败子交付列缺项；普通 MODIFY、插件同名与无binding拒绝调用不启用。Host读取经现有授权 built-in route并耗原工具预算，全文按decoded-text SHA256版本和物理行号冻结，不冒充模型读取回执。比较读取绑定child完整最后答复，拒静默蒸馏/截断；主/子objective、USER REQUIRED criteria及真实USER追加形成必答项。独立请求无child/history/summary/notes；同源比较须覆盖Host编号advisory段落。状态独立CAS记录、USER游标可恢复，内部模型JSON不入可见history/events；普通中文最终交付与delivered原子落地。预算不足不追加调用，结构门仍unverified。
 - `ChildSourceCompletion`：将真实子线程成对的 built-in read_file/compact read(file) 完整文本回执适配为 typed source snapshot；插件/MCP同名、模型 metadata、失败/截断/slices/父读取不算。完整历史按有界页与增量 cursor/epoch 核对，恢复重建事实，纠正要求不能从 context tail 或正文猜测；不新增 child 跨 owner 重启能力。
+- 父来源复核协议 v2：Host冻结完整来源版本/物理行，并声明有阶段的 runtime_evidence；独立阶段仅来源准备和复核请求不提供工具接口事实，comparison才披露绑定child成对delegate回执的生命周期。不能从模型“未执行”文字制造运行事实。implementation/contract_compliance/test_discrimination、USER REQUIRED criterion与追加要求仅接受来源证据；task_objective/child_objective可引用已披露Host运行事实，均不升级verification。每次模型原输出作为独立review_attempt与snapshot同事务保存；snapshot容量不足仍保存attempt并阻断，保持已消费补全额度；追加用户要求切断旧阶段repair正文。
 - 来源型 ChildResult 仅取最后非空无工具 assistant 答复，避免纠正前计划挤掉最终交付；缺省任务保持历史聚合，建议不成为验证 evidence。
+- 新父来源复核快照使用v4，沿用完整来源/阶段运行事实、v3断言见证和原预算；比较阶段显式确认保留项并只回传修改与完整比较，Core合成后完整重验。旧v1-v3快照按持久协议恢复；Host不重做源码推演、执行模型见证或把一致性检查提升为语义/运行验证。
 - 工具披露说明区分模型请求与用户消息：当前已有完整 schema 的工具直接可用；缺失能力成功披露后供下一模型请求使用。仅提示措辞，不变 availability=next_model_turn、digest 或权限检查。
 - Child role context：原 child factory 将 AgentDefinition.instructions 作为显式只属于该 child 的参数传入 ContextConfig；真实固定上下文预算前渲染，不放进 objective/user 历史；首轮、工具续轮和上下文重建沿用配置。角色文本不改变父冻结权限、工具筛选或验证事实。
 - Shared source review guidance：主子共用且平台无关的 system prompt 按来源可观察行为逐条判断契约；区分实现满足、测试辨别能力与实际执行结果。父先据原始证据独立得出结论，再比较 advisory，显式纠正分歧及内部矛盾；提示传递测试不证明模型分析质量，不新增语义完成门。

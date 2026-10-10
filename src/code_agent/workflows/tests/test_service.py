@@ -29,6 +29,39 @@ class MemoryWorkflowStore:
 
 
 class WorkflowServiceTests(unittest.IsolatedAsyncioTestCase):
+    async def test_long_child_objective_projects_without_losing_original(self) -> None:
+        for length in (512, 513, 4096):
+            with self.subTest(length=length):
+                store = MemoryWorkflowStore()
+                service = WorkflowService(store)
+                published: list[object] = []
+                service.subscribe(published.append)
+                await service.observe(
+                    TaskCreatedObservation("task-1", "thread-1", "Review")
+                )
+                objective = "核验来源行为与契约。" * length
+                objective = objective[:length]
+                observation = ChildRunObservation(
+                    "task-1", "run-1", "child-1", "search", objective,
+                    WorkflowNodeStatus.COMPLETED,
+                )
+
+                snapshot = await service.observe(observation)
+                replay = await service.observe(observation)
+
+                child = next(node for node in snapshot.nodes if node.id == "run-1")
+                self.assertEqual(child.status, WorkflowNodeStatus.COMPLETED)
+                self.assertIsNotNone(child.completed_at)
+                self.assertEqual(len(child.title), 512)
+                self.assertEqual(
+                    child.title, objective if length <= 512 else objective[:511] + "…"
+                )
+                self.assertEqual(child.title.endswith("…"), length > 512)
+                self.assertEqual(observation.title, objective)
+                self.assertEqual(store.by_task["task-1"], snapshot)
+                self.assertEqual(published[-1], snapshot)
+                self.assertEqual(replay, snapshot)
+
     async def test_recovery_requeues_stale_running_nodes_idempotently(self) -> None:
         service = WorkflowService(MemoryWorkflowStore())
         await service.observe(

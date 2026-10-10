@@ -1,0 +1,29 @@
+{
+  "scope": "ARCHIVE_ONLY_NO_PROVIDER_CALL",
+  "provider_calls": 0,
+  "executed_script": "C:\\Users\\Windows11\\.codex\\worktrees\\s16-parent-review\\chaos-16-agent\\docs\\next-version\\s16-parent-review\\fast_semantic_probe.py",
+  "archive_snapshot": "C:\\Users\\Windows11\\.codex\\worktrees\\s16-parent-review\\chaos-16-agent\\docs\\next-version\\s16-parent-review\\fast-acceptance\\fast_semantic_probe.executed.py",
+  "code_sha256": "d5dea60c0f2b851187a3c28ff3540bdd0cd221cd06dcd464ccc84aa45a47ac7f",
+  "snapshot_exact_byte_match": true,
+  "working_directory": "C:\\Users\\Windows11\\.codex\\worktrees\\s16-parent-review\\chaos-16-agent",
+  "exact_powershell_command": "& '.venv\\Scripts\\python.exe' docs\\next-version\\s16-parent-review\\fast_semantic_probe.py",
+  "reproduction_note": "The unchanged script computes paths from its original location and refuses an existing fast-acceptance directory. Restore the exact snapshot at docs/next-version/s16-parent-review/fast_semantic_probe.py in an isolated equivalent checkout without that output directory. Do not invoke the nested archive snapshot directly or overwrite existing evidence.",
+  "preserved_requests": [
+    {
+      "request": 1,
+      "wire_sha256": "b8b39acadc7316034677b5982d35fd0bc3535064e562ee636adf9f12b977bcd5",
+      "sse_sha256": "c53f5d7ed69a15aef7f45cc70fd65440135dae7143cda635df58a39e42b736d9",
+      "result_sha256": "923256d10413281c4ea476191742d5e80fc5be601c3591ae65c491d193315196",
+      "usage_records": 1,
+      "usage_matches_raw_sse": true
+    },
+    {
+      "request": 2,
+      "wire_sha256": "f8dab233cf009d2db46ccee1134341ec4646933a7194325361a0de29c32b31ef",
+      "sse_sha256": "6ac0da1b1236cf900163f4dd79fc4729e6d728d95c714f4f8f675465e81b4ed1",
+      "result_sha256": "830b31806e11d8f547b51ecd420ae87b8bbc2474dc90c624f2a573d43d735745",
+      "usage_records": 1,
+      "usage_matches_raw_sse": true
+    }
+  ]
+}

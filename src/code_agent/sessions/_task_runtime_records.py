@@ -22,6 +22,36 @@ from .errors import SessionNotFound
 class TaskRuntimeRepositoryMixin:
     _database: object
 
+    async def source_review_child_thread(self, task_id, owner, request_id):
+        """Resolve the durable child binding, not the distilled tool summary."""
+        import json
+        def read(connection):
+            rows = connection.execute(
+                "SELECT c.thread_id,c.metadata FROM checkpoints c JOIN threads t ON t.id=c.thread_id "
+                "WHERE t.parent_thread_id=? AND c.label='context:child_budget'", (owner,)).fetchall()
+            matches = [r['thread_id'] for r in rows if
+                (p := json.loads(r['metadata']))['parent_task_id'] == task_id
+                and p['owner_thread_id'] == owner and p['delegate_request_id'] == request_id]
+            if len(matches) != 1:
+                raise ValueError('source review requires one genuine child binding')
+            return matches[0]
+        return await self._database.read(read)
+
+    async def parent_review_budget_exhausted(self, task):
+        from ._task_budget import task_budget
+        from ._shared_budget import token_spent
+        def read(connection):
+            budget = task_budget(connection.execute('SELECT * FROM task_budgets WHERE thread_id=?',
+                (task.thread_id,)).fetchone())
+            if budget.model_turns >= budget.limits.max_agent_rounds:
+                return 'model turn budget exceeded'
+            if budget.tool_calls >= budget.limits.max_tool_calls:
+                return 'tool call budget exceeded'
+            if token_spent(connection, task.thread_id) >= budget.limits.max_total_tokens:
+                return 'token budget exceeded'
+            return None
+        return await self._database.read(read)
+
     async def source_completion_state(self, thread_id):
         """Read the child binding and last bounded correction, never context tail."""
         from ._shared_budget import binding

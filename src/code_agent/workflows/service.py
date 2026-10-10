@@ -103,7 +103,7 @@ class WorkflowService:
                     node_id,
                     graph.snapshot().workflow.id,
                     "subagent",
-                    _text(observation.title, "title"),
+                    _child_title(observation.title),
                     WorkflowNodeStatus.PLANNED,
                     _text(observation.thread_id, "thread_id"),
                     _text(observation.role, "role"),
@@ -274,6 +274,12 @@ def _node(graph: WorkflowGraph, node_id: str) -> WorkflowNode:
 
 def _main_id(task_id: str) -> str:
     return f"main:{task_id}"
+
+
+def _child_title(value: object) -> str:
+    """Bound the display projection without mutating the original objective."""
+    title = _text(value, "title")
+    return title if len(title) <= 512 else title[:511] + "…"
 
 
 def _text(value: object, name: str) -> str:

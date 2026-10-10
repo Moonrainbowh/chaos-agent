@@ -31,6 +31,7 @@ class ContextAssembly:
     context_actions: object = None
     semantic_snapshot: object = None
     compact_binding: object = None
+    parent_review_model: object = None
 
     def map_builder(self, wrapper):
         return replace(self, builder=wrapper(self.builder))

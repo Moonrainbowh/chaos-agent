@@ -1,0 +1,379 @@
+{
+  "scope": "DEVELOPER_EXECUTION_NOT_MODEL_EXECUTION",
+  "provider_calls": 0,
+  "concrete_outputs": [
+    {
+      "function": "echo",
+      "input": [
+        " C ",
+        "A",
+        " C "
+      ],
+      "output": [
+        " C ",
+        "A",
+        " C "
+      ],
+      "input_after": [
+        " C ",
+        "A",
+        " C "
+      ],
+      "same_input_object": true
+    },
+    {
+      "function": "echo",
+      "input": [],
+      "output": [],
+      "input_after": [],
+      "same_input_object": true
+    },
+    {
+      "function": "echo",
+      "input": [
+        "  ",
+        "Y",
+        "Y"
+      ],
+      "output": [
+        "  ",
+        "Y",
+        "Y"
+      ],
+      "input_after": [
+        "  ",
+        "Y",
+        "Y"
+      ],
+      "same_input_object": true
+    },
+    {
+      "function": "copy",
+      "input": [
+        " C ",
+        "A",
+        " C "
+      ],
+      "output": [
+        " C ",
+        "A",
+        " C "
+      ],
+      "input_after": [
+        " C ",
+        "A",
+        " C "
+      ],
+      "same_input_object": false
+    },
+    {
+      "function": "copy",
+      "input": [],
+      "output": [],
+      "input_after": [],
+      "same_input_object": false
+    },
+    {
+      "function": "copy",
+      "input": [
+        "  ",
+        "Y",
+        "Y"
+      ],
+      "output": [
+        "  ",
+        "Y",
+        "Y"
+      ],
+      "input_after": [
+        "  ",
+        "Y",
+        "Y"
+      ],
+      "same_input_object": false
+    },
+    {
+      "function": "sorted_clean",
+      "input": [
+        " C ",
+        "A",
+        " C "
+      ],
+      "output": [
+        "A",
+        "C",
+        "C"
+      ],
+      "input_after": [
+        " C ",
+        "A",
+        " C "
+      ],
+      "same_input_object": false
+    },
+    {
+      "function": "sorted_clean",
+      "input": [],
+      "output": [],
+      "input_after": [],
+      "same_input_object": false
+    },
+    {
+      "function": "sorted_clean",
+      "input": [
+        "  ",
+        "Y",
+        "Y"
+      ],
+      "output": [
+        "Y",
+        "Y"
+      ],
+      "input_after": [
+        "  ",
+        "Y",
+        "Y"
+      ],
+      "same_input_object": false
+    },
+    {
+      "function": "empty_none",
+      "input": [
+        " C ",
+        "A",
+        " C "
+      ],
+      "output": [
+        "C",
+        "A",
+        "C"
+      ],
+      "input_after": [
+        " C ",
+        "A",
+        " C "
+      ],
+      "same_input_object": false
+    },
+    {
+      "function": "empty_none",
+      "input": [],
+      "output": null,
+      "input_after": [],
+      "same_input_object": false
+    },
+    {
+      "function": "empty_none",
+      "input": [
+        "  ",
+        "Y",
+        "Y"
+      ],
+      "output": [
+        "Y",
+        "Y"
+      ],
+      "input_after": [
+        "  ",
+        "Y",
+        "Y"
+      ],
+      "same_input_object": false
+    }
+  ],
+  "assertion_witnesses": {
+    "always_empty": [
+      {
+        "input": [],
+        "output": [],
+        "assertion_pass": true
+      },
+      {
+        "input": [
+          " K ",
+          "K"
+        ],
+        "output": [],
+        "assertion_pass": false
+      },
+      {
+        "input": [
+          " C ",
+          "A"
+        ],
+        "output": [],
+        "assertion_pass": false
+      }
+    ],
+    "always_none": [
+      {
+        "input": [],
+        "output": null,
+        "assertion_pass": false
+      },
+      {
+        "input": [
+          " K ",
+          "K"
+        ],
+        "output": null,
+        "assertion_pass": false
+      },
+      {
+        "input": [
+          " C ",
+          "A"
+        ],
+        "output": null,
+        "assertion_pass": false
+      }
+    ],
+    "sort_clean": [
+      {
+        "input": [],
+        "output": [],
+        "assertion_pass": true
+      },
+      {
+        "input": [
+          " K ",
+          "K"
+        ],
+        "output": [
+          "K",
+          "K"
+        ],
+        "assertion_pass": true
+      },
+      {
+        "input": [
+          " C ",
+          "A"
+        ],
+        "output": [
+          "A",
+          "C"
+        ],
+        "assertion_pass": false
+      }
+    ],
+    "reverse_clean": [
+      {
+        "input": [],
+        "output": [],
+        "assertion_pass": true
+      },
+      {
+        "input": [
+          " K ",
+          "K"
+        ],
+        "output": [
+          "K",
+          "K"
+        ],
+        "assertion_pass": true
+      },
+      {
+        "input": [
+          " C ",
+          "A"
+        ],
+        "output": [
+          "A",
+          "C"
+        ],
+        "assertion_pass": false
+      }
+    ],
+    "dedup_clean": [
+      {
+        "input": [],
+        "output": [],
+        "assertion_pass": true
+      },
+      {
+        "input": [
+          " K ",
+          "K"
+        ],
+        "output": [
+          "K"
+        ],
+        "assertion_pass": false
+      },
+      {
+        "input": [
+          " C ",
+          "A"
+        ],
+        "output": [
+          "C",
+          "A"
+        ],
+        "assertion_pass": true
+      }
+    ],
+    "identity": [
+      {
+        "input": [],
+        "output": [],
+        "assertion_pass": true
+      },
+      {
+        "input": [
+          " K ",
+          "K"
+        ],
+        "output": [
+          " K ",
+          "K"
+        ],
+        "assertion_pass": false
+      },
+      {
+        "input": [
+          " C ",
+          "A"
+        ],
+        "output": [
+          " C ",
+          "A"
+        ],
+        "assertion_pass": false
+      }
+    ],
+    "hardcoded_pair": [
+      {
+        "input": [],
+        "output": [
+          "C",
+          "A"
+        ],
+        "assertion_pass": false
+      },
+      {
+        "input": [
+          " K ",
+          "K"
+        ],
+        "output": [
+          "C",
+          "A"
+        ],
+        "assertion_pass": false
+      },
+      {
+        "input": [
+          " C ",
+          "A"
+        ],
+        "output": [
+          "C",
+          "A"
+        ],
+        "assertion_pass": true
+      }
+    ]
+  }
+}

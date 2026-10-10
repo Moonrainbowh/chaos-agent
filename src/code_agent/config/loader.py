@@ -40,6 +40,7 @@ class RuntimeConfig:
     mcp_servers: tuple[McpServer, ...] = ()
     powershell_dialect: ShellDialect | None = None
     capability_strategy: CapabilityStrategy = CapabilityStrategy.HYBRID
+    parent_review_profile: str | None = None
 
     @property
     def key_status(self) -> str:
@@ -77,16 +78,33 @@ def load_runtime_config(
         capability_strategy = configured_capability_strategy(document, source)
     except ValueError as error:
         raise LocalConfigError(str(error)) from None
+    profiles = _profiles(document, source, selected, provider)
     return RuntimeConfig(
         provider=provider,
         profile=selected,
         approval_mode=_approval_mode(document, source),
         allow_sensitive_paths=_allow_sensitive_paths(document, source),
-        config_path=path, profiles=_profiles(document, source, selected, provider),
+        config_path=path, profiles=profiles,
         mcp_servers=_mcp_servers(document),
         powershell_dialect=_powershell_dialect(document, source),
         capability_strategy=capability_strategy,
+        parent_review_profile=_parent_review_profile(document, profiles),
     )
+
+
+def _parent_review_profile(
+    document: Mapping[str, Any], profiles: tuple[ModelProfile, ...]
+) -> str | None:
+    """Resolve an optional configured profile name without echoing invalid values."""
+    agent = document.get("agent", {})
+    if not isinstance(agent, dict):
+        raise LocalConfigError("agent must be a table")
+    if "parent_review_profile" not in agent:
+        return None
+    value = _text(agent["parent_review_profile"], "agent.parent_review_profile")
+    if value not in {profile.name for profile in profiles}:
+        raise LocalConfigError("agent.parent_review_profile must name a configured profile")
+    return value
 
 
 def _profiles(document: Mapping[str, Any], env: Mapping[str, str], selected: str, provider: ProviderConfig) -> tuple[ModelProfile, ...]:
