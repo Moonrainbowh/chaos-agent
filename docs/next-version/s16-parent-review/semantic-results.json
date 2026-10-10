@@ -1,0 +1,227 @@
+{
+  "scope": "LOCAL_SEMANTIC_EXPERIMENT_NOT_PRODUCTION_S16",
+  "provider_requests": 12,
+  "totals": {
+    "prompt_tokens": 18069,
+    "completion_tokens": 15391,
+    "reasoning_tokens_subset": 1976,
+    "total_tokens": 33460,
+    "usage_unknown_phases": 0,
+    "compliance_correct": 60,
+    "compliance_false_acceptance": 0,
+    "compliance_false_rejection": 0,
+    "compliance_unknown": 0,
+    "copy_correct": 10,
+    "copy_unknown": 2,
+    "length_finish_phases": 0,
+    "strict_json_unparseable_phases": 12
+  },
+  "phases": [
+    {
+      "case": "copy_faulty",
+      "arm": "A",
+      "phase": 1,
+      "source": "semantic-run-01\\copy_faulty-A\\result.json",
+      "finish_reasons": [
+        "stop"
+      ],
+      "copy_decision": true,
+      "unknowns": [
+        "Whether tests have ever been executed anywhere (docs/current-contract.md:7 says definitions are not evidence of execution).",
+        "Behavior on non-string elements (None, ints) or non-list iterables is unspecified by contract and untested; no_input_mutation/copy conclusions assume a list-like input of strings.",
+        "Whether 'never mutate the input' extends beyond the list itself to nested mutable element objects (untestable with immutable strings).",
+        "Exact intended trim definition (which whitespace, e.g. \\t handling) is implied only by test fixtures."
+      ],
+      "manual_semantic_review": "semantic-review.md"
+    },
+    {
+      "case": "copy_faulty",
+      "arm": "A",
+      "phase": 2,
+      "source": "semantic-run-01\\copy_faulty-A\\result.json",
+      "finish_reasons": [
+        "stop"
+      ],
+      "copy_decision": true,
+      "unknowns": [
+        "Whether the tests have ever been executed anywhere; docs/current-contract.md:7 explicitly says the definitions are not evidence of execution.",
+        "Behavior on non-string elements (None, ints) or non-list iterables is unspecified and untested; compliance conclusions assume a list-like input of strings.",
+        "Whether 'never mutate the input' extends beyond the top-level list to nested mutable objects (unobservable here since strings are immutable and the copy is shallow).",
+        "Exact trim semantics (which whitespace characters, e.g. '\\t' handling in test_names.py:6) are implied only by test fixtures, not defined in the contract."
+      ],
+      "manual_semantic_review": "semantic-review.md"
+    },
+    {
+      "case": "copy_faulty",
+      "arm": "B",
+      "phase": 1,
+      "source": "semantic-run-01\\copy_faulty-B\\result.json",
+      "finish_reasons": [
+        "stop"
+      ],
+      "copy_decision": true,
+      "unknowns": [
+        "Tests were not executed (read-only review); pass/fail judgments are derived from source inspection of names.py line 2.",
+        "Whether list(values) on non-list iterables or non-string elements is in scope is not specified by the contract."
+      ],
+      "manual_semantic_review": "semantic-review.md"
+    },
+    {
+      "case": "copy_faulty",
+      "arm": "B",
+      "phase": 2,
+      "source": "semantic-run-01\\copy_faulty-B\\result.json",
+      "finish_reasons": [
+        "stop"
+      ],
+      "copy_decision": true,
+      "unknowns": [
+        "Tests were not executed; all pass/fail determinations are static source inspection of names.py:2 against test_names.py:4-9.",
+        "Behavior for non-list iterables, non-string elements, or None is unspecified by the contract and untested.",
+        "Whether a returned list that aliases the input (vs a distinct copy) matters beyond the no-mutation rule is unspecified; current code returns a distinct shallow copy either way."
+      ],
+      "manual_semantic_review": "semantic-review.md"
+    },
+    {
+      "case": "identity_correct",
+      "arm": "A",
+      "phase": 1,
+      "source": "semantic-run-01\\identity_correct-A\\result.json",
+      "finish_reasons": [
+        "stop"
+      ],
+      "copy_decision": false,
+      "unknowns": [
+        "Whether non-whitespace trimming semantics (e.g., other characters) are intended — contract says 'trim' without defining the character set.",
+        "Whether inputs other than lists of strings (None, non-strings, tuples) are in scope; tests only use string lists.",
+        "No executed test evidence exists; all compliance judgments are static source reads."
+      ],
+      "manual_semantic_review": "semantic-review.md"
+    },
+    {
+      "case": "identity_correct",
+      "arm": "A",
+      "phase": 2,
+      "source": "semantic-run-01\\identity_correct-A\\result.json",
+      "finish_reasons": [
+        "stop"
+      ],
+      "copy_decision": false,
+      "unknowns": [
+        "Trim character-set semantics (contract says 'trim' without defining which characters).",
+        "Behavior for non-list or non-string inputs (None, tuples, generators) is undefined by sources and untested.",
+        "No executed test evidence; all judgments are static source reads."
+      ],
+      "manual_semantic_review": "semantic-review.md"
+    },
+    {
+      "case": "identity_correct",
+      "arm": "B",
+      "phase": 1,
+      "source": "semantic-run-01\\identity_correct-B\\result.json",
+      "finish_reasons": [
+        "stop"
+      ],
+      "copy_decision": null,
+      "unknowns": [
+        "Whether clean_names is intended to return a new list or may return the same object (no mutation occurs either way under the stub, but a real implementation with a copy would matter for copy_observation.distinct_object).",
+        "Whether 'blank' includes other whitespace forms (e.g., non-breaking spaces) — contract only says 'blank after trimming'.",
+        "Whether the five tests were ever executed; sources only state they are intended assertions (current-contract.md:6)."
+      ],
+      "manual_semantic_review": "semantic-review.md"
+    },
+    {
+      "case": "identity_correct",
+      "arm": "B",
+      "phase": 2,
+      "source": "semantic-run-01\\identity_correct-B\\result.json",
+      "finish_reasons": [
+        "stop"
+      ],
+      "copy_decision": null,
+      "unknowns": [
+        "Whether a real (non-stub) implementation must return a distinct object or may return the input — contract only requires non-mutation.",
+        "Definition of 'blank' beyond whitespace forms handled by the tests (e.g., non-breaking spaces).",
+        "Whether the five tests were ever executed historically; sources only describe them as intended assertions (current-contract.md:6)."
+      ],
+      "manual_semantic_review": "semantic-review.md"
+    },
+    {
+      "case": "sorted_partial",
+      "arm": "A",
+      "phase": 1,
+      "source": "semantic-run-01\\sorted_partial-A\\result.json",
+      "finish_reasons": [
+        "stop"
+      ],
+      "copy_decision": true,
+      "unknowns": [
+        "No executed test run; all judgments are from static source review (tests_executed: false).",
+        "Unicode whitespace edge cases of .strip() vs contract's 'blank' definition are untested by sources.",
+        "Behavior on non-string elements is unspecified and untested."
+      ],
+      "manual_semantic_review": "semantic-review.md"
+    },
+    {
+      "case": "sorted_partial",
+      "arm": "A",
+      "phase": 2,
+      "source": "semantic-run-01\\sorted_partial-A\\result.json",
+      "finish_reasons": [
+        "stop"
+      ],
+      "copy_decision": true,
+      "unknowns": [
+        "No test run performed; all findings are static source review (tests_executed: false).",
+        "Exact definition of 'blank' (e.g. Unicode whitespace handled by .strip()) is not specified in docs/current-contract.md.",
+        "Behavior on non-string elements (None, bytes) is unspecified and untested.",
+        "Whether 'preserve order' refers to post-trim positions is implicit but consistent with the straightforward reading."
+      ],
+      "manual_semantic_review": "semantic-review.md"
+    },
+    {
+      "case": "sorted_partial",
+      "arm": "B",
+      "phase": 1,
+      "source": "semantic-run-01\\sorted_partial-B\\result.json",
+      "finish_reasons": [
+        "stop"
+      ],
+      "copy_decision": true,
+      "unknowns": [
+        "test_no_mutation checks the list object but the implementation cannot mutate immutable strings; full mutation semantics for nested/other types are unexercised.",
+        "Behavior on None or non-string elements is undefined by both contract and implementation (would raise AttributeError)."
+      ],
+      "manual_semantic_review": "semantic-review.md"
+    },
+    {
+      "case": "sorted_partial",
+      "arm": "B",
+      "phase": 2,
+      "source": "semantic-run-01\\sorted_partial-B\\result.json",
+      "finish_reasons": [
+        "stop"
+      ],
+      "copy_decision": true,
+      "unknowns": [
+        "Behavior on None or non-string elements is undefined by both contract and implementation (would raise AttributeError).",
+        "test_no_mutation only inspects the outer list; mutation semantics for nested mutable elements are unexercised, though the current implementation cannot mutate anything.",
+        "Sorting key for non-ASCII/Unicode edge cases (e.g., case-insensitive expectations) is unspecified by the contract and untested."
+      ],
+      "manual_semantic_review": "semantic-review.md"
+    }
+  ],
+  "manual_labels": {
+    "copy_faulty_empty_universal_error_phases": 4,
+    "sorted_partial_A_dedup_cannot_detect_error_phases": 2,
+    "identity_B_unnecessary_copy_unknown_phases": 2,
+    "perfect_semantic_pair_passes": 0,
+    "note": "These are named claim-level human labels, not exhaustive prose error counts."
+  },
+  "limitations": [
+    "one repetition per case/arm; no statistical inference",
+    "correct-advisory non-list wording is overbroad",
+    "strict JSON output contract violated in all phases",
+    "reasoning tokens included in completion; do not add twice"
+  ]
+}

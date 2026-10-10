@@ -2,6 +2,8 @@
 把聊天、目标、动作、用量和 checkpoint 保存为可恢复、可迁移的结构化状态。
 
 ## 边界
+- `parent_review` opaque checkpoint按task及全thread尾CAS保存有界来源/阶段/纠正与USER游标；最终assistant正文可与delivered记录同事务落地，不把模型结构提升为verification证据。提供真实parent task/owner/delegate_request对应child绑定查询和无副作用硬预算观察；不读取来源、运行模型或执行工具。
+- `append_context_record(..., review_attempt=None)`仅`parent_review`允许附task绑定的`task_id/phase/raw_output/errors`与可选`effective_output`；errors列表保留legacy字符串或恰含字符串path/message的详情字典，不解释其错误语义。errors最多128项，path最多512字符、message/legacy错误文本最多4096字符；task_id/phase最多256/128字符。以同key派生独立`context:parent_review_attempt`审计记录，与快照/可选交付同事务CAS与内容幂等，拒绝失败整体回滚。raw/effective各最多1,000,000字符、attempt完整JSON最多16MiB（仅存储限额，与模型预算无关），超限明确失败不截断；快照仍131072字节。独立失败原文不进入可见messages，也不因快照容量降级而被替换为摘要。
 - S12审批/待决定账本：Host预览/摘要绑定根/状态/owner/TTL，CAS决定；漂移/过期留stale/expired，不执行/授予权限。
 - S10：提供行数/字节双有界历史页、稳定旧ID检索、SQL数量/高水位/未决动作与增量进展CAS；原日志不变，同序号修改以触发器revision使恢复决定与进展缓存失效。全量接口仅保留显式兼容。
 - conversation Provider 用量按 MODEL_STARTED 分组、组内最后有效 Usage snapshot 聚合；SQL 读取日志事实但不物化消息树/正文，Python 仅取汇总、最新 Usage 和有界 models，不把预算租约投影为 Provider 用量。
@@ -47,6 +49,7 @@
 - 配置/实验边界见`docs/context-boundary-experiment.md`、`docs/context-boundary-results.md`；候选值可配，实验不自动改变默认策略。
 
 ## Units
+- S16：必要来源随既有 `context:child_budget` 冻结；旧记录缺字段等价空，有来源的记录不能以空或冲突集合覆盖。`source_completion_state`、`append_source_correction` 使用既有 checkpoints/messages；纠正 completed baseline 与 developer notices 同事务落地，CAS拒绝旧边界，不重置预算或建立子 TaskRecord。
 - `ApprovalRepositoryMixin`：v26卡CAS | SQLite I/O | 8KiB/100条/TTL≤1h；待决定只收无owner暂停/中断/等待；同响应绑定有效才幂等，consumed_now区分首次；等待决定可同事务显式failed/accepted_partial。
 - `HistoryQuery/Display/ContextRepositoryMixin`：双有界页、旧UUID原文片段、Unicode检索、窗口/用量聚合和进展cursor CAS；v25触发器保配对索引与恢复revision，旧库一次分页回填。
 - recovery_checklist/resolve_pending_action/recovery_mutation_receipt：事务版本核对与绑定动作回执；决定/反馈同事务追加，可信本地文件核验由Host完成。

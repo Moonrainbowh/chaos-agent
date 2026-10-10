@@ -1,0 +1,68 @@
+test_correction_atomic_rollback_and_long_notice_coverage (tests.test_source_completion_contract.SourceCompletionContractTests.test_correction_atomic_rollback_and_long_notice_coverage) ... Executing <Task pending name='Task-1' coro=<SourceCompletionContractTests.asyncSetUp() running at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_source_completion_contract.py:56> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at D:\soft\miniconda3\Lib\asyncio\tasks.py:975, Task.task_wakeup()] created at D:\soft\miniconda3\Lib\asyncio\base_events.py:459> cb=[_run_until_complete_cb() at D:\soft\miniconda3\Lib\asyncio\base_events.py:181] created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.453 seconds
+ERROR
+test_initial_tier_uses_intent_and_explicit_depth_signal (code_agent.core.tests.test_budget_lease.BudgetLeaseTests.test_initial_tier_uses_intent_and_explicit_depth_signal) ... ok
+test_invalid_persisted_lease_values_fail_closed (code_agent.core.tests.test_budget_lease.BudgetLeaseTests.test_invalid_persisted_lease_values_fail_closed) ... ok
+test_lease_limits_are_clipped_by_hard_limits (code_agent.core.tests.test_budget_lease.BudgetLeaseTests.test_lease_limits_are_clipped_by_hard_limits) ... ok
+test_old_task_budget_construction_remains_valid (code_agent.core.tests.test_budget_lease.BudgetLeaseTests.test_old_task_budget_construction_remains_valid) ... ok
+test_progress_digest_changes_only_with_host_facts (code_agent.core.tests.test_budget_lease.BudgetLeaseTests.test_progress_digest_changes_only_with_host_facts) ... ok
+test_team_initial_standard_floor_preserves_single_legacy_and_deep (code_agent.core.tests.test_budget_lease.BudgetLeaseTests.test_team_initial_standard_floor_preserves_single_legacy_and_deep) ... ok
+
+======================================================================
+ERROR: test_correction_atomic_rollback_and_long_notice_coverage (tests.test_source_completion_contract.SourceCompletionContractTests.test_correction_atomic_rollback_and_long_notice_coverage)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\src\code_agent\sessions\_task_budget.py", line 301, in task_budget
+    model_name=row["model_name"],
+               ~~~^^^^^^^^^^^^^^
+TypeError: 'NoneType' object is not subscriptable
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "D:\soft\miniconda3\Lib\asyncio\runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "D:\soft\miniconda3\Lib\asyncio\base_events.py", line 725, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_source_completion_contract.py", line 201, in test_correction_atomic_rollback_and_long_notice_coverage
+    snapshot = await host.snapshot(child)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\chaos_agent\source_completion.py", line 117, in snapshot
+    await self.sessions.source_completion_budget_exhausted(thread_id))
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\src\code_agent\sessions\_task_runtime_records.py", line 61, in source_completion_budget_exhausted
+    return await self._database.read(read)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\src\code_agent\sessions\_database.py", line 185, in read
+    return await _dbc.run_cancellable_database_call(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        lambda cancellation: self._execute(operation, False, cancellation)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\src\code_agent\sessions\_database_cancellation.py", line 216, in run_cancellable_database_call
+    return await asyncio.shield(worker)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\soft\miniconda3\Lib\asyncio\threads.py", line 25, in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\soft\miniconda3\Lib\concurrent\futures\thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\src\code_agent\sessions\_database_cancellation.py", line 38, in invoke
+    return call(cancellation)
+  File "C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\src\code_agent\sessions\_database.py", line 186, in <lambda>
+    lambda cancellation: self._execute(operation, False, cancellation)
+                         ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\src\code_agent\sessions\_database.py", line 287, in _execute
+    result = operation(connection)
+  File "C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\src\code_agent\sessions\_task_runtime_records.py", line 51, in read
+    budget = task_budget(connection.execute('SELECT * FROM task_budgets WHERE thread_id=?', (target,)).fetchone())
+  File "C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\src\code_agent\sessions\_task_budget.py", line 327, in task_budget
+    raise SessionCorruptionError("invalid persisted task budget") from error
+code_agent.sessions.errors.SessionCorruptionError: invalid persisted task budget
+
+----------------------------------------------------------------------
+Ran 7 tests in 2.174s
+
+FAILED (errors=1)

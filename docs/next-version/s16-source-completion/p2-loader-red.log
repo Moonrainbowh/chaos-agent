@@ -1,0 +1,20 @@
+Executing <Task finished name='Task-1' coro=<S16ProductionRegressionTests.asyncSetUp() done, defined at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_s16_source_completion.py:70> result=None created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.430 seconds
+======================================================================
+FAIL: test_loader_description_distinguishes_model_requests_from_user_messages (tests.test_s16_source_completion.S16ProductionRegressionTests.test_loader_description_distinguishes_model_requests_from_user_messages)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\soft\miniconda3\Lib\asyncio\runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "D:\soft\miniconda3\Lib\asyncio\base_events.py", line 725, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_s16_source_completion.py", line 211, in test_loader_description_distinguishes_model_requests_from_user_messages
+    self.assertIn("next model request", summary)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'next model request' not found in 'Make one capability available next turn; returns name, digest, and availability only.'
+
+----------------------------------------------------------------------
+Ran 1 test in 1.456s
+
+FAILED (failures=1)

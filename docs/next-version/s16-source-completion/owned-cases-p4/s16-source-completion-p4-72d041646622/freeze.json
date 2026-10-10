@@ -1,0 +1,146 @@
+{
+  "candidate_head": "f8bb5dc75bd4808598e75100ee879248758ab9ce",
+  "source_checkout": "C:\\Users\\Windows11\\.codex\\worktrees\\s16-source-completion\\chaos-16-agent",
+  "harness_hashes": {
+    "run_real_source_completion.py": "1e1281f1906aeefa3e8aa3511d52719774e3ea1b7c818e2b6c76d2c1575101b0",
+    "s16_fixture.py": "25a48f8d3cfeae3ad4958579bfdde34d4ce3ec7819e13ee2d42e1f5785889ef2",
+    "source-fixture/fixture.json": "4867441771596f4fb7a42ee917a879d94c2b40c640920546abdea68302a17e2a",
+    "source-fixture/shared-rules.md": "a15dc42f16962b8a82f87b5824b492a40a81a394d1931c5268e4ddc261122c51",
+    "p4-origin.json": "9d58b7fe32c257d5fbd846d970d9e3e3a4f637398042ed679654e337ee40c40c",
+    "plan.md": "9c393052cf5e16f1056b0413f114c46fd220be0b1d70f1b899d7869f4fc2ad1c"
+  },
+  "workspace_hashes": {
+    "AGENTS.md": "a15dc42f16962b8a82f87b5824b492a40a81a394d1931c5268e4ddc261122c51",
+    "docs/current-contract.md": "be72365ff9fc2c4eacfdeea55042c1809458114cca8e56124f045e04b3c1ca99",
+    "docs/legacy-notes.md": "9f8696bb5da4892a5878933993c1c3195418a6e1488609a6ba4e33ba06a36926",
+    "names.py": "535f5bbca3e53d261caad12d6f5f36a42226e5b5f3d74aecf67e1bfe6e082697",
+    "test_names.py": "8ee56921a646ea63058ba9c2b165729d21a9394188070ee83b6d54166af11df2"
+  },
+  "settings_hashes": {
+    "provider-config/config.toml": "815dec787913a894021fe23cd5643156f3bee91c9865f01369b0342c35527848",
+    "state/chaos-agent/plugins/s16-source-completion/plugin.json": "4de737c3eafd005237eb1e4f126946f4dd3f28f22b5abee050baa1da600f9f9d",
+    "state/chaos-agent/plugin-trust.json": "8cdbed2bfc7ed70de8949c7809d32098c638e07d373b7938283676a011502b47",
+    "preflight-state/chaos-agent/plugins/s16-source-completion/plugin.json": "4de737c3eafd005237eb1e4f126946f4dd3f28f22b5abee050baa1da600f9f9d",
+    "preflight-state/chaos-agent/plugin-trust.json": "8cdbed2bfc7ed70de8949c7809d32098c638e07d373b7938283676a011502b47"
+  },
+  "source_sha256": {
+    "docs/current-contract.md": "be72365ff9fc2c4eacfdeea55042c1809458114cca8e56124f045e04b3c1ca99",
+    "docs/legacy-notes.md": "9f8696bb5da4892a5878933993c1c3195418a6e1488609a6ba4e33ba06a36926",
+    "names.py": "535f5bbca3e53d261caad12d6f5f36a42226e5b5f3d74aecf67e1bfe6e082697",
+    "test_names.py": "8ee56921a646ea63058ba9c2b165729d21a9394188070ee83b6d54166af11df2"
+  },
+  "parent_input": "Read-only. Load delegate_agent if absent; delegate once to s16.sourceaudit (300000 tokens,5 tools,240s), with those four paths as required_sources. Check advisory independently; no notes/new_context. Child: Read docs/current-contract.md, docs/legacy-notes.md, names.py and test_names.py in full. Use available read schema. Compare current/legacy constraints, code/tests; cite physical 1-based path:line counting blanks. No edits, commands/tests, outside sources or delegation; unverified, tests unexecuted.",
+  "objective_chars": 506,
+  "required_sources": [
+    "docs/current-contract.md",
+    "docs/legacy-notes.md",
+    "names.py",
+    "test_names.py"
+  ],
+  "runtime": {
+    "model": "glm-5.3-flash",
+    "reasoning_effort": "medium",
+    "parent_token_budget": 1000000,
+    "parent_base_mode": "medium",
+    "child_base_mode": "medium",
+    "child_token_budget": 300000,
+    "host_prompt_tokens": 300000,
+    "tool_schema_tokens": 20000,
+    "max_output_tokens": 4096,
+    "max_agent_rounds": 12,
+    "max_tool_calls": 40,
+    "max_tool_calls_per_round": 8,
+    "child_tool_budget": 5,
+    "child_active_seconds": 240,
+    "parent_watchdog_seconds": 880,
+    "total_seconds": 900,
+    "transport_timeout_seconds": 60,
+    "transport_max_retries": 2
+  },
+  "origin": {
+    "case": "next-version-s16-investigation-v7-09b160648af4",
+    "worker_result_sha256": "c47c9b1eec8ba796ae8db8e29bd400c43e2c5dd54c59a468c25f226d8e5b4af6",
+    "provider_calls": 6,
+    "parent_result": {
+      "version": 1,
+      "execution_status": "waiting_decision",
+      "changes": "unchanged",
+      "verification_status": "unverified",
+      "remaining": [
+        "workspace change or explicit acceptance of no-change delivery"
+      ],
+      "stop_code": "waiting_decision",
+      "stop_reason": "Requested modification produced no workspace file changes. Continue with implementation, or explain why no change is required and request explicit acceptance of the unchanged partial delivery."
+    },
+    "children": [
+      {
+        "run_id": "83f7bde44f535df38626e247263d6e67",
+        "thread_id": "f828d878b1274052a92d5a7467751d77",
+        "relation": {
+          "thread_id": "f828d878b1274052a92d5a7467751d77",
+          "parent_thread_id": "21b65ad4b45d44b2be75fcdf38dd5d71",
+          "child_thread_ids": []
+        },
+        "task": null,
+        "budget": null,
+        "bindings": [
+          {
+            "id": "37ed0c336d5a53818133b30a742e0f05",
+            "owner_thread_id": "21b65ad4b45d44b2be75fcdf38dd5d71",
+            "parent_task_id": "f7f8cfadb5ee4dccaec5bb90375dac57",
+            "delegate_request_id": "call_03c23ee111cd423ebffed232",
+            "max_total_tokens": 300000,
+            "max_tool_calls": 5,
+            "max_agent_rounds": 100,
+            "max_children": 8,
+            "owner_instance_id": "0572368936dc49868f0bee681d8b9ee6"
+          }
+        ],
+        "usage": [
+          {
+            "id": "bd46f5ef65f75e75a8dad0985f99a54e",
+            "purpose": "main",
+            "reserved": 34203,
+            "status": "settled",
+            "task_limit": 1000000,
+            "origin_thread_id": "f828d878b1274052a92d5a7467751d77",
+            "budget_owner_thread_id": "21b65ad4b45d44b2be75fcdf38dd5d71",
+            "projected_tokens": 3185,
+            "charged": 3185,
+            "usage": {
+              "input_tokens": 3156,
+              "output_tokens": 29,
+              "cached_input_tokens": 0,
+              "cache_read_known": true
+            },
+            "estimated_input": 14107
+          },
+          {
+            "id": "62289a29661d504e8f83ba408530dab8",
+            "purpose": "main",
+            "reserved": 35042,
+            "status": "settled",
+            "task_limit": 1000000,
+            "origin_thread_id": "f828d878b1274052a92d5a7467751d77",
+            "budget_owner_thread_id": "21b65ad4b45d44b2be75fcdf38dd5d71",
+            "projected_tokens": 3473,
+            "charged": 3473,
+            "usage": {
+              "input_tokens": 3381,
+              "output_tokens": 92,
+              "cached_input_tokens": 0,
+              "cache_read_known": true
+            },
+            "estimated_input": 14946
+          }
+        ]
+      }
+    ],
+    "legacy_unknown_usage": {
+      "v2": 80703,
+      "v6": 95586
+    },
+    "acceptance_matrix_reference": "docs/next-version/s16/acceptance-matrix.md",
+    "status": "HISTORICAL_EVIDENCE_NOT_RESETTLED"
+  }
+}

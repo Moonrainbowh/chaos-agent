@@ -1,0 +1,11 @@
+{
+  "baseline_commit": "b28868a",
+  "platform": "Windows",
+  "python": "3.13.7",
+  "command": ".venv/Scripts/python.exe -m unittest tests.test_s16_source_completion tests.test_source_completion_contract",
+  "tests_run": 35,
+  "elapsed_seconds": 178.805,
+  "exit_code": 0,
+  "result": "OK",
+  "scope": "Existing source-completion tests before parent-review integration; not post-fix validation."
+}

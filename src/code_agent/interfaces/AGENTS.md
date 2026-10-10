@@ -26,6 +26,7 @@ TUI/CLI/JSON共内核/单前台父任务/层级子Agent；仅委托注入Control
 - `:map`独立只读语义图与context/测试影响优先级/风险/审查/重构/bug/dead-code二级动作，显示generation/置信类型/静态限制/total；limit1..50、offset0..100000、引号空格路径与`--`字面参数，不把候选当根因/安全可删。流程DAG/节点/evidence有界safe_text，无edge授权；Skill/MCP/Plugin选择只Controller、不读全文、不直接启动进程/存激活/执行proposal，未批准MCP显示禁用。notify/confirm/input/select统一Host-owned可取消，notify不等答案，其余默认不自答。
 
 - `/memory` 仅显式用户操作，Host project_memory定scope；来源/条件/版本可查、改/撤用CAS。不自动发布模型文本；有界不可信显示，不泄露异常正文。
+- `/cost` 按 task 唯一 thread 的真实 MODEL_STARTED 模型集合判断混合请求；混合模型显示全部实际模型、保留累计预算 token，费用未知，不把单一 profile 费率套给所有请求。同会话其他 task 的模型仅计入会话用量。
 
 ## Units
 - TaskService/Foreground/AgentController/Command：共享契约/动作；执行与验证分开，CLI按结果退出、查询成功0。

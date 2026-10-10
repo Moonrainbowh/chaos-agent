@@ -1,0 +1,37 @@
+{
+  "status": "PASS_STRUCTURAL_REPLAY_ONLY",
+  "original_attempt": "s16-source-completion-p4-75e2fe91ce07",
+  "original_errors": [
+    {
+      "path": "/comparisons/-",
+      "message": "append comparison for uncovered paragraphs: [5, 9, 12]"
+    }
+  ],
+  "current_errors": [],
+  "required_group_ids": [
+    2,
+    4,
+    6,
+    7,
+    8,
+    10,
+    11,
+    13,
+    15
+  ],
+  "all_title_text_retained": true,
+  "all_original_judgments_unchanged": true,
+  "missing_body_still_rejected": [
+    {
+      "path": "/comparisons/-",
+      "message": "append comparison for uncovered paragraphs: [4]"
+    }
+  ],
+  "field_patch_only_prompt": true,
+  "current_error_rejects_empty_patch": true,
+  "stale_heading_repair_accepts_explicit_empty_patch": true,
+  "historical_whole_rewrite_still_rejected": true,
+  "semantic_acceptance": "NOT_ACCEPTED",
+  "provider_calls": 0,
+  "fixture_execution": false
+}

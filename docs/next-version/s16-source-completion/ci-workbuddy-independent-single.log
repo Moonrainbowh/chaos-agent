@@ -1,0 +1,6 @@
+test_discovery_failure_retains_login_and_a_visible_retry_choice (tests.test_workbuddy_switch.WorkBuddyModelSelectionTests.test_discovery_failure_retains_login_and_a_visible_retry_choice) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 0.081s
+
+OK

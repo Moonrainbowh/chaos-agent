@@ -20,10 +20,15 @@ from .attachments import AttachmentRef
 from .protocols import ActionDispatcher, ContextBuilder, ModelClient, SessionRepository
 from .task import TaskAuthorization, TaskRecord, TaskStatus
 from .task_supervisor import SupervisionKind
+from .source_completion import SourceCompletionHost
+from .parent_review import ParentReviewHost
+from .parent_review_model import ParentReviewModel
+from ._engine_parent_review import AgentEngineParentReviewMixin
 from .task_verification import TaskVerificationService
 
 
 class AgentEngine(
+    AgentEngineParentReviewMixin,
     AgentEngineCompletionMixin,
     AgentEngineActionMixin,
     AgentEngineRunMixin,
@@ -46,6 +51,9 @@ class AgentEngine(
         inherited_authorization: TaskAuthorization | None = None,
         peer_tool_names: Sequence[str] = (),
         capability_strategy: CapabilityStrategy = CapabilityStrategy.HYBRID,
+        source_completion: SourceCompletionHost | None = None,
+        parent_review: ParentReviewHost | None = None,
+        parent_review_model: ParentReviewModel | None = None,
     ) -> None:
         self._model = model
         self._context = context
@@ -77,6 +85,11 @@ class AgentEngine(
         if not isinstance(capability_strategy, CapabilityStrategy):
             raise TypeError("capability_strategy must be a CapabilityStrategy")
         self._capability_strategy = capability_strategy
+        self._source_completion = source_completion
+        self._parent_review = parent_review
+        if parent_review_model is not None and not isinstance(parent_review_model, ParentReviewModel):
+            raise TypeError("parent_review_model must be a ParentReviewModel or None")
+        self._parent_review_model = parent_review_model
         self._context_mode_snapshot = freeze_mapping({} if context_mode_snapshot is None else context_mode_snapshot, "context_mode_snapshot")
         self._context_permission_snapshot = freeze_mapping({} if context_permission_snapshot is None else context_permission_snapshot, "context_permission_snapshot")
 
@@ -98,12 +111,19 @@ class AgentEngine(
         cancellation: Optional[CancellationToken] = None,
         task: TaskRecord | None = None,
         attachments: Sequence[AttachmentRef] = (),
+        required_sources: Sequence[str] | None = None,
     ) -> AsyncIterator[AgentEvent]:
         """Run one user request and stream events after durable persistence."""
         checked_attachments = _validate_run_arguments(
             user_input, thread_id, tuple(attachments)
         )
         state, started = await self._start_run(thread_id, cancellation, task)
+        from .source_completion import freeze_sources
+        supplied_sources = None if required_sources is None else freeze_sources(required_sources)
+        if self._source_completion is None and supplied_sources:
+            raise ValueError('required sources need a Host completion adapter')
+        if self._source_completion is not None:
+            state.source_snapshot = await self._source_completion.snapshot(state.thread_id, supplied_sources)
         yield started
 
         try:

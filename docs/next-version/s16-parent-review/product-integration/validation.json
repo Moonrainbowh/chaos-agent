@@ -1,0 +1,33 @@
+{
+  "scope": "S16 configured parent review product integration",
+  "full_suite_run": false,
+  "test_groups": [
+    {"group": "Core parent_review", "passed": 72, "reported_by": "core_review_routing"},
+    {"group": "Core engine", "passed": 50, "reported_by": "core_review_routing"},
+    {"group": "Config", "passed": 35, "reported_by": "review_profile_config"},
+    {"group": "Workflow", "passed": 12, "reported_by": "workflow_title_fix"},
+    {"group": "Cost control and usage summary", "passed": 10, "reported_by": "workflow_title_fix"},
+    {"group": "Configured Host integration", "passed": 5, "reported_by": "review_profile_config"},
+    {"group": "Required parent/source regressions", "passed": 46, "log": "required-focused-tests.log"},
+    {"group": "Runtime selection safety", "passed": 4, "log": "runtime-focused-tests.log"},
+    {"group": "Runtime partial build cleanup", "passed": 3, "log": "cleanup-focused-tests.log"}
+  ],
+  "diagnostic_history": [
+    "The combined runtime invocation also named a nonexistent test_provider_partial_cleanup module. The four real safety tests passed; the corrected test_runtime_partial_build_cleanup invocation passed three tests separately.",
+    "Configured Host tests initially asserted synchronous retirement and a quiet failed TaskResult for transport errors. Expectations were corrected to observed asynchronous retirement and ModelStreamError with durable interrupted; five final tests passed.",
+    "Existing config loader does not parse TOML timeout_s/max_retries. The new review composition clamps the effective ProviderConfig values; this unrelated loader behavior was not changed. The real frozen case uses effective defaults 60 seconds and two retries."
+  ],
+  "independent_code_review": "No outstanding product blockers after reasoning-effort validation was added. Reviewer checked ownership, old snapshots, child exclusion, shared budget and harness routing.",
+  "real_run": "attempts/s16-source-completion-p4-2874dc205ca6",
+  "real_run_status": "PRODUCT_ROUTING_AND_SEMANTICS_PASS_STRICT_TASK_PROCESS_BLOCKED",
+  "runtime_checks_passed": 20,
+  "semantic_review": "PASS_27_ATOMIC_CLAIMS",
+  "strict_process_failure": "Two delegate_agent attempts: wrong role rejected, then requested agent succeeded. Original single-attempt requirement is not unconditionally met.",
+  "actual_provider_responses": 7,
+  "charged_tokens": 42866,
+  "stderr_bytes": 0,
+  "repair_used": false,
+  "candidate_freeze_after_run": "PASS",
+  "git_diff_check": "PASS",
+  "limitations": ["No full suite", "No cross-platform run", "No main-checkout merge", "No global default configuration change"]
+}

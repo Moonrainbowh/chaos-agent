@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from dataclasses import replace
 
 from code_agent.core.completion_contract import TaskIntent
 from code_agent.core.limits import (
@@ -15,6 +16,17 @@ from code_agent.core.task import TaskAuthorization, TaskContract
 
 
 class BudgetLeaseTests(unittest.TestCase):
+    def test_team_initial_standard_floor_preserves_single_legacy_and_deep(self):
+        analysis = self.contract('Explain this', TaskIntent.ANALYZE)
+        team = replace(analysis, agent_topology='team', profile_id='test', model='test',
+            protocol='responses', endpoint_host='api.example.test', reasoning_effort='medium',
+            runtime_mode='medium', runtime_selection_digest='a' * 64)
+        self.assertIs(select_budget_lease(team), BudgetLeaseTier.STANDARD)
+        self.assertIs(select_budget_lease(replace(team, agent_topology='single')), BudgetLeaseTier.QUICK)
+        self.assertIs(select_budget_lease(analysis), BudgetLeaseTier.QUICK)
+        self.assertIs(select_budget_lease(replace(team, objective='Deep investigation')), BudgetLeaseTier.DEEP)
+        hard = EngineLimits(max_agent_rounds=3, max_tool_calls=4)
+        self.assertEqual(lease_limits(select_budget_lease(team), hard), (3, 4))
     def contract(
         self, objective: str, intent: TaskIntent = TaskIntent.MODIFY
     ) -> TaskContract:

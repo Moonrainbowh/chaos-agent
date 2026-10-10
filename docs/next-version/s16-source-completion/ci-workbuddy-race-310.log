@@ -1,0 +1,7 @@
+Actual tool-output excerpt, not a new run or full stdout:
+.venv310/Scripts/python.exe -m unittest tests.test_workbuddy_switch tests.test_auth_runtime_control tests.test_tui_auth_integration code_agent.interfaces.tests.test_tui_auth_commands -v
+
+Ran 19 tests in 3.711s
+
+OK
+exit_code=0

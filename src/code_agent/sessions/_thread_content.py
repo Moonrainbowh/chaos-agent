@@ -20,6 +20,23 @@ from .errors import SessionCorruptionError, SessionNotFound
 from .models import MessageRecord, ThreadRelation, ThreadStatus, ThreadSummary
 
 
+def append_message_record(connection, thread_id, message, timestamp):
+    """Shared message/node/index write inside the caller's transaction."""
+    _require_thread(connection, thread_id)
+    from .conversation_tree import _ensure_nodes
+    from ._conversation_schema import record_message_node
+    _ensure_nodes(connection, thread_id)
+    cursor = connection.execute("INSERT INTO messages(thread_id,payload,created_at) VALUES (?,?,?)",
+                                (thread_id, encode_message(message), timestamp))
+    record_message_node(connection, thread_id, cursor.lastrowid)
+    from ._history_display import record_history_display
+    record_history_display(connection, cursor.lastrowid, message)
+    from ._history_queries import stable_item_id
+    connection.execute("INSERT INTO history_item_ids(thread_id,sequence,item_id) VALUES (?,?,?)",
+                       (thread_id, cursor.lastrowid, stable_item_id(thread_id, cursor.lastrowid)))
+    _touch_thread(connection, thread_id, timestamp)
+
+
 class ThreadContentRepositoryMixin:
     _database: object
 
@@ -194,25 +211,10 @@ class ThreadContentRepositoryMixin:
 
     async def append_message(self, thread_id: str, message: Message) -> None:
         thread_id = _text(thread_id, "thread_id")
-        payload = encode_message(message)
         timestamp = encode_datetime(utc_now())
 
         def write(connection: sqlite3.Connection) -> None:
-            _require_thread(connection, thread_id)
-            from .conversation_tree import _ensure_nodes
-            from ._conversation_schema import record_message_node
-            _ensure_nodes(connection, thread_id)
-            cursor = connection.execute(
-                "INSERT INTO messages(thread_id, payload, created_at) VALUES (?, ?, ?)",
-                (thread_id, payload, timestamp),
-            )
-            record_message_node(connection, thread_id, cursor.lastrowid)
-            from ._history_display import record_history_display
-            record_history_display(connection, cursor.lastrowid, message)
-            from ._history_queries import stable_item_id
-            connection.execute("INSERT INTO history_item_ids(thread_id,sequence,item_id) VALUES (?,?,?)",
-                (thread_id,cursor.lastrowid,stable_item_id(thread_id,cursor.lastrowid)))
-            _touch_thread(connection, thread_id, timestamp)
+            append_message_record(connection, thread_id, message, timestamp)
 
         await self._database.write(write)  # type: ignore[attr-defined]
 

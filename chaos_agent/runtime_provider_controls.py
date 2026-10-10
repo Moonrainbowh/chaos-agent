@@ -25,6 +25,7 @@ from code_agent.providers.runtime_manager import ProviderRuntime, ProviderRuntim
 from chaos_agent.app_ui import ModeAwareWindowsTerminalApp, PluginModeControl
 from chaos_agent.application_context import engine_for
 from chaos_agent.context_assembly import wrap_context
+from chaos_agent.parent_review_model import own_context_clients
 from chaos_agent.runtime_dispatcher_factory import RuntimeDispatcherFactory
 from chaos_agent.runtime_client_cleanup import close_partial_client
 from chaos_agent.context_selection import context_selection_json, require_context_selection
@@ -145,6 +146,7 @@ class ProviderControls:
         )
         try:
             context = self._context_for(self._build_snapshot, client, profile)
+            client = own_context_clients(client, context)
             if self._context_wrapper is not None:
                 context = wrap_context(context, self._context_wrapper)
             runner = engine_for(

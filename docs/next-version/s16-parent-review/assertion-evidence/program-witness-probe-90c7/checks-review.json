@@ -1,0 +1,37 @@
+{
+  "scope": "STATIC_PROGRAM_WITNESS_DIAGNOSTIC_NOT_PRODUCTION_S16",
+  "status": "FAIL",
+  "production_integration_supported": false,
+  "original_s16_acceptance": "NOT_ACCEPTED",
+  "reviewer_execution": false,
+  "reviewer_provider_calls": 0,
+  "generation": {
+    "detected_valid": 5,
+    "detected_total": 5,
+    "missed_programs_passing_original_assertion": 1,
+    "missed_total": 5,
+    "complete_valid_missed_records": 0,
+    "errors": [
+      {"id":"test_empty/missed","reason":"counterexample expected ['bob'] must be ['Bob']"},
+      {"id":"test_trim/missed","reason":"uppercase actual fails original assertion; counterexample expected ['Alice','Bob'] must be ['alice','Bob']"},
+      {"id":"test_blank/missed","reason":"unconditional append x fails original assertion; counterexample expected ['x'] must be []"},
+      {"id":"test_duplicates/missed","reason":"all-equal special branch deduplicates the original assertion input and fails it; counterexample enters ordinary append and has no violation"},
+      {"id":"test_no_mutation/missed","reason":"pop changes full observed input; test does not only inspect first element"}
+    ]
+  },
+  "trace": {
+    "calls": 15,
+    "fully_correct_calls": 13,
+    "observations": 30,
+    "correct_observations": 28,
+    "errors": [
+      {"id":"test_duplicates/missed","call":"counterexample","observed":"return_value","reported":["B","c"],"static_correct":["B","B","c"]},
+      {"id":"test_no_mutation/missed","call":"counterexample","observed":"return_value","reported":["A","C"],"static_correct":["A"]}
+    ]
+  },
+  "program_probe_cost": {"sends":2,"input_tokens":2070,"output_tokens":1545,"total_tokens":3615,"elapsed_seconds":26.019757200003368},
+  "three_diagnostic_classes_cost": {"sends":5,"input_tokens":10071,"output_tokens":6377,"total_tokens":16448,"elapsed_seconds":111.55618879999383},
+  "production_cost_is_separate": true,
+  "inference_limit": "This model/profile on this task and these diagnostic workflows was unreliable; no claim about all models or all tasks.",
+  "report": "review.md"
+}

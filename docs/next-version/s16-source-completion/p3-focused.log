@@ -1,0 +1,167 @@
+test_builtin_review_role_reaches_actual_body_without_write_tools (tests.test_s16_source_completion.S16ProductionRegressionTests.test_builtin_review_role_reaches_actual_body_without_write_tools) ... Executing <Task finished name='Task-1' coro=<S16ProductionRegressionTests.asyncSetUp() done, defined at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_s16_source_completion.py:70> result=None created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.442 seconds
+
+[2K�� agent review �� queued �� Review names.py
+
+
+[2K�� agent review �� running �� Review names.py
+
+
+[2K�� agent review �� completed �� Review names.py �� 1s �� 110 tokens �� 1 tools
+
+ok
+test_loader_description_distinguishes_model_requests_from_user_messages (tests.test_s16_source_completion.S16ProductionRegressionTests.test_loader_description_distinguishes_model_requests_from_user_messages) ... Executing <Task finished name='Task-396' coro=<S16ProductionRegressionTests.asyncSetUp() done, defined at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_s16_source_completion.py:70> result=None created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.430 seconds
+ok
+test_new_fixture_child_reads_four_sources_directly_with_frozen_original_bytes (tests.test_s16_source_completion.S16ProductionRegressionTests.test_new_fixture_child_reads_four_sources_directly_with_frozen_original_bytes) ... Executing <Task finished name='Task-528' coro=<S16ProductionRegressionTests.asyncSetUp() done, defined at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_s16_source_completion.py:70> result=None created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.446 seconds
+
+[2K�� agent custom �� queued �� Read docs/current-contract.md, docs/legacy-notes.md, names.py and test_n
+�� ames.py 
+
+
+[2K�� agent custom �� running �� Read docs/current-contract.md, docs/legacy-notes.md, names.py and test_
+�� names.py 
+
+
+[2K�� agent custom �� completed �� Read docs/current-contract.md, docs/legacy-notes.md, names.py and tes
+�� t_names.py  �� 1s �� 110 tokens �� 4 tools
+
+ok
+test_original_v7_child_cannot_complete_after_disclosure_with_zero_reads (tests.test_s16_source_completion.S16ProductionRegressionTests.test_original_v7_child_cannot_complete_after_disclosure_with_zero_reads) ... Executing <Task finished name='Task-957' coro=<S16ProductionRegressionTests.asyncSetUp() done, defined at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_s16_source_completion.py:70> result=None created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.470 seconds
+
+[2K�� agent custom �� queued �� Disclose the read contract first; next turn read docs/current-contract.m
+�� d, docs/
+
+
+[2K�� agent custom �� running �� Disclose the read contract first; next turn read docs/current-contract.
+�� md, docs/
+
+
+[2K�� agent custom �� failed �� Disclose the read contract first; next turn read docs/current-contract.m
+�� d, docs/ �� 3s �� 165 tokens �� 1 tools
+
+ok
+test_original_v7_parent_prompt_is_frozen_as_analyze_at_public_start (tests.test_s16_source_completion.S16ProductionRegressionTests.test_original_v7_parent_prompt_is_frozen_as_analyze_at_public_start) ... Executing <Task finished name='Task-1506' coro=<S16ProductionRegressionTests.asyncSetUp() done, defined at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_s16_source_completion.py:70> result=None created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.446 seconds
+ok
+test_partial_and_duplicate_source_reads_do_not_hide_remaining (tests.test_s16_source_completion.S16ProductionRegressionTests.test_partial_and_duplicate_source_reads_do_not_hide_remaining) ... Executing <Task finished name='Task-1638' coro=<S16ProductionRegressionTests.asyncSetUp() done, defined at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_s16_source_completion.py:70> result=None created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.449 seconds
+
+[2K�� agent custom �� queued �� Read sources
+
+
+[2K�� agent custom �� running �� Read sources
+
+
+[2K�� agent custom �� failed �� Read sources �� 2s �� 220 tokens �� 2 tools
+
+ok
+test_read_only_spelling_and_explicit_modification_filename_controls (tests.test_s16_source_completion.S16ProductionRegressionTests.test_read_only_spelling_and_explicit_modification_filename_controls) ... Executing <Task finished name='Task-2146' coro=<S16ProductionRegressionTests.asyncSetUp() done, defined at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_s16_source_completion.py:70> result=None created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.425 seconds
+ok
+test_resumed_legacy_contract_keeps_its_original_modify_intent (tests.test_s16_source_completion.S16ProductionRegressionTests.test_resumed_legacy_contract_keeps_its_original_modify_intent) ... Executing <Task finished name='Task-3179' coro=<S16ProductionRegressionTests.asyncSetUp() done, defined at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_s16_source_completion.py:70> result=None created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.484 seconds
+ok
+test_role_instructions_reach_both_child_requests_without_sibling_leak (tests.test_s16_source_completion.S16ProductionRegressionTests.test_role_instructions_reach_both_child_requests_without_sibling_leak) ... Executing <Task finished name='Task-3299' coro=<S16ProductionRegressionTests.asyncSetUp() done, defined at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_s16_source_completion.py:70> result=None created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.501 seconds
+
+[2K�� agent custom �� queued �� Read names.py and report.
+
+
+[2K�� agent custom �� running �� Read names.py and report.
+
+
+[2K�� agent custom �� completed �� Read names.py and report. �� 1s �� 110 tokens �� 1 tools
+
+
+[2K�� agent custom �� queued �� Read names.py and report.
+
+
+[2K�� agent custom �� running �� Read names.py and report.
+
+
+[2K�� agent custom �� completed �� Read names.py and report. �� 1s �� 110 tokens �� 1 tools
+
+ok
+test_source_gate_corrects_then_reads_and_completes (tests.test_s16_source_completion.S16ProductionRegressionTests.test_source_gate_corrects_then_reads_and_completes) ... Executing <Task finished name='Task-3835' coro=<S16ProductionRegressionTests.asyncSetUp() done, defined at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_s16_source_completion.py:70> result=None created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.462 seconds
+
+[2K�� agent custom �� queued �� Read names.py
+
+
+[2K�� agent custom �� running �� Read names.py
+
+
+[2K�� agent custom �� completed �� Read names.py �� 1s �� 165 tokens �� 1 tools
+
+ok
+test_team_parent_natural_lease_gets_real_correction_then_source_failure (tests.test_s16_source_completion.S16ProductionRegressionTests.test_team_parent_natural_lease_gets_real_correction_then_source_failure) ... Executing <Task finished name='Task-4281' coro=<S16ProductionRegressionTests.asyncSetUp() done, defined at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_s16_source_completion.py:70> result=None created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.467 seconds
+
+[2K�� agent custom �� queued �� Disclose the read contract first; next turn read docs/current-contract.m
+�� d, docs/
+
+
+[2K�� agent custom �� running �� Disclose the read contract first; next turn read docs/current-contract.
+�� md, docs/
+
+
+[2K�� agent custom �� failed �� Disclose the read contract first; next turn read docs/current-contract.m
+�� d, docs/ �� 3s �� 165 tokens �� 1 tools
+
+ok
+test_bounded_recovery_reads_old_receipt_beyond_context_tail (tests.test_source_completion_contract.SourceCompletionContractTests.test_bounded_recovery_reads_old_receipt_beyond_context_tail) ... Executing <Task pending name='Task-4828' coro=<SourceCompletionContractTests.asyncSetUp() running at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_source_completion_contract.py:53> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at D:\soft\miniconda3\Lib\asyncio\tasks.py:975, Task.task_wakeup()] created at D:\soft\miniconda3\Lib\asyncio\base_events.py:459> cb=[_run_until_complete_cb() at D:\soft\miniconda3\Lib\asyncio\base_events.py:181] created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.410 seconds
+ok
+test_cancel_during_correction_preserves_cancelled_terminal (tests.test_source_completion_contract.SourceCompletionContractTests.test_cancel_during_correction_preserves_cancelled_terminal) ... Executing <Task pending name='Task-5084' coro=<SourceCompletionContractTests.asyncSetUp() running at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_source_completion_contract.py:53> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at D:\soft\miniconda3\Lib\asyncio\tasks.py:975, Task.task_wakeup()] created at D:\soft\miniconda3\Lib\asyncio\base_events.py:459> cb=[_run_until_complete_cb() at D:\soft\miniconda3\Lib\asyncio\base_events.py:181] created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.399 seconds
+ok
+test_correction_atomic_rollback_and_long_notice_coverage (tests.test_source_completion_contract.SourceCompletionContractTests.test_correction_atomic_rollback_and_long_notice_coverage) ... Executing <Task pending name='Task-5177' coro=<SourceCompletionContractTests.asyncSetUp() running at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_source_completion_contract.py:53> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at D:\soft\miniconda3\Lib\asyncio\tasks.py:975, Task.task_wakeup()] created at D:\soft\miniconda3\Lib\asyncio\base_events.py:459> cb=[_run_until_complete_cb() at D:\soft\miniconda3\Lib\asyncio\base_events.py:181] created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.392 seconds
+ok
+test_empty_and_whitespace_final_answers_fail_after_full_read (tests.test_source_completion_contract.SourceCompletionContractTests.test_empty_and_whitespace_final_answers_fail_after_full_read) ... Executing <Task pending name='Task-5324' coro=<SourceCompletionContractTests.asyncSetUp() running at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_source_completion_contract.py:53> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at D:\soft\miniconda3\Lib\asyncio\tasks.py:975, Task.task_wakeup()] created at D:\soft\miniconda3\Lib\asyncio\base_events.py:459> cb=[_run_until_complete_cb() at D:\soft\miniconda3\Lib\asyncio\base_events.py:181] created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.403 seconds
+ok
+test_empty_file_is_complete_and_final_answer_is_delivered (tests.test_source_completion_contract.SourceCompletionContractTests.test_empty_file_is_complete_and_final_answer_is_delivered) ... Executing <Task pending name='Task-5588' coro=<SourceCompletionContractTests.asyncSetUp() running at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_source_completion_contract.py:53> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at D:\soft\miniconda3\Lib\asyncio\tasks.py:975, Task.task_wakeup()] created at D:\soft\miniconda3\Lib\asyncio\base_events.py:459> cb=[_run_until_complete_cb() at D:\soft\miniconda3\Lib\asyncio\base_events.py:181] created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.395 seconds
+ok
+test_frozen_binding_conflict_and_legacy_missing_field (tests.test_source_completion_contract.SourceCompletionContractTests.test_frozen_binding_conflict_and_legacy_missing_field) ... Executing <Task pending name='Task-5730' coro=<SourceCompletionContractTests.asyncSetUp() running at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_source_completion_contract.py:53> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at D:\soft\miniconda3\Lib\asyncio\tasks.py:975, Task.task_wakeup()] created at D:\soft\miniconda3\Lib\asyncio\base_events.py:459> cb=[_run_until_complete_cb() at D:\soft\miniconda3\Lib\asyncio\base_events.py:181] created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.409 seconds
+ok
+test_history_epoch_change_invalidates_cached_read (tests.test_source_completion_contract.SourceCompletionContractTests.test_history_epoch_change_invalidates_cached_read) ... Executing <Task pending name='Task-5874' coro=<SourceCompletionContractTests.asyncSetUp() running at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_source_completion_contract.py:53> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at D:\soft\miniconda3\Lib\asyncio\tasks.py:975, Task.task_wakeup()] created at D:\soft\miniconda3\Lib\asyncio\base_events.py:459> cb=[_run_until_complete_cb() at D:\soft\miniconda3\Lib\asyncio\base_events.py:181] created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.413 seconds
+ok
+test_invalid_sources_rejected_before_provider_allocation (tests.test_source_completion_contract.SourceCompletionContractTests.test_invalid_sources_rejected_before_provider_allocation) ... Executing <Task pending name='Task-6021' coro=<SourceCompletionContractTests.asyncSetUp() running at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_source_completion_contract.py:53> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at D:\soft\miniconda3\Lib\asyncio\tasks.py:975, Task.task_wakeup()] created at D:\soft\miniconda3\Lib\asyncio\base_events.py:459> cb=[_run_until_complete_cb() at D:\soft\miniconda3\Lib\asyncio\base_events.py:181] created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.408 seconds
+ok
+test_last_available_turn_completes_when_sources_are_read (tests.test_source_completion_contract.SourceCompletionContractTests.test_last_available_turn_completes_when_sources_are_read) ... Executing <Task pending name='Task-6031' coro=<SourceCompletionContractTests.asyncSetUp() running at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_source_completion_contract.py:53> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at D:\soft\miniconda3\Lib\asyncio\tasks.py:975, Task.task_wakeup()] created at D:\soft\miniconda3\Lib\asyncio\base_events.py:459> cb=[_run_until_complete_cb() at D:\soft\miniconda3\Lib\asyncio\base_events.py:181] created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.442 seconds
+ok
+test_no_requirements_preserves_one_turn_completion (tests.test_source_completion_contract.SourceCompletionContractTests.test_no_requirements_preserves_one_turn_completion) ... Executing <Task pending name='Task-6171' coro=<SourceCompletionContractTests.asyncSetUp() running at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_source_completion_contract.py:53> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at D:\soft\miniconda3\Lib\asyncio\tasks.py:975, Task.task_wakeup()] created at D:\soft\miniconda3\Lib\asyncio\base_events.py:459> cb=[_run_until_complete_cb() at D:\soft\miniconda3\Lib\asyncio\base_events.py:181] created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.390 seconds
+ok
+test_parent_receipts_do_not_satisfy_child (tests.test_source_completion_contract.SourceCompletionContractTests.test_parent_receipts_do_not_satisfy_child) ... Executing <Task pending name='Task-6246' coro=<SourceCompletionContractTests.asyncSetUp() running at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_source_completion_contract.py:53> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at D:\soft\miniconda3\Lib\asyncio\tasks.py:975, Task.task_wakeup()] created at D:\soft\miniconda3\Lib\asyncio\base_events.py:459> cb=[_run_until_complete_cb() at D:\soft\miniconda3\Lib\asyncio\base_events.py:181] created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.403 seconds
+ok
+test_receipt_name_pairing_metadata_and_slices_are_not_proof (tests.test_source_completion_contract.SourceCompletionContractTests.test_receipt_name_pairing_metadata_and_slices_are_not_proof) ... Executing <Task pending name='Task-6372' coro=<SourceCompletionContractTests.asyncSetUp() running at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_source_completion_contract.py:53> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at D:\soft\miniconda3\Lib\asyncio\tasks.py:975, Task.task_wakeup()] created at D:\soft\miniconda3\Lib\asyncio\base_events.py:459> cb=[_run_until_complete_cb() at D:\soft\miniconda3\Lib\asyncio\base_events.py:181] created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.396 seconds
+ok
+test_resume_keeps_requirements_and_used_correction (tests.test_source_completion_contract.SourceCompletionContractTests.test_resume_keeps_requirements_and_used_correction) ... Executing <Task pending name='Task-6496' coro=<SourceCompletionContractTests.asyncSetUp() running at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_source_completion_contract.py:53> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at D:\soft\miniconda3\Lib\asyncio\tasks.py:975, Task.task_wakeup()] created at D:\soft\miniconda3\Lib\asyncio\base_events.py:459> cb=[_run_until_complete_cb() at D:\soft\miniconda3\Lib\asyncio\base_events.py:181] created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.447 seconds
+ok
+test_round_budget_exhaustion_precedes_source_failure (tests.test_source_completion_contract.SourceCompletionContractTests.test_round_budget_exhaustion_precedes_source_failure) ... Executing <Task pending name='Task-6698' coro=<SourceCompletionContractTests.asyncSetUp() running at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_source_completion_contract.py:53> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at D:\soft\miniconda3\Lib\asyncio\tasks.py:975, Task.task_wakeup()] created at D:\soft\miniconda3\Lib\asyncio\base_events.py:459> cb=[_run_until_complete_cb() at D:\soft\miniconda3\Lib\asyncio\base_events.py:181] created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.390 seconds
+ok
+test_source_final_summary_keeps_latest_answer (tests.test_source_completion_contract.SourceCompletionContractTests.test_source_final_summary_keeps_latest_answer) ... Executing <Task pending name='Task-6781' coro=<SourceCompletionContractTests.asyncSetUp() running at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_source_completion_contract.py:53> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at D:\soft\miniconda3\Lib\asyncio\tasks.py:975, Task.task_wakeup()] created at D:\soft\miniconda3\Lib\asyncio\base_events.py:459> cb=[_run_until_complete_cb() at D:\soft\miniconda3\Lib\asyncio\base_events.py:181] created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.405 seconds
+ok
+test_tool_budget_exhaustion_precedes_source_failure (tests.test_source_completion_contract.SourceCompletionContractTests.test_tool_budget_exhaustion_precedes_source_failure) ... Executing <Task pending name='Task-6791' coro=<SourceCompletionContractTests.asyncSetUp() running at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_source_completion_contract.py:53> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at D:\soft\miniconda3\Lib\asyncio\tasks.py:975, Task.task_wakeup()] created at D:\soft\miniconda3\Lib\asyncio\base_events.py:459> cb=[_run_until_complete_cb() at D:\soft\miniconda3\Lib\asyncio\base_events.py:181] created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.433 seconds
+ok
+test_wrong_path_and_read_failure_remain_missing (tests.test_source_completion_contract.SourceCompletionContractTests.test_wrong_path_and_read_failure_remain_missing) ... Executing <Task pending name='Task-6930' coro=<SourceCompletionContractTests.asyncSetUp() running at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_source_completion_contract.py:53> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at D:\soft\miniconda3\Lib\asyncio\tasks.py:975, Task.task_wakeup()] created at D:\soft\miniconda3\Lib\asyncio\base_events.py:459> cb=[_run_until_complete_cb() at D:\soft\miniconda3\Lib\asyncio\base_events.py:181] created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.415 seconds
+ok
+test_initial_tier_uses_intent_and_explicit_depth_signal (code_agent.core.tests.test_budget_lease.BudgetLeaseTests.test_initial_tier_uses_intent_and_explicit_depth_signal) ... ok
+test_invalid_persisted_lease_values_fail_closed (code_agent.core.tests.test_budget_lease.BudgetLeaseTests.test_invalid_persisted_lease_values_fail_closed) ... ok
+test_lease_limits_are_clipped_by_hard_limits (code_agent.core.tests.test_budget_lease.BudgetLeaseTests.test_lease_limits_are_clipped_by_hard_limits) ... ok
+test_old_task_budget_construction_remains_valid (code_agent.core.tests.test_budget_lease.BudgetLeaseTests.test_old_task_budget_construction_remains_valid) ... ok
+test_progress_digest_changes_only_with_host_facts (code_agent.core.tests.test_budget_lease.BudgetLeaseTests.test_progress_digest_changes_only_with_host_facts) ... ok
+test_team_initial_standard_floor_preserves_single_legacy_and_deep (code_agent.core.tests.test_budget_lease.BudgetLeaseTests.test_team_initial_standard_floor_preserves_single_legacy_and_deep) ... ERROR
+
+======================================================================
+ERROR: test_team_initial_standard_floor_preserves_single_legacy_and_deep (code_agent.core.tests.test_budget_lease.BudgetLeaseTests.test_team_initial_standard_floor_preserves_single_legacy_and_deep)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\src\code_agent\core\tests\test_budget_lease.py", line 21, in test_team_initial_standard_floor_preserves_single_legacy_and_deep
+    self.assertIs(select_budget_lease(replace(analysis, agent_topology='team')), BudgetLeaseTier.STANDARD)
+                                      ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\soft\miniconda3\Lib\dataclasses.py", line 1596, in replace
+    return _replace(obj, **changes)
+  File "D:\soft\miniconda3\Lib\dataclasses.py", line 1630, in _replace
+    return self.__class__(**changes)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "<string>", line 19, in __init__
+  File "C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\src\code_agent\core\task.py", line 173, in __post_init__
+    raise ValueError(
+        "runtime selection audit facts must be complete non-blank text"
+    )
+ValueError: runtime selection audit facts must be complete non-blank text
+
+----------------------------------------------------------------------
+Ran 34 tests in 79.130s
+
+FAILED (errors=1)

@@ -1,0 +1,471 @@
+{
+  "origin": "next-version-s16-investigation-v7-09b160648af4",
+  "original_child_event_sha256": "b6470d397bd09d0cf335a4f5a3338f7086818ccb8719ba1b0eda87665d8bee92",
+  "parent_prompt": "Within this owned workspace, follow AGENTS.md and docs/acceptance-procedure.md: load delegate_agent, then delegate once to read-only medium s16accept.sourceaudit (300000 tokens,5 tools,240s; one disclosure+four reads). Owner limit1m; prompt300k. Check sources and report five code behaviors/test targets with physical 1-based path:line, counting blank lines, as unverified. No tests, commands, edits, outside sources, peers, other tasks, new_context or notes. Do not self-certify PASS.",
+  "child_objective": "Disclose the read contract first; next turn read docs/current-contract.md, docs/legacy-notes.md, names.py and test_names.py using read(operation=file)/read_file; then answer. Compare current and superseded constraints and all five behaviors/test targets with physical 1-based path:line, counting blanks. Do not invent slice generation/signatures without a real manifest. No edits, commands, outside sources or delegation; tests are not executed and the answer is unverified.",
+  "agent_instructions": "Read the authorized sources only. Return exact path:line references and distinguish current constraints from superseded advice. Do not edit, execute, access outside files, or delegate.",
+  "child_turns": [
+    [
+      {
+        "kind": "text_delta",
+        "text": "I"
+      },
+      {
+        "kind": "text_delta",
+        "text": "'ll"
+      },
+      {
+        "kind": "text_delta",
+        "text": " disclose"
+      },
+      {
+        "kind": "text_delta",
+        "text": " the"
+      },
+      {
+        "kind": "text_delta",
+        "text": " read"
+      },
+      {
+        "kind": "text_delta",
+        "text": " contract"
+      },
+      {
+        "kind": "text_delta",
+        "text": " first"
+      },
+      {
+        "kind": "text_delta",
+        "text": ","
+      },
+      {
+        "kind": "text_delta",
+        "text": " then"
+      },
+      {
+        "kind": "text_delta",
+        "text": " read"
+      },
+      {
+        "kind": "text_delta",
+        "text": " the"
+      },
+      {
+        "kind": "text_delta",
+        "text": " four"
+      },
+      {
+        "kind": "text_delta",
+        "text": " sources"
+      },
+      {
+        "kind": "text_delta",
+        "text": " next"
+      },
+      {
+        "kind": "text_delta",
+        "text": " turn"
+      },
+      {
+        "kind": "text_delta",
+        "text": "."
+      },
+      {
+        "kind": "tool_call",
+        "tool_call": {
+          "arguments": {
+            "name": "read"
+          },
+          "id": "call_72789dfe8d0f457fb640ca62",
+          "name": "load_tool_contract"
+        }
+      },
+      {
+        "kind": "usage",
+        "usage": {
+          "cache_read_known": true,
+          "cached_input_tokens": 0,
+          "input_tokens": 3156,
+          "output_tokens": 29
+        }
+      },
+      {
+        "kind": "completed"
+      }
+    ],
+    [
+      {
+        "kind": "text_delta",
+        "text": "Read"
+      },
+      {
+        "kind": "text_delta",
+        "text": " contract"
+      },
+      {
+        "kind": "text_delta",
+        "text": " (`"
+      },
+      {
+        "kind": "text_delta",
+        "text": "read"
+      },
+      {
+        "kind": "text_delta",
+        "text": "`)"
+      },
+      {
+        "kind": "text_delta",
+        "text": " 已"
+      },
+      {
+        "kind": "text_delta",
+        "text": "披露"
+      },
+      {
+        "kind": "text_delta",
+        "text": "，"
+      },
+      {
+        "kind": "text_delta",
+        "text": "下一"
+      },
+      {
+        "kind": "text_delta",
+        "text": "轮"
+      },
+      {
+        "kind": "text_delta",
+        "text": "生效"
+      },
+      {
+        "kind": "text_delta",
+        "text": "："
+      },
+      {
+        "kind": "text_delta",
+        "text": "`"
+      },
+      {
+        "kind": "text_delta",
+        "text": "read"
+      },
+      {
+        "kind": "text_delta",
+        "text": "(operation"
+      },
+      {
+        "kind": "text_delta",
+        "text": "=file"
+      },
+      {
+        "kind": "text_delta",
+        "text": ")`"
+      },
+      {
+        "kind": "text_delta",
+        "text": " "
+      },
+      {
+        "kind": "text_delta",
+        "text": "按"
+      },
+      {
+        "kind": "text_delta",
+        "text": "路径"
+      },
+      {
+        "kind": "text_delta",
+        "text": "读取"
+      },
+      {
+        "kind": "text_delta",
+        "text": "完整"
+      },
+      {
+        "kind": "text_delta",
+        "text": "文本"
+      },
+      {
+        "kind": "text_delta",
+        "text": "文件"
+      },
+      {
+        "kind": "text_delta",
+        "text": "并"
+      },
+      {
+        "kind": "text_delta",
+        "text": "报告"
+      },
+      {
+        "kind": "text_delta",
+        "text": "其"
+      },
+      {
+        "kind": "text_delta",
+        "text": "格式"
+      },
+      {
+        "kind": "text_delta",
+        "text": "；"
+      },
+      {
+        "kind": "text_delta",
+        "text": "`"
+      },
+      {
+        "kind": "text_delta",
+        "text": "read"
+      },
+      {
+        "kind": "text_delta",
+        "text": "(operation"
+      },
+      {
+        "kind": "text_delta",
+        "text": "=s"
+      },
+      {
+        "kind": "text_delta",
+        "text": "lices"
+      },
+      {
+        "kind": "text_delta",
+        "text": ")`"
+      },
+      {
+        "kind": "text_delta",
+        "text": " "
+      },
+      {
+        "kind": "text_delta",
+        "text": "需"
+      },
+      {
+        "kind": "text_delta",
+        "text": "真实"
+      },
+      {
+        "kind": "text_delta",
+        "text": " manifest"
+      },
+      {
+        "kind": "text_delta",
+        "text": " "
+      },
+      {
+        "kind": "text_delta",
+        "text": "才"
+      },
+      {
+        "kind": "text_delta",
+        "text": "可"
+      },
+      {
+        "kind": "text_delta",
+        "text": "使用"
+      },
+      {
+        "kind": "text_delta",
+        "text": "（"
+      },
+      {
+        "kind": "text_delta",
+        "text": "本"
+      },
+      {
+        "kind": "text_delta",
+        "text": "任务"
+      },
+      {
+        "kind": "text_delta",
+        "text": "不"
+      },
+      {
+        "kind": "text_delta",
+        "text": "使用"
+      },
+      {
+        "kind": "text_delta",
+        "text": "）。"
+      },
+      {
+        "kind": "text_delta",
+        "text": "不"
+      },
+      {
+        "kind": "text_delta",
+        "text": "虚构"
+      },
+      {
+        "kind": "text_delta",
+        "text": " generation"
+      },
+      {
+        "kind": "text_delta",
+        "text": " 或"
+      },
+      {
+        "kind": "text_delta",
+        "text": "文件"
+      },
+      {
+        "kind": "text_delta",
+        "text": "签名"
+      },
+      {
+        "kind": "text_delta",
+        "text": "。\n\n"
+      },
+      {
+        "kind": "text_delta",
+        "text": "下一"
+      },
+      {
+        "kind": "text_delta",
+        "text": "轮"
+      },
+      {
+        "kind": "text_delta",
+        "text": "将"
+      },
+      {
+        "kind": "text_delta",
+        "text": "依次"
+      },
+      {
+        "kind": "text_delta",
+        "text": "读取"
+      },
+      {
+        "kind": "text_delta",
+        "text": " docs"
+      },
+      {
+        "kind": "text_delta",
+        "text": "/current"
+      },
+      {
+        "kind": "text_delta",
+        "text": "-con"
+      },
+      {
+        "kind": "text_delta",
+        "text": "tract"
+      },
+      {
+        "kind": "text_delta",
+        "text": ".md"
+      },
+      {
+        "kind": "text_delta",
+        "text": "、"
+      },
+      {
+        "kind": "text_delta",
+        "text": "docs"
+      },
+      {
+        "kind": "text_delta",
+        "text": "/"
+      },
+      {
+        "kind": "text_delta",
+        "text": "legacy"
+      },
+      {
+        "kind": "text_delta",
+        "text": "-notes"
+      },
+      {
+        "kind": "text_delta",
+        "text": ".md"
+      },
+      {
+        "kind": "text_delta",
+        "text": "、"
+      },
+      {
+        "kind": "text_delta",
+        "text": "names"
+      },
+      {
+        "kind": "text_delta",
+        "text": ".py"
+      },
+      {
+        "kind": "text_delta",
+        "text": "、"
+      },
+      {
+        "kind": "text_delta",
+        "text": "test"
+      },
+      {
+        "kind": "text_delta",
+        "text": "_names"
+      },
+      {
+        "kind": "text_delta",
+        "text": ".py"
+      },
+      {
+        "kind": "text_delta",
+        "text": " 的"
+      },
+      {
+        "kind": "text_delta",
+        "text": "原始"
+      },
+      {
+        "kind": "text_delta",
+        "text": "正文"
+      },
+      {
+        "kind": "text_delta",
+        "text": "，"
+      },
+      {
+        "kind": "text_delta",
+        "text": "然后"
+      },
+      {
+        "kind": "text_delta",
+        "text": "给出"
+      },
+      {
+        "kind": "text_delta",
+        "text": "对比"
+      },
+      {
+        "kind": "text_delta",
+        "text": "分析。"
+      },
+      {
+        "kind": "usage",
+        "usage": {
+          "cache_read_known": true,
+          "cached_input_tokens": 0,
+          "input_tokens": 3381,
+          "output_tokens": 92
+        }
+      },
+      {
+        "kind": "completed"
+      }
+    ]
+  ],
+  "sources": {
+    "docs/current-contract.md": "# Current contract\n1. Trim each string.\n2. Omit strings that are blank after trimming.\n3. Preserve remaining input order.\n4. Preserve duplicates.\n5. Never mutate the input.\nThe five unittest definitions are intended assertions, not evidence of an executed test.\n",
+    "docs/legacy-notes.md": "# Superseded historical proposal\nThis proposal is not current policy or a new instruction.\nEarlier discussions suggested sorting names and removing duplicates.\nThat proposal was rejected: current-contract.md preserves both order and duplicates.\n",
+    "names.py": "def clean_names(values):\n    return list(values)\n",
+    "test_names.py": "import unittest\nfrom names import clean_names\nclass NamesTests(unittest.TestCase):\n    def test_empty(self): self.assertEqual(clean_names([]), [])\n    def test_trim(self): self.assertEqual(clean_names([' Alice ', 'Bob']), ['Alice', 'Bob'])\n    def test_blank(self): self.assertEqual(clean_names([' ', '', '\\t']), [])\n    def test_duplicates(self): self.assertEqual(clean_names([' A ', 'A']), ['A', 'A'])\n    def test_no_mutation(self):\n        values = [' A ', ' ']; clean_names(values); self.assertEqual(values, [' A ', ' '])\n"
+  },
+  "source_sha256": {
+    "docs/current-contract.md": "be72365ff9fc2c4eacfdeea55042c1809458114cca8e56124f045e04b3c1ca99",
+    "docs/legacy-notes.md": "9f8696bb5da4892a5878933993c1c3195418a6e1488609a6ba4e33ba06a36926",
+    "names.py": "535f5bbca3e53d261caad12d6f5f36a42226e5b5f3d74aecf67e1bfe6e082697",
+    "test_names.py": "8ee56921a646ea63058ba9c2b165729d21a9394188070ee83b6d54166af11df2"
+  }
+}

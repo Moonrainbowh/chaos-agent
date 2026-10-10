@@ -1,0 +1,24 @@
+{
+  "id": "s16-source-completion",
+  "namespace": "s16",
+  "version": "1.0.0",
+  "host_api": "1",
+  "enabled": true,
+  "contributions": {
+    "agents": [
+      {
+        "id": "sourceaudit",
+        "base_mode": "medium",
+        "instructions": "Read the authorized sources only. Return source-grounded advisory analysis. Distinguish current constraints from superseded references. Do not edit, execute, access outside files or delegate.",
+        "tool_names": [
+          "read_file",
+          "read_code_slices",
+          "list_files",
+          "search_text"
+        ],
+        "may_write": false
+      }
+    ]
+  },
+  "digest": "b08ff98f4782f27ede20703d26688da7681fe078fb00c8f186eb236a050add53"
+}

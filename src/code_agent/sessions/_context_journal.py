@@ -26,6 +26,41 @@ def _id(thread_id, kind, key):
     return uuid.uuid5(uuid.NAMESPACE_URL, json.dumps([thread_id, kind, key])).hex
 
 
+def _review_attempt(kind, payload, attempt):
+    """Freeze a bounded opaque audit record without truncating model output."""
+    if attempt is None:
+        return None
+    required = {"task_id", "phase", "raw_output", "errors"}
+    if kind != "parent_review" or not isinstance(attempt, dict):
+        raise ValueError("review attempt requires a parent review record")
+    if not required <= attempt.keys() or attempt.keys() - required - {"effective_output"}:
+        raise ValueError("invalid parent review attempt fields")
+    if (not isinstance(attempt["task_id"], str) or not 1 <= len(attempt["task_id"]) <= 256
+            or attempt["task_id"] != payload.get("task_id")):
+        raise ValueError("review attempt task does not match parent review")
+    if not isinstance(attempt["phase"], str) or not 1 <= len(attempt["phase"]) <= 128:
+        raise ValueError("invalid parent review attempt phase")
+    if not isinstance(attempt["errors"], list) or len(attempt["errors"]) > 128:
+        raise ValueError("invalid parent review attempt errors")
+    for item in attempt["errors"]:
+        if isinstance(item, str):
+            if len(item) > 4096:
+                raise ValueError("parent review attempt error message exceeds capacity")
+            continue
+        if (not isinstance(item, dict) or set(item) != {"path", "message"}
+                or not all(isinstance(value, str) for value in item.values())):
+            raise ValueError("invalid parent review attempt error detail")
+        if len(item["path"]) > 512 or len(item["message"]) > 4096:
+            raise ValueError("parent review attempt error detail exceeds capacity")
+    for name in ("raw_output", "effective_output"):
+        if name in attempt and (not isinstance(attempt[name], str) or len(attempt[name]) > 1_000_000):
+            raise ValueError("parent review attempt output exceeds character limit or has invalid type")
+    encoded = json.dumps(attempt, ensure_ascii=False, allow_nan=False)
+    if len(encoded.encode("utf-8")) > 16 * 1024 * 1024:
+        raise ValueError("parent review attempt exceeds encoded capacity")
+    return json.loads(encoded)
+
+
 class ContextJournalRepositoryMixin:
     async def context_records(self, thread_id, kind):
         def read(connection):
@@ -38,26 +73,55 @@ class ContextJournalRepositoryMixin:
                          if not bound or json.loads(row['metadata']).get('origin_thread_id', owner) == thread_id)
         return await self._database.read(read)
 
-    async def append_context_record(self, thread_id, kind, key, payload, *, expected_tail=...):
-        """Append once; window CAS rejects concurrent or stale rotation."""
-        if kind not in {"window", "note", "request"}:
+    async def append_context_record(self, thread_id, kind, key, payload, *, expected_tail=..., delivery_message=None, review_attempt=None):
+        """Append once with CAS; parent review audit and delivery share this transaction.
+
+        review_attempt is an opaque task-bound dictionary with task_id, phase,
+        raw_output, errors:list[str|{path:str,message:str}], and optional
+        effective_output. Raw/effective
+        strings each cap at 1,000,000 characters; the independent audit JSON caps
+        at 16MiB (storage only, not model budget). Errors cap at 128 items,
+        path 512/message 4096 characters; task_id 256/phase 128 characters.
+        It never becomes a visible message and is never truncated.
+        """
+        if kind not in {"window", "note", "request", "parent_review"}:
             raise ValueError("invalid context record kind")
         if len(json.dumps(payload, ensure_ascii=False).encode()) > 131072:
             raise ValueError("context record is too large")
+        attempt = _review_attempt(kind, payload, review_attempt)
+        if delivery_message is not None:
+            from code_agent.core.models import Message
+            if kind != 'parent_review' or not isinstance(delivery_message, Message) or delivery_message.role != 'assistant' or delivery_message.tool_calls:
+                raise ValueError('invalid parent review delivery message')
         identifier = _id(thread_id, kind, key)
+        attempt_identifier = _id(thread_id, "parent_review_attempt", key)
 
         def write(connection):
             _require_thread(connection, thread_id)
             rows = _rows(connection, thread_id, kind)
+            attempt_row = connection.execute(
+                "SELECT metadata FROM checkpoints WHERE id=? AND thread_id=? AND label='context:parent_review_attempt'",
+                (attempt_identifier, thread_id),
+            ).fetchone() if kind == "parent_review" else None
             for row in rows:
                 if row["id"] == identifier:
                     if json.loads(row["metadata"]) != payload:
                         raise ValueError("idempotency key reused with different context data")
+                    stored_attempt = json.loads(attempt_row["metadata"]) if attempt_row is not None else None
+                    if stored_attempt != attempt:
+                        raise ValueError("idempotency key reused with different parent review attempt")
                     return identifier
+            if attempt_row is not None:
+                raise ValueError("parent review attempt has no matching context record")
             tail = rows[-1]["id"] if rows else None
             if expected_tail is not ... and tail != expected_tail:
                 raise ValueError("context window changed concurrently")
             _insert(connection, thread_id, kind, identifier, payload)
+            if attempt is not None:
+                _insert(connection, thread_id, "parent_review_attempt", attempt_identifier, attempt)
+            if delivery_message is not None:
+                from ._thread_content import append_message_record
+                append_message_record(connection, thread_id, delivery_message, encode_datetime(utc_now()))
             return identifier
         return await self._database.write(write)
 

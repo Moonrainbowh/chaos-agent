@@ -1,0 +1,284 @@
+{
+  "attempt": "s16-source-completion-p4-8f47df5dd8de",
+  "actual_exit": 1,
+  "runtime_checks": {
+    "candidate_unchanged": true,
+    "sources_unchanged": true,
+    "wire_integrity": true,
+    "routing_matches_wire": true,
+    "frozen_effort_output": true,
+    "correct_phase_model": true,
+    "review_tool_free": true,
+    "independent_isolated": true,
+    "same_source_bundle": true,
+    "comparison_full_advisory": true,
+    "frozen_review_identity": true,
+    "visible_equals_durable_rendered": false,
+    "usage_unique": true,
+    "usage_matches_shared_budget": false,
+    "response_usage_matches_ledger": true,
+    "all_usage_settled": false,
+    "model_events_match_wire": true
+  },
+  "runtime_checks_pass": false,
+  "protocol_version": 3,
+  "last_phase": "comparison",
+  "repair_used": false,
+  "review_attempts": [
+    {
+      "phase": "independent",
+      "errors": []
+    }
+  ],
+  "responses": [
+    {
+      "request_model": "glm-5.3-flash",
+      "phase": null,
+      "thread": "1993f743eaa64ff3a20cd82e6ec2b4e2",
+      "http_status": 200,
+      "response_models": [
+        "glm-5.3-flash"
+      ],
+      "usage": {
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cached_tokens": 0,
+        "completion_thinking_tokens": 0,
+        "completion_tokens": 14,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": 0
+        },
+        "credit": 0.06,
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 4835,
+        "prompt_cache_write_tokens": 0,
+        "prompt_tokens": 4835,
+        "prompt_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": 0
+        },
+        "total_tokens": 4849
+      },
+      "finish_reasons": [
+        "tool_calls"
+      ]
+    },
+    {
+      "request_model": "glm-5.3-flash",
+      "phase": null,
+      "thread": "1993f743eaa64ff3a20cd82e6ec2b4e2",
+      "http_status": 200,
+      "response_models": [
+        "glm-5.3-flash"
+      ],
+      "usage": {
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cached_tokens": 0,
+        "completion_thinking_tokens": 0,
+        "completion_tokens": 190,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": 0
+        },
+        "credit": 0.07,
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 5368,
+        "prompt_cache_write_tokens": 0,
+        "prompt_tokens": 5368,
+        "prompt_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": 0
+        },
+        "total_tokens": 5558
+      },
+      "finish_reasons": [
+        "tool_calls"
+      ]
+    },
+    {
+      "request_model": "glm-5.3-flash",
+      "phase": null,
+      "thread": "3e58da8374154fa89b94c7d88e70063a",
+      "http_status": 200,
+      "response_models": [
+        "glm-5.3-flash"
+      ],
+      "usage": {
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cached_tokens": 0,
+        "completion_thinking_tokens": 58,
+        "completion_tokens": 131,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "reasoning_tokens": 58,
+          "rejected_prediction_tokens": 0
+        },
+        "credit": 0.04,
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 3099,
+        "prompt_cache_write_tokens": 0,
+        "prompt_tokens": 3099,
+        "prompt_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": 0
+        },
+        "total_tokens": 3230
+      },
+      "finish_reasons": [
+        "tool_calls"
+      ]
+    },
+    {
+      "request_model": "glm-5.3-flash",
+      "phase": null,
+      "thread": "3e58da8374154fa89b94c7d88e70063a",
+      "http_status": 200,
+      "response_models": [
+        "glm-5.3-flash"
+      ],
+      "usage": {
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cached_tokens": 0,
+        "completion_thinking_tokens": 24,
+        "completion_tokens": 992,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "reasoning_tokens": 24,
+          "rejected_prediction_tokens": 0
+        },
+        "credit": 0.09,
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 4097,
+        "prompt_cache_write_tokens": 0,
+        "prompt_tokens": 4097,
+        "prompt_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": 0
+        },
+        "total_tokens": 5089
+      },
+      "finish_reasons": [
+        "stop"
+      ]
+    },
+    {
+      "request_model": "global:gpt-6-astra",
+      "phase": "independent",
+      "thread": "1993f743eaa64ff3a20cd82e6ec2b4e2",
+      "http_status": 200,
+      "response_models": [
+        "gpt-6-astra"
+      ],
+      "usage": {
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cached_tokens": 0,
+        "completion_thinking_tokens": 101,
+        "completion_tokens": 2331,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "reasoning_tokens": 101,
+          "rejected_prediction_tokens": 0
+        },
+        "credit": 14.74,
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 3,
+        "prompt_cache_write_tokens": 2464,
+        "prompt_tokens": 2467,
+        "prompt_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": 0
+        },
+        "total_tokens": 4798
+      },
+      "finish_reasons": [
+        "stop"
+      ]
+    },
+    {
+      "request_model": "global:gpt-6-astra",
+      "phase": "comparison",
+      "thread": "1993f743eaa64ff3a20cd82e6ec2b4e2",
+      "http_status": 200,
+      "response_models": [
+        "gpt-6-astra"
+      ],
+      "usage": {
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cached_tokens": 0,
+        "completion_thinking_tokens": 0,
+        "completion_tokens": 0,
+        "completion_tokens_details": null,
+        "credit": 0,
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 0,
+        "prompt_cache_write_tokens": 0,
+        "prompt_tokens": 0,
+        "prompt_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": 0
+        },
+        "total_tokens": 0
+      },
+      "finish_reasons": [
+        "length"
+      ]
+    }
+  ],
+  "charged_tokens": 23524,
+  "usage_by_requested_model": {
+    "glm-5.3-flash": 18726,
+    "global:gpt-6-astra": 4798
+  },
+  "unsettled_reservations": [
+    {
+      "id": "406375f4d5fc5a56b3ed77e4c417c3aa",
+      "status": "pending",
+      "reserved": 56833
+    }
+  ],
+  "charged_tokens_scope": "known settled usage only; excludes any unknown final cost",
+  "child_tokens_already_included": null,
+  "elapsed_seconds": 164.1935493000001,
+  "parent_budget": {},
+  "parent_result": null,
+  "semantic_acceptance": "REQUIRES_INDEPENDENT_REVIEW",
+  "audit_provider_calls": 0,
+  "fixture_execution": false,
+  "model_identity_scope": "actual requested IDs and proxy response labels; backend implementation not independently attested"
+}

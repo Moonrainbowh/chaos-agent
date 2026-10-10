@@ -45,7 +45,7 @@ class PreparedContextAssemblyTests(unittest.IsolatedAsyncioTestCase):
         scope.start()
         self.addCleanup(scope.stop)
 
-    async def exercise(self, strategy, oversized=False):
+    async def exercise(self, strategy, oversized=False, child=False):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()
             path = root / "explicit-session.sqlite3"
@@ -81,7 +81,9 @@ class PreparedContextAssemblyTests(unittest.IsolatedAsyncioTestCase):
                 factory = RuntimeContextFactory(root, git_available=False, repo_map_enabled=False,
                     guard=guard, files=files, repo_index=None, repo_view_cache=None,
                     sessions=sessions, thread_binding=binding, skills=Skills("x" * 20000 if oversized else ""))
-                assembly = factory(_mode(profile), model, profile)
+                assembly = (factory.for_child(_mode(profile), model, profile, root, sessions,
+                    agent_instructions="ASSIGNED_CHILD_ROLE_54891") if child
+                    else factory(_mode(profile), model, profile))
                 self.assertIsInstance(assembly, ContextAssembly)
                 expectation = self.assertRaisesRegex(ValueError, "final input|input cannot fit") if oversized else nullcontext()
                 with expectation:
@@ -99,6 +101,12 @@ class PreparedContextAssemblyTests(unittest.IsolatedAsyncioTestCase):
                         self.assertEqual(captured, [prepared.body])
                         body = json.loads(captured[0])
                         self.assertIn("S10_RULE_MARKER", body["instructions"])
+                        if child:
+                            self.assertIn("ASSIGNED_CHILD_ROLE_54891", body["instructions"])
+                            self.assertNotIn("ASSIGNED_CHILD_ROLE_54891", json.dumps(body["input"]))
+                            rebuilt = await assembly.build(ContextRequest(thread, 2, (user,), "", tools,
+                                TaskState(), CancellationToken()))
+                            self.assertIn("ASSIGNED_CHILD_ROLE_54891", rebuilt.system_prompt)
                         self.assertEqual(body["tools"][0]["description"], "ACTUAL_SCHEMA_MARKER")
                         _ = [event async for event in assembly.model_client.stream_for("semantic_summary" if
                             strategy == "semantic" else "handoff", "summarize source", (user,), ())]
@@ -114,6 +122,11 @@ class PreparedContextAssemblyTests(unittest.IsolatedAsyncioTestCase):
         for strategy in ("semantic", "summary", "boundary", "persistent"):
             with self.subTest(strategy=strategy):
                 await self.exercise(strategy)
+
+    async def test_child_assignment_survives_context_rebuild_in_all_real_strategies(self):
+        for strategy in ("semantic", "summary", "boundary", "persistent"):
+            with self.subTest(strategy=strategy):
+                await self.exercise(strategy, child=True)
 
     async def test_late_actual_skill_prefix_above_host_cap_fails_with_zero_http_all_strategies(self):
         for strategy in ("semantic", "summary", "boundary", "persistent"):

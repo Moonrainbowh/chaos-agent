@@ -7,6 +7,7 @@
 - 新文件以300行为目标；历史超长Unit局部修复不强拆，新增复杂职责/模糊边界再拆。函数50行是拆分信号，多重解析/权限/副作用职责必须拆，不为行数碎拆。
 
 ## 检查与运行
+- 父来源复核优先运行 `python -m unittest tests.test_parent_source_review tests.test_s16_source_completion tests.test_source_completion_contract` 与相关 Core 测试，追加范围遵循以下规则及用户明确约束。真实模型 A/B 是独立语义实验，不替代生产回归或升级 `verification_status`。
 - 默认采用足以判断改动正确性的最小验证范围，优先单用例或单模块，保持开发简单快速；通过即停。扩展测试须对应实际影响、失败或具体疑点，不因文件数量、提交或流程形式扩大范围。仅文档、注释和排版改动检查内容或diff，不运行代码测试。
 - 日常本地与CI默认只验证 Windows / Python 3.13 一个环境。执行前核验解释器版本与路径，不凭`.venv`目录名判断；不为普通改动自动重复运行其他Python版本或完整平台矩阵。
 - 日常解释器补丁版本以根`.python-version`为准（当前3.13.7）；固定`uv==0.12.13`，通过`uv sync --locked --group dev`同步依赖，保留`uv.lock`，不要在普通验证中重解依赖。CI兼容矩阵显式指定Python版本，避免被日常版本文件覆盖。

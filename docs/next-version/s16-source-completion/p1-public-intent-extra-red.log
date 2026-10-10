@@ -1,0 +1,29 @@
+Executing <Task finished name='Task-1' coro=<S16ProductionRegressionTests.asyncSetUp() done, defined at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_s16_source_completion.py:69> result=None created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.415 seconds
+======================================================================
+FAIL: test_read_only_spelling_and_explicit_modification_filename_controls (tests.test_s16_source_completion.S16ProductionRegressionTests.test_read_only_spelling_and_explicit_modification_filename_controls) (prompt='Read-only. Inspect names.py.')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_s16_source_completion.py", line 172, in test_read_only_spelling_and_explicit_modification_filename_controls
+    self.assertEqual(task.contract.intent.value, expected)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'modify' != 'analyze'
+- modify
++ analyze
+
+
+======================================================================
+FAIL: test_read_only_spelling_and_explicit_modification_filename_controls (tests.test_s16_source_completion.S16ProductionRegressionTests.test_read_only_spelling_and_explicit_modification_filename_controls) (prompt='请帮我修复 read-only 模式不生效的问题')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_s16_source_completion.py", line 172, in test_read_only_spelling_and_explicit_modification_filename_controls
+    self.assertEqual(task.contract.intent.value, expected)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'analyze' != 'modify'
+- analyze
++ modify
+
+
+----------------------------------------------------------------------
+Ran 1 test in 5.857s
+
+FAILED (failures=2)

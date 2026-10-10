@@ -1,0 +1,28 @@
+{
+  "status": "OFFLINE_SELF_CHECK_ONLY",
+  "parent_chars": 506,
+  "source_sha256": {
+    "docs/current-contract.md": "be72365ff9fc2c4eacfdeea55042c1809458114cca8e56124f045e04b3c1ca99",
+    "docs/legacy-notes.md": "9f8696bb5da4892a5878933993c1c3195418a6e1488609a6ba4e33ba06a36926",
+    "names.py": "535f5bbca3e53d261caad12d6f5f36a42226e5b5f3d74aecf67e1bfe6e082697",
+    "test_names.py": "8ee56921a646ea63058ba9c2b165729d21a9394188070ee83b6d54166af11df2"
+  },
+  "credential_audit": {
+    "status": "PASS",
+    "long_substring_blocked": true,
+    "short_exact_scalar_blocked": true,
+    "normal_numbers_and_embedded_placeholder_text_allowed": true,
+    "live_credential_read": false
+  },
+  "synthetic_audit_rejection_provider_zero": true,
+  "synthetic_external_send_count_one": true,
+  "synthetic_persistent_wire_suffix_guards": true,
+  "synthetic_bad_wire_suffix_rejections": 6,
+  "synthetic_child_entry_guards": true,
+  "synthetic_child_rejections": 9,
+  "synthetic_source_order_and_normalization_guards": true,
+  "synthetic_standard_and_quick_guards": true,
+  "synthetic_final_delivery_guards": true,
+  "host_started": false,
+  "provider_calls": 0
+}

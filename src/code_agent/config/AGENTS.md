@@ -8,6 +8,7 @@
 - 负责：校验每个 profile 的显式 `input_modalities`；缺失时默认仅 `text`，只接受受支持、去重的 `text`/`image` 组合。
 - 负责：分别解析配置与会话路径，兼容旧 `code-agent` 配置；不以新目录是否存在决定旧会话是否可见。
 - 负责：解析 `legacy` / `hybrid` / `progressive` 工具能力策略，缺失时采用推荐的 `hybrid`。
+- 负责：解析可选 `[agent].parent_review_profile`，缺省为 `None`；显式值必须是非空字符串且精确引用已加载的 `ModelProfile.name`，不接受环境变量覆盖，不改变默认 profile 或其他 profile 配置。
 - 负责：为上层提供只包含已配置 profile 标识、模型和非敏感能力摘要的只读目录；保留 profile 选择所需的私有配置，供安全任务边界重新构造运行时使用。
 - 负责：保存配置内明文 `api_key` 的私有表示，确保其不会出现在公开配置、诊断、序列化或异常内容中。
 - 不负责：发送网络请求、持久化会话、执行工具或渲染终端界面。

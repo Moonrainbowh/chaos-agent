@@ -52,7 +52,9 @@ def token_spent(connection, owner, origin=None):
 
 
 async def bind_child(database, child, owner, task, request, *, max_total_tokens,
-                     max_tool_calls, max_agent_rounds=100, max_children=8):
+                     max_tool_calls, max_agent_rounds=100, max_children=8, required_sources=()):
+    from code_agent.core.source_completion import freeze_sources
+    required_sources = freeze_sources(required_sources)
     for name, value in [('child_thread_id', child), ('owner_thread_id', owner),
                         ('parent_task_id', task), ('delegate_request_id', request)]:
         _text(value, name)
@@ -63,7 +65,8 @@ async def bind_child(database, child, owner, task, request, *, max_total_tokens,
         raise ValueError('child tool budget must be non-negative')
     payload = dict(owner_thread_id=owner, parent_task_id=task, delegate_request_id=request,
                    max_total_tokens=max_total_tokens, max_tool_calls=max_tool_calls,
-                   max_agent_rounds=max_agent_rounds, max_children=max_children)
+                   max_agent_rounds=max_agent_rounds, max_children=max_children,
+                   required_sources=list(required_sources))
 
     def write(connection):
         _require_thread(connection, child)
@@ -73,6 +76,7 @@ async def bind_child(database, child, owner, task, request, *, max_total_tokens,
             raise ValueError('child thread is outside parent tree')
         existing = binding(connection, child)
         if existing is not None:
+            existing = {**existing, 'required_sources': existing.get('required_sources', [])}
             if existing != payload:
                 raise ValueError('child budget identity or limits changed')
             return existing

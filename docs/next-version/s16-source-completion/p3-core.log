@@ -1,0 +1,6 @@
+...........................................................................................................................................................Executing <Task finished name='Task-696' coro=<PendingActionEngineTests.test_direct_engine_checks_reopened_durable_history_before_model_or_budget() done, defined at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\src\code_agent\core\tests\test_pending_action_engine.py:18> result=None created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.257 seconds
+................................................
+----------------------------------------------------------------------
+Ran 203 tests in 6.031s
+
+OK

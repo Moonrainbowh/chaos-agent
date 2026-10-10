@@ -1,0 +1,74 @@
+{
+  "candidate": "76abc59278b01d56ed0b842e462a5bd4dec70451",
+  "main": "acde09e3f6b5f0c676eeaedb1a5f44fbf029075f",
+  "conflicts_resolved": 30,
+  "resolved_files": [
+    ".github/workflows/ci.yml",
+    "AGENTS.python.md",
+    "README.md",
+    "chaos_agent/AGENTS.md",
+    "chaos_agent/app.py",
+    "chaos_agent/application_context.py",
+    "chaos_agent/child_result.py",
+    "chaos_agent/child_runner.py",
+    "chaos_agent/context_assembly.py",
+    "chaos_agent/runtime_controls.py",
+    "chaos_agent/runtime_dispatcher_factory.py",
+    "chaos_agent/runtime_provider_controls.py",
+    "chaos_agent/subagents.py",
+    "chaos_agent/tools.py",
+    "scripts/run_tests.py",
+    "src/code_agent/context/AGENTS.md",
+    "src/code_agent/context/builder.py",
+    "src/code_agent/context/tests/test_builder.py",
+    "src/code_agent/core/AGENTS.md",
+    "src/code_agent/core/_engine_run.py",
+    "src/code_agent/core/_engine_turn.py",
+    "src/code_agent/core/task_result.py",
+    "src/code_agent/interfaces/AGENTS.md",
+    "src/code_agent/orchestration/AGENTS.md",
+    "src/code_agent/sessions/AGENTS.md",
+    "src/code_agent/sessions/_shared_budget.py",
+    "src/code_agent/sessions/_task_runtime_records.py",
+    "src/code_agent/sessions/_thread_content.py",
+    "tests/test_persistent_request_capacity.py",
+    "tests/test_prepared_context_assembly.py"
+  ],
+  "product_tree_matches_tested_s16": true,
+  "main_ci_selection_and_documentation_preserved": true,
+  "full_suite_run": false,
+  "test_groups": [
+    {
+      "group": "CI selector and runner",
+      "passed": 40,
+      "seconds": 0.444,
+      "local_log": "artifacts/s16-main-integration/test-runner.log",
+      "sha256": "ab1ead00bb26aaff17494a0a28ea29fe8a1a06d39d870af2095dcd0dfc79fcbf"
+    },
+    {
+      "group": "Core and Sessions",
+      "passed": 110,
+      "seconds": 6.989,
+      "local_log": "artifacts/s16-main-integration/core-sessions.log",
+      "sha256": "cff8ecd3e2d4352904f9744cc508c8947f9e5cdfd39f17b8a9d6225db42bf201"
+    },
+    {
+      "group": "Context and runtime",
+      "passed": 26,
+      "seconds": 11.165,
+      "local_log": "artifacts/s16-main-integration/context-runtime.log",
+      "sha256": "c4f64d36b890372eef1ec0748fc9985eef0177a4d9e56a204d04d1115236ff6b"
+    },
+    {
+      "group": "Host source and parent review",
+      "passed": 62,
+      "seconds": 220.998,
+      "local_log": "artifacts/s16-main-integration/host-regression.log",
+      "sha256": "c4a3c4d296f861e6ea37cc4156ba913fff51d5c8eddb7b042b5cf9a2a303b0f3"
+    }
+  ],
+  "passed": 238,
+  "environment": "Windows / Python 3.13.7",
+  "independent_review": "PASS: index clean of unmerged entries, S16 product code matches candidate, main CI additions retained",
+  "s16_strict_acceptance": "BLOCKED_STRICT_TASK_PROCESS: first delegation chose the wrong target; existing real run retained"
+}

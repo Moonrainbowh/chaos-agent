@@ -23,6 +23,7 @@
 - custom Agent、插件 mode 和 Workflow edge 都不能扩大父任务的 thread tree、工具、预算、权限或验证能力。
 
 ## Units
+- `ChildRunRequest.required_sources`：可选最多32条 workspace 相对路径，冻结为 tuple、缺省空；Host 启动时路径核验并保存，子模型不能削减；来源读齐仍仅 advisory。
 - `ChildRunResult.usage_complete`：只在持久请求日志全部 settled 时表达已完整核算；否则输出 known lower bound，不把取消、缺失 usage 或零观察当免费。子结果始终 advisory，不升级父验证事实。
 - `RuntimeSelection`、`AgentTopology`、`RuntimeReasoningEffort`: 冻结实际 topology/profile/model/protocol/effort/output 上限及兼容 legacy mode | 无副作用 | profile 名必须来自已配置目录，digest 不包含端点密钥
 - `ModeDefinition`、`ModeSnapshot`、`AgentDefinition`: 冻结 legacy 任务模式、实际 runtime selection、角色、工具子集与提示策略 | 无副作用 | 模式不承载权限，旧快照仍按 single topology 读取

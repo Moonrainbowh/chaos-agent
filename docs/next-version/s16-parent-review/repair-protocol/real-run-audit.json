@@ -1,0 +1,77 @@
+{
+  "status": "S16_NOT_ACCEPTED",
+  "attempt": "s16-source-completion-p4-75e2fe91ce07",
+  "artifact_audit": "PASS",
+  "model": "glm-5.3-flash",
+  "reasoning_effort": "medium",
+  "actual_model_responses": 8,
+  "transport_attempts": 8,
+  "input_tokens": 36716,
+  "output_tokens": 7060,
+  "settled_tokens": 43776,
+  "child_tokens_included_once": 11383,
+  "task_elapsed_seconds": 160.015,
+  "budget_active_seconds": 157,
+  "stage_attempts": [
+    {
+      "phase": "independent",
+      "errors": []
+    },
+    {
+      "phase": "comparison",
+      "errors": [
+        {
+          "path": "/comparisons/-",
+          "message": "append comparison for uncovered paragraphs: [5, 9, 12]"
+        }
+      ]
+    },
+    {
+      "phase": "comparison",
+      "errors": [
+        {
+          "path": "",
+          "message": "repair must contain only 1..32 replacements for the reported paths"
+        }
+      ]
+    }
+  ],
+  "missing_paragraphs_are_headings": [
+    {
+      "id": 5,
+      "text": "### 代码 vs 契约"
+    },
+    {
+      "id": 9,
+      "text": "### 测试 vs 契约"
+    },
+    {
+      "id": 12,
+      "text": "### 覆盖缺口（审查要点）"
+    }
+  ],
+  "final_rejection_raw_preserved": true,
+  "sources_and_candidate_unchanged": true,
+  "parent_result": {
+    "version": 1,
+    "execution_status": "failed",
+    "changes": "unchanged",
+    "verification_status": "unverified",
+    "remaining": [
+      ": repair must contain only 1..32 replacements for the reported paths"
+    ],
+    "stop_code": "parent_review_delivery_unmet",
+    "stop_reason": "parent_review_delivery_unmet: : repair must contain only 1..32 replacements for the reported paths"
+  },
+  "infrastructure_attempt": {
+    "attempt": "s16-source-completion-p4-a29c2c8b16f8",
+    "transport_attempts": 3,
+    "model_replies_observed": 0,
+    "usage_status": "pending",
+    "reserved_tokens": 40615,
+    "settled_tokens": null
+  },
+  "audit_provider_calls": 0,
+  "fixture_execution": false,
+  "non_json_stdout_lines_preserved": 6
+}

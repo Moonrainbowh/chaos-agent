@@ -1,0 +1,9927 @@
+[
+  {
+    "kind": "run_started",
+    "payload": {
+      "thread_id": "06da4ccad70f4f8fa7a4c934da267438"
+    },
+    "timestamp": "2026-10-07T14:49:23.797099Z"
+  },
+  {
+    "kind": "message_added",
+    "payload": {
+      "message": {
+        "content": "Read-only source audit. Read docs/current-contract.md, docs/legacy-notes.md, names.py, test_names.py in full. Compare current vs legacy constraints, and code/tests against the current contract. Cite physical 1-based path:line locations counting blanks. No edits, no commands/tests, no outside sources, no delegation. Output is unverified analysis; tests are unexecuted.",
+        "role": "user"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:23.872920Z"
+  },
+  {
+    "kind": "turn_started",
+    "payload": {
+      "turn": 1
+    },
+    "timestamp": "2026-10-07T14:49:23.915435Z"
+  },
+  {
+    "kind": "phase_completed",
+    "payload": {
+      "duration_ms": 230,
+      "phase": "context",
+      "turn": 1
+    },
+    "timestamp": "2026-10-07T14:49:24.158457Z"
+  },
+  {
+    "kind": "context_built",
+    "payload": {
+      "cache_hits": 0,
+      "cache_misses": 1,
+      "context_tokens_remaining": 270931,
+      "message_tokens": 12000,
+      "prompt_budget_tokens": 284000,
+      "prompt_estimated_tokens": 3125,
+      "prompt_safety_tokens": 0,
+      "prompt_tokens": 12960,
+      "removed_message_count": 0,
+      "repo_context_budget_tokens": 2000,
+      "repo_context_estimated_tokens": 253,
+      "repo_map_tokens": 2000,
+      "rule_tokens": 1633,
+      "semantic_fallback": 0,
+      "semantic_source_count": 0,
+      "semantic_triggered": 0,
+      "task_state_tokens": 0,
+      "task_token_limit": 1000000,
+      "task_tokens_reserved": 0,
+      "task_tokens_spent": 0,
+      "tool_tokens": 810,
+      "turn": 1,
+      "window_input_cap": 284000,
+      "window_number": 0,
+      "window_preparing": 0
+    },
+    "timestamp": "2026-10-07T14:49:24.169853Z"
+  },
+  {
+    "kind": "model_started",
+    "payload": {
+      "model": "glm-5.3-flash",
+      "turn": 1
+    },
+    "timestamp": "2026-10-07T14:49:24.182922Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "tool_call",
+        "tool_call": {
+          "arguments": {
+            "operation": "file",
+            "path": "docs/current-contract.md"
+          },
+          "id": "call_a39834f555af4edf94d3d6fb",
+          "name": "read"
+        }
+      }
+    },
+    "timestamp": "2026-10-07T14:49:30.005186Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "tool_call",
+        "tool_call": {
+          "arguments": {
+            "operation": "file",
+            "path": "docs/legacy-notes.md"
+          },
+          "id": "call_061d3994dfa54f66841e6dc5",
+          "name": "read"
+        }
+      }
+    },
+    "timestamp": "2026-10-07T14:49:30.026726Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "tool_call",
+        "tool_call": {
+          "arguments": {
+            "operation": "file",
+            "path": "names.py"
+          },
+          "id": "call_0eb8d0baac6c45768c934f74",
+          "name": "read"
+        }
+      }
+    },
+    "timestamp": "2026-10-07T14:49:30.041359Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "tool_call",
+        "tool_call": {
+          "arguments": {
+            "operation": "file",
+            "path": "test_names.py"
+          },
+          "id": "call_42c31689144e49d68b7a7931",
+          "name": "read"
+        }
+      }
+    },
+    "timestamp": "2026-10-07T14:49:30.054388Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "usage",
+        "usage": {
+          "cache_read_known": true,
+          "cached_input_tokens": 0,
+          "input_tokens": 2942,
+          "output_tokens": 73
+        }
+      }
+    },
+    "timestamp": "2026-10-07T14:49:30.068589Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "completed"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:30.082976Z"
+  },
+  {
+    "kind": "phase_completed",
+    "payload": {
+      "duration_ms": 5916,
+      "phase": "model",
+      "turn": 1
+    },
+    "timestamp": "2026-10-07T14:49:30.112050Z"
+  },
+  {
+    "kind": "message_added",
+    "payload": {
+      "message": {
+        "content": "",
+        "role": "assistant",
+        "tool_calls": [
+          {
+            "arguments": {
+              "operation": "file",
+              "path": "docs/current-contract.md"
+            },
+            "id": "call_a39834f555af4edf94d3d6fb",
+            "name": "read"
+          },
+          {
+            "arguments": {
+              "operation": "file",
+              "path": "docs/legacy-notes.md"
+            },
+            "id": "call_061d3994dfa54f66841e6dc5",
+            "name": "read"
+          },
+          {
+            "arguments": {
+              "operation": "file",
+              "path": "names.py"
+            },
+            "id": "call_0eb8d0baac6c45768c934f74",
+            "name": "read"
+          },
+          {
+            "arguments": {
+              "operation": "file",
+              "path": "test_names.py"
+            },
+            "id": "call_42c31689144e49d68b7a7931",
+            "name": "read"
+          }
+        ]
+      }
+    },
+    "timestamp": "2026-10-07T14:49:30.151336Z"
+  },
+  {
+    "kind": "action_requested",
+    "payload": {
+      "request": {
+        "arguments": {
+          "operation": "file",
+          "path": "docs/current-contract.md"
+        },
+        "id": "call_a39834f555af4edf94d3d6fb",
+        "name": "read"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:30.210068Z"
+  },
+  {
+    "kind": "action_started",
+    "payload": {
+      "name": "read",
+      "request_id": "call_a39834f555af4edf94d3d6fb"
+    },
+    "timestamp": "2026-10-07T14:49:30.225400Z"
+  },
+  {
+    "kind": "phase_completed",
+    "payload": {
+      "action": "read",
+      "duration_ms": 7,
+      "phase": "action"
+    },
+    "timestamp": "2026-10-07T14:49:30.245739Z"
+  },
+  {
+    "kind": "action_completed",
+    "payload": {
+      "result": {
+        "is_error": false,
+        "metadata": {
+          "compact_target": "read_file",
+          "duration_ms": 2
+        },
+        "name": "read",
+        "output": {
+          "bom": false,
+          "encoding": "utf-8",
+          "newline": "crlf",
+          "path": "docs/current-contract.md",
+          "text": "# Current contract\r\n1. Trim each string.\r\n2. Omit strings that are blank after trimming.\r\n3. Preserve remaining input order.\r\n4. Preserve duplicates.\r\n5. Never mutate the input.\r\nThe five unittest definitions are intended assertions, not evidence of an executed test.\r\n",
+          "total_lines": 7
+        },
+        "request_id": "call_a39834f555af4edf94d3d6fb"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:30.275997Z"
+  },
+  {
+    "kind": "message_added",
+    "payload": {
+      "message": {
+        "content": "{\"is_error\":false,\"metadata\":{\"compact_target\":\"read_file\",\"duration_ms\":2},\"name\":\"read\",\"output\":{\"bom\":false,\"encoding\":\"utf-8\",\"newline\":\"crlf\",\"path\":\"docs/current-contract.md\",\"text\":\"# Current contract\\r\\n1. Trim each string.\\r\\n2. Omit strings that are blank after trimming.\\r\\n3. Preserve remaining input order.\\r\\n4. Preserve duplicates.\\r\\n5. Never mutate the input.\\r\\nThe five unittest definitions are intended assertions, not evidence of an executed test.\\r\\n\",\"total_lines\":7},\"request_id\":\"call_a39834f555af4edf94d3d6fb\"}",
+        "name": "read",
+        "role": "tool",
+        "tool_call_id": "call_a39834f555af4edf94d3d6fb"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:30.302204Z"
+  },
+  {
+    "kind": "action_requested",
+    "payload": {
+      "request": {
+        "arguments": {
+          "operation": "file",
+          "path": "docs/legacy-notes.md"
+        },
+        "id": "call_061d3994dfa54f66841e6dc5",
+        "name": "read"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:30.318848Z"
+  },
+  {
+    "kind": "action_started",
+    "payload": {
+      "name": "read",
+      "request_id": "call_061d3994dfa54f66841e6dc5"
+    },
+    "timestamp": "2026-10-07T14:49:30.334059Z"
+  },
+  {
+    "kind": "phase_completed",
+    "payload": {
+      "action": "read",
+      "duration_ms": 6,
+      "phase": "action"
+    },
+    "timestamp": "2026-10-07T14:49:30.353914Z"
+  },
+  {
+    "kind": "action_completed",
+    "payload": {
+      "result": {
+        "is_error": false,
+        "metadata": {
+          "compact_target": "read_file",
+          "duration_ms": 1
+        },
+        "name": "read",
+        "output": {
+          "bom": false,
+          "encoding": "utf-8",
+          "newline": "crlf",
+          "path": "docs/legacy-notes.md",
+          "text": "# Superseded historical proposal\r\nThis proposal is not current policy or a new instruction.\r\nEarlier discussions suggested sorting names and removing duplicates.\r\nThat proposal was rejected: current-contract.md preserves both order and duplicates.\r\n",
+          "total_lines": 4
+        },
+        "request_id": "call_061d3994dfa54f66841e6dc5"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:30.382138Z"
+  },
+  {
+    "kind": "message_added",
+    "payload": {
+      "message": {
+        "content": "{\"is_error\":false,\"metadata\":{\"compact_target\":\"read_file\",\"duration_ms\":1},\"name\":\"read\",\"output\":{\"bom\":false,\"encoding\":\"utf-8\",\"newline\":\"crlf\",\"path\":\"docs/legacy-notes.md\",\"text\":\"# Superseded historical proposal\\r\\nThis proposal is not current policy or a new instruction.\\r\\nEarlier discussions suggested sorting names and removing duplicates.\\r\\nThat proposal was rejected: current-contract.md preserves both order and duplicates.\\r\\n\",\"total_lines\":4},\"request_id\":\"call_061d3994dfa54f66841e6dc5\"}",
+        "name": "read",
+        "role": "tool",
+        "tool_call_id": "call_061d3994dfa54f66841e6dc5"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:30.409015Z"
+  },
+  {
+    "kind": "action_requested",
+    "payload": {
+      "request": {
+        "arguments": {
+          "operation": "file",
+          "path": "names.py"
+        },
+        "id": "call_0eb8d0baac6c45768c934f74",
+        "name": "read"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:30.424736Z"
+  },
+  {
+    "kind": "action_started",
+    "payload": {
+      "name": "read",
+      "request_id": "call_0eb8d0baac6c45768c934f74"
+    },
+    "timestamp": "2026-10-07T14:49:30.440392Z"
+  },
+  {
+    "kind": "phase_completed",
+    "payload": {
+      "action": "read",
+      "duration_ms": 7,
+      "phase": "action"
+    },
+    "timestamp": "2026-10-07T14:49:30.460794Z"
+  },
+  {
+    "kind": "action_completed",
+    "payload": {
+      "result": {
+        "is_error": false,
+        "metadata": {
+          "compact_target": "read_file",
+          "duration_ms": 2
+        },
+        "name": "read",
+        "output": {
+          "bom": false,
+          "encoding": "utf-8",
+          "newline": "crlf",
+          "path": "names.py",
+          "text": "def clean_names(values):\r\n    return list(values)\r\n",
+          "total_lines": 2
+        },
+        "request_id": "call_0eb8d0baac6c45768c934f74"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:30.487935Z"
+  },
+  {
+    "kind": "message_added",
+    "payload": {
+      "message": {
+        "content": "{\"is_error\":false,\"metadata\":{\"compact_target\":\"read_file\",\"duration_ms\":2},\"name\":\"read\",\"output\":{\"bom\":false,\"encoding\":\"utf-8\",\"newline\":\"crlf\",\"path\":\"names.py\",\"text\":\"def clean_names(values):\\r\\n    return list(values)\\r\\n\",\"total_lines\":2},\"request_id\":\"call_0eb8d0baac6c45768c934f74\"}",
+        "name": "read",
+        "role": "tool",
+        "tool_call_id": "call_0eb8d0baac6c45768c934f74"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:30.513960Z"
+  },
+  {
+    "kind": "action_requested",
+    "payload": {
+      "request": {
+        "arguments": {
+          "operation": "file",
+          "path": "test_names.py"
+        },
+        "id": "call_42c31689144e49d68b7a7931",
+        "name": "read"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:30.528057Z"
+  },
+  {
+    "kind": "action_started",
+    "payload": {
+      "name": "read",
+      "request_id": "call_42c31689144e49d68b7a7931"
+    },
+    "timestamp": "2026-10-07T14:49:30.542945Z"
+  },
+  {
+    "kind": "phase_completed",
+    "payload": {
+      "action": "read",
+      "duration_ms": 7,
+      "phase": "action"
+    },
+    "timestamp": "2026-10-07T14:49:30.563661Z"
+  },
+  {
+    "kind": "action_completed",
+    "payload": {
+      "result": {
+        "is_error": false,
+        "metadata": {
+          "compact_target": "read_file",
+          "duration_ms": 2
+        },
+        "name": "read",
+        "output": {
+          "bom": false,
+          "encoding": "utf-8",
+          "newline": "crlf",
+          "path": "test_names.py",
+          "text": "import unittest\r\nfrom names import clean_names\r\nclass NamesTests(unittest.TestCase):\r\n    def test_empty(self): self.assertEqual(clean_names([]), [])\r\n    def test_trim(self): self.assertEqual(clean_names([' Alice ', 'Bob']), ['Alice', 'Bob'])\r\n    def test_blank(self): self.assertEqual(clean_names([' ', '', '\\t']), [])\r\n    def test_duplicates(self): self.assertEqual(clean_names([' A ', 'A']), ['A', 'A'])\r\n    def test_no_mutation(self):\r\n        values = [' A ', ' ']; clean_names(values); self.assertEqual(values, [' A ', ' '])\r\n",
+          "total_lines": 9
+        },
+        "request_id": "call_42c31689144e49d68b7a7931"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:30.590824Z"
+  },
+  {
+    "kind": "message_added",
+    "payload": {
+      "message": {
+        "content": "{\"is_error\":false,\"metadata\":{\"compact_target\":\"read_file\",\"duration_ms\":2},\"name\":\"read\",\"output\":{\"bom\":false,\"encoding\":\"utf-8\",\"newline\":\"crlf\",\"path\":\"test_names.py\",\"text\":\"import unittest\\r\\nfrom names import clean_names\\r\\nclass NamesTests(unittest.TestCase):\\r\\n    def test_empty(self): self.assertEqual(clean_names([]), [])\\r\\n    def test_trim(self): self.assertEqual(clean_names([' Alice ', 'Bob']), ['Alice', 'Bob'])\\r\\n    def test_blank(self): self.assertEqual(clean_names([' ', '', '\\\\t']), [])\\r\\n    def test_duplicates(self): self.assertEqual(clean_names([' A ', 'A']), ['A', 'A'])\\r\\n    def test_no_mutation(self):\\r\\n        values = [' A ', ' ']; clean_names(values); self.assertEqual(values, [' A ', ' '])\\r\\n\",\"total_lines\":9},\"request_id\":\"call_42c31689144e49d68b7a7931\"}",
+        "name": "read",
+        "role": "tool",
+        "tool_call_id": "call_42c31689144e49d68b7a7931"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:30.623036Z"
+  },
+  {
+    "kind": "turn_started",
+    "payload": {
+      "turn": 2
+    },
+    "timestamp": "2026-10-07T14:49:30.709347Z"
+  },
+  {
+    "kind": "phase_completed",
+    "payload": {
+      "duration_ms": 227,
+      "phase": "context",
+      "turn": 2
+    },
+    "timestamp": "2026-10-07T14:49:30.950407Z"
+  },
+  {
+    "kind": "context_built",
+    "payload": {
+      "cache_hits": 0,
+      "cache_misses": 1,
+      "context_tokens_remaining": 267332,
+      "message_tokens": 12000,
+      "prompt_budget_tokens": 284000,
+      "prompt_estimated_tokens": 4005,
+      "prompt_safety_tokens": 0,
+      "prompt_tokens": 16559,
+      "removed_message_count": 0,
+      "repo_context_budget_tokens": 2000,
+      "repo_context_estimated_tokens": 253,
+      "repo_map_tokens": 2000,
+      "rule_tokens": 1633,
+      "semantic_fallback": 0,
+      "semantic_source_count": 0,
+      "semantic_triggered": 0,
+      "task_state_tokens": 72,
+      "task_token_limit": 1000000,
+      "task_tokens_reserved": 0,
+      "task_tokens_spent": 3015,
+      "tool_tokens": 810,
+      "turn": 2,
+      "window_input_cap": 284000,
+      "window_number": 0,
+      "window_preparing": 0
+    },
+    "timestamp": "2026-10-07T14:49:30.965548Z"
+  },
+  {
+    "kind": "model_started",
+    "payload": {
+      "model": "glm-5.3-flash",
+      "turn": 2
+    },
+    "timestamp": "2026-10-07T14:49:30.980298Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "#"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:35.516101Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " 只"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:35.534242Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "读"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:35.547996Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "源"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:35.562365Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "码"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:35.600922Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "审计"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:35.681033Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "报告"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:35.694481Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "（"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:35.707255Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "未"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:35.720276Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "执行"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:35.733264Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "、"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:35.791808Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "未"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:35.805512Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "验证"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:35.819530Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "的分析"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:35.832486Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "）\n\n"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:35.863662Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "##"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:35.877542Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " "
+      }
+    },
+    "timestamp": "2026-10-07T14:49:35.891587Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "现"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:35.918984Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "行"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:35.934587Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "契约"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:35.975878Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " vs"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:36.032977Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " "
+      }
+    },
+    "timestamp": "2026-10-07T14:49:36.047835Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "被"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:36.098835Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "取代"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:36.112575Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "的"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:36.146067Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "遗留"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:36.219973Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "提案"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:36.264202Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "\n"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:36.323827Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "-"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:36.374796Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " "
+      }
+    },
+    "timestamp": "2026-10-07T14:49:36.389341Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "现"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:36.432774Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "行"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:36.446720Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "契约"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:36.461709Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "（"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:36.474480Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:36.490237Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "docs"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:36.504607Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "/current"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:36.518354Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "-con"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:36.532312Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "tract"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:36.547463Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": ".md"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:36.561179Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": ":"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:36.574402Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "1"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:36.589522Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:36.609390Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "）"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:36.623532Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "规定"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:36.659815Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " "
+      }
+    },
+    "timestamp": "2026-10-07T14:49:36.717718Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "5"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:36.783187Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " 条"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:36.797406Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "："
+      }
+    },
+    "timestamp": "2026-10-07T14:49:36.810334Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "trim"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:36.823485Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " "
+      }
+    },
+    "timestamp": "2026-10-07T14:49:36.836214Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "每"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:36.849559Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "个"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:36.862526Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "字符串"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:36.876235Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "；"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:36.889258Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "trim"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:36.901288Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " 后"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:36.942510Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "为"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:36.956530Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "空的"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.005178Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "字符串"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.055842Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "省"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.163659Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "略"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.177954Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "；"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.191718Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "保留"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.205529Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "剩余"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.218195Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "输入"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.231167Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "顺序"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.244022Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "；"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.258034Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "保留"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.270134Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "重复"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.282132Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "项"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.294200Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "；"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.307563Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "绝不"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.320185Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "修改"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.359884Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "输入"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.373762Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "。\n"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.387344Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "-"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.401205Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " "
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.412750Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "遗"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.425144Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "留"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.438225Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "材料"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.452137Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "（"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.468668Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.481254Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "docs"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.493057Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "/"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.506465Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "legacy"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.523727Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "-notes"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.537574Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": ".md"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.550217Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": ":"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.563587Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "1"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.575243Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.588511Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "）"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.602619Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "自称"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.615913Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " \""
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.636517Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "Sup"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.693885Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "ers"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.707386Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "eded"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.720288Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " historical"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.733556Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " proposal"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.745216Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "\""
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.758196Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " 且"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.772535Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "明确"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.785261Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " \""
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.798548Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "not"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.811196Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " current"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.824127Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " policy"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.837193Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "\""
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.849516Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "（"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.862211Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.875255Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "docs"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.888370Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "/"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.901312Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "legacy"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.914294Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "-notes"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.927288Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": ".md"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.940276Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": ":"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.953245Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "2"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.965247Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.979449Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "）。"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:37.993409Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "其"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.006240Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "内容"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.019212Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "（"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.032465Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "排序"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.045078Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " +"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.058174Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " "
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.071323Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "去"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.084434Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "重"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.097335Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "，"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.109613Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.140425Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "docs"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.154193Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "/"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.167326Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "legacy"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.180170Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "-notes"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.193106Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": ".md"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.206122Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": ":"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.219312Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "3"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.232253Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.245159Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "）"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.258107Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "已被"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.270154Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "否"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.283159Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "决"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.311588Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "，"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.328333Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "因为"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.342315Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "现行"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.374565Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "契约"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.421449Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "保留"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.435409Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "顺序"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.474497Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "与"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.488437Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "重复"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.525282Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "（"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.539440Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.555190Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "docs"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.569432Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "/"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.584227Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "legacy"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.596061Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "-notes"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.609797Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": ".md"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.623411Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": ":"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.636223Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "4"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.649196Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.662967Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "）"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.676391Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "。\n"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.689315Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "-"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.702252Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " **"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.715190Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "结论"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.729793Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "："
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.741620Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "现行"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.753231Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "约束"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.766392Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " ="
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.778999Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " "
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.791554Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "排"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.804551Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "序"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.818494Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "/"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.831713Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "去"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.859439Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "重"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.873799Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "不做"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.887462Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "；"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.934339Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "任何"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.949581Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "实现"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:38.969391Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "评审"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.023427Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "只"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.080849Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "以"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.132496Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " current"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.146647Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "-con"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.160342Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "tract"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.174459Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": ".md"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.188319Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " 为"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.202351Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "准"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.215351Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "。"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.228424Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "**\n\n"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.241300Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "##"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.254403Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " "
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.267258Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "代码"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.280348Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " vs"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.293237Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " "
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.308744Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "现"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.331416Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "行"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.344227Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "契约"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.358145Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "（"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.372167Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.385251Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "names"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.398375Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": ".py"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.411262Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": ":"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.424210Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "1"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.437170Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "-"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.450265Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "2"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.463378Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.476182Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "）\n"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.489173Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.501286Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "clean"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.512819Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "_names"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.526261Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "(values"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.540565Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": ")`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.565384Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " 仅"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.579400Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " `"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.593337Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "return"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.608304Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " list"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.622224Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "(values"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.633893Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": ")`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.646407Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "：\n"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.660381Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "-"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.673352Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " "
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.723645Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "契"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.737339Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "约"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.750305Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " "
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.763113Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "1"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.776338Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "（"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.789402Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "trim"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.802192Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "）："
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.816138Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "**"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.829408Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "不"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.842385Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "合规"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.855659Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "**"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.887118Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " —"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.898465Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " 未"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.942775Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "做"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.958702Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "任何"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.971375Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " trim"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:39.995621Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "。\n"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.052349Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "-"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.067402Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " "
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.080300Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "契"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.093154Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "约"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.106235Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " "
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.119218Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "2"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.132504Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "（"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.146279Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "省"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.160824Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "略"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.175586Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "空白"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.188245Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "项"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.202534Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "）："
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.226320Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "**"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.243579Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "不"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.257591Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "合规"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.271234Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "**"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.285116Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " —"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.299183Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " "
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.312212Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "空"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.325339Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "白"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.338479Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "项"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.350563Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "原"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.383158Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "样"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.397376Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "保留"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.411665Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "。\n"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.426296Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "-"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.440204Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " "
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.452942Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "契"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.466619Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "约"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.480475Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " "
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.493362Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "3"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.507519Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "（"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.520580Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "保留"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.534945Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "顺序"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.550186Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "）："
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.564499Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "合规"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.577469Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "（"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.596088Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "list"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.610576Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " "
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.651915Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "复"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.705182Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "制"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.719422Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "保"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.732476Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "序"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.766916Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "）"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.780597Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "。\n"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.793748Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "-"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.808042Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " "
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.821405Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "契"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.834511Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "约"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.849577Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " "
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.863831Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "4"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.877364Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "（"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.890711Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "保留"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.904713Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "重复"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.918861Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "项"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.932685Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "）："
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.946755Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "合规"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.961731Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "（"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.975655Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "未"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:40.990972Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "去"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.005996Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "重"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.020650Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "）"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.034997Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "。\n"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.050605Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "-"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.064518Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " "
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.078783Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "契"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.092671Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "约"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.109576Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " "
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.123666Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "5"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.136513Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "（"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.149513Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "不"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.163648Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "修改"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.184134Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "输入"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.198599Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "）："
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.212700Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "合规"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.225761Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "（"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.240660Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.255181Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "list"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.276922Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "(values"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.309192Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": ")`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.343930Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " "
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.377235Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "产生"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.410159Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "新"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.440870Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "列表"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.469528Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "，"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.500568Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "浅"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.524024Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "拷"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.548874Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "贝"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.564573Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "不改"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.581753Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "原"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.603734Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "列表"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.627360Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "）"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.641461Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "。\n\n"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.654716Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "即"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.670420Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " "
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.687764Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "5"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.704980Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " 条"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.718516Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "中"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.731511Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "仅"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.744554Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " "
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.759821Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "2"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.773733Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "、"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.794746Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "3"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.808662Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "、"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.822784Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "4"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.856829Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " 达"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.870884Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "成"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.907871Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "（"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.973290Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "顺序"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:41.987681Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "与"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:42.001538Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "重复"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:42.019814Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "两项"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:42.137670Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "是"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:42.150453Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "\""
+      }
+    },
+    "timestamp": "2026-10-07T14:49:42.164446Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "默认"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:42.176862Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "不"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:42.190997Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "做事"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:42.204499Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "即"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:42.249237Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "满足"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:42.322909Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "\""
+      }
+    },
+    "timestamp": "2026-10-07T14:49:42.369018Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "），"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:42.382426Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "核心"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:42.395216Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "行为"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:42.408825Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " "
+      }
+    },
+    "timestamp": "2026-10-07T14:49:42.462828Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "1"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:42.517447Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "、"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:42.531680Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "2"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:42.543212Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " "
+      }
+    },
+    "timestamp": "2026-10-07T14:49:42.556295Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "缺"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:42.582050Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "失"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:42.595477Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "。\n\n"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:42.608408Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "##"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:42.621312Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " "
+      }
+    },
+    "timestamp": "2026-10-07T14:49:42.635737Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "测试"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:42.648317Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " vs"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:42.662348Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " "
+      }
+    },
+    "timestamp": "2026-10-07T14:49:42.675438Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "现"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:42.688317Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "行"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:42.701300Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "契约"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:42.714327Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "（"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:42.727350Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:42.739361Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "test"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:42.752317Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "_names"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:42.766458Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": ".py"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:42.780327Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:42.793313Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "，"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:42.806440Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "按"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:42.820594Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "物理"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:42.839675Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "行"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:42.892782Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "号"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:42.906660Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "含"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:42.945983Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "空"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:42.999803Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "行"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.013502Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "）\n"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.069065Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "-"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.082220Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " `"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.095290Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "test"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.108409Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "_names"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.147688Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": ".py"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.161514Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": ":"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.174530Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "1"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.187726Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "-"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.202136Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "2"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.234801Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.248596Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "："
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.260452Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "导入"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.299373Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "被"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.313538Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "测"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.346696Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "函数"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.361554Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "。\n"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.396586Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "-"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.410481Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " `"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.421760Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "test"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.436529Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "_names"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.449343Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": ".py"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.463403Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": ":"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.476417Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "3"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.489410Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.503617Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "："
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.517356Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "类"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.563203Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "定义"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.575589Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " `"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.588378Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "Names"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.614839Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "Tests"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.675691Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.689425Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "。\n"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.702356Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "-"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.715205Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " `"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.728448Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "test"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.741395Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "_names"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.753454Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": ".py"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.766363Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": ":"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.779406Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "4"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.792247Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.805539Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " `"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.818346Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "test"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.830682Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "_empty"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.843317Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.856256Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "："
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.869477Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.882283Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "clean"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.895347Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "_names"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.908671Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "([]"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.922487Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": ")"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.935460Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " =="
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.948446Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " []"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.961147Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.973419Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " —"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.986240Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " "
+      }
+    },
+    "timestamp": "2026-10-07T14:49:43.998376Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "任何"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.011186Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "实现"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.059740Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "都能"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.073419Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "通过"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.136081Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "，"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.190186Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "无"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.203840Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "区分"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.244426Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "力"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.258367Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "。\n"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.270050Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "-"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.282448Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " `"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.295234Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "test"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.308472Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "_names"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.322419Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": ".py"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.334308Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": ":"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.347273Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "5"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.361197Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.374358Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " `"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.387381Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "test"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.400552Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "_trim"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.412281Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.425769Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "："
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.439603Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "期望"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.453550Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " trim"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.465461Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " —"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.478428Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " 当前"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.514415Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "实现"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.568538Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "会"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.582604Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "失败"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.595121Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "（"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.608418Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "返回"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.621198Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " `'"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.635340Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " Alice"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.648407Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " '`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.672339Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " "
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.684708Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "原"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.733616Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "样"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.748628Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "）"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.762322Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "。\n"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.784431Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "-"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.797452Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " `"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.810328Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "test"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.822045Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "_names"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.835371Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": ".py"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.848460Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": ":"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.861584Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "6"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.874321Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.887344Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " `"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.899511Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "test"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.912479Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "_blank"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.925514Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.938584Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "："
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.951416Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "期望"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.964670Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "空白"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.979971Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "项"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:44.993623Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "被"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.006322Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "移"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.019370Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "除"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.066719Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " —"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.081560Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " 当前"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.093257Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "实现"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.107548Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "会"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.120469Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "失败"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.133490Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "。\n"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.146738Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "-"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.159294Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " `"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.172287Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "test"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.185273Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "_names"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.198291Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": ".py"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.211369Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": ":"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.223316Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "7"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.236415Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.249282Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " `"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.262152Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "test"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.275230Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "_duplicates"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.287094Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.299566Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "："
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.312371Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.325187Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "['"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.339343Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " A"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.352377Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " ',"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.370416Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " '"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.383356Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "A"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.396451Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "']"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.410684Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.424708Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " →"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.437876Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " `"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.451676Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "['"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.465571Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "A"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.479692Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "',"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.492644Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " '"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.505746Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "A"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.519614Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "']"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.532412Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.545379Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " —"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.558128Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " 同时"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.571388Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "检验"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.584368Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " trim"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.598251Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " 与"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.609921Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "保留"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.622212Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "重复"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.635375Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "；"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.648533Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "当前"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.662327Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "实现"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.686229Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "返回"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.700483Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "原"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.737770Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "列表"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.794018Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "会"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.847667Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "失败"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.921020Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "。"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.934575Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "该"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:45.992382Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "用"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.026130Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "例"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.079839Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "能"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.093439Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "区分"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.137073Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "\""
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.150344Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "去"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.162378Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "重"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.192818Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "\""
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.206329Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "违规"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.267991Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "（"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.281419Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "若"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.300025Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "实现"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.313236Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "去"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.390604Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "重"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.404759Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "会"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.418313Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "得"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.431350Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " `"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.464054Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "['"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.537851Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "A"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.550387Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "']"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.563471Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.576285Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "）"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.589497Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "。\n"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.602342Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "-"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.615435Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " `"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.627393Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "test"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.640418Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "_names"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.653295Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": ".py"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.667726Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": ":"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.680327Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "8"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.693463Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "-"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.706503Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "9"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.720659Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.733550Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " `"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.747673Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "test"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.761537Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "_no"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.774443Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "_m"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.787205Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "utation"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.797893Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.810355Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "："
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.823260Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "校"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.836418Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "验"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.849292Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "输入"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.863262Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "未被"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.876755Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "改动"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.890492Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " —"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.903655Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " 当前"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.915538Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "实现"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.930447Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "通过"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.943402Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "。"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.956629Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "注意"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:46.969474Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "它"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:47.023273Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "只"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:47.093354Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "做"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:47.107634Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "一次"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:47.157994Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "浅"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:47.213396Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "层"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:47.227571Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "相等"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:47.265994Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "比较"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:47.319257Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "，"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:47.332631Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "若"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:47.349559Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "未来"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:47.372023Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "实现"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:47.467683Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "替换"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:47.482625Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "元素"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:47.495405Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "而非"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:47.508819Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "原地"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:47.530185Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "修改"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:47.599378Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "也"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:47.612482Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "通过"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:47.649973Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "，"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:47.693539Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "属"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:47.710120Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "合理"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:47.746880Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "。\n\n"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:47.759708Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "##"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:47.799846Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " "
+      }
+    },
+    "timestamp": "2026-10-07T14:49:47.812461Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "测试"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:47.825608Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "覆盖"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:47.838634Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "缺口"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:47.859099Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "\n"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:47.872161Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "-"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:47.885698Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " 未"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:47.899725Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "测试"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:47.913539Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "顺序"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:47.969491Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "保留"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:47.983826Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "（"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.024966Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "契约"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.038617Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " "
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.051271Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "3"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.064330Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "）："
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.076300Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "一个"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.089348Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "\""
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.144527Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "排序"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.187019Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "后"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.201811Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "去"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.215672Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "重"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.246355Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "\""
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.261773Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "的错误"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.275580Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "实现"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.294908Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "也能"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.308627Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "通过"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.355957Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "全部"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.369714Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " "
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.419019Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "5"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.433856Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " 个"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.467479Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "测试"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.481508Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "？"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.525685Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "逐"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.576661Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "项"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.640050Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "核对"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.698078Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "："
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.710388Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.723621Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "test"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.736550Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "_duplicates"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.749849Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.763636Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " "
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.776775Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "输"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.808639Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "入"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.821500Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " `"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.834406Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "['"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.848565Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " A"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.864218Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " ',"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.878624Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " '"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.894692Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "A"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.908620Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "']"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.921902Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.936492Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " "
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.949347Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "排"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.962330Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "序"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.975321Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "去"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:48.989169Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "重"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.001433Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "后"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.014294Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "为"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.027257Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " `"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.040331Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "['"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.052401Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "A"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.065302Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "']"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.079526Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.092781Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " ≠"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.104213Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " `"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.117644Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "['"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.130363Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "A"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.143353Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "',"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.156344Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " '"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.169446Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "A"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.182301Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "']"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.195476Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.208399Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "，"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.221484Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "会被"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.233655Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "抓"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.247666Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "到"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.261392Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "；"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.275471Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "但"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.312496Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "单独"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.327822Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "\""
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.357685Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "排序"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.423109Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "不去"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.436660Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "重"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.474636Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "\""
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.489648Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "会"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.502803Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "得"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.550730Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " `"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.564858Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "['"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.577803Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "A"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.592118Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "','"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.605747Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "A"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.619701Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "']"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.635500Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.649658Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " "
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.666611Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "仍"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.684839Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "通过"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.707787Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " `"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.728832Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "test"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.749029Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "_duplicates"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.763607Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.777449Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "，"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.790514Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "且"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.804772Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "其余"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.820698Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "用"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.838529Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "例"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.890208Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "均"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.903983Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "无"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:49.955507Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "序"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:50.005855Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "敏感性"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:50.018435Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " —"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:50.066036Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " 因此"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:50.131569Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "**"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:50.193388Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "排序"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:50.206643Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "违规"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:50.248108Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "不被"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:50.304610Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "现有"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:50.370227Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "测试"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:50.383566Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "检测"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:50.396459Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "**"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:50.422914Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "。\n"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:50.437543Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "-"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:50.450436Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " 未"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:50.463323Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "测试"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:50.482446Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "非"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:50.495225Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "字符串"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:50.507339Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "元素"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:50.520188Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "、"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:50.540268Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:50.602434Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "None"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:50.664640Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:50.679760Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " "
+      }
+    },
+    "timestamp": "2026-10-07T14:49:50.692466Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "等"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:50.723140Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "异常"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:50.736507Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "输入"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:50.802503Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "的错误"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:50.816707Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "路径"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:50.843117Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "。\n\n"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:50.856321Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "##"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:50.903929Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " 关"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:50.917913Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "键"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:50.960706Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "结论"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:50.973960Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "\n"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:50.987559Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "-"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.001656Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " **"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.014739Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "实现"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.029779Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " vs"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.042443Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " "
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.081525Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "契"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.135518Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "约"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.149457Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "**"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.163311Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "："
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.193153Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.206440Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "names"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.219230Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": ".py"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.233461Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": ":"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.246344Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "2"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.260447Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.273791Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " "
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.286187Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "缺"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.313024Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "少"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.326366Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " trim"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.370675Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "（"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.384732Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "契约"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.430644Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " "
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.508851Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "1"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.522533Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "）"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.535566Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "与"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.552031Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "空白"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.565466Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "项"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.578762Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "过滤"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.610457Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "（"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.623418Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "契约"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.636579Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " "
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.649618Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "2"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.664343Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "），"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.677435Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "是"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.691550Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "当前"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.704587Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "主要"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.729005Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "不"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.787472Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "合规"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.856698Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "点"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.870629Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "。\n"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.883390Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "-"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.896286Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " **"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.910332Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "测试"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.924093Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "区分"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.937671Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "力"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.964399Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "**"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.976346Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "："
+      }
+    },
+    "timestamp": "2026-10-07T14:49:51.989299Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.002549Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "test"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.028927Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "_names"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.042790Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": ".py"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.055810Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": ":"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.068509Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "5"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.081275Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "-"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.093463Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "7"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.105053Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.118362Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " 可"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.131534Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "捕获"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.153121Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " trim"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.166371Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "/"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.209062Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "空白"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.222600Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "缺失"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.238537Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "，"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.271589Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.286553Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "test"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.349234Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "_names"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.363560Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": ".py"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.376536Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": ":"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.389385Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "7"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.402664Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.416489Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " 可"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.429431Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "捕获"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.442759Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "去"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.456162Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "重"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.468663Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "违规"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.481664Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "；"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.515126Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "但"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.529547Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "**"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.542555Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "顺序"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.556387Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "保留"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.577551Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "（"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.589211Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "契约"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.620674Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " "
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.633847Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "3"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.649295Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "）"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.662290Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "没有任何"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.675309Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "测试"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.720014Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "能"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.732637Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "独立"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.745512Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "检测"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.803877Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "排序"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.862959Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "类"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:52.917979Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "违规"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.004265Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "**"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.029385Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "。\n"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.042733Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "-"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.055804Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " **"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.068395Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "执行"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.081277Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "状态"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.093619Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "**"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.105315Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "："
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.118394Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "所有"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.131330Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " unittest"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.144427Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " 定义"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.182363Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "仅为"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.195296Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "意图"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.249428Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "断"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.268142Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "言"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.381766Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "（"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.394330Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.407328Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "docs"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.419246Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "/current"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.432409Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "-con"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.445612Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "tract"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.463187Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": ".md"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.477603Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": ":"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.491439Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "7"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.504632Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "`"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.517464Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " 也"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.530593Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "如此"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.542083Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "声明"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.554809Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "）；"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.567667Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "本次"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.597812Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "审计"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.612084Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "未"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.625760Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "运行"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.639519Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "任何"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.657229Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "测试"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.670736Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "，"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.683386Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "以上"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.696320Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "\""
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.714756Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "会"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.781733Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "失败"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.846015Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "/"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.859693Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "通过"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.872635Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "\""
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.910610Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "均为"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.923717Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "静态"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.964154Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "推断"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.978518Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "，"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:53.991770Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "非"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:54.004683Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "执行"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:54.016060Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "结果"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:54.029389Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "。\n"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:54.045396Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "-"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:54.090515Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": " **"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:54.104653Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "遗留"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:54.213469Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "材料"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:54.228357Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "**"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:54.260287Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "："
+      }
+    },
+    "timestamp": "2026-10-07T14:49:54.272430Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "仅"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:54.285388Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "作"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:54.320712Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "历史"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:54.333417Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "参考"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:54.382693Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "，"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:54.396433Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "不得"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:54.409393Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "作为"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:54.449151Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "实现"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:54.463493Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "text_delta",
+        "text": "依据。"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:54.506529Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "usage",
+        "usage": {
+          "cache_read_known": true,
+          "cached_input_tokens": 0,
+          "input_tokens": 3944,
+          "output_tokens": 953
+        }
+      }
+    },
+    "timestamp": "2026-10-07T14:49:54.670845Z"
+  },
+  {
+    "kind": "model_event",
+    "payload": {
+      "event": {
+        "kind": "completed"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:54.685618Z"
+  },
+  {
+    "kind": "phase_completed",
+    "payload": {
+      "duration_ms": 23718,
+      "phase": "model",
+      "turn": 2
+    },
+    "timestamp": "2026-10-07T14:49:54.711313Z"
+  },
+  {
+    "kind": "message_added",
+    "payload": {
+      "message": {
+        "content": "# 只读源码审计报告（未执行、未验证的分析）\n\n## 现行契约 vs 被取代的遗留提案\n- 现行契约（`docs/current-contract.md:1`）规定 5 条：trim 每个字符串；trim 后为空的字符串省略；保留剩余输入顺序；保留重复项；绝不修改输入。\n- 遗留材料（`docs/legacy-notes.md:1`）自称 \"Superseded historical proposal\" 且明确 \"not current policy\"（`docs/legacy-notes.md:2`）。其内容（排序 + 去重，`docs/legacy-notes.md:3`）已被否决，因为现行契约保留顺序与重复（`docs/legacy-notes.md:4`）。\n- **结论：现行约束 = 排序/去重不做；任何实现评审只以 current-contract.md 为准。**\n\n## 代码 vs 现行契约（`names.py:1-2`）\n`clean_names(values)` 仅 `return list(values)`：\n- 契约 1（trim）：**不合规** — 未做任何 trim。\n- 契约 2（省略空白项）：**不合规** — 空白项原样保留。\n- 契约 3（保留顺序）：合规（list 复制保序）。\n- 契约 4（保留重复项）：合规（未去重）。\n- 契约 5（不修改输入）：合规（`list(values)` 产生新列表，浅拷贝不改原列表）。\n\n即 5 条中仅 2、3、4 达成（顺序与重复两项是\"默认不做事即满足\"），核心行为 1、2 缺失。\n\n## 测试 vs 现行契约（`test_names.py`，按物理行号含空行）\n- `test_names.py:1-2`：导入被测函数。\n- `test_names.py:3`：类定义 `NamesTests`。\n- `test_names.py:4` `test_empty`：`clean_names([]) == []` — 任何实现都能通过，无区分力。\n- `test_names.py:5` `test_trim`：期望 trim — 当前实现会失败（返回 `' Alice '` 原样）。\n- `test_names.py:6` `test_blank`：期望空白项被移除 — 当前实现会失败。\n- `test_names.py:7` `test_duplicates`：`[' A ', 'A']` → `['A', 'A']` — 同时检验 trim 与保留重复；当前实现返回原列表会失败。该用例能区分\"去重\"违规（若实现去重会得 `['A']`）。\n- `test_names.py:8-9` `test_no_mutation`：校验输入未被改动 — 当前实现通过。注意它只做一次浅层相等比较，若未来实现替换元素而非原地修改也通过，属合理。\n\n## 测试覆盖缺口\n- 未测试顺序保留（契约 3）：一个\"排序后去重\"的错误实现也能通过全部 5 个测试？逐项核对：`test_duplicates` 输入 `[' A ', 'A']` 排序去重后为 `['A']` ≠ `['A', 'A']`，会被抓到；但单独\"排序不去重\"会得 `['A','A']` 仍通过 `test_duplicates`，且其余用例均无序敏感性 — 因此**排序违规不被现有测试检测**。\n- 未测试非字符串元素、`None` 等异常输入的错误路径。\n\n## 关键结论\n- **实现 vs 契约**：`names.py:2` 缺少 trim（契约 1）与空白项过滤（契约 2），是当前主要不合规点。\n- **测试区分力**：`test_names.py:5-7` 可捕获 trim/空白缺失，`test_names.py:7` 可捕获去重违规；但**顺序保留（契约 3）没有任何测试能独立检测排序类违规**。\n- **执行状态**：所有 unittest 定义仅为意图断言（`docs/current-contract.md:7` 也如此声明）；本次审计未运行任何测试，以上\"会失败/通过\"均为静态推断，非执行结果。\n- **遗留材料**：仅作历史参考，不得作为实现依据。",
+        "role": "assistant"
+      }
+    },
+    "timestamp": "2026-10-07T14:49:54.737364Z"
+  },
+  {
+    "kind": "completed",
+    "payload": {
+      "thread_id": "06da4ccad70f4f8fa7a4c934da267438",
+      "tool_calls": 4,
+      "turns": 2,
+      "usage": {
+        "cache_read_known": true,
+        "cached_input_tokens": 0,
+        "input_tokens": 6886,
+        "output_tokens": 1026,
+        "total_tokens": 7912
+      }
+    },
+    "timestamp": "2026-10-07T14:49:54.789748Z"
+  }
+]

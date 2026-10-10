@@ -1,0 +1,8 @@
+{
+  "user_request": "Correct semantic judgment and parent review, then local tests only; no all-platform testing.",
+  "owned": "docs/next-version/s16-source-completion/owned-cases-p4/s16-source-completion-p4-c36c79478003",
+  "scope": "One local GLM5.3-flash medium real follow-up on candidate 86875b2 after focused tests and independent patch review; original P4 failures remain preserved.",
+  "status": "USER_APPROVED_LOCAL_FOLLOWUP",
+  "candidate": "86875b2",
+  "baseline": "5a907f5"
+}

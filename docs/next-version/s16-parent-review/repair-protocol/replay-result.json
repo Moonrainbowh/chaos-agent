@@ -1,0 +1,38 @@
+{
+  "status": "PASS_STRUCTURAL_REPAIR_ONLY",
+  "provider_calls": 0,
+  "fixture_execution": false,
+  "source_attempt": "s16-source-completion-p4-beab64fc437a",
+  "before_errors": [
+    {
+      "path": "/findings/3/citations",
+      "message": "expected 1..32 source citations"
+    }
+  ],
+  "v2_errors": [
+    {
+      "path": "/findings/3/runtime_refs",
+      "message": "provide a supplied runtime ID for process facts, or add source citations for source judgments"
+    },
+    {
+      "path": "/findings/3/citations",
+      "message": "expected 1..32 source citations"
+    }
+  ],
+  "repair_has_exact_previous_response": true,
+  "repair": {
+    "replacements": [
+      {
+        "path": "/findings/3/runtime_refs",
+        "value": [
+          "parent_review_tool_free"
+        ]
+      }
+    ]
+  },
+  "after_errors": [],
+  "all_judgments_preserved": true,
+  "known_false_semantic_claim_remains": true,
+  "semantic_acceptance": "NOT_ACCEPTED",
+  "new_model_run": false
+}

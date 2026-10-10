@@ -52,12 +52,12 @@ class TaskResult:
                 'interrupted': 4, 'accepted_partial': 5, 'unknown': 4}[self.execution_status]
 
 
-def result_from_task(task, state=None, *, verification='unknown', remaining=()) -> TaskResult:
+def result_from_task(task, state=None, *, verification='unknown', remaining=(), stop_code=None) -> TaskResult:
     status = task.status.value
     execution = status if status in _EXECUTION else 'interrupted'
     changes = 'unknown' if state is None else ('changed' if state.files_changed else 'unchanged')
     return TaskResult(execution, changes, verification, tuple(remaining),
-                      status if status in _EXECUTION else 'missing_terminal', task.stop_reason)
+                      stop_code or (status if status in _EXECUTION else 'missing_terminal'), task.stop_reason)
 
 
 class ResultCollector:

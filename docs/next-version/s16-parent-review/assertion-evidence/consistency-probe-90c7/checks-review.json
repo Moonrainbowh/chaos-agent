@@ -1,0 +1,34 @@
+{
+  "scope": "TWO_LOCAL_STATIC_PROBES_NOT_PRODUCTION_S16",
+  "status": "PARTIAL_WITH_ERRORS",
+  "production_integration_supported": false,
+  "original_s16_acceptance": "NOT_ACCEPTED",
+  "reviewer_provider_calls": 0,
+  "cost": {
+    "sends": 2,
+    "elapsed_seconds": 67.85018890000356,
+    "input_tokens": 6411,
+    "output_tokens": 3718,
+    "total_tokens": 10129
+  },
+  "probes": [
+    {
+      "id": "fault_observation_consistency",
+      "quality": "FAIL",
+      "input_tokens": 2447,
+      "output_tokens": 2092,
+      "valid_findings": ["no_mutation trim actual conflict", "empty detected behavior lacks matching derivation"],
+      "errors": ["Replaces empty missed clear-all-output fault with identity behavior and incorrectly accepts it", "Confuses current source behavior with proposed mutant for derived_actual", "Fills ambiguous faults with chosen operations instead of unknown", "Derived values remain prose strings rather than JSON observations"]
+    },
+    {
+      "id": "atomic_claim_coverage",
+      "quality": "FAIL",
+      "input_tokens": 3964,
+      "output_tokens": 1626,
+      "valid_findings": ["Finds absent comparison for child opening duplicate-coverage claim"],
+      "errors": ["Accepts empty zero-discrimination claim from passing current behavior", "Labels correctly corrected duplicates child error as comparison misjudgment", "Marks demonstrably missing comparison unknown rather than omitted"]
+    }
+  ],
+  "next_hypothesis": "Physically isolate reported actual, expected and verdict from the derivation request; compare typed returned observations locally only after completion.",
+  "report": "review.md"
+}

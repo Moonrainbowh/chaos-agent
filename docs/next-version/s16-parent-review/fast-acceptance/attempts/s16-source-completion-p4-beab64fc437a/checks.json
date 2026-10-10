@@ -1,0 +1,15 @@
+{
+  "review": "independent",
+  "attempt": "s16-source-completion-p4-beab64fc437a",
+  "verdict": "FAIL",
+  "scope": "S16 real source investigation quality, not five-platform release",
+  "actual_requests": {"all": 6, "parent": 4, "child": 2, "independent": 2, "comparison": 0},
+  "delegation": {"successful_named_children": 1, "agent_id": "s16.sourceaudit", "child_reads": 4, "prohibited_tools_observed": false},
+  "sources": {"full_child_wire_sha_matches_frozen": true, "parent_full_sources_and_physical_lines": true, "independent_isolation": true, "candidate_unchanged": true},
+  "usage": {"unique_settled": 6, "input": 21455, "output": 4700, "total": 26155, "parent_origin": 17609, "child_origin_included_once": 8546, "duplicate_charge_observed": false},
+  "budget": {"rounds": 6, "tools": 10, "renewals": 0, "review_repairs": 1, "limits_increased": false},
+  "delivery": {"execution_status": "failed", "stop_code": "parent_review_delivery_unmet", "verification_status": "unverified", "comparison_delivered": false, "final_assistant_visible": false, "last_rejected_raw_preserved": false},
+  "blockers": ["independent repair rejected; no comparison or final delivery", "initial empty-test universal claim false", "initial legacy characterization false", "child physical-line and coverage errors not independently corrected", "last rejected model text unavailable for exact rejection audit"],
+  "separate_anomaly": "WorkflowService.observe title bounded-text ValueError; not proven cause of delivery gate failure",
+  "provider_or_tests_run_by_reviewer": false
+}

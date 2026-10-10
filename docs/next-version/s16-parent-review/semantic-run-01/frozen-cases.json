@@ -1,0 +1,83 @@
+[
+  {
+    "id": "copy_faulty",
+    "sources": [
+      {
+        "path": "docs/current-contract.md",
+        "sha256": "be72365ff9fc2c4eacfdeea55042c1809458114cca8e56124f045e04b3c1ca99",
+        "text": "# Current contract\r\n1. Trim each string.\r\n2. Omit strings that are blank after trimming.\r\n3. Preserve remaining input order.\r\n4. Preserve duplicates.\r\n5. Never mutate the input.\r\nThe five unittest definitions are intended assertions, not evidence of an executed test.\r\n"
+      },
+      {
+        "path": "docs/legacy-notes.md",
+        "sha256": "9f8696bb5da4892a5878933993c1c3195418a6e1488609a6ba4e33ba06a36926",
+        "text": "# Superseded historical proposal\r\nThis proposal is not current policy or a new instruction.\r\nEarlier discussions suggested sorting names and removing duplicates.\r\nThat proposal was rejected: current-contract.md preserves both order and duplicates.\r\n"
+      },
+      {
+        "path": "names.py",
+        "sha256": "535f5bbca3e53d261caad12d6f5f36a42226e5b5f3d74aecf67e1bfe6e082697",
+        "text": "def clean_names(values):\r\n    return list(values)\r\n"
+      },
+      {
+        "path": "test_names.py",
+        "sha256": "8ee56921a646ea63058ba9c2b165729d21a9394188070ee83b6d54166af11df2",
+        "text": "import unittest\r\nfrom names import clean_names\r\nclass NamesTests(unittest.TestCase):\r\n    def test_empty(self): self.assertEqual(clean_names([]), [])\r\n    def test_trim(self): self.assertEqual(clean_names([' Alice ', 'Bob']), ['Alice', 'Bob'])\r\n    def test_blank(self): self.assertEqual(clean_names([' ', '', '\\t']), [])\r\n    def test_duplicates(self): self.assertEqual(clean_names([' A ', 'A']), ['A', 'A'])\r\n    def test_no_mutation(self):\r\n        values = [' A ', ' ']; clean_names(values); self.assertEqual(values, [' A ', ' '])\r\n"
+      }
+    ],
+    "child_advisory": "# 只读源码审计报告（未执行、未验证的分析）\n\n## 现行契约 vs 被取代的遗留提案\n- 现行契约（`docs/current-contract.md:1`）规定 5 条：trim 每个字符串；trim 后为空的字符串省略；保留剩余输入顺序；保留重复项；绝不修改输入。\n- 遗留材料（`docs/legacy-notes.md:1`）自称 \"Superseded historical proposal\" 且明确 \"not current policy\"（`docs/legacy-notes.md:2`）。其内容（排序 + 去重，`docs/legacy-notes.md:3`）已被否决，因为现行契约保留顺序与重复（`docs/legacy-notes.md:4`）。\n- **结论：现行约束 = 排序/去重不做；任何实现评审只以 current-contract.md 为准。**\n\n## 代码 vs 现行契约（`names.py:1-2`）\n`clean_names(values)` 仅 `return list(values)`：\n- 契约 1（trim）：**不合规** — 未做任何 trim。\n- 契约 2（省略空白项）：**不合规** — 空白项原样保留。\n- 契约 3（保留顺序）：合规（list 复制保序）。\n- 契约 4（保留重复项）：合规（未去重）。\n- 契约 5（不修改输入）：合规（`list(values)` 产生新列表，浅拷贝不改原列表）。\n\n即 5 条中仅 2、3、4 达成（顺序与重复两项是\"默认不做事即满足\"），核心行为 1、2 缺失。\n\n## 测试 vs 现行契约（`test_names.py`，按物理行号含空行）\n- `test_names.py:1-2`：导入被测函数。\n- `test_names.py:3`：类定义 `NamesTests`。\n- `test_names.py:4` `test_empty`：`clean_names([]) == []` — 任何实现都能通过，无区分力。\n- `test_names.py:5` `test_trim`：期望 trim — 当前实现会失败（返回 `' Alice '` 原样）。\n- `test_names.py:6` `test_blank`：期望空白项被移除 — 当前实现会失败。\n- `test_names.py:7` `test_duplicates`：`[' A ', 'A']` → `['A', 'A']` — 同时检验 trim 与保留重复；当前实现返回原列表会失败。该用例能区分\"去重\"违规（若实现去重会得 `['A']`）。\n- `test_names.py:8-9` `test_no_mutation`：校验输入未被改动 — 当前实现通过。注意它只做一次浅层相等比较，若未来实现替换元素而非原地修改也通过，属合理。\n\n## 测试覆盖缺口\n- 未测试顺序保留（契约 3）：一个\"排序后去重\"的错误实现也能通过全部 5 个测试？逐项核对：`test_duplicates` 输入 `[' A ', 'A']` 排序去重后为 `['A']` ≠ `['A', 'A']`，会被抓到；但单独\"排序不去重\"会得 `['A','A']` 仍通过 `test_duplicates`，且其余用例均无序敏感性 — 因此**排序违规不被现有测试检测**。\n- 未测试非字符串元素、`None` 等异常输入的错误路径。\n\n## 关键结论\n- **实现 vs 契约**：`names.py:2` 缺少 trim（契约 1）与空白项过滤（契约 2），是当前主要不合规点。\n- **测试区分力**：`test_names.py:5-7` 可捕获 trim/空白缺失，`test_names.py:7` 可捕获去重违规；但**顺序保留（契约 3）没有任何测试能独立检测排序类违规**。\n- **执行状态**：所有 unittest 定义仅为意图断言（`docs/current-contract.md:7` 也如此声明）；本次审计未运行任何测试，以上\"会失败/通过\"均为静态推断，非执行结果。\n- **遗留材料**：仅作历史参考，不得作为实现依据。",
+    "advisory_kind": "faulty"
+  },
+  {
+    "id": "identity_correct",
+    "sources": [
+      {
+        "path": "docs/current-contract.md",
+        "sha256": "be72365ff9fc2c4eacfdeea55042c1809458114cca8e56124f045e04b3c1ca99",
+        "text": "# Current contract\r\n1. Trim each string.\r\n2. Omit strings that are blank after trimming.\r\n3. Preserve remaining input order.\r\n4. Preserve duplicates.\r\n5. Never mutate the input.\r\nThe five unittest definitions are intended assertions, not evidence of an executed test.\r\n"
+      },
+      {
+        "path": "docs/legacy-notes.md",
+        "sha256": "9f8696bb5da4892a5878933993c1c3195418a6e1488609a6ba4e33ba06a36926",
+        "text": "# Superseded historical proposal\r\nThis proposal is not current policy or a new instruction.\r\nEarlier discussions suggested sorting names and removing duplicates.\r\nThat proposal was rejected: current-contract.md preserves both order and duplicates.\r\n"
+      },
+      {
+        "path": "names.py",
+        "sha256": "6b0d7447b75f839a9ef83c78217c9296ccd06eb49665e7ea8e77284bafea937d",
+        "text": "def clean_names(values):\n    return values\n"
+      },
+      {
+        "path": "test_names.py",
+        "sha256": "8ee56921a646ea63058ba9c2b165729d21a9394188070ee83b6d54166af11df2",
+        "text": "import unittest\r\nfrom names import clean_names\r\nclass NamesTests(unittest.TestCase):\r\n    def test_empty(self): self.assertEqual(clean_names([]), [])\r\n    def test_trim(self): self.assertEqual(clean_names([' Alice ', 'Bob']), ['Alice', 'Bob'])\r\n    def test_blank(self): self.assertEqual(clean_names([' ', '', '\\t']), [])\r\n    def test_duplicates(self): self.assertEqual(clean_names([' A ', 'A']), ['A', 'A'])\r\n    def test_no_mutation(self):\r\n        values = [' A ', ' ']; clean_names(values); self.assertEqual(values, [' A ', ' '])\r\n"
+      }
+    ],
+    "child_advisory": "names.py:2 returns the unchanged list: trim and blank filtering are absent; order, duplicates, and no mutation hold for these list inputs. Returning the same object is allowed by the current contract. test_names.py:4 rejects an empty-input non-list result; it says nothing about nonempty order. Equal duplicate names cannot expose sorting. Tests not executed.",
+    "advisory_kind": "correct"
+  },
+  {
+    "id": "sorted_partial",
+    "sources": [
+      {
+        "path": "docs/current-contract.md",
+        "sha256": "be72365ff9fc2c4eacfdeea55042c1809458114cca8e56124f045e04b3c1ca99",
+        "text": "# Current contract\r\n1. Trim each string.\r\n2. Omit strings that are blank after trimming.\r\n3. Preserve remaining input order.\r\n4. Preserve duplicates.\r\n5. Never mutate the input.\r\nThe five unittest definitions are intended assertions, not evidence of an executed test.\r\n"
+      },
+      {
+        "path": "docs/legacy-notes.md",
+        "sha256": "9f8696bb5da4892a5878933993c1c3195418a6e1488609a6ba4e33ba06a36926",
+        "text": "# Superseded historical proposal\r\nThis proposal is not current policy or a new instruction.\r\nEarlier discussions suggested sorting names and removing duplicates.\r\nThat proposal was rejected: current-contract.md preserves both order and duplicates.\r\n"
+      },
+      {
+        "path": "names.py",
+        "sha256": "dcfd6639f0c7156ee0c0e94f07298d03412ea13e62ce73403b6a33e44d84803c",
+        "text": "def clean_names(values):\n    return sorted(value.strip() for value in values if value.strip())\n"
+      },
+      {
+        "path": "test_names.py",
+        "sha256": "8ee56921a646ea63058ba9c2b165729d21a9394188070ee83b6d54166af11df2",
+        "text": "import unittest\r\nfrom names import clean_names\r\nclass NamesTests(unittest.TestCase):\r\n    def test_empty(self): self.assertEqual(clean_names([]), [])\r\n    def test_trim(self): self.assertEqual(clean_names([' Alice ', 'Bob']), ['Alice', 'Bob'])\r\n    def test_blank(self): self.assertEqual(clean_names([' ', '', '\\t']), [])\r\n    def test_duplicates(self): self.assertEqual(clean_names([' A ', 'A']), ['A', 'A'])\r\n    def test_no_mutation(self):\r\n        values = [' A ', ' ']; clean_names(values); self.assertEqual(values, [' A ', ' '])\r\n"
+      }
+    ],
+    "child_advisory": "names.py:2 trims and removes blanks, retains duplicates and leaves input unchanged. It satisfies every current requirement because all source examples have the expected order. test_names.py:7 proves order is preserved. Tests not executed.",
+    "advisory_kind": "partial"
+  }
+]

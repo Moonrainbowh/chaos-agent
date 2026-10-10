@@ -1,0 +1,7 @@
+test_resume_keeps_requirements_and_used_correction (tests.test_source_completion_contract.SourceCompletionContractTests.test_resume_keeps_requirements_and_used_correction) ... Executing <Task pending name='Task-1' coro=<SourceCompletionContractTests.asyncSetUp() running at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_source_completion_contract.py:56> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at D:\soft\miniconda3\Lib\asyncio\tasks.py:975, Task.task_wakeup()] created at D:\soft\miniconda3\Lib\asyncio\base_events.py:459> cb=[_run_until_complete_cb() at D:\soft\miniconda3\Lib\asyncio\base_events.py:181] created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.413 seconds
+ok
+
+----------------------------------------------------------------------
+Ran 1 test in 2.195s
+
+OK

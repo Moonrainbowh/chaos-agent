@@ -1,0 +1,139 @@
+
+[2K· agent custom · queued · Disclose the read contract first; next turn read docs/current-contract.m
+· d, docs/
+
+
+[2K· agent custom · running · Disclose the read contract first; next turn read docs/current-contract.
+· md, docs/
+
+
+[2K· agent custom · completed · Disclose the read contract first; next turn read docs/current-contrac
+· t.md, docs/ · 2s · 110 tokens · 1 tools
+
+
+[2K· agent custom · queued · Read names.py and report.
+
+
+[2K· agent custom · running · Read names.py and report.
+
+
+[2K· agent custom · completed · Read names.py and report. · 1s · 110 tokens · 1 tools
+
+
+[2K· agent custom · queued · Read names.py and report.
+
+
+[2K· agent custom · running · Read names.py and report.
+
+
+[2K· agent custom · completed · Read names.py and report. · 1s · 110 tokens · 1 tools
+
+test_original_v7_child_cannot_complete_after_disclosure_with_zero_reads (tests.test_s16_source_completion.S16ProductionRegressionTests.test_original_v7_child_cannot_complete_after_disclosure_with_zero_reads) ... Executing <Task finished name='Task-1' coro=<S16ProductionRegressionTests.asyncSetUp() done, defined at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_s16_source_completion.py:67> result=None created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.434 seconds
+FAIL
+test_original_v7_parent_prompt_is_frozen_as_analyze_at_public_start (tests.test_s16_source_completion.S16ProductionRegressionTests.test_original_v7_parent_prompt_is_frozen_as_analyze_at_public_start) ... Executing <Task finished name='Task-482' coro=<S16ProductionRegressionTests.asyncSetUp() done, defined at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_s16_source_completion.py:67> result=None created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.435 seconds
+FAIL
+test_read_only_spelling_and_explicit_modification_filename_controls (tests.test_s16_source_completion.S16ProductionRegressionTests.test_read_only_spelling_and_explicit_modification_filename_controls) ... Executing <Task finished name='Task-596' coro=<S16ProductionRegressionTests.asyncSetUp() done, defined at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_s16_source_completion.py:67> result=None created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.422 seconds
+
+  test_read_only_spelling_and_explicit_modification_filename_controls (tests.test_s16_source_completion.S16ProductionRegressionTests.test_read_only_spelling_and_explicit_modification_filename_controls) (prompt='Modify readonly.md to correct its typo.') ... FAIL
+test_role_instructions_reach_both_child_requests_without_sibling_leak (tests.test_s16_source_completion.S16ProductionRegressionTests.test_role_instructions_reach_both_child_requests_without_sibling_leak) ... Executing <Task finished name='Task-1081' coro=<S16ProductionRegressionTests.asyncSetUp() done, defined at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_s16_source_completion.py:67> result=None created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.423 seconds
+
+  test_role_instructions_reach_both_child_requests_without_sibling_leak (tests.test_s16_source_completion.S16ProductionRegressionTests.test_role_instructions_reach_both_child_requests_without_sibling_leak) (child=0, request=0) ... FAIL
+  test_role_instructions_reach_both_child_requests_without_sibling_leak (tests.test_s16_source_completion.S16ProductionRegressionTests.test_role_instructions_reach_both_child_requests_without_sibling_leak) (child=0, request=1) ... FAIL
+  test_role_instructions_reach_both_child_requests_without_sibling_leak (tests.test_s16_source_completion.S16ProductionRegressionTests.test_role_instructions_reach_both_child_requests_without_sibling_leak) (child=1, request=0) ... FAIL
+  test_role_instructions_reach_both_child_requests_without_sibling_leak (tests.test_s16_source_completion.S16ProductionRegressionTests.test_role_instructions_reach_both_child_requests_without_sibling_leak) (child=1, request=1) ... FAIL
+
+======================================================================
+FAIL: test_original_v7_child_cannot_complete_after_disclosure_with_zero_reads (tests.test_s16_source_completion.S16ProductionRegressionTests.test_original_v7_child_cannot_complete_after_disclosure_with_zero_reads)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\soft\miniconda3\Lib\asyncio\runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "D:\soft\miniconda3\Lib\asyncio\base_events.py", line 725, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_s16_source_completion.py", line 196, in test_original_v7_child_cannot_complete_after_disclosure_with_zero_reads
+    self.assertNotEqual(results[0]["status"], "completed",
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        "RED: production ChildResult reports completion after disclosure with zero source reads")
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'completed' == 'completed' : RED: production ChildResult reports completion after disclosure with zero source reads
+
+======================================================================
+FAIL: test_original_v7_parent_prompt_is_frozen_as_analyze_at_public_start (tests.test_s16_source_completion.S16ProductionRegressionTests.test_original_v7_parent_prompt_is_frozen_as_analyze_at_public_start)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\soft\miniconda3\Lib\asyncio\runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "D:\soft\miniconda3\Lib\asyncio\base_events.py", line 725, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_s16_source_completion.py", line 158, in test_original_v7_parent_prompt_is_frozen_as_analyze_at_public_start
+    self.assertEqual(task.contract.intent.value, "analyze")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'modify' != 'analyze'
+- modify
++ analyze
+
+
+======================================================================
+FAIL: test_read_only_spelling_and_explicit_modification_filename_controls (tests.test_s16_source_completion.S16ProductionRegressionTests.test_read_only_spelling_and_explicit_modification_filename_controls) (prompt='Modify readonly.md to correct its typo.')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_s16_source_completion.py", line 168, in test_read_only_spelling_and_explicit_modification_filename_controls
+    self.assertEqual(task.contract.intent.value, expected)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'analyze' != 'modify'
+- analyze
++ modify
+
+
+======================================================================
+FAIL: test_role_instructions_reach_both_child_requests_without_sibling_leak (tests.test_s16_source_completion.S16ProductionRegressionTests.test_role_instructions_reach_both_child_requests_without_sibling_leak) (child=0, request=0)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_s16_source_completion.py", line 148, in test_role_instructions_reach_both_child_requests_without_sibling_leak
+    self.assertTrue(MARKERS[index] in body["instructions"],
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        "RED: AgentDefinition.instructions role marker missing from actual prepared body")
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : RED: AgentDefinition.instructions role marker missing from actual prepared body
+
+======================================================================
+FAIL: test_role_instructions_reach_both_child_requests_without_sibling_leak (tests.test_s16_source_completion.S16ProductionRegressionTests.test_role_instructions_reach_both_child_requests_without_sibling_leak) (child=0, request=1)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_s16_source_completion.py", line 148, in test_role_instructions_reach_both_child_requests_without_sibling_leak
+    self.assertTrue(MARKERS[index] in body["instructions"],
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        "RED: AgentDefinition.instructions role marker missing from actual prepared body")
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : RED: AgentDefinition.instructions role marker missing from actual prepared body
+
+======================================================================
+FAIL: test_role_instructions_reach_both_child_requests_without_sibling_leak (tests.test_s16_source_completion.S16ProductionRegressionTests.test_role_instructions_reach_both_child_requests_without_sibling_leak) (child=1, request=0)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_s16_source_completion.py", line 148, in test_role_instructions_reach_both_child_requests_without_sibling_leak
+    self.assertTrue(MARKERS[index] in body["instructions"],
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        "RED: AgentDefinition.instructions role marker missing from actual prepared body")
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : RED: AgentDefinition.instructions role marker missing from actual prepared body
+
+======================================================================
+FAIL: test_role_instructions_reach_both_child_requests_without_sibling_leak (tests.test_s16_source_completion.S16ProductionRegressionTests.test_role_instructions_reach_both_child_requests_without_sibling_leak) (child=1, request=1)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_s16_source_completion.py", line 148, in test_role_instructions_reach_both_child_requests_without_sibling_leak
+    self.assertTrue(MARKERS[index] in body["instructions"],
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        "RED: AgentDefinition.instructions role marker missing from actual prepared body")
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : RED: AgentDefinition.instructions role marker missing from actual prepared body
+
+----------------------------------------------------------------------
+Ran 4 tests in 16.053s
+
+FAILED (failures=7)

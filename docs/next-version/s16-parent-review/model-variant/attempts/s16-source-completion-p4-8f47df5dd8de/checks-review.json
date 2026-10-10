@@ -1,0 +1,72 @@
+{
+  "attempt": "s16-source-completion-p4-8f47df5dd8de",
+  "acceptance": "NOT_ACCEPTED",
+  "attempt_status": "FAIL",
+  "review_status": "PARTIAL_WITH_ERRORS",
+  "scope": "frozen original source/semantic acceptance; static review only",
+  "provider_calls_by_reviewer": 0,
+  "fixture_or_mutant_executions_by_reviewer": 0,
+  "code_changes_by_reviewer": false,
+  "raw_extracts": {
+    "response-5-review.json": {"characters": 5625, "complete_json": true, "finish_reason": "stop", "matches_durable_raw_output": true},
+    "response-6-partial.txt": {"characters": 9362, "complete_json": false, "finish_reason": "length", "terminal_usage": "all_zero_unknown_not_zero_cost", "repaired_or_completed": false}
+  },
+  "durable": {"independent_attempts": 1, "independent_errors": [], "comparison_snapshot_exists": true, "complete_comparison_attempt_exists": false},
+  "initial": {
+    "status": "STATIC_SEMANTICS_CORRECT",
+    "requirement_ids_supplied": ["implementation", "contract_compliance", "test_discrimination", "task_objective"],
+    "all_supplied_findings_correct": true,
+    "all_current_actuals_correct": true,
+    "detected_fault_actual_consistency": true,
+    "missed_fault_actual_and_counterexample_consistency": true,
+    "counterexample_expected_contract_correct": true,
+    "checks": [
+      {"id":"test_empty","current_actual":[],"current_outcome":"pass","detected_correct":true,"missed_correct":true,"scope":"finite discrimination; misses copy-only, detects placeholder"},
+      {"id":"test_trim","current_actual":[" Alice ","Bob"],"current_outcome":"fail","detected_correct":true,"missed_correct":true,"scope":"ascending sort happens to pass this input; not zero order discrimination"},
+      {"id":"test_blank","current_actual":[" ","","\t"],"current_outcome":"fail","detected_correct":true,"missed_correct":true,"scope":"tab is an actual Python escape; sorted clean output is empty"},
+      {"id":"test_duplicates","current_actual":[" A ","A"],"current_outcome":"fail","detected_correct":true,"missed_correct":true,"scope":"trim+dedup returns one A and is rejected"},
+      {"id":"test_no_mutation","current_actual":[" A "," "],"current_outcome":"pass","observed":"input after","detected_correct":true,"missed_correct":true,"counterexample_observed":"contract return value"}
+    ]
+  },
+  "comparison_partial": {
+    "complete_assertion_records_returned": 7,
+    "original_five_current_actuals_correct": true,
+    "all_returned_detected_fault_actuals_correct": true,
+    "all_returned_missed_fault_actuals_correct": true,
+    "all_returned_counterexample_expected_values_correct": true,
+    "additional_records": [
+      {"id":"test_duplicates_raw_dedup","status":"CORRECT","note":"same original assertion; raw-dedup-before-trim passes it and fails raw duplicate counterexample"},
+      {"id":"test_blank_newline","status":"CORRECT_WITH_DECLARED_SCOPE","note":"space/tab-only trim misses newline; conventional trim whitespace meaning declared, character set unspecified"}
+    ],
+    "findings_returned": ["implementation","contract_compliance","test_discrimination","task_objective","child_objective"],
+    "known_parent_errors": [{"pointer":"/findings/4/judgment","claim":"补上初审遗漏的此项评估","reason":"child_objective was not supplied in request5; it was added in request6","attribution":"parent own phase-state mistake; not child error"}],
+    "complete_comparison_paragraph_ids": [2,3],
+    "partially_returned_comparison_paragraph_ids": [4],
+    "not_returned_comparison_paragraph_ids": [5,6,7,8,9],
+    "all_child_key_claims_fully_reviewed": false,
+    "child_error_attribution_in_visible_comparisons": "NO_FALSE_ATTRIBUTION_OBSERVED; missing content unknown"
+  },
+  "child_claim_audit": [
+    {"paragraph_id":2,"semantic_judgment":"current five requirements and superseded legacy correct; don't implement old sorting/dedup; evaluate their violations under current rules","actual_comparison":"complete_correct"},
+    {"paragraph_id":3,"semantic_judgment":"implementation and physical lines correct","actual_comparison":"complete_correct"},
+    {"paragraph_id":4,"semantic_judgment":"all five compliance judgments correct for ordinary string lists","actual_comparison":"partial_rationale_truncated"},
+    {"paragraph_id":5,"semantic_judgment":"missing trim/filter and compliance 3-5 correct","actual_comparison":"absent"},
+    {"paragraph_id":6,"semantic_judgment":"imports and test definition lines correct; no_mutation assertion continues on line9","actual_comparison":"absent"},
+    {"paragraph_id":7,"semantic_judgment":"five current outcomes correct; empty misses current defect but has finite discrimination; trim+dedup rejected; no_mutation observes after; tab interpretation correct","actual_comparison":"absent_despite_supporting_witnesses"},
+    {"paragraph_id":8,"semantic_judgment":"ascending clean sort missed is correct; zero order discrimination overbroad; raw duplicate suggestion has value but existing trim+dedup caught; missing trim-to-blank example false, newline is narrower additional case","actual_comparison":"absent_despite_correct_findings_and_new_witnesses"},
+    {"paragraph_id":9,"semantic_judgment":"implementation/current failures/legacy/unexecuted status correct; repeated zero order discrimination wrong","actual_comparison":"absent"}
+  ],
+  "output_capacity": {
+    "comparisons_start_character": 8276,
+    "precomparison_fraction_of_returned_chars": 0.884,
+    "findings_start_character": 5257,
+    "observed_burden": "full restatement of five checks, two extra checks, five findings and unknowns before comparisons",
+    "large_child_quote_copying_proven": false,
+    "usage_token_distribution_known": false,
+    "minimal_current_schema_suggestion": "short traces/faults, ID references in findings, minimal actual child quotations per key claim, preserve every paragraph ID and every claim; stage-specific compact example; no cap or requirement reduction",
+    "conditional_real_protocol_suggestion": "explicit comparison delta/keep references bound to durable initial, Host merges and revalidates full report; requires actual parser/persistence/protocol/tests, cannot invent unsupported schema in prompt",
+    "suggestion_implemented_or_retested": false
+  },
+  "unresolved": ["complete comparison JSON and all advisory claims coverage", "complete child error correction attribution", "accepted final report and delivery", "actual request6 usage and reservation accounting reviewed separately by parent"],
+  "report": "independent-review.md"
+}

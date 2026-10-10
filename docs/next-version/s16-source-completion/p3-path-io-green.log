@@ -1,0 +1,9 @@
+test_real_source_guards_run_off_loop_with_context (tests.test_source_completion_contract.SourceCompletionContractTests.test_real_source_guards_run_off_loop_with_context) ... Executing <Task pending name='Task-1' coro=<SourceCompletionContractTests.asyncSetUp() running at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_source_completion_contract.py:59> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at D:\soft\miniconda3\Lib\asyncio\tasks.py:975, Task.task_wakeup()] created at D:\soft\miniconda3\Lib\asyncio\base_events.py:459> cb=[_run_until_complete_cb() at D:\soft\miniconda3\Lib\asyncio\base_events.py:181] created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.412 seconds
+ok
+test_cancelled_guard_inspection_replays_durable_receipt (tests.test_source_completion_contract.SourceCompletionContractTests.test_cancelled_guard_inspection_replays_durable_receipt) ... Executing <Task pending name='Task-150' coro=<SourceCompletionContractTests.asyncSetUp() running at C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\tests\test_source_completion_contract.py:59> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at D:\soft\miniconda3\Lib\asyncio\tasks.py:975, Task.task_wakeup()] created at D:\soft\miniconda3\Lib\asyncio\base_events.py:459> cb=[_run_until_complete_cb() at D:\soft\miniconda3\Lib\asyncio\base_events.py:181] created at D:\soft\miniconda3\Lib\asyncio\runners.py:100> took 0.425 seconds
+ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 3.552s
+
+OK

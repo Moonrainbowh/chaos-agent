@@ -1,0 +1,22 @@
+Traceback (most recent call last):
+  File "C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\docs\next-version\s16-source-completion\run_real_source_completion.py", line 643, in <module>
+    main()
+    ~~~~^^
+  File "C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\docs\next-version\s16-source-completion\run_real_source_completion.py", line 636, in main
+    result = asyncio.run(worker(owned, preflight=options.preflight))
+  File "D:\soft\miniconda3\Lib\asyncio\runners.py", line 195, in run
+    return runner.run(main)
+           ~~~~~~~~~~^^^^^^
+  File "D:\soft\miniconda3\Lib\asyncio\runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "D:\soft\miniconda3\Lib\asyncio\base_events.py", line 725, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\docs\next-version\s16-source-completion\run_real_source_completion.py", line 261, in worker
+    validate_offline_observations(result, owned)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "C:\Users\Windows11\.codex\worktrees\s16-source-completion\chaos-16-agent\docs\next-version\s16-source-completion\run_real_source_completion.py", line 385, in validate_offline_observations
+    bodies = [json.loads((owned / item['body_file']).read_bytes()) for item in result['wire']]
+                                                                               ~~~~~~^^^^^^^^
+KeyError: 'wire'

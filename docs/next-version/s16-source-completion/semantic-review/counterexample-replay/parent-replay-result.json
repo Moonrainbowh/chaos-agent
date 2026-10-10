@@ -1,0 +1,3448 @@
+{
+  "status": "COMPLETED_REQUIRES_INDEPENDENT_REVIEW",
+  "external_sends": 1,
+  "elapsed_seconds": 19.815869499987457,
+  "events": [
+    {
+      "kind": "reasoning_delta",
+      "text": "Check"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " child"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " advisory"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " for"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " errors"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "."
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " Not"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "able"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": ":"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " implementation"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " says"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " \""
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "5"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " 条"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "中"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "仅"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " "
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "2"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "、"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "3"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "、"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "4"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " 达"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "成"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "\""
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " —"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " contradiction"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": ":"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " earlier"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " says"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " "
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "1"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": ","
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "2"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " 不"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "合规"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": ","
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " "
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "3"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": ","
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "4"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": ","
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "5"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " 合"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "规"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": ","
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " so"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " \""
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "仅"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " "
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "2"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "、"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "3"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "、"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "4"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " 达"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "成"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "\""
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " is"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " wrong"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " ("
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "should"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " be"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " "
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "3"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": ","
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "4"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": ","
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "5"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": ")."
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " Line"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " numbers"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": ":"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " names"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": ".py"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": ":"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "1"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "-"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "2"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " correct"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "."
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " test"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "_names"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": ".py"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": ":"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " physical"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " lines"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " with"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " \\"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "r"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "\\n"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": ";"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " text"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": ":"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " line"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "1"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " import"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " unittest"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": ","
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " line"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "2"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " from"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " names"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " import"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": ","
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " line"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "3"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " class"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": ","
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " line"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "4"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " test"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "_empty"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "..."
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " line"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "7"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " test"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "_duplicates"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": ","
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " line"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "8"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " test"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "_no"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "_m"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "utation"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "."
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " Advisory"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "'s"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " line"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " numbers"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " fine"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "."
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " Also"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " \""
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "顺序"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "保留"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "（"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "契约"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "3"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "）"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "没有任何"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "测试"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "能"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "独立"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "检测"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "\""
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " —"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " true"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": ";"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " test"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "_trim"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " uses"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " ['"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " Alice"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " ','"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "Bob"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "']"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " sorted"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " ['"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "Alice"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "','"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "Bob"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "']"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " same"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": ";"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " correct"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": ".\n\n"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "Also"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " \""
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "排序"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "不去"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "重"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "会"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "得"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " ['"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "A"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "','"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "A"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "']"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " "
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "仍"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "通过"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "\""
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " —"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " sorted"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " ['"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " A"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " ','"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "A"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "']"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " after"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " trim"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "?"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " A"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " sorted"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "-"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "then"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "-tr"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "im"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "med"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " implementation"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " would"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " produce"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " ['"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "A"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "','"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "A"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "']"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " —"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " yes"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " passes"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "."
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " But"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " a"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " sort"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "-only"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " implementation"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " without"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " trim"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " would"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " fail"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " test"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "_trim"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "."
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " Advisory"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "'s"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " scenario"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " is"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " sort"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "+"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "trim"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " no"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " ded"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "up"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": ";"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " fine"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " but"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " note"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " qualification"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": ".\n\n"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "Also"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " test"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "_no"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "_m"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "utation"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " \""
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "只"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "做"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "一次"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "浅"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "层"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "相等"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "比较"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "，"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "若"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "未来"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "实现"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "替换"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "元素"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "而非"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "原地"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "修改"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "也"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "通过"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "，"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "属"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "合理"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "\""
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " —"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " fine"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": ".\n\n"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "Main"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " correction"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": ":"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " the"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " \""
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "仅"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " "
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "2"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "、"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "3"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "、"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "4"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " 达"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "成"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "\""
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " numbering"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " error"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "."
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " Also"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " minor"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": ":"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " test"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "_empty"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " no"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " discrimination"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " —"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": " fine"
+    },
+    {
+      "kind": "reasoning_delta",
+      "text": "."
+    },
+    {
+      "kind": "text_delta",
+      "text": "#"
+    },
+    {
+      "kind": "text_delta",
+      "text": " "
+    },
+    {
+      "kind": "text_delta",
+      "text": "复"
+    },
+    {
+      "kind": "text_delta",
+      "text": "核"
+    },
+    {
+      "kind": "text_delta",
+      "text": "报告"
+    },
+    {
+      "kind": "text_delta",
+      "text": "\n\n"
+    },
+    {
+      "kind": "text_delta",
+      "text": "##"
+    },
+    {
+      "kind": "text_delta",
+      "text": " "
+    },
+    {
+      "kind": "text_delta",
+      "text": "需"
+    },
+    {
+      "kind": "text_delta",
+      "text": "更"
+    },
+    {
+      "kind": "text_delta",
+      "text": "正"
+    },
+    {
+      "kind": "text_delta",
+      "text": "的"
+    },
+    {
+      "kind": "text_delta",
+      "text": "结论"
+    },
+    {
+      "kind": "text_delta",
+      "text": "\n\n"
+    },
+    {
+      "kind": "text_delta",
+      "text": "1"
+    },
+    {
+      "kind": "text_delta",
+      "text": "."
+    },
+    {
+      "kind": "text_delta",
+      "text": " **"
+    },
+    {
+      "kind": "text_delta",
+      "text": "`"
+    },
+    {
+      "kind": "text_delta",
+      "text": "names"
+    },
+    {
+      "kind": "text_delta",
+      "text": ".py"
+    },
+    {
+      "kind": "text_delta",
+      "text": "`"
+    },
+    {
+      "kind": "text_delta",
+      "text": " 合"
+    },
+    {
+      "kind": "text_delta",
+      "text": "规"
+    },
+    {
+      "kind": "text_delta",
+      "text": "条"
+    },
+    {
+      "kind": "text_delta",
+      "text": "目"
+    },
+    {
+      "kind": "text_delta",
+      "text": "计数"
+    },
+    {
+      "kind": "text_delta",
+      "text": "自"
+    },
+    {
+      "kind": "text_delta",
+      "text": "相"
+    },
+    {
+      "kind": "text_delta",
+      "text": "矛盾"
+    },
+    {
+      "kind": "text_delta",
+      "text": "（"
+    },
+    {
+      "kind": "text_delta",
+      "text": "需"
+    },
+    {
+      "kind": "text_delta",
+      "text": "更"
+    },
+    {
+      "kind": "text_delta",
+      "text": "正"
+    },
+    {
+      "kind": "text_delta",
+      "text": "）"
+    },
+    {
+      "kind": "text_delta",
+      "text": "**"
+    },
+    {
+      "kind": "text_delta",
+      "text": "："
+    },
+    {
+      "kind": "text_delta",
+      "text": "子"
+    },
+    {
+      "kind": "text_delta",
+      "text": "报告"
+    },
+    {
+      "kind": "text_delta",
+      "text": "先"
+    },
+    {
+      "kind": "text_delta",
+      "text": "判定"
+    },
+    {
+      "kind": "text_delta",
+      "text": "契约"
+    },
+    {
+      "kind": "text_delta",
+      "text": " "
+    },
+    {
+      "kind": "text_delta",
+      "text": "1"
+    },
+    {
+      "kind": "text_delta",
+      "text": "、"
+    },
+    {
+      "kind": "text_delta",
+      "text": "2"
+    },
+    {
+      "kind": "text_delta",
+      "text": " 不"
+    },
+    {
+      "kind": "text_delta",
+      "text": "合规"
+    },
+    {
+      "kind": "text_delta",
+      "text": "，"
+    },
+    {
+      "kind": "text_delta",
+      "text": "3"
+    },
+    {
+      "kind": "text_delta",
+      "text": "、"
+    },
+    {
+      "kind": "text_delta",
+      "text": "4"
+    },
+    {
+      "kind": "text_delta",
+      "text": "、"
+    },
+    {
+      "kind": "text_delta",
+      "text": "5"
+    },
+    {
+      "kind": "text_delta",
+      "text": " 合"
+    },
+    {
+      "kind": "text_delta",
+      "text": "规"
+    },
+    {
+      "kind": "text_delta",
+      "text": "，"
+    },
+    {
+      "kind": "text_delta",
+      "text": "随后"
+    },
+    {
+      "kind": "text_delta",
+      "text": "却"
+    },
+    {
+      "kind": "text_delta",
+      "text": "写"
+    },
+    {
+      "kind": "text_delta",
+      "text": "“"
+    },
+    {
+      "kind": "text_delta",
+      "text": "5"
+    },
+    {
+      "kind": "text_delta",
+      "text": " 条"
+    },
+    {
+      "kind": "text_delta",
+      "text": "中"
+    },
+    {
+      "kind": "text_delta",
+      "text": "仅"
+    },
+    {
+      "kind": "text_delta",
+      "text": " "
+    },
+    {
+      "kind": "text_delta",
+      "text": "2"
+    },
+    {
+      "kind": "text_delta",
+      "text": "、"
+    },
+    {
+      "kind": "text_delta",
+      "text": "3"
+    },
+    {
+      "kind": "text_delta",
+      "text": "、"
+    },
+    {
+      "kind": "text_delta",
+      "text": "4"
+    },
+    {
+      "kind": "text_delta",
+      "text": " 达"
+    },
+    {
+      "kind": "text_delta",
+      "text": "成"
+    },
+    {
+      "kind": "text_delta",
+      "text": "”。"
+    },
+    {
+      "kind": "text_delta",
+      "text": "按"
+    },
+    {
+      "kind": "text_delta",
+      "text": "其"
+    },
+    {
+      "kind": "text_delta",
+      "text": "自身"
+    },
+    {
+      "kind": "text_delta",
+      "text": "逐"
+    },
+    {
+      "kind": "text_delta",
+      "text": "条"
+    },
+    {
+      "kind": "text_delta",
+      "text": "结论"
+    },
+    {
+      "kind": "text_delta",
+      "text": "及"
+    },
+    {
+      "kind": "text_delta",
+      "text": " `"
+    },
+    {
+      "kind": "text_delta",
+      "text": "names"
+    },
+    {
+      "kind": "text_delta",
+      "text": ".py"
+    },
+    {
+      "kind": "text_delta",
+      "text": ":"
+    },
+    {
+      "kind": "text_delta",
+      "text": "2"
+    },
+    {
+      "kind": "text_delta",
+      "text": "`"
+    },
+    {
+      "kind": "text_delta",
+      "text": "（"
+    },
+    {
+      "kind": "text_delta",
+      "text": "`"
+    },
+    {
+      "kind": "text_delta",
+      "text": "return"
+    },
+    {
+      "kind": "text_delta",
+      "text": " list"
+    },
+    {
+      "kind": "text_delta",
+      "text": "(values"
+    },
+    {
+      "kind": "text_delta",
+      "text": ")`"
+    },
+    {
+      "kind": "text_delta",
+      "text": "）"
+    },
+    {
+      "kind": "text_delta",
+      "text": "的实际"
+    },
+    {
+      "kind": "text_delta",
+      "text": "行为"
+    },
+    {
+      "kind": "text_delta",
+      "text": "，"
+    },
+    {
+      "kind": "text_delta",
+      "text": "正确"
+    },
+    {
+      "kind": "text_delta",
+      "text": "表述"
+    },
+    {
+      "kind": "text_delta",
+      "text": "应为"
+    },
+    {
+      "kind": "text_delta",
+      "text": " **"
+    },
+    {
+      "kind": "text_delta",
+      "text": "3"
+    },
+    {
+      "kind": "text_delta",
+      "text": "、"
+    },
+    {
+      "kind": "text_delta",
+      "text": "4"
+    },
+    {
+      "kind": "text_delta",
+      "text": "、"
+    },
+    {
+      "kind": "text_delta",
+      "text": "5"
+    },
+    {
+      "kind": "text_delta",
+      "text": " 达"
+    },
+    {
+      "kind": "text_delta",
+      "text": "成"
+    },
+    {
+      "kind": "text_delta",
+      "text": "，"
+    },
+    {
+      "kind": "text_delta",
+      "text": "1"
+    },
+    {
+      "kind": "text_delta",
+      "text": "、"
+    },
+    {
+      "kind": "text_delta",
+      "text": "2"
+    },
+    {
+      "kind": "text_delta",
+      "text": " "
+    },
+    {
+      "kind": "text_delta",
+      "text": "缺"
+    },
+    {
+      "kind": "text_delta",
+      "text": "失"
+    },
+    {
+      "kind": "text_delta",
+      "text": "**"
+    },
+    {
+      "kind": "text_delta",
+      "text": "。“"
+    },
+    {
+      "kind": "text_delta",
+      "text": "2"
+    },
+    {
+      "kind": "text_delta",
+      "text": " 达"
+    },
+    {
+      "kind": "text_delta",
+      "text": "成"
+    },
+    {
+      "kind": "text_delta",
+      "text": "”"
+    },
+    {
+      "kind": "text_delta",
+      "text": "与"
+    },
+    {
+      "kind": "text_delta",
+      "text": "同"
+    },
+    {
+      "kind": "text_delta",
+      "text": "段"
+    },
+    {
+      "kind": "text_delta",
+      "text": "“"
+    },
+    {
+      "kind": "text_delta",
+      "text": "空白"
+    },
+    {
+      "kind": "text_delta",
+      "text": "项"
+    },
+    {
+      "kind": "text_delta",
+      "text": "原"
+    },
+    {
+      "kind": "text_delta",
+      "text": "样"
+    },
+    {
+      "kind": "text_delta",
+      "text": "保留"
+    },
+    {
+      "kind": "text_delta",
+      "text": "”"
+    },
+    {
+      "kind": "text_delta",
+      "text": "直接"
+    },
+    {
+      "kind": "text_delta",
+      "text": "矛盾"
+    },
+    {
+      "kind": "text_delta",
+      "text": "。\n\n"
+    },
+    {
+      "kind": "text_delta",
+      "text": "##"
+    },
+    {
+      "kind": "text_delta",
+      "text": " 经"
+    },
+    {
+      "kind": "text_delta",
+      "text": "核对"
+    },
+    {
+      "kind": "text_delta",
+      "text": "成立"
+    },
+    {
+      "kind": "text_delta",
+      "text": "的部分"
+    },
+    {
+      "kind": "text_delta",
+      "text": "\n\n"
+    },
+    {
+      "kind": "text_delta",
+      "text": "-"
+    },
+    {
+      "kind": "text_delta",
+      "text": " "
+    },
+    {
+      "kind": "text_delta",
+      "text": "契"
+    },
+    {
+      "kind": "text_delta",
+      "text": "约"
+    },
+    {
+      "kind": "text_delta",
+      "text": "与"
+    },
+    {
+      "kind": "text_delta",
+      "text": "遗留"
+    },
+    {
+      "kind": "text_delta",
+      "text": "材料"
+    },
+    {
+      "kind": "text_delta",
+      "text": "定位"
+    },
+    {
+      "kind": "text_delta",
+      "text": "正确"
+    },
+    {
+      "kind": "text_delta",
+      "text": "："
+    },
+    {
+      "kind": "text_delta",
+      "text": "`"
+    },
+    {
+      "kind": "text_delta",
+      "text": "docs"
+    },
+    {
+      "kind": "text_delta",
+      "text": "/current"
+    },
+    {
+      "kind": "text_delta",
+      "text": "-con"
+    },
+    {
+      "kind": "text_delta",
+      "text": "tract"
+    },
+    {
+      "kind": "text_delta",
+      "text": ".md"
+    },
+    {
+      "kind": "text_delta",
+      "text": ":"
+    },
+    {
+      "kind": "text_delta",
+      "text": "1"
+    },
+    {
+      "kind": "text_delta",
+      "text": "-"
+    },
+    {
+      "kind": "text_delta",
+      "text": "6"
+    },
+    {
+      "kind": "text_delta",
+      "text": "`"
+    },
+    {
+      "kind": "text_delta",
+      "text": " 为"
+    },
+    {
+      "kind": "text_delta",
+      "text": "现行"
+    },
+    {
+      "kind": "text_delta",
+      "text": " "
+    },
+    {
+      "kind": "text_delta",
+      "text": "5"
+    },
+    {
+      "kind": "text_delta",
+      "text": " 条"
+    },
+    {
+      "kind": "text_delta",
+      "text": "约束"
+    },
+    {
+      "kind": "text_delta",
+      "text": "，"
+    },
+    {
+      "kind": "text_delta",
+      "text": "`"
+    },
+    {
+      "kind": "text_delta",
+      "text": "docs"
+    },
+    {
+      "kind": "text_delta",
+      "text": "/"
+    },
+    {
+      "kind": "text_delta",
+      "text": "legacy"
+    },
+    {
+      "kind": "text_delta",
+      "text": "-notes"
+    },
+    {
+      "kind": "text_delta",
+      "text": ".md"
+    },
+    {
+      "kind": "text_delta",
+      "text": ":"
+    },
+    {
+      "kind": "text_delta",
+      "text": "2"
+    },
+    {
+      "kind": "text_delta",
+      "text": "-"
+    },
+    {
+      "kind": "text_delta",
+      "text": "4"
+    },
+    {
+      "kind": "text_delta",
+      "text": "`"
+    },
+    {
+      "kind": "text_delta",
+      "text": " 明"
+    },
+    {
+      "kind": "text_delta",
+      "text": "确"
+    },
+    {
+      "kind": "text_delta",
+      "text": "提案"
+    },
+    {
+      "kind": "text_delta",
+      "text": "（"
+    },
+    {
+      "kind": "text_delta",
+      "text": "排序"
+    },
+    {
+      "kind": "text_delta",
+      "text": "+"
+    },
+    {
+      "kind": "text_delta",
+      "text": "去"
+    },
+    {
+      "kind": "text_delta",
+      "text": "重"
+    },
+    {
+      "kind": "text_delta",
+      "text": "）"
+    },
+    {
+      "kind": "text_delta",
+      "text": "已被"
+    },
+    {
+      "kind": "text_delta",
+      "text": "否"
+    },
+    {
+      "kind": "text_delta",
+      "text": "决"
+    },
+    {
+      "kind": "text_delta",
+      "text": "。“"
+    },
+    {
+      "kind": "text_delta",
+      "text": "不"
+    },
+    {
+      "kind": "text_delta",
+      "text": "排序"
+    },
+    {
+      "kind": "text_delta",
+      "text": "、"
+    },
+    {
+      "kind": "text_delta",
+      "text": "不去"
+    },
+    {
+      "kind": "text_delta",
+      "text": "重"
+    },
+    {
+      "kind": "text_delta",
+      "text": "”"
+    },
+    {
+      "kind": "text_delta",
+      "text": "的"
+    },
+    {
+      "kind": "text_delta",
+      "text": "结论"
+    },
+    {
+      "kind": "text_delta",
+      "text": "成立"
+    },
+    {
+      "kind": "text_delta",
+      "text": "。\n"
+    },
+    {
+      "kind": "text_delta",
+      "text": "-"
+    },
+    {
+      "kind": "text_delta",
+      "text": " 实现"
+    },
+    {
+      "kind": "text_delta",
+      "text": " vs"
+    },
+    {
+      "kind": "text_delta",
+      "text": " "
+    },
+    {
+      "kind": "text_delta",
+      "text": "契"
+    },
+    {
+      "kind": "text_delta",
+      "text": "约"
+    },
+    {
+      "kind": "text_delta",
+      "text": "的"
+    },
+    {
+      "kind": "text_delta",
+      "text": "逐"
+    },
+    {
+      "kind": "text_delta",
+      "text": "条"
+    },
+    {
+      "kind": "text_delta",
+      "text": "判定"
+    },
+    {
+      "kind": "text_delta",
+      "text": "（"
+    },
+    {
+      "kind": "text_delta",
+      "text": "除"
+    },
+    {
+      "kind": "text_delta",
+      "text": "上述"
+    },
+    {
+      "kind": "text_delta",
+      "text": "编号"
+    },
+    {
+      "kind": "text_delta",
+      "text": "笔"
+    },
+    {
+      "kind": "text_delta",
+      "text": "误"
+    },
+    {
+      "kind": "text_delta",
+      "text": "外"
+    },
+    {
+      "kind": "text_delta",
+      "text": "）"
+    },
+    {
+      "kind": "text_delta",
+      "text": "与"
+    },
+    {
+      "kind": "text_delta",
+      "text": " `"
+    },
+    {
+      "kind": "text_delta",
+      "text": "names"
+    },
+    {
+      "kind": "text_delta",
+      "text": ".py"
+    },
+    {
+      "kind": "text_delta",
+      "text": ":"
+    },
+    {
+      "kind": "text_delta",
+      "text": "1"
+    },
+    {
+      "kind": "text_delta",
+      "text": "-"
+    },
+    {
+      "kind": "text_delta",
+      "text": "2"
+    },
+    {
+      "kind": "text_delta",
+      "text": "`"
+    },
+    {
+      "kind": "text_delta",
+      "text": " 一"
+    },
+    {
+      "kind": "text_delta",
+      "text": "致"
+    },
+    {
+      "kind": "text_delta",
+      "text": "。\n"
+    },
+    {
+      "kind": "text_delta",
+      "text": "-"
+    },
+    {
+      "kind": "text_delta",
+      "text": " "
+    },
+    {
+      "kind": "text_delta",
+      "text": "测试"
+    },
+    {
+      "kind": "text_delta",
+      "text": "行"
+    },
+    {
+      "kind": "text_delta",
+      "text": "号"
+    },
+    {
+      "kind": "text_delta",
+      "text": "与"
+    },
+    {
+      "kind": "text_delta",
+      "text": "内容"
+    },
+    {
+      "kind": "text_delta",
+      "text": "对应"
+    },
+    {
+      "kind": "text_delta",
+      "text": "准确"
+    },
+    {
+      "kind": "text_delta",
+      "text": "（"
+    },
+    {
+      "kind": "text_delta",
+      "text": "`"
+    },
+    {
+      "kind": "text_delta",
+      "text": "test"
+    },
+    {
+      "kind": "text_delta",
+      "text": "_names"
+    },
+    {
+      "kind": "text_delta",
+      "text": ".py"
+    },
+    {
+      "kind": "text_delta",
+      "text": ":"
+    },
+    {
+      "kind": "text_delta",
+      "text": "4"
+    },
+    {
+      "kind": "text_delta",
+      "text": "-"
+    },
+    {
+      "kind": "text_delta",
+      "text": "9"
+    },
+    {
+      "kind": "text_delta",
+      "text": "`"
+    },
+    {
+      "kind": "text_delta",
+      "text": "），"
+    },
+    {
+      "kind": "text_delta",
+      "text": "各行"
+    },
+    {
+      "kind": "text_delta",
+      "text": "区分"
+    },
+    {
+      "kind": "text_delta",
+      "text": "力"
+    },
+    {
+      "kind": "text_delta",
+      "text": "分析"
+    },
+    {
+      "kind": "text_delta",
+      "text": "正确"
+    },
+    {
+      "kind": "text_delta",
+      "text": "：\n"
+    },
+    {
+      "kind": "text_delta",
+      "text": " "
+    },
+    {
+      "kind": "text_delta",
+      "text": " -"
+    },
+    {
+      "kind": "text_delta",
+      "text": " `"
+    },
+    {
+      "kind": "text_delta",
+      "text": "test"
+    },
+    {
+      "kind": "text_delta",
+      "text": "_names"
+    },
+    {
+      "kind": "text_delta",
+      "text": ".py"
+    },
+    {
+      "kind": "text_delta",
+      "text": ":"
+    },
+    {
+      "kind": "text_delta",
+      "text": "4"
+    },
+    {
+      "kind": "text_delta",
+      "text": "`"
+    },
+    {
+      "kind": "text_delta",
+      "text": " `"
+    },
+    {
+      "kind": "text_delta",
+      "text": "test"
+    },
+    {
+      "kind": "text_delta",
+      "text": "_empty"
+    },
+    {
+      "kind": "text_delta",
+      "text": "`"
+    },
+    {
+      "kind": "text_delta",
+      "text": " 无"
+    },
+    {
+      "kind": "text_delta",
+      "text": "区分"
+    },
+    {
+      "kind": "text_delta",
+      "text": "力"
+    },
+    {
+      "kind": "text_delta",
+      "text": "；\n"
+    },
+    {
+      "kind": "text_delta",
+      "text": " "
+    },
+    {
+      "kind": "text_delta",
+      "text": " -"
+    },
+    {
+      "kind": "text_delta",
+      "text": " `"
+    },
+    {
+      "kind": "text_delta",
+      "text": "test"
+    },
+    {
+      "kind": "text_delta",
+      "text": "_names"
+    },
+    {
+      "kind": "text_delta",
+      "text": ".py"
+    },
+    {
+      "kind": "text_delta",
+      "text": ":"
+    },
+    {
+      "kind": "text_delta",
+      "text": "5"
+    },
+    {
+      "kind": "text_delta",
+      "text": "-"
+    },
+    {
+      "kind": "text_delta",
+      "text": "7"
+    },
+    {
+      "kind": "text_delta",
+      "text": "`"
+    },
+    {
+      "kind": "text_delta",
+      "text": " 可"
+    },
+    {
+      "kind": "text_delta",
+      "text": "捕获"
+    },
+    {
+      "kind": "text_delta",
+      "text": " trim"
+    },
+    {
+      "kind": "text_delta",
+      "text": "/"
+    },
+    {
+      "kind": "text_delta",
+      "text": "空白"
+    },
+    {
+      "kind": "text_delta",
+      "text": "过滤"
+    },
+    {
+      "kind": "text_delta",
+      "text": "缺失"
+    },
+    {
+      "kind": "text_delta",
+      "text": "；\n"
+    },
+    {
+      "kind": "text_delta",
+      "text": " "
+    },
+    {
+      "kind": "text_delta",
+      "text": " -"
+    },
+    {
+      "kind": "text_delta",
+      "text": " `"
+    },
+    {
+      "kind": "text_delta",
+      "text": "test"
+    },
+    {
+      "kind": "text_delta",
+      "text": "_names"
+    },
+    {
+      "kind": "text_delta",
+      "text": ".py"
+    },
+    {
+      "kind": "text_delta",
+      "text": ":"
+    },
+    {
+      "kind": "text_delta",
+      "text": "7"
+    },
+    {
+      "kind": "text_delta",
+      "text": "`"
+    },
+    {
+      "kind": "text_delta",
+      "text": " "
+    },
+    {
+      "kind": "text_delta",
+      "text": "确"
+    },
+    {
+      "kind": "text_delta",
+      "text": "能"
+    },
+    {
+      "kind": "text_delta",
+      "text": "捕获"
+    },
+    {
+      "kind": "text_delta",
+      "text": "去"
+    },
+    {
+      "kind": "text_delta",
+      "text": "重"
+    },
+    {
+      "kind": "text_delta",
+      "text": "违规"
+    },
+    {
+      "kind": "text_delta",
+      "text": "（"
+    },
+    {
+      "kind": "text_delta",
+      "text": "去"
+    },
+    {
+      "kind": "text_delta",
+      "text": "重"
+    },
+    {
+      "kind": "text_delta",
+      "text": "实现"
+    },
+    {
+      "kind": "text_delta",
+      "text": "会"
+    },
+    {
+      "kind": "text_delta",
+      "text": "得"
+    },
+    {
+      "kind": "text_delta",
+      "text": " `"
+    },
+    {
+      "kind": "text_delta",
+      "text": "['"
+    },
+    {
+      "kind": "text_delta",
+      "text": "A"
+    },
+    {
+      "kind": "text_delta",
+      "text": "']"
+    },
+    {
+      "kind": "text_delta",
+      "text": "`"
+    },
+    {
+      "kind": "text_delta",
+      "text": "）"
+    },
+    {
+      "kind": "text_delta",
+      "text": "；\n"
+    },
+    {
+      "kind": "text_delta",
+      "text": " "
+    },
+    {
+      "kind": "text_delta",
+      "text": " -"
+    },
+    {
+      "kind": "text_delta",
+      "text": " `"
+    },
+    {
+      "kind": "text_delta",
+      "text": "test"
+    },
+    {
+      "kind": "text_delta",
+      "text": "_names"
+    },
+    {
+      "kind": "text_delta",
+      "text": ".py"
+    },
+    {
+      "kind": "text_delta",
+      "text": ":"
+    },
+    {
+      "kind": "text_delta",
+      "text": "8"
+    },
+    {
+      "kind": "text_delta",
+      "text": "-"
+    },
+    {
+      "kind": "text_delta",
+      "text": "9"
+    },
+    {
+      "kind": "text_delta",
+      "text": "`"
+    },
+    {
+      "kind": "text_delta",
+      "text": " 仅"
+    },
+    {
+      "kind": "text_delta",
+      "text": "浅"
+    },
+    {
+      "kind": "text_delta",
+      "text": "层"
+    },
+    {
+      "kind": "text_delta",
+      "text": "比较"
+    },
+    {
+      "kind": "text_delta",
+      "text": "，"
+    },
+    {
+      "kind": "text_delta",
+      "text": "判定"
+    },
+    {
+      "kind": "text_delta",
+      "text": "合理"
+    },
+    {
+      "kind": "text_delta",
+      "text": "。\n"
+    },
+    {
+      "kind": "text_delta",
+      "text": "-"
+    },
+    {
+      "kind": "text_delta",
+      "text": " "
+    },
+    {
+      "kind": "text_delta",
+      "text": "覆"
+    },
+    {
+      "kind": "text_delta",
+      "text": "盖"
+    },
+    {
+      "kind": "text_delta",
+      "text": "缺口"
+    },
+    {
+      "kind": "text_delta",
+      "text": "分析"
+    },
+    {
+      "kind": "text_delta",
+      "text": "成立"
+    },
+    {
+      "kind": "text_delta",
+      "text": "："
+    },
+    {
+      "kind": "text_delta",
+      "text": "所有"
+    },
+    {
+      "kind": "text_delta",
+      "text": "测试"
+    },
+    {
+      "kind": "text_delta",
+      "text": "输入"
+    },
+    {
+      "kind": "text_delta",
+      "text": "的"
+    },
+    {
+      "kind": "text_delta",
+      "text": "期望"
+    },
+    {
+      "kind": "text_delta",
+      "text": "输出"
+    },
+    {
+      "kind": "text_delta",
+      "text": "均"
+    },
+    {
+      "kind": "text_delta",
+      "text": "与"
+    },
+    {
+      "kind": "text_delta",
+      "text": "排序"
+    },
+    {
+      "kind": "text_delta",
+      "text": "无关"
+    },
+    {
+      "kind": "text_delta",
+      "text": "（"
+    },
+    {
+      "kind": "text_delta",
+      "text": "如"
+    },
+    {
+      "kind": "text_delta",
+      "text": " `"
+    },
+    {
+      "kind": "text_delta",
+      "text": "['"
+    },
+    {
+      "kind": "text_delta",
+      "text": " Alice"
+    },
+    {
+      "kind": "text_delta",
+      "text": " ',"
+    },
+    {
+      "kind": "text_delta",
+      "text": " '"
+    },
+    {
+      "kind": "text_delta",
+      "text": "Bob"
+    },
+    {
+      "kind": "text_delta",
+      "text": "']"
+    },
+    {
+      "kind": "text_delta",
+      "text": "`"
+    },
+    {
+      "kind": "text_delta",
+      "text": " "
+    },
+    {
+      "kind": "text_delta",
+      "text": "排"
+    },
+    {
+      "kind": "text_delta",
+      "text": "序"
+    },
+    {
+      "kind": "text_delta",
+      "text": "后"
+    },
+    {
+      "kind": "text_delta",
+      "text": "仍"
+    },
+    {
+      "kind": "text_delta",
+      "text": "为"
+    },
+    {
+      "kind": "text_delta",
+      "text": " `"
+    },
+    {
+      "kind": "text_delta",
+      "text": "['"
+    },
+    {
+      "kind": "text_delta",
+      "text": "Alice"
+    },
+    {
+      "kind": "text_delta",
+      "text": "',"
+    },
+    {
+      "kind": "text_delta",
+      "text": " '"
+    },
+    {
+      "kind": "text_delta",
+      "text": "Bob"
+    },
+    {
+      "kind": "text_delta",
+      "text": "']"
+    },
+    {
+      "kind": "text_delta",
+      "text": "`"
+    },
+    {
+      "kind": "text_delta",
+      "text": "），"
+    },
+    {
+      "kind": "text_delta",
+      "text": "故"
+    },
+    {
+      "kind": "text_delta",
+      "text": "**"
+    },
+    {
+      "kind": "text_delta",
+      "text": "排序"
+    },
+    {
+      "kind": "text_delta",
+      "text": "类"
+    },
+    {
+      "kind": "text_delta",
+      "text": "违规"
+    },
+    {
+      "kind": "text_delta",
+      "text": "不被"
+    },
+    {
+      "kind": "text_delta",
+      "text": "现有"
+    },
+    {
+      "kind": "text_delta",
+      "text": "任何"
+    },
+    {
+      "kind": "text_delta",
+      "text": "测试"
+    },
+    {
+      "kind": "text_delta",
+      "text": "检测"
+    },
+    {
+      "kind": "text_delta",
+      "text": "**"
+    },
+    {
+      "kind": "text_delta",
+      "text": "；"
+    },
+    {
+      "kind": "text_delta",
+      "text": "非"
+    },
+    {
+      "kind": "text_delta",
+      "text": "字符串"
+    },
+    {
+      "kind": "text_delta",
+      "text": "/"
+    },
+    {
+      "kind": "text_delta",
+      "text": "`"
+    },
+    {
+      "kind": "text_delta",
+      "text": "None"
+    },
+    {
+      "kind": "text_delta",
+      "text": "`"
+    },
+    {
+      "kind": "text_delta",
+      "text": " "
+    },
+    {
+      "kind": "text_delta",
+      "text": "错"
+    },
+    {
+      "kind": "text_delta",
+      "text": "误"
+    },
+    {
+      "kind": "text_delta",
+      "text": "路径"
+    },
+    {
+      "kind": "text_delta",
+      "text": "未"
+    },
+    {
+      "kind": "text_delta",
+      "text": "覆盖"
+    },
+    {
+      "kind": "text_delta",
+      "text": "亦"
+    },
+    {
+      "kind": "text_delta",
+      "text": "属实"
+    },
+    {
+      "kind": "text_delta",
+      "text": "。\n"
+    },
+    {
+      "kind": "text_delta",
+      "text": "-"
+    },
+    {
+      "kind": "text_delta",
+      "text": " "
+    },
+    {
+      "kind": "text_delta",
+      "text": "执行"
+    },
+    {
+      "kind": "text_delta",
+      "text": "状态"
+    },
+    {
+      "kind": "text_delta",
+      "text": "声明"
+    },
+    {
+      "kind": "text_delta",
+      "text": "正确"
+    },
+    {
+      "kind": "text_delta",
+      "text": "："
+    },
+    {
+      "kind": "text_delta",
+      "text": "审计"
+    },
+    {
+      "kind": "text_delta",
+      "text": "为"
+    },
+    {
+      "kind": "text_delta",
+      "text": "静态"
+    },
+    {
+      "kind": "text_delta",
+      "text": "分析"
+    },
+    {
+      "kind": "text_delta",
+      "text": "，“"
+    },
+    {
+      "kind": "text_delta",
+      "text": "会"
+    },
+    {
+      "kind": "text_delta",
+      "text": "失败"
+    },
+    {
+      "kind": "text_delta",
+      "text": "/"
+    },
+    {
+      "kind": "text_delta",
+      "text": "通过"
+    },
+    {
+      "kind": "text_delta",
+      "text": "”"
+    },
+    {
+      "kind": "text_delta",
+      "text": "均为"
+    },
+    {
+      "kind": "text_delta",
+      "text": "推断"
+    },
+    {
+      "kind": "text_delta",
+      "text": "，"
+    },
+    {
+      "kind": "text_delta",
+      "text": "与"
+    },
+    {
+      "kind": "text_delta",
+      "text": " `"
+    },
+    {
+      "kind": "text_delta",
+      "text": "docs"
+    },
+    {
+      "kind": "text_delta",
+      "text": "/current"
+    },
+    {
+      "kind": "text_delta",
+      "text": "-con"
+    },
+    {
+      "kind": "text_delta",
+      "text": "tract"
+    },
+    {
+      "kind": "text_delta",
+      "text": ".md"
+    },
+    {
+      "kind": "text_delta",
+      "text": ":"
+    },
+    {
+      "kind": "text_delta",
+      "text": "7"
+    },
+    {
+      "kind": "text_delta",
+      "text": "`"
+    },
+    {
+      "kind": "text_delta",
+      "text": " 的"
+    },
+    {
+      "kind": "text_delta",
+      "text": "声明"
+    },
+    {
+      "kind": "text_delta",
+      "text": "一致"
+    },
+    {
+      "kind": "text_delta",
+      "text": "。\n\n"
+    },
+    {
+      "kind": "text_delta",
+      "text": "##"
+    },
+    {
+      "kind": "text_delta",
+      "text": " "
+    },
+    {
+      "kind": "text_delta",
+      "text": "剩"
+    },
+    {
+      "kind": "text_delta",
+      "text": "余"
+    },
+    {
+      "kind": "text_delta",
+      "text": "不确定性"
+    },
+    {
+      "kind": "text_delta",
+      "text": "\n\n"
+    },
+    {
+      "kind": "text_delta",
+      "text": "-"
+    },
+    {
+      "kind": "text_delta",
+      "text": " 子"
+    },
+    {
+      "kind": "text_delta",
+      "text": "报告"
+    },
+    {
+      "kind": "text_delta",
+      "text": "“"
+    },
+    {
+      "kind": "text_delta",
+      "text": "排序"
+    },
+    {
+      "kind": "text_delta",
+      "text": "不去"
+    },
+    {
+      "kind": "text_delta",
+      "text": "重"
+    },
+    {
+      "kind": "text_delta",
+      "text": "得"
+    },
+    {
+      "kind": "text_delta",
+      "text": " `"
+    },
+    {
+      "kind": "text_delta",
+      "text": "['"
+    },
+    {
+      "kind": "text_delta",
+      "text": "A"
+    },
+    {
+      "kind": "text_delta",
+      "text": "','"
+    },
+    {
+      "kind": "text_delta",
+      "text": "A"
+    },
+    {
+      "kind": "text_delta",
+      "text": "']"
+    },
+    {
+      "kind": "text_delta",
+      "text": "`"
+    },
+    {
+      "kind": "text_delta",
+      "text": " "
+    },
+    {
+      "kind": "text_delta",
+      "text": "仍"
+    },
+    {
+      "kind": "text_delta",
+      "text": "通过"
+    },
+    {
+      "kind": "text_delta",
+      "text": " `"
+    },
+    {
+      "kind": "text_delta",
+      "text": "test"
+    },
+    {
+      "kind": "text_delta",
+      "text": "_duplicates"
+    },
+    {
+      "kind": "text_delta",
+      "text": "`"
+    },
+    {
+      "kind": "text_delta",
+      "text": "”"
+    },
+    {
+      "kind": "text_delta",
+      "text": "隐"
+    },
+    {
+      "kind": "text_delta",
+      "text": "含"
+    },
+    {
+      "kind": "text_delta",
+      "text": "假设"
+    },
+    {
+      "kind": "text_delta",
+      "text": "该"
+    },
+    {
+      "kind": "text_delta",
+      "text": "实现"
+    },
+    {
+      "kind": "text_delta",
+      "text": "同时"
+    },
+    {
+      "kind": "text_delta",
+      "text": "做了"
+    },
+    {
+      "kind": "text_delta",
+      "text": " trim"
+    },
+    {
+      "kind": "text_delta",
+      "text": "；"
+    },
+    {
+      "kind": "text_delta",
+      "text": "纯"
+    },
+    {
+      "kind": "text_delta",
+      "text": "排序"
+    },
+    {
+      "kind": "text_delta",
+      "text": "（"
+    },
+    {
+      "kind": "text_delta",
+      "text": "不"
+    },
+    {
+      "kind": "text_delta",
+      "text": " trim"
+    },
+    {
+      "kind": "text_delta",
+      "text": "）"
+    },
+    {
+      "kind": "text_delta",
+      "text": "实现"
+    },
+    {
+      "kind": "text_delta",
+      "text": "会"
+    },
+    {
+      "kind": "text_delta",
+      "text": "因"
+    },
+    {
+      "kind": "text_delta",
+      "text": " `"
+    },
+    {
+      "kind": "text_delta",
+      "text": "test"
+    },
+    {
+      "kind": "text_delta",
+      "text": "_names"
+    },
+    {
+      "kind": "text_delta",
+      "text": ".py"
+    },
+    {
+      "kind": "text_delta",
+      "text": ":"
+    },
+    {
+      "kind": "text_delta",
+      "text": "5"
+    },
+    {
+      "kind": "text_delta",
+      "text": "`"
+    },
+    {
+      "kind": "text_delta",
+      "text": " "
+    },
+    {
+      "kind": "text_delta",
+      "text": "失"
+    },
+    {
+      "kind": "text_delta",
+      "text": "败"
+    },
+    {
+      "kind": "text_delta",
+      "text": "。"
+    },
+    {
+      "kind": "text_delta",
+      "text": "此"
+    },
+    {
+      "kind": "text_delta",
+      "text": "为"
+    },
+    {
+      "kind": "text_delta",
+      "text": "限定"
+    },
+    {
+      "kind": "text_delta",
+      "text": "条件"
+    },
+    {
+      "kind": "text_delta",
+      "text": "而非"
+    },
+    {
+      "kind": "text_delta",
+      "text": "错误"
+    },
+    {
+      "kind": "text_delta",
+      "text": "，"
+    },
+    {
+      "kind": "text_delta",
+      "text": "建议"
+    },
+    {
+      "kind": "text_delta",
+      "text": "在"
+    },
+    {
+      "kind": "text_delta",
+      "text": "表述"
+    },
+    {
+      "kind": "text_delta",
+      "text": "中"
+    },
+    {
+      "kind": "text_delta",
+      "text": "注明"
+    },
+    {
+      "kind": "text_delta",
+      "text": "。\n\n"
+    },
+    {
+      "kind": "text_delta",
+      "text": "**"
+    },
+    {
+      "kind": "text_delta",
+      "text": "总结"
+    },
+    {
+      "kind": "text_delta",
+      "text": "**"
+    },
+    {
+      "kind": "text_delta",
+      "text": "："
+    },
+    {
+      "kind": "text_delta",
+      "text": "子"
+    },
+    {
+      "kind": "text_delta",
+      "text": "报告"
+    },
+    {
+      "kind": "text_delta",
+      "text": "整体"
+    },
+    {
+      "kind": "text_delta",
+      "text": "结论"
+    },
+    {
+      "kind": "text_delta",
+      "text": "可靠"
+    },
+    {
+      "kind": "text_delta",
+      "text": "，"
+    },
+    {
+      "kind": "text_delta",
+      "text": "唯一"
+    },
+    {
+      "kind": "text_delta",
+      "text": "实质性"
+    },
+    {
+      "kind": "text_delta",
+      "text": "错误"
+    },
+    {
+      "kind": "text_delta",
+      "text": "是"
+    },
+    {
+      "kind": "text_delta",
+      "text": "“"
+    },
+    {
+      "kind": "text_delta",
+      "text": "仅"
+    },
+    {
+      "kind": "text_delta",
+      "text": " "
+    },
+    {
+      "kind": "text_delta",
+      "text": "2"
+    },
+    {
+      "kind": "text_delta",
+      "text": "、"
+    },
+    {
+      "kind": "text_delta",
+      "text": "3"
+    },
+    {
+      "kind": "text_delta",
+      "text": "、"
+    },
+    {
+      "kind": "text_delta",
+      "text": "4"
+    },
+    {
+      "kind": "text_delta",
+      "text": " 达"
+    },
+    {
+      "kind": "text_delta",
+      "text": "成"
+    },
+    {
+      "kind": "text_delta",
+      "text": "”"
+    },
+    {
+      "kind": "text_delta",
+      "text": "的"
+    },
+    {
+      "kind": "text_delta",
+      "text": "编号"
+    },
+    {
+      "kind": "text_delta",
+      "text": "矛盾"
+    },
+    {
+      "kind": "text_delta",
+      "text": "，"
+    },
+    {
+      "kind": "text_delta",
+      "text": "应"
+    },
+    {
+      "kind": "text_delta",
+      "text": "更"
+    },
+    {
+      "kind": "text_delta",
+      "text": "正"
+    },
+    {
+      "kind": "text_delta",
+      "text": "为"
+    },
+    {
+      "kind": "text_delta",
+      "text": "“"
+    },
+    {
+      "kind": "text_delta",
+      "text": "仅"
+    },
+    {
+      "kind": "text_delta",
+      "text": " "
+    },
+    {
+      "kind": "text_delta",
+      "text": "3"
+    },
+    {
+      "kind": "text_delta",
+      "text": "、"
+    },
+    {
+      "kind": "text_delta",
+      "text": "4"
+    },
+    {
+      "kind": "text_delta",
+      "text": "、"
+    },
+    {
+      "kind": "text_delta",
+      "text": "5"
+    },
+    {
+      "kind": "text_delta",
+      "text": " 达成”。"
+    },
+    {
+      "kind": "usage",
+      "usage": {
+        "input_tokens": 2706,
+        "output_tokens": 867,
+        "cached_input_tokens": 0,
+        "cache_read_known": true
+      }
+    },
+    {
+      "kind": "completed"
+    }
+  ],
+  "scope": "Single provider semantic replay with original sources and saved faulty child advisory; no Host/delegation/tool recovery coverage."
+}

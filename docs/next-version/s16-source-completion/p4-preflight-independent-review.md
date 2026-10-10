@@ -1,0 +1,27 @@
+# P4 fresh公开零HTTP预检独审
+
+结论：**PASS_PREFLIGHT**。本审查无阻断，可在Root其余阶段门满足后进行同fresh owned的一次真实运行。该结论仅证明预检组装、冻结和实际输入结构，不是P4质量PASS、模型分析能力或CI通过声明。
+
+审查candidate：`f8bb5dc75bd4808598e75100ee879248758ab9ce`。fresh owned：`owned-cases-p4/s16-source-completion-p4-72d041646622`。未Host、未重跑preflight、未HTTP/Provider、未prepare或commit；生产、harness和owned均只读。
+
+## 真实物证
+
+- 生产范围含untracked检查为空，实际HEAD与freeze一致。六项harness_hashes、五项settings_hashes、五项workspace_hashes均重新按bytes计算一致；after_hashes也与冻结workspace一致。harness实际SHA256为`1e1281f1906aeefa3e8aa3511d52719774e3ea1b7c818e2b6c76d2c1575101b0`。
+- 四来源逐一比较：fresh workspace bytes = portable base64原bytes = 原v7 owned bytes，含CRLF。原worker-result SHA与origin引用一致。没有用新提示或fake结果替代原文件内容。
+- 六个wire文件的原bytes长度与SHA逐一匹配manifest。实际归属为parent4请求、child2请求；parent线程496980802d814a089c03000e1b60305a，child线程4f5a6d5b65f5468881a9119f40748f23。每请求实际GLM5.3-flash/medium及max_completion_tokens4096。
+- 实际child首请求有受约束system/developer角色指令、read schema；两请求没有父委派和独立核对流程指令。第二child请求四个read工具结果均成功，严格JSON object+一个合法history_ref suffix解析，正文逐byte decode后与原四文件完全相等，total_lines与物理文本行数一致。来源内容中的普通文本未因suffix处理而改写。
+- child绑定required_sources正好四路径，owner_thread_id/parent_task_id/relation均对应实际父；300000tokens/5tools，真实entry observation为单子、240s。optional delegate schema来自第二parent wire，不是假元数据。子未需要纠正，source_correction_records为空与直接四read再答复相符。
+- 初始账本自然STANDARD12/30/renewals0，hard12/40/per-round8/父1m；profile/context保留prompt300k/schema20k/output4096，child300k/240，parent880/total900，transport60/2。父任务冻结analyze，父result completed/unchanged/unverified，实际最终assistant非空且无工具。parent advisory completed、advisory=true、四工具、完整usage；子TaskResult verification_status原样unknown，未提升verified，摘要明确unverified/tests unexecuted。
+- 预检status为OFFLINE_PUBLIC_PREFLIGHT_ONLY，Provider及transport external send均0，audit_entries6均offline_response_only、external_send_attempt=null；supervisor实际exit0、6.657039600017015s、real_attempts0。该owned尚无execution-started marker。
+
+## 组装顺序修复核对
+
+直接审查脚本相对candidate的6行diff：仅把wire/audit/计数observations赋入result移至validate_offline_observations之前；成功status依然在validator通过之后设置。except路径仍失败保留，不吞校验异常。旧owned8bc3b259ade8的preflight-failure.json仍为ATTEMPT_FAILED_PRESERVED/KeyError、Provider0、六wire；没有覆盖旧失败或降断言。fresh目录避免旧freeze失效被借用。
+
+## 独立审计执行
+
+新增纯artifact核对程序`p4_preflight_readonly_audit.py`，仅标准库读取现成JSON/bytes和git只读状态，不import harness/Host。命令：本worktree`.venv/Scripts/python.exe docs/next-version/s16-source-completion/p4_preflight_readonly_audit.py`，实际exit0，输出PASS_PREFLIGHT、parent4/child2/source4/Provider0、所有freeze匹配和旧失败保留。
+
+审计程序首次把不存在的read输出start_line/end_line字段及child verification_status误设为unverified，读取实际结果后修正：完整性以原bytes/total_lines核对；ChildResult的unknown保持原投影。该审计脚本调试不涉及Host、owned或生产变化，也不是预检本身失败。
+
+仍需真实执行后的独审核对五行为、current/legacy、实际分析而非计划、物理path:line、父核对、Provider/engine不同终态和usage唯一完整结算；synthetic答复不提供这些质量证据。五平台CI运行状态由Root另行核验，不把当前running记PASS。

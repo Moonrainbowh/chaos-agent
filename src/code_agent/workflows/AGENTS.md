@@ -9,6 +9,7 @@
 - 不负责：调度 Agent、执行工具、判定验证成功、渲染终端、分配 thread 权限或替代 Sessions 事务。
 - Workflow edge 只表达执行依赖和可视关系，永远不授予 thread 读取、工具或文件权限。
 - 失败、取消和部分完成必须保留原始节点历史；模型不能直接创建成功、验证或交付终态。
+- 子 Agent objective 仅投影为最多 512 字符的显示标题，超长标题以省略号标记；不修改 Host observation 或子任务保存的完整 objective。
 
 ## Units
 - `Workflow`、`WorkflowNode`、`WorkflowEdge`、`WorkflowSnapshot`：表达不可变执行投影、状态、引用和三类边 | 无副作用 | 时间统一为 UTC，引用有界且 Workflow 归属一致

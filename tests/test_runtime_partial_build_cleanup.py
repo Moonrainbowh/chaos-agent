@@ -106,7 +106,8 @@ class PartialBuildCleanupTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(failure=type(failure).__name__):
                 client = _Client()
 
-                def fail(*_args):
+                def fail(*_args, agent_instructions):
+                    self.assertEqual(agent_instructions, agent.instructions)
                     raise failure
 
                 with tempfile.TemporaryDirectory() as directory:

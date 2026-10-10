@@ -1,0 +1,6 @@
+{
+  "status": "USER_APPROVED_PLAN",
+  "plan": "docs/next-version/s16-source-completion/plan.md",
+  "scope": "P4 one medium attempt after P0-P3 independent acceptance and offline public preflight; no new user approval needed",
+  "owned": "C:\\Users\\Windows11\\.codex\\worktrees\\s16-source-completion\\chaos-16-agent\\docs\\next-version\\s16-source-completion\\owned-cases-p4\\s16-source-completion-p4-8bc3b259ade8"
+}

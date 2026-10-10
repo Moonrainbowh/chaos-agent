@@ -35,6 +35,8 @@ from .task_supervisor import TaskSupervisor
 from .exploration_repeat import ExplorationRepeatObserver, ToolOnlyConvergenceGuard
 from .runtime_timing import phase_duration_ms, phase_started_at
 from .debug_trace import trace_event
+from .source_completion import SourceCompletionSnapshot
+from .protocols import ModelClient
 
 
 @dataclass(slots=True)
@@ -61,6 +63,8 @@ class _RunState:
     last_failed_call: tuple[str, str] | None = None
     progress_digest: str = ""
     candidate_digest: str = ""
+    source_snapshot: SourceCompletionSnapshot | None = None
+    parent_review: object | None = None
 
 
 @dataclass(slots=True)
@@ -73,6 +77,8 @@ class _TurnState:
     text_parts: list[str] = field(default_factory=list)
     calls: list[ToolCall] = field(default_factory=list)
     has_validation_error: bool = False
+    model_client: ModelClient | None = None
+    model_name: str | None = None
 
 
 def _validate_run_arguments(
@@ -124,12 +130,26 @@ async def _invoke_context_builder(
 class AgentEngineRunMixin:
     """Prepare one run and stream model events into its mutable state."""
 
+    def _select_request_model(self, state: _RunState) -> tuple[ModelClient, str]:
+        snapshot = state.parent_review
+        if (snapshot is None or not snapshot.active
+                or snapshot.phase not in ("independent", "comparison")
+                or "review_model" not in snapshot.data):
+            return self._model, self._model_name
+        review_model = self._parent_review_model
+        if review_model is None or not review_model.matches(snapshot.data["review_model"]):
+            raise ModelStreamError("parent review model binding is unavailable or changed")
+        return review_model.client, review_model.model_name
+
     async def _handle_run_failure(self, state, error):
         if isinstance(error, EngineLimitError) and state.task is not None:
             reason = str(error)
             await self._journal.transition_task(state.task.id, TaskStatus.PAUSED, reason)
             event = AgentEvent(EventKind.TASK_PAUSED, {"task_id": state.task.id,
                 "status": "paused", "reason": reason})
+            review_result = await self._parent_review_pause_result(state, reason)
+            if review_result is not None:
+                event = AgentEvent(event.kind, {**event.payload, 'result': review_result})
         else:
             event = AgentEvent(EventKind.ERROR, {"code": error.code, "error_type": type(error).__name__})
         await self._journal.append_event(state.thread_id, event)
@@ -232,6 +252,8 @@ class AgentEngineRunMixin:
     async def _build_turn_context(
         self, state: _RunState, turn: _TurnState, user_input: str
     ) -> ContextBundle:
+        if state.parent_review is not None and state.parent_review.active:
+            return state.parent_review.bundle()
         source_messages = (
             await self._journal.load_context_messages(state.thread_id)
             if state.task is not None
@@ -280,7 +302,9 @@ class AgentEngineRunMixin:
         model_started_at = phase_started_at()
         trace_event("model.stream", "started", thread_id=state.thread_id, turn=turn.number)
         try:
-            stream = self._model.stream(
+            if turn.model_client is None:
+                turn.model_client, turn.model_name = self._select_request_model(state)
+            stream = turn.model_client.stream(
                 bundle.system_prompt, bundle.messages, turn.tools
             )
             async for model_event in stream:
@@ -298,18 +322,22 @@ class AgentEngineRunMixin:
                     EventKind.MODEL_EVENT,
                     {"event": model_event.to_dict()},
                 )
-                await self._journal.append_event(state.thread_id, streamed)
+                hidden_text = (state.parent_review is not None and state.parent_review.active
+                               and model_event.kind is ModelEventKind.TEXT_DELTA)
+                if not hidden_text:
+                    await self._journal.append_event(state.thread_id, streamed)
                 if not context_accepted:
                     accept = getattr(
                         self._context, "accept_pending_context", None
                     )
-                    if callable(accept):
+                    if callable(accept) and not (state.parent_review is not None and state.parent_review.active):
                         await accept(state.thread_id)
                     context_accepted = True
-                yield streamed
+                if not hidden_text:
+                    yield streamed
                 if model_event.usage is not None:
                     async for warning in self._record_model_usage(
-                        state, model_event.usage
+                        state, model_event.usage, client=turn.model_client
                     ):
                         yield warning
         except (AgentEngineError, CancellationError):
@@ -332,11 +360,12 @@ class AgentEngineRunMixin:
         yield timing
 
     async def _record_model_usage(
-        self, state: _RunState, usage: Usage
+        self, state: _RunState, usage: Usage, *, client: ModelClient | None = None
     ) -> AsyncIterator[AgentEvent]:
         state.total_usage = add_usage(state.total_usage, usage)
         if state.task is not None:
-            if not getattr(self._model, "accounts_task_usage", False):
+            usage_client = client if client is not None else self._select_request_model(state)[0]
+            if not getattr(usage_client, "accounts_task_usage", False):
                 await self._journal.consume_task_usage(state.task.id, usage)
             thresholds = await self._journal.mark_task_budget_warnings(
                 state.task.id

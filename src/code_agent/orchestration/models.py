@@ -208,8 +208,11 @@ class ChildRunRequest:
     tool_budget: int
     active_seconds: int
     run_id: str = field(default_factory=lambda: uuid.uuid4().hex)
+    required_sources: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
+        from code_agent.core.source_completion import freeze_sources
+        object.__setattr__(self, "required_sources", freeze_sources(self.required_sources))
         object.__setattr__(self, "run_id", _text(self.run_id, "run_id", 128))
         object.__setattr__(self, "parent_run_id", _text(self.parent_run_id, "parent_run_id", 128))
         object.__setattr__(self, "objective", _text(self.objective, "objective"))

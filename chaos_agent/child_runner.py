@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
 from contextvars import ContextVar, Token
 from inspect import Parameter, signature
@@ -65,12 +66,18 @@ class EngineChildRunner:
                 error="writable child requires parent action lineage",
             )
         authorization = await self._parent_authorization(request, parent)
+        if request.required_sources:
+            if authorization is None or self._sessions is None:
+                raise ValueError('required sources require durable child authority')
+            from .source_completion import canonical_sources
+            sources = await asyncio.to_thread(canonical_sources, request.required_sources, authorization)
+            request = replace(request, required_sources=sources)
         thread_id = None
         if self._sessions is not None:
             thread_id = await self._sessions.create_thread(parent_thread_id=parent.owner_thread_id)
             await self._sessions.bind_child_budget(thread_id, parent.owner_thread_id,
                 parent.task_id, parent.request_id, max_total_tokens=request.token_budget,
-                max_tool_calls=request.tool_budget)
+                max_tool_calls=request.tool_budget, required_sources=request.required_sources)
         engine, closer = self._build_engine(request.agent, parent, authorization)
         if hasattr(engine, "_limits"):
             engine._limits = replace(engine._limits,
@@ -86,6 +93,8 @@ class EngineChildRunner:
             run_options = {"cancellation": cancellation}
             if thread_id is not None:
                 run_options["thread_id"] = thread_id
+            if request.required_sources:
+                run_options["required_sources"] = request.required_sources
             from .child_result import settled_child_result
             result = await settled_child_result(engine.run(request.objective, **run_options),
                 request, cancellation, sessions=self._sessions)

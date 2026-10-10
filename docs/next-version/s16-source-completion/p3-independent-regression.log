@@ -1,0 +1,168 @@
+test_builtin_review_role_reaches_actual_body_without_write_tools (tests.test_s16_source_completion.S16ProductionRegressionTests) ... Executing <Task pending name='Task-1' coro=<IsolatedAsyncioTestCase._asyncioLoopRunner() running at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:95> wait_for=<Future pending cb=[Task.task_wakeup()] created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\base_events.py:429> created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:117> took 0.516 seconds
+
+[2K· agent review · queued · Review names.py
+
+
+[2K· agent review · running · Review names.py
+
+
+[2K· agent review · completed · Review names.py · 3s · 110 tokens · 1 tools
+
+ok
+test_loader_description_distinguishes_model_requests_from_user_messages (tests.test_s16_source_completion.S16ProductionRegressionTests) ... Executing <Task pending name='Task-394' coro=<IsolatedAsyncioTestCase._asyncioLoopRunner() running at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:95> wait_for=<Future pending cb=[Task.task_wakeup()] created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\base_events.py:429> created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:117> took 0.500 seconds
+ok
+test_new_fixture_child_reads_four_sources_directly_with_frozen_original_bytes (tests.test_s16_source_completion.S16ProductionRegressionTests) ... Executing <Task pending name='Task-523' coro=<IsolatedAsyncioTestCase._asyncioLoopRunner() running at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:95> wait_for=<Future pending cb=[Task.task_wakeup()] created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\base_events.py:429> created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:117> took 0.469 seconds
+
+[2K· agent custom · queued · Read docs/current-contract.md, docs/legacy-notes.md, names.py and test_n
+· ames.py 
+
+
+[2K· agent custom · running · Read docs/current-contract.md, docs/legacy-notes.md, names.py and test_
+· names.py 
+
+
+[2K· agent custom · completed · Read docs/current-contract.md, docs/legacy-notes.md, names.py and tes
+· t_names.py  · 4s · 110 tokens · 4 tools
+
+ok
+test_original_v7_child_cannot_complete_after_disclosure_with_zero_reads (tests.test_s16_source_completion.S16ProductionRegressionTests) ... Executing <Task pending name='Task-952' coro=<IsolatedAsyncioTestCase._asyncioLoopRunner() running at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:95> wait_for=<Future pending cb=[Task.task_wakeup()] created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\base_events.py:429> created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:117> took 0.500 seconds
+
+[2K· agent custom · queued · Disclose the read contract first; next turn read docs/current-contract.m
+· d, docs/
+
+
+[2K· agent custom · running · Disclose the read contract first; next turn read docs/current-contract.
+· md, docs/
+
+
+[2K· agent custom · failed · Disclose the read contract first; next turn read docs/current-contract.m
+· d, docs/ · 7s · 165 tokens · 1 tools
+
+ok
+test_original_v7_parent_prompt_is_frozen_as_analyze_at_public_start (tests.test_s16_source_completion.S16ProductionRegressionTests) ... Executing <Task pending name='Task-1501' coro=<IsolatedAsyncioTestCase._asyncioLoopRunner() running at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:95> wait_for=<Future pending cb=[Task.task_wakeup()] created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\base_events.py:429> created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:117> took 0.500 seconds
+ok
+test_partial_and_duplicate_source_reads_do_not_hide_remaining (tests.test_s16_source_completion.S16ProductionRegressionTests) ... Executing <Task pending name='Task-1630' coro=<IsolatedAsyncioTestCase._asyncioLoopRunner() running at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:95> wait_for=<Future pending cb=[Task.task_wakeup()] created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\base_events.py:429> created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:117> took 0.485 seconds
+
+[2K· agent custom · queued · Read sources
+
+
+[2K· agent custom · running · Read sources
+
+
+[2K· agent custom · failed · Read sources · 6s · 220 tokens · 2 tools
+
+ok
+test_read_only_spelling_and_explicit_modification_filename_controls (tests.test_s16_source_completion.S16ProductionRegressionTests) ... Executing <Task pending name='Task-2137' coro=<IsolatedAsyncioTestCase._asyncioLoopRunner() running at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:95> wait_for=<Future pending cb=[Task.task_wakeup()] created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\base_events.py:429> created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:117> took 0.515 seconds
+ok
+test_resumed_legacy_contract_keeps_its_original_modify_intent (tests.test_s16_source_completion.S16ProductionRegressionTests) ... Executing <Task pending name='Task-3168' coro=<IsolatedAsyncioTestCase._asyncioLoopRunner() running at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:95> wait_for=<Future pending cb=[Task.task_wakeup()] created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\base_events.py:429> created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:117> took 0.468 seconds
+ok
+test_role_instructions_reach_both_child_requests_without_sibling_leak (tests.test_s16_source_completion.S16ProductionRegressionTests) ... Executing <Task pending name='Task-3285' coro=<IsolatedAsyncioTestCase._asyncioLoopRunner() running at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:95> wait_for=<Future pending cb=[Task.task_wakeup()] created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\base_events.py:429> created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:117> took 0.484 seconds
+
+[2K· agent custom · queued · Read names.py and report.
+
+
+[2K· agent custom · running · Read names.py and report.
+
+
+[2K· agent custom · completed · Read names.py and report. · 3s · 110 tokens · 1 tools
+
+
+[2K· agent custom · queued · Read names.py and report.
+
+
+[2K· agent custom · running · Read names.py and report.
+
+
+[2K· agent custom · completed · Read names.py and report. · 3s · 110 tokens · 1 tools
+
+ok
+test_source_gate_corrects_then_reads_and_completes (tests.test_s16_source_completion.S16ProductionRegressionTests) ... Executing <Task pending name='Task-3817' coro=<IsolatedAsyncioTestCase._asyncioLoopRunner() running at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:95> wait_for=<Future pending cb=[Task.task_wakeup()] created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\base_events.py:429> created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:117> took 0.500 seconds
+
+[2K· agent custom · queued · Read names.py
+
+
+[2K· agent custom · running · Read names.py
+
+
+[2K· agent custom · completed · Read names.py · 4s · 165 tokens · 1 tools
+
+ok
+test_team_parent_natural_lease_gets_real_correction_then_source_failure (tests.test_s16_source_completion.S16ProductionRegressionTests) ... Executing <Task pending name='Task-4263' coro=<IsolatedAsyncioTestCase._asyncioLoopRunner() running at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:95> wait_for=<Future pending cb=[Task.task_wakeup()] created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\base_events.py:429> created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:117> took 0.485 seconds
+
+[2K· agent custom · queued · Disclose the read contract first; next turn read docs/current-contract.m
+· d, docs/
+
+
+[2K· agent custom · running · Disclose the read contract first; next turn read docs/current-contract.
+· md, docs/
+
+
+[2K· agent custom · failed · Disclose the read contract first; next turn read docs/current-contract.m
+· d, docs/ · 7s · 165 tokens · 1 tools
+
+ok
+test_bounded_recovery_reads_old_receipt_beyond_context_tail (tests.test_source_completion_contract.SourceCompletionContractTests) ... Executing <Task pending name='Task-4810' coro=<IsolatedAsyncioTestCase._asyncioLoopRunner() running at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:101> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\tasks.py:864, Task.task_wakeup()] created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\base_events.py:429> created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:117> took 0.469 seconds
+ok
+test_cancel_during_correction_preserves_cancelled_terminal (tests.test_source_completion_contract.SourceCompletionContractTests) ... Executing <Task pending name='Task-5067' coro=<IsolatedAsyncioTestCase._asyncioLoopRunner() running at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:101> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\tasks.py:864, Task.task_wakeup()] created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\base_events.py:429> created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:117> took 0.438 seconds
+ok
+test_correction_atomic_rollback_and_long_notice_coverage (tests.test_source_completion_contract.SourceCompletionContractTests) ... Executing <Task pending name='Task-5159' coro=<IsolatedAsyncioTestCase._asyncioLoopRunner() running at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:101> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\tasks.py:864, Task.task_wakeup()] created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\base_events.py:429> created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:117> took 0.485 seconds
+ok
+test_empty_and_whitespace_final_answers_fail_after_full_read (tests.test_source_completion_contract.SourceCompletionContractTests) ... Executing <Task pending name='Task-5306' coro=<IsolatedAsyncioTestCase._asyncioLoopRunner() running at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:101> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\tasks.py:864, Task.task_wakeup()] created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\base_events.py:429> created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:117> took 0.453 seconds
+ok
+test_empty_file_is_complete_and_final_answer_is_delivered (tests.test_source_completion_contract.SourceCompletionContractTests) ... Executing <Task pending name='Task-5572' coro=<IsolatedAsyncioTestCase._asyncioLoopRunner() running at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:101> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\tasks.py:864, Task.task_wakeup()] created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\base_events.py:429> created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:117> took 0.453 seconds
+ok
+test_existing_quick_budget_is_not_migrated_by_team_selection (tests.test_source_completion_contract.SourceCompletionContractTests) ... Executing <Task pending name='Task-5714' coro=<IsolatedAsyncioTestCase._asyncioLoopRunner() running at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:101> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\tasks.py:864, Task.task_wakeup()] created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\base_events.py:429> created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:117> took 0.454 seconds
+ok
+test_frozen_binding_conflict_and_legacy_missing_field (tests.test_source_completion_contract.SourceCompletionContractTests) ... Executing <Task pending name='Task-5725' coro=<IsolatedAsyncioTestCase._asyncioLoopRunner() running at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:101> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\tasks.py:864, Task.task_wakeup()] created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\base_events.py:429> created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:117> took 0.438 seconds
+ok
+test_history_epoch_change_invalidates_cached_read (tests.test_source_completion_contract.SourceCompletionContractTests) ... Executing <Task pending name='Task-5868' coro=<IsolatedAsyncioTestCase._asyncioLoopRunner() running at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:101> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\tasks.py:864, Task.task_wakeup()] created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\base_events.py:429> created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:117> took 0.422 seconds
+ok
+test_invalid_sources_rejected_before_provider_allocation (tests.test_source_completion_contract.SourceCompletionContractTests) ... Executing <Task pending name='Task-6016' coro=<IsolatedAsyncioTestCase._asyncioLoopRunner() running at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:101> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\tasks.py:864, Task.task_wakeup()] created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\base_events.py:429> created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:117> took 0.437 seconds
+ok
+test_last_available_turn_completes_when_sources_are_read (tests.test_source_completion_contract.SourceCompletionContractTests) ... Executing <Task pending name='Task-6024' coro=<IsolatedAsyncioTestCase._asyncioLoopRunner() running at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:101> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\tasks.py:864, Task.task_wakeup()] created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\base_events.py:429> created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:117> took 0.453 seconds
+ok
+test_no_requirements_preserves_one_turn_completion (tests.test_source_completion_contract.SourceCompletionContractTests) ... Executing <Task pending name='Task-6163' coro=<IsolatedAsyncioTestCase._asyncioLoopRunner() running at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:101> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\tasks.py:864, Task.task_wakeup()] created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\base_events.py:429> created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:117> took 0.438 seconds
+ok
+test_parent_receipts_do_not_satisfy_child (tests.test_source_completion_contract.SourceCompletionContractTests) ... Executing <Task pending name='Task-6235' coro=<IsolatedAsyncioTestCase._asyncioLoopRunner() running at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:101> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\tasks.py:864, Task.task_wakeup()] created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\base_events.py:429> created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:117> took 0.437 seconds
+ok
+test_receipt_name_pairing_metadata_and_slices_are_not_proof (tests.test_source_completion_contract.SourceCompletionContractTests) ... Executing <Task pending name='Task-6361' coro=<IsolatedAsyncioTestCase._asyncioLoopRunner() running at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:101> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\tasks.py:864, Task.task_wakeup()] created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\base_events.py:429> created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:117> took 0.437 seconds
+ok
+test_resume_keeps_requirements_and_used_correction (tests.test_source_completion_contract.SourceCompletionContractTests) ... Executing <Task pending name='Task-6485' coro=<IsolatedAsyncioTestCase._asyncioLoopRunner() running at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:101> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\tasks.py:864, Task.task_wakeup()] created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\base_events.py:429> created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:117> took 0.453 seconds
+ok
+test_round_budget_exhaustion_precedes_source_failure (tests.test_source_completion_contract.SourceCompletionContractTests) ... Executing <Task pending name='Task-6695' coro=<IsolatedAsyncioTestCase._asyncioLoopRunner() running at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:101> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\tasks.py:864, Task.task_wakeup()] created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\base_events.py:429> created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:117> took 0.438 seconds
+ok
+test_shared_owner_round_exhaustion_precedes_source_failure (tests.test_source_completion_contract.SourceCompletionContractTests) ... Executing <Task pending name='Task-6777' coro=<IsolatedAsyncioTestCase._asyncioLoopRunner() running at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:101> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\tasks.py:864, Task.task_wakeup()] created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\base_events.py:429> created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:117> took 0.453 seconds
+ok
+test_shared_owner_token_exhaustion_precedes_source_failure (tests.test_source_completion_contract.SourceCompletionContractTests) ... Executing <Task pending name='Task-6906' coro=<IsolatedAsyncioTestCase._asyncioLoopRunner() running at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:101> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\tasks.py:864, Task.task_wakeup()] created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\base_events.py:429> created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:117> took 0.484 seconds
+ok
+test_shared_owner_tool_exhaustion_precedes_source_failure (tests.test_source_completion_contract.SourceCompletionContractTests) ... Executing <Task pending name='Task-7036' coro=<IsolatedAsyncioTestCase._asyncioLoopRunner() running at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:101> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\tasks.py:864, Task.task_wakeup()] created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\base_events.py:429> created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:117> took 0.453 seconds
+ok
+test_source_final_summary_keeps_latest_answer (tests.test_source_completion_contract.SourceCompletionContractTests) ... Executing <Task pending name='Task-7165' coro=<IsolatedAsyncioTestCase._asyncioLoopRunner() running at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:101> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\tasks.py:864, Task.task_wakeup()] created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\base_events.py:429> created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:117> took 0.437 seconds
+ok
+test_tool_budget_exhaustion_precedes_source_failure (tests.test_source_completion_contract.SourceCompletionContractTests) ... Executing <Task pending name='Task-7173' coro=<IsolatedAsyncioTestCase._asyncioLoopRunner() running at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:101> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\tasks.py:864, Task.task_wakeup()] created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\base_events.py:429> created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:117> took 0.453 seconds
+ok
+test_wrong_path_and_read_failure_remain_missing (tests.test_source_completion_contract.SourceCompletionContractTests) ... Executing <Task pending name='Task-7311' coro=<IsolatedAsyncioTestCase._asyncioLoopRunner() running at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:101> wait_for=<Future pending cb=[shield.<locals>._outer_done_callback() at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\tasks.py:864, Task.task_wakeup()] created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\asyncio\base_events.py:429> created at C:\Users\Windows11\AppData\Roaming\uv\python\cpython-3.10-windows-x86_64-none\lib\unittest\async_case.py:117> took 0.438 seconds
+ok
+test_initial_tier_uses_intent_and_explicit_depth_signal (code_agent.core.tests.test_budget_lease.BudgetLeaseTests) ... ok
+test_invalid_persisted_lease_values_fail_closed (code_agent.core.tests.test_budget_lease.BudgetLeaseTests) ... ok
+test_lease_limits_are_clipped_by_hard_limits (code_agent.core.tests.test_budget_lease.BudgetLeaseTests) ... ok
+test_old_task_budget_construction_remains_valid (code_agent.core.tests.test_budget_lease.BudgetLeaseTests) ... ok
+test_progress_digest_changes_only_with_host_facts (code_agent.core.tests.test_budget_lease.BudgetLeaseTests) ... ok
+test_team_initial_standard_floor_preserves_single_legacy_and_deep (code_agent.core.tests.test_budget_lease.BudgetLeaseTests) ... ok
+test_cancelled_run_survives_later_stream_failure (tests.test_child_result_contract.ChildResultTests) ... ok
+test_cumulative_usage_counts_each_request_once_even_if_cancelled (tests.test_child_result_contract.ChildResultTests) ... ok
+test_exception_is_failed_with_safe_reason (tests.test_child_result_contract.ChildResultTests) ... ok
+test_partial_provider_usage_is_explicitly_a_lower_bound (tests.test_child_result_contract.ChildResultTests) ... ok
+test_production_runner_uses_terminal_facts (tests.test_child_result_contract.ChildResultTests) ... ok
+test_canonical_and_compact_write_execute_denied_in_all_permissive_modes (tests.test_child_authorization_ceiling.ChildAuthorizationCeilingTests) ... ok
+test_network_outside_and_replaced_authority_refused_before_inner_dispatch (tests.test_child_authorization_ceiling.ChildAuthorizationCeilingTests) ... ok
+test_permanent_process_rule_cannot_expand_child_execute_authority (tests.test_child_authorization_ceiling.ChildAuthorizationCeilingTests) ... ok
+test_plugin_target_is_classified_against_frozen_child_authority (tests.test_child_authorization_ceiling.ChildAuthorizationCeilingTests) ... ok
+test_child_partial_client_closes_for_error_and_cancellation (tests.test_runtime_partial_build_cleanup.PartialBuildCleanupTests) ... ok
+test_initial_partial_client_closes_for_error_and_cancellation (tests.test_runtime_partial_build_cleanup.PartialBuildCleanupTests) ... ok
+test_main_partial_client_closes_for_error_and_cancellation (tests.test_runtime_partial_build_cleanup.PartialBuildCleanupTests) ... ok
+
+----------------------------------------------------------------------
+Ran 50 tests in 206.365s
+
+OK

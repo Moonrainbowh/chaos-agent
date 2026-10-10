@@ -1,0 +1,151 @@
+{
+  "scope": "TWO_LOCAL_STATIC_PROBES_NOT_PRODUCTION_S16",
+  "provider_requests": 2,
+  "usage": {
+    "prompt_tokens": 502,
+    "completion_tokens": 2258,
+    "reasoning_tokens_subset": 27,
+    "total_tokens": 2760,
+    "usage_unknown": 0,
+    "length_finish": 0
+  },
+  "concrete_output_review": {
+    "status": "PASS_12_OBSERVATIONS_36_FIELDS",
+    "comparisons": [
+      {
+        "function": "echo",
+        "input": [
+          " C ",
+          "A",
+          " C "
+        ],
+        "return_correct": true,
+        "input_after_correct": true,
+        "identity_correct": true
+      },
+      {
+        "function": "echo",
+        "input": [],
+        "return_correct": true,
+        "input_after_correct": true,
+        "identity_correct": true
+      },
+      {
+        "function": "echo",
+        "input": [
+          "  ",
+          "Y",
+          "Y"
+        ],
+        "return_correct": true,
+        "input_after_correct": true,
+        "identity_correct": true
+      },
+      {
+        "function": "copy",
+        "input": [
+          " C ",
+          "A",
+          " C "
+        ],
+        "return_correct": true,
+        "input_after_correct": true,
+        "identity_correct": true
+      },
+      {
+        "function": "copy",
+        "input": [],
+        "return_correct": true,
+        "input_after_correct": true,
+        "identity_correct": true
+      },
+      {
+        "function": "copy",
+        "input": [
+          "  ",
+          "Y",
+          "Y"
+        ],
+        "return_correct": true,
+        "input_after_correct": true,
+        "identity_correct": true
+      },
+      {
+        "function": "sorted_clean",
+        "input": [
+          " C ",
+          "A",
+          " C "
+        ],
+        "return_correct": true,
+        "input_after_correct": true,
+        "identity_correct": true
+      },
+      {
+        "function": "sorted_clean",
+        "input": [],
+        "return_correct": true,
+        "input_after_correct": true,
+        "identity_correct": true
+      },
+      {
+        "function": "sorted_clean",
+        "input": [
+          "  ",
+          "Y",
+          "Y"
+        ],
+        "return_correct": true,
+        "input_after_correct": true,
+        "identity_correct": true
+      },
+      {
+        "function": "empty_none",
+        "input": [
+          " C ",
+          "A",
+          " C "
+        ],
+        "return_correct": true,
+        "input_after_correct": true,
+        "identity_correct": true
+      },
+      {
+        "function": "empty_none",
+        "input": [],
+        "return_correct": true,
+        "input_after_correct": true,
+        "identity_correct": true
+      },
+      {
+        "function": "empty_none",
+        "input": [
+          "  ",
+          "Y",
+          "Y"
+        ],
+        "return_correct": true,
+        "input_after_correct": true,
+        "identity_correct": true
+      }
+    ]
+  },
+  "assertion_scope_review": {
+    "status": "PARTIAL_WITH_ERRORS",
+    "correct": [
+      "empty sentinel witness fails equality",
+      "equal duplicates cannot reveal sorting",
+      "distinct C/A pair rejects sorted A/C output",
+      "one sample does not prove universal order",
+      "three supplied assertions do not verify no input mutation"
+    ],
+    "errors_or_missing": [
+      "hardcoded K/K else [] incorrectly said to fail empty assertion",
+      "always-empty claimed wrong on all other cases, ignoring all-blank nonempty input",
+      "empty-input assertion confused with syntactically empty assertion",
+      "third assertion lacks complete wrong-but-passing implementation and static trace"
+    ]
+  },
+  "strict_json_contract": "FAIL_TWO_FENCED_OUTPUTS_PRESERVED",
+  "production_s16_acceptance": "NOT_ESTABLISHED_BY_THIS_LOCAL_PROBE"
+}

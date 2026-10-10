@@ -1,0 +1,407 @@
+{
+  "exit_code": 0,
+  "failed_suites": 0,
+  "suite_count": 30,
+  "suites": [
+    {
+      "counts": {
+        "discovered": 11,
+        "errors": 0,
+        "expected_failures": 0,
+        "failures": 0,
+        "run": 11,
+        "skipped": 0,
+        "unexpected_successes": 0
+      },
+      "exit_code": 0,
+      "suite": "src/code_agent/acp/tests"
+    },
+    {
+      "counts": {
+        "discovered": 26,
+        "errors": 0,
+        "expected_failures": 0,
+        "failures": 0,
+        "run": 26,
+        "skipped": 6,
+        "unexpected_successes": 0
+      },
+      "exit_code": 0,
+      "suite": "src/code_agent/attachments/tests"
+    },
+    {
+      "counts": {
+        "discovered": 53,
+        "errors": 0,
+        "expected_failures": 0,
+        "failures": 0,
+        "run": 53,
+        "skipped": 0,
+        "unexpected_successes": 0
+      },
+      "exit_code": 0,
+      "suite": "src/code_agent/authentication/tests"
+    },
+    {
+      "counts": {
+        "discovered": 12,
+        "errors": 0,
+        "expected_failures": 0,
+        "failures": 0,
+        "run": 12,
+        "skipped": 0,
+        "unexpected_successes": 0
+      },
+      "exit_code": 0,
+      "suite": "src/code_agent/capabilities/tests"
+    },
+    {
+      "counts": {
+        "discovered": 20,
+        "errors": 0,
+        "expected_failures": 0,
+        "failures": 0,
+        "run": 20,
+        "skipped": 0,
+        "unexpected_successes": 0
+      },
+      "exit_code": 0,
+      "suite": "src/code_agent/checkpoints/tests"
+    },
+    {
+      "counts": {
+        "discovered": 30,
+        "errors": 0,
+        "expected_failures": 0,
+        "failures": 0,
+        "run": 30,
+        "skipped": 1,
+        "unexpected_successes": 0
+      },
+      "exit_code": 0,
+      "suite": "src/code_agent/config/tests"
+    },
+    {
+      "counts": {
+        "discovered": 191,
+        "errors": 0,
+        "expected_failures": 0,
+        "failures": 0,
+        "run": 191,
+        "skipped": 0,
+        "unexpected_successes": 0
+      },
+      "exit_code": 0,
+      "suite": "src/code_agent/context/tests"
+    },
+    {
+      "counts": {
+        "discovered": 35,
+        "errors": 0,
+        "expected_failures": 0,
+        "failures": 0,
+        "run": 35,
+        "skipped": 0,
+        "unexpected_successes": 0
+      },
+      "exit_code": 0,
+      "suite": "src/code_agent/context_windows/tests"
+    },
+    {
+      "counts": {
+        "discovered": 203,
+        "errors": 0,
+        "expected_failures": 0,
+        "failures": 0,
+        "run": 203,
+        "skipped": 0,
+        "unexpected_successes": 0
+      },
+      "exit_code": 0,
+      "suite": "src/code_agent/core/tests"
+    },
+    {
+      "counts": {
+        "discovered": 45,
+        "errors": 0,
+        "expected_failures": 0,
+        "failures": 0,
+        "run": 45,
+        "skipped": 0,
+        "unexpected_successes": 0
+      },
+      "exit_code": 0,
+      "suite": "src/code_agent/evaluation/tests"
+    },
+    {
+      "counts": {
+        "discovered": 684,
+        "errors": 0,
+        "expected_failures": 0,
+        "failures": 0,
+        "run": 684,
+        "skipped": 7,
+        "unexpected_successes": 0
+      },
+      "exit_code": 0,
+      "suite": "src/code_agent/interfaces/tests"
+    },
+    {
+      "counts": {
+        "discovered": 33,
+        "errors": 0,
+        "expected_failures": 0,
+        "failures": 0,
+        "run": 33,
+        "skipped": 0,
+        "unexpected_successes": 0
+      },
+      "exit_code": 0,
+      "suite": "src/code_agent/mcp/tests"
+    },
+    {
+      "counts": {
+        "discovered": 24,
+        "errors": 0,
+        "expected_failures": 0,
+        "failures": 0,
+        "run": 24,
+        "skipped": 0,
+        "unexpected_successes": 0
+      },
+      "exit_code": 0,
+      "suite": "src/code_agent/orchestration/tests"
+    },
+    {
+      "counts": {
+        "discovered": 11,
+        "errors": 0,
+        "expected_failures": 0,
+        "failures": 0,
+        "run": 11,
+        "skipped": 0,
+        "unexpected_successes": 0
+      },
+      "exit_code": 0,
+      "suite": "src/code_agent/peers/tests"
+    },
+    {
+      "counts": {
+        "discovered": 22,
+        "errors": 0,
+        "expected_failures": 0,
+        "failures": 0,
+        "run": 22,
+        "skipped": 0,
+        "unexpected_successes": 0
+      },
+      "exit_code": 0,
+      "suite": "src/code_agent/plugins/tests"
+    },
+    {
+      "counts": {
+        "discovered": 68,
+        "errors": 0,
+        "expected_failures": 0,
+        "failures": 0,
+        "run": 68,
+        "skipped": 0,
+        "unexpected_successes": 0
+      },
+      "exit_code": 0,
+      "suite": "src/code_agent/policy/tests"
+    },
+    {
+      "counts": {
+        "discovered": 11,
+        "errors": 0,
+        "expected_failures": 0,
+        "failures": 0,
+        "run": 11,
+        "skipped": 0,
+        "unexpected_successes": 0
+      },
+      "exit_code": 0,
+      "suite": "src/code_agent/project_launcher/tests"
+    },
+    {
+      "counts": {
+        "discovered": 2,
+        "errors": 0,
+        "expected_failures": 0,
+        "failures": 0,
+        "run": 2,
+        "skipped": 0,
+        "unexpected_successes": 0
+      },
+      "exit_code": 0,
+      "suite": "src/code_agent/projects/tests"
+    },
+    {
+      "counts": {
+        "discovered": 98,
+        "errors": 0,
+        "expected_failures": 0,
+        "failures": 0,
+        "run": 98,
+        "skipped": 0,
+        "unexpected_successes": 0
+      },
+      "exit_code": 0,
+      "suite": "src/code_agent/providers/tests"
+    },
+    {
+      "counts": {
+        "discovered": 131,
+        "errors": 0,
+        "expected_failures": 0,
+        "failures": 0,
+        "run": 131,
+        "skipped": 45,
+        "unexpected_successes": 0
+      },
+      "exit_code": 0,
+      "suite": "src/code_agent/runtime/tests"
+    },
+    {
+      "counts": {
+        "discovered": 17,
+        "errors": 0,
+        "expected_failures": 0,
+        "failures": 0,
+        "run": 17,
+        "skipped": 0,
+        "unexpected_successes": 0
+      },
+      "exit_code": 0,
+      "suite": "src/code_agent/semantic_insights/tests"
+    },
+    {
+      "counts": {
+        "discovered": 281,
+        "errors": 0,
+        "expected_failures": 0,
+        "failures": 0,
+        "run": 281,
+        "skipped": 2,
+        "unexpected_successes": 0
+      },
+      "exit_code": 0,
+      "suite": "src/code_agent/sessions/tests"
+    },
+    {
+      "counts": {
+        "discovered": 25,
+        "errors": 0,
+        "expected_failures": 0,
+        "failures": 0,
+        "run": 25,
+        "skipped": 0,
+        "unexpected_successes": 0
+      },
+      "exit_code": 0,
+      "suite": "src/code_agent/skills/tests"
+    },
+    {
+      "counts": {
+        "discovered": 46,
+        "errors": 0,
+        "expected_failures": 0,
+        "failures": 0,
+        "run": 46,
+        "skipped": 0,
+        "unexpected_successes": 0
+      },
+      "exit_code": 0,
+      "suite": "src/code_agent/thread_intelligence/tests"
+    },
+    {
+      "counts": {
+        "discovered": 79,
+        "errors": 0,
+        "expected_failures": 0,
+        "failures": 0,
+        "run": 79,
+        "skipped": 0,
+        "unexpected_successes": 0
+      },
+      "exit_code": 0,
+      "suite": "src/code_agent/verification/tests"
+    },
+    {
+      "counts": {
+        "discovered": 8,
+        "errors": 0,
+        "expected_failures": 0,
+        "failures": 0,
+        "run": 8,
+        "skipped": 0,
+        "unexpected_successes": 0
+      },
+      "exit_code": 0,
+      "suite": "src/code_agent/web_access/tests"
+    },
+    {
+      "counts": {
+        "discovered": 11,
+        "errors": 0,
+        "expected_failures": 0,
+        "failures": 0,
+        "run": 11,
+        "skipped": 0,
+        "unexpected_successes": 0
+      },
+      "exit_code": 0,
+      "suite": "src/code_agent/workflows/tests"
+    },
+    {
+      "counts": {
+        "discovered": 487,
+        "errors": 0,
+        "expected_failures": 0,
+        "failures": 0,
+        "run": 487,
+        "skipped": 105,
+        "unexpected_successes": 0
+      },
+      "exit_code": 0,
+      "suite": "src/code_agent/workspace/tests"
+    },
+    {
+      "counts": {
+        "discovered": 89,
+        "errors": 0,
+        "expected_failures": 0,
+        "failures": 0,
+        "run": 89,
+        "skipped": 1,
+        "unexpected_successes": 0
+      },
+      "exit_code": 0,
+      "suite": "chaos_agent/remote/tests"
+    },
+    {
+      "counts": {
+        "discovered": 767,
+        "errors": 0,
+        "expected_failures": 0,
+        "failures": 0,
+        "run": 767,
+        "skipped": 32,
+        "unexpected_successes": 0
+      },
+      "exit_code": 0,
+      "suite": "tests"
+    }
+  ],
+  "totals": {
+    "discovered": 3520,
+    "errors": 0,
+    "expected_failures": 0,
+    "failures": 0,
+    "run": 3520,
+    "skipped": 199,
+    "unexpected_successes": 0
+  },
+  "unrun_suites": []
+}
