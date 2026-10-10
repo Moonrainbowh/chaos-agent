@@ -1,0 +1,13 @@
+# Host 子调度父预算衔接初审
+
+结论：**CHANGES_REQUIRED_FOR_AUTHORIZED_BUDGET**。该结论针对默认调度预算衔接，不撤销463d既有CI/来源/离线范围PASS，也不宣布新修复已通过。
+
+463d `SubagentRuntime` 构造参数默认 `ParentBudget()`；首次 dispatch 用 `BudgetLedger(self._budget)`。该dataclass默认200000 token/128 tools，但允许任意正token及非负tools，且调用者可显式传入，不是不可变的独立设计硬限。orchestration契约明确“从父任务预算中租借并累计”，Host契约明确typed父归属及持久父共享预算。生产默认200k未连接冻结TaskBudget时，会对用户已授权父1m/子300k在runner/HTTP前拒绝；这是Host预算装配衔接缺口。
+
+最小修复范围为Host首次建立task-owned supervisor：从typed ActionExecutionContext匹配的实际冻结父TaskBudget取得hard token/tool上限。默认调度保留既有children/depth/concurrency/time约束；若调用者显式给ParentBudget，token/tool只取更小值，不扩大任何显式约束。taskless兼容路径维持原默认。不得直接改全局ParentBudget默认、生产safety或样例runtime内存字段来制造成功。
+
+独立后续反例须覆盖：父1m/子300k可到runner（不是保证Provider完成）；父更低token或tool拒绝；显式ParentBudget更低拒绝；TaskBudget缺失/parent task及owner错配闭合；活动profile变化不改变冻结已有supervisor；新增await读取预算时并发首次dispatch仍只有一个ledger；release/recovery不重置持久usage/pending，未知负债仍占额度。进程内ledger不是持久预算替代品。
+
+新增await存在首次创建竞态：两调用可同时发现None，读取后必须加锁或再次核对缓存；已有supervisor不能因每次dispatch或profile切换重建。修复提交需要独立绑定新SHA、候选重新冻结、完整CI与source/wheel provenance，原463d物证不能自动当新snapshotPASS。
+
+本审查只读源码/契约，没有修改生产或candidate、调用Provider或提高任何预算。

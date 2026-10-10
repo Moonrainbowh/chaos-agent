@@ -1,0 +1,29 @@
+# S7 执行记录
+
+状态 DONE，最终58文件候选全量自测及独立监督PASS。前置S6最终31文件补丁caf31f4fd1f801d16a1947c73408cd69937eedd8737f62f3e3b219c3217bc260、全30套3088项/30跳过/0失败错误、独立监督PASS。S7完成后允许串行进入S8；S3以后未提交推送。
+
+实际链路：app.create_application → compose_runtime_controls → RuntimeDispatcherFactory.attach_subagents → compose_subagents → 新EngineChildRunner。新工厂child_engine仅AgentDefinition入参，未接父ActionExecutionContext；旧rewind_sessions.build_child_engine_factory带父lineage及sessions.for_owner，保留并迁移有效保障。
+
+原问题：新runner子thread父身份来自全局thread_binding而非传入parent，Core child task=None使动作无冻结TaskAuthorization；SubagentRuntime的ParentBudget/BudgetLedger仅内存、release弹出后新赠预算，与父task_budgets无共享累计；Supervisor异常/取消按零usage释放；task_executions register以upsert覆盖旧owner。当前候选已修复这些路径，下述测试记录对应实际候选。
+
+本S最小范围：共享父执行身份及授权/工作区、父子持久预算预留与计费、取消收尾、owner注册。优先复用现有TaskBudget及原始日志/事务，预留负债与实际usage分开；不删旧工厂，不重写Core或增加通用调度平台。
+
+实现阶段进行中。定向自测已覆盖：Core继承冻结授权2项；owner竞争、重开与CAS33项；Orchestration真实子退出/timeout/取消24项；Sessions最终219项（2平台跳过），其中共享预算11个反例。生产新工厂真实SQLite/workspace集成验证子读父冻结根、恢复绑定、累计父token/model/tool且不完成父任务；强制取消等待已启动threaded action及closer退出。旧工厂保留，开始接持久child绑定及主Provider调用守卫；不支持另一工作区时明确拒，不猜源根。
+
+第一次锁依赖候选39文件补丁f08f299a8586cb6f4d2b843958c7a37f170225d9da4c3292321fab860ef52ecd正在全30套回归；主目录随后补真实threaded收尾及状态/owner原子claim竞态修复，尚未纳入该快照。最终交付必须重新冻结、验全量和独立监督，不用首轮结果冒充最终通过。
+
+首轮全30套3114项/30跳过，root套1error4fail，其余套PASS；outer summary见first-test-summary.json。真实原因是旧TUI ReplyModel不提供USAGE（3fail+1error）和semantic测试仍断言raw model identity（1fail）。模拟Provider补合法usage，断言核共享guard及其底层原模型；没有关产品guard或跳测试。定向同范围重跑20项PASS，缺失usage/未知预留仍失败的对照6项PASS。
+
+兼容与回退：旧工厂保留，其固定source根不能承载另一冻结workspace时明确拒绝；新工厂按授权根取services。旧数据库无child binding仍可读；新context:child_budget/partial liability必须保留S7 reader。S6 reader不能理解父子未知负债，不能直接降级继续执行新记录；保留新数据库和S7 reader，或仅在任务未启动且确认使用pre-S7副本时回退。没有迁移/覆盖用户真实会话库、本机Host或远程部署。
+
+当前冻结47文件补丁2f3783b82ff5bab7331efe0a5ae81390b9af25bcbb2b70ba71cb3c570a5b680b，S6 base tree 8d0a5d4d816374731e7c01b6c42e6d0ea8f24a23。第二轮锁依赖候选313全量 all-tests-final.log 已通过：30套3124项/30跳过/0失败错误，root599项；final-test-summary.json 为最后外层汇总。end-validation.json 核验47文件一致、补丁哈希以及原 authentication diff SHA256 7cbeb87002763fbe5de0bf33a4fd68193af6d66e5340be75f2a1edeb776befca。新增真实Windows Job进程树（每例5个pid/create_time，含venv launcher）父取消/active timeout两例311和锁313 PASS；自动Foreground owner释放屏障测试及threaded action/closer七项PASS。
+
+门控closer测试最初真实暴露取消打断finally：当前两个runner共用 settled_child_result/settled_child_close，已启动编辑/进程执行及异步closer必须真正收尾后才返回取消。新production role授权、child所有者instance、实际usage与unknown负债留在Sessions；child advisory usage明确complete或known_lower_bound。原用户authentication diff未复制至候选，最终仍需end_validation.py核验。
+
+独立审查发现两处实测漏洞，因此上述47文件全套通过不能放行：一是生产子任务新建 new_module.py 后，父状态仍只含README.md，generation/subject不变，沿用同一旧证据仍显示 VERIFIED（child-write-repro.json）；二是 retained exported runner 经旧工厂未传冻结授权、未绑定预算，面对只读父授权仍实际写入 bypass.txt，Provider两次调用但父token/tools为零（supervisor-independent.log）。均在S7范围内修复；原冻结、自测与核验另存 *-before-supervision 文件，修复后重新冻结、验证与终审。
+
+修复后最新候选58文件补丁 `c7289075e97495f3f713a612175e375e63a620badd09d3d2d14c14e1b7da380e`，全套日志 all-tests-supervised.log 运行中。新增 child mutation 事务投影/幂等回执、subject完整状态CAS及最终事务最新generation/hash复核；生产旧文档证明现在不能完成新增代码任务。同路径同generation并发回归也已复现并修复。Sessions232项（2跳过）、Verification67项、相关集成17项锁313通过。
+
+保留旧工厂 typed parent/auth/root 在Provider分配前拒绝；新旧子RestrictedDispatcher冻结write/execute/network/outside上限，使 AUTO/UNRESTRICTED/永久命令规则不能扩权（普通父策略沿用）。7新增权限用例及相关20项锁313通过。另修同一请求累计Usage快照重复相加，独立15→21快照反例现在正确21，partial仍未标完整。最终验收须等当前全套和独立监督对新hash终审，不能沿用47文件的PASS计数。
+
+最终验收：all-tests-supervised.log 最后一条外层汇总为30套3142项/30跳过/0失败错误，root609项，未运行套件为空；final-test-summary.json 与日志一致。end-validation.json 再次核验58文件、补丁c7289075及用户原authentication diff。supervision-final.md 正式PASS，独立14场景、58重点用例、20仓储检查通过，全部初审漏洞闭合。本机Host仍为127.0.0.1:8787/PID66688，未升级运行进程；当前平台证据为Windows锁313，S2之外未触发新跨平台CI。

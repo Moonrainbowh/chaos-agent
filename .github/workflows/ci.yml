@@ -3,15 +3,39 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_dispatch:
+    inputs:
+      compatibility:
+        description: Run release compatibility tests, builds and clean installs
+        type: boolean
+        default: true
 
 jobs:
+  daily:
+    if: github.event_name != 'workflow_dispatch' || !inputs.compatibility
+    name: Windows Python 3.13.7 affected tests
+    runs-on: windows-2025-vs2026
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+      - run: python -m pip install uv==0.12.13
+      - run: uv sync --locked --group dev
+      - run: uv --version
+      - run: uv run --locked python -c "import platform, sys; print(platform.platform()); print(sys.version); print(sys.executable)"
+      - run: uv run --locked python scripts/select_ci_tests.py --suite-timeout 600
+
   windows:
+    if: github.event_name == 'workflow_dispatch' && inputs.compatibility
     name: Windows Python ${{ matrix.python-version }}
-    runs-on: windows-latest
+    runs-on: windows-2025-vs2026
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.13"]
+        python-version: ["3.10.20", "3.13.7"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -19,28 +43,31 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install uv==0.12.13
       - run: uv sync --locked --group dev --python "${{ matrix.python-version }}"
-      - run: uv run --locked python scripts/run_tests.py --suite-timeout 600 --split-root-modules
-      - run: uv run --locked python -m build --no-isolation --outdir .ci-dist
+      - run: uv --version
+      - run: uv run --locked --python "${{ matrix.python-version }}" python -c "import platform, sys; print(platform.platform()); print(sys.version); print(sys.executable)"
+      - run: uv run --locked --python "${{ matrix.python-version }}" python scripts/run_tests.py --suite-timeout 600 --split-root-modules
+      - run: uv run --locked --python "${{ matrix.python-version }}" python -m build --no-isolation --outdir .ci-dist
       - run: uv export --locked --no-emit-project --no-dev --output-file .ci-dist/runtime-requirements.txt
       - run: >-
           python -m pip download --dest .ci-dist --only-binary=:all: --no-deps
           -r .ci-dist/runtime-requirements.txt
-      - run: uv run --locked python -m build benchmarks --no-isolation --outdir .ci-bench-dist
+      - run: uv run --locked --python "${{ matrix.python-version }}" python -m build benchmarks --no-isolation --outdir .ci-bench-dist
       - run: python scripts/check_wheel_install.py --wheel (Get-ChildItem .ci-dist/chaos_agent-*.whl).FullName --wheelhouse .ci-dist --benchmark-wheel (Get-ChildItem .ci-bench-dist/chaos_agent_benchmarks-*.whl).FullName
 
   portable:
+    if: github.event_name == 'workflow_dispatch' && inputs.compatibility
     name: ${{ matrix.os }} Python ${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            python-version: "3.10"
-          - os: ubuntu-latest
-            python-version: "3.13"
-          - os: macos-latest
-            python-version: "3.13"
+          - os: ubuntu-22.04
+            python-version: "3.10.20"
+          - os: ubuntu-22.04
+            python-version: "3.13.7"
+          - os: macos-26
+            python-version: "3.13.7"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -48,12 +75,14 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install uv==0.12.13
       - run: uv sync --locked --group dev --python "${{ matrix.python-version }}"
-      - run: uv run --locked python -m compileall -q src chaos_agent
-      - run: uv run --locked python scripts/run_tests.py --suite-timeout 600
-      - run: uv run --locked python -m build --no-isolation --outdir .ci-dist
+      - run: uv --version
+      - run: uv run --locked --python "${{ matrix.python-version }}" python -c "import platform, sys; print(platform.platform()); print(sys.version); print(sys.executable)"
+      - run: uv run --locked --python "${{ matrix.python-version }}" python -m compileall -q src chaos_agent
+      - run: uv run --locked --python "${{ matrix.python-version }}" python scripts/run_tests.py --suite-timeout 600
+      - run: uv run --locked --python "${{ matrix.python-version }}" python -m build --no-isolation --outdir .ci-dist
       - run: uv export --locked --no-emit-project --no-dev --output-file .ci-dist/runtime-requirements.txt
       - run: >-
           python -m pip download --dest .ci-dist --only-binary=:all: --no-deps
           -r .ci-dist/runtime-requirements.txt
-      - run: uv run --locked python -m build benchmarks --no-isolation --outdir .ci-bench-dist
+      - run: uv run --locked --python "${{ matrix.python-version }}" python -m build benchmarks --no-isolation --outdir .ci-bench-dist
       - run: python scripts/check_wheel_install.py --wheel .ci-dist/chaos_agent-*.whl --wheelhouse .ci-dist --benchmark-wheel .ci-bench-dist/chaos_agent_benchmarks-*.whl

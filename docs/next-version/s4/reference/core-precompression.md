@@ -1,0 +1,85 @@
+# Agent Core
+以有界、可取消的事件循环协调模型、上下文和工具动作，形成与界面无关的编码 Agent 内核。
+
+## 边界
+- 负责：合并工具的外部调用身份用于消息配对，具体底层操作身份用于监督、TaskState 和验证事实；通过 dispatcher 的确定性 resolve_supervision_action（兼容 resolve_action）解析，不信任模型提供的操作元数据。旧调用名仅兼容当前已披露入口确实包含的操作。
+- `MODEL_STARTED` 记录当前 model 名称供用量投影识别混用模型；Engine 保存最近实际暴露的工具名供宿主查询，工具授权仍由原分发策略决定。
+- 负责：统一 Usage 的输入总量（包含缓存）、缓存读取/写入及可用性；旧序列化数据保持兼容。
+- 负责：确定性的普通问候和只读问答按分析意图建立新任务；否定意图短语（如“先不要修改”、“无需修改”、“只解释”、“仅分析”等）必须确定性归为分析意图，不得因句子中包含写动作词而误判为修改意图；含执行要求的肯定意图输入仍保留修改验证门。修改意图但没有工作区文件变化时不得运行无关项目测试或伪装完成，而应要求继续实现或说明无需修改；模型和自动验证均已停止后，缺少证据的实际改动进入有原因的等待决定，不永久停在验证中。
+- 负责：工具调用失败或验证门禁未通过时，由引擎在下一轮提示词追加有界的结构化诊断反思脚手架（说明失败根因、受挫假设与替代策略引导），降低模型盲目重试，同时受现有重复失败熔断器约束。
+- ContextBundle 允许 `context_tokens_remaining` 非负估算计数，用于 persistent 工作窗提示；它不代表 provider 实测或累计任务额度。
+- 负责：以不可变、可序列化的附件引用扩展 user Message，并让 Engine 在首回合、恢复和 steering 中持久化完整用户输入；引用只含内容摘要、类型、大小和安全显示元数据。
+- 负责：附件仅允许出现在 user Message；空文本但有附件是有效输入，空文本且无附件仍失败闭合。
+- 不负责：读取附件 blob、解析图片、选择 Provider 多模态 schema，或把原绝对路径/base64 放入事件与会话消息。
+- 负责：提供终态 `SUPERSEDED`，阻止被 Rewind 替代的旧任务再次执行。
+- 负责：回合状态机、工具调用编排、停止条件、错误回送、事件发布和验证结果闭环。
+- 负责：对同一持久任务累计模型回合和工具调用，并执行每回合工具限制。
+- 负责：按构造时冻结的 `legacy` / `hybrid` / `progressive` 策略投影 provider 工具定义；默认 hybrid 预热内置高频读工具，成功读取长尾契约后从下一模型回合开始附加其 schema；不支持 loader 的 dispatcher 保持全量行为。
+- 负责：通过抽象协议调用模型、上下文、动作分发与会话能力，不依赖具体实现。
+- 负责：把当前 `thread_id` 和同一取消令牌传入 `ContextBuilder`；上下文实现不得从消息文本猜测调用方身份。
+- `ContextBuilder` 只接收不可变 `ContextRequest`；每个 revision 最多调用一次，legacy 兼容必须在调用前判定，不能捕获实现内部 `TypeError` 后重试。
+- 不负责：直接访问模型 API、文件系统、子进程、数据库或终端界面。
+- 不负责：绕过权限策略执行任何外部动作。
+- 任何模型调用或外部动作前必须读取恢复后的持久预算与控制状态；已耗尽任务必须零 provider、零工具调用地进入稳定暂停状态。
+- 启用结构化验证时，`COMPLETED` 只能由最新 contract、subject generation 和 required evidence 的系统评估产生；显式关闭时，有实际文件改动的任务可以标记完成，但 stop reason 必须说明未经过结构化验证，模型文本不能伪称验证通过。
+- 负责协调抽象 `VerificationService` 的完成评估与 `VERIFYING` 状态；不导入具体 verification 或 projects adapter。
+- 语义上下文构建消耗当前持久任务冻结的模型、profile、token、时间和取消预算，不存在隐藏的免费调用。
+- 负责：转向消息在下一模型回合前消费；排队 follow-up 仅在当前回合已无工具调用、任务完成/验证门之前按序提升，提升后继续同一任务而不发布虚假完成。
+
+- 负责：把 owner/origin thread、task、request 和 parent request 作为不可变 Action execution context 显式传给 dispatcher。
+- 不负责：工作区快照、mutation journal、coverage 或 rewind UI。
+
+### 预算框架（显式启用的 v1 已实现）
+
+- 通过 ContextRequest 传递完整任务状态；记录窗口/任务用量测量。请求预算不足时真实 TaskRecord 持久化为 paused；普通无 TaskRecord 运行保留显式错误。累计额度不再由 context_window + output 推导。
+- 2026-09-05 的配置、验证与实验边界见根目录 `docs/context-boundary-experiment.md` 和 `docs/context-boundary-results.md`；具体候选值可配置，实验结果不自动推广为默认策略。
+
+## Units
+- `resolve_supervision_call`、`operation_kind`：以宿主解析的底层调用统一只读／进展分类，供重复失败、动作熔断、精确重复与回合观察共用 | 无副作用 | 保留原 call ID，未知／解析失败不计为进展；日志和执行仍使用模型原调用，解析不替代权限。
+- `infer_task_intent(...)`、`is_small_talk(...)`：对新任务确定问候、中文/英文只读问答、否定修改或修改意图，并复用为上下文轻量路径 | 无副作用 | “什么意思/图片内容/请只回复/这段代码什么原理/为啥/是啥/干啥/有什么”及明确否定词（“不要修改/无需修改/dont edit”）判定为分析意图，避免误入写验证门；明确写入要求优先；不修改已持久化任务的意图。
+- `TaskIntent`、`AcceptanceCriterion`、`TaskContractRevision`: 表达不可降级的完成条件与 revision | 无副作用 | 不写入旧 `core/models.py`
+- `ActionEffect`、`CompletionCandidate`、`CompletionAssessment`、`assess_completion(...)`: 以 generation/subject/evidence 纯函数评估 verified、partial 或 unverified | 无副作用 | 模型文本不能生成通过证据
+- `VerificationService`: 约束 core 请求抽象验证与完成候选 | 具体副作用由实现负责 | core 不导入 verification 或 projects adapter
+- `VerificationAssessment`、`TaskVerificationService`: 将当前 subject 的 assessment、verifier outcome 和原子完成句柄传回 core | 具体副作用由实现负责 | engine 只调用抽象协议，不能自行伪造 evidence
+- `TaskVerificationService.suggest_verification(...)`: 在没有当前测试 evidence 时返回一个受信的 typed verifier tool call | 具体 recipe 由实现选择 | 不能包含 shell、argv 或安装参数；系统调用仍须持久化配对的 assistant tool-call 消息
+- `TaskVerificationService.begin_logical_change(...)`、`commit_logical_change(...)`、`InFlightValidationError`: 以抽象协议把一组工具写入收敛为单次 generation，并把 Host 规划的 milestone verifier 返回给 engine | 具体语义图、快照和 evidence 副作用由 Verification 实现负责 | L0 失败必须携带已发生写入后的 TaskState，剩余同批工具不得继续执行
+- `validation_fingerprint(...)`、`circuit_breaker_result(...)`、`duplicate_failed_call_result(...)`、`build_diagnostic_reflection(...)`、`is_validation_failure(...)`、`is_in_flight_failure(...)`: 将结构化失败归一为监督器可比较的有界身份，识别重复动作/同态失败调用与校验失败阻断信号；在同态失败或熔断时注入结构化诊断反思脚手架（根因反思、假设检验与替代方案引导） | 无副作用 | 对上一轮完全相同且失败的调用直接阻断并回显错误与反思引导；优先使用 Host 生成的失败摘要，不泄露任意长度输出
+- `ExplorationRepeatObserver`、`ToolOnlyConvergenceGuard`：分别检测精确只读重复与连续无正文、无写入/验证/换窗动作的工具回合 | 无副作用 | 区分只读探索与参数校验纠错计数（参数校验失败不消耗 exploration_count，连续三次校验失败触发收敛防死循环）；tool-only guard 连续五回合探索仍无进展时，在尚无用户可见回答时请求总结回合，否则直接停止；主动换窗重置计数，不把多步只读调查误判为停滞
+- `phase_started_at(...)`、`phase_duration_ms(...)`：生成单调、非负且有界的 context/model/action 计时 | 无副作用 | 仅用于 `PHASE_COMPLETED` durable 事件，不计入任务 active-time 预算
+- `enable_trace`、`trace_event`、`trace_span`：由 Host 启动时开启后输出有界 JSON trace 事件，覆盖回合、上下文、Repo Index、模型、工具以及 durable journal 写入 | 仅调用 logging sink | 集成层默认自动开启，`CHAOS_DEBUG_TRACE=0` 可关闭；不写入 prompt、源码正文、凭据或完整路径；消息使用长度和短 digest 与 TUI 投影关联
+- `AgentEngineConvergenceMixin`：在 assistant/tool 配对闭合后持久化 runtime developer notice；连续无正文、无写入/验证进展达到门限时，在本次运行尚无用户可见回答时请求一个无工具总结回合，错误请求工具时仅重试一次，仍无正文则发布可见错误后按当前证据进入完成/验证门 | 写入消息/事件并更新暂停状态 | notice 只进入下一模型 payload 一次；已有非空无工具回答时直接停止，避免重复总结；分析任务的最终预算回合不调用 dispatcher，而修改任务保留一次工具执行机会后进入完成/验证门
+- `AgentEngineDispatchMixin`：执行模型工具调用、持久化成对 tool 结果并保留 exact-repeat 反馈 | 调用 dispatcher、写入动作消息与事件 | 仅作为回合协调器的工具执行支撑，不改变工具预算和验证顺序
+- `AgentEngine._run_verification_call(...)`: 持久化并执行 Host 规划的 milestone/final verifier tool call | 消耗任务 tool budget、追加成对 assistant/tool 消息和事件 | L0 失败后的同批调用必须被拒绝；关键风险 final gate 按 tests→build 顺序补齐
+- `AgentEngineCompletionMixin._resolve_task_completion(...)`: 启用时将模型停调用后的 assessment 交给持久验证门；关闭时把有实际文件改动的任务标记为未经过结构化验证的完成；无改动时返回明确的未实现决定 | 调用抽象验证与 sessions 协议 | 不把未运行的验证标记为通过
+- `decide_verification_transition(...)`: 将 assessment 与 verifier outcome 映射为 `VERIFYING`、修复、等待或完成 | 无副作用 | 所有状态先持久化再由集成层发布
+- `AttachmentRef`: 表达不含路径/blob/base64 的内容摘要、类型、大小、显示名和可选图片尺寸 | 无副作用 | 摘要、MIME、容量和显示名在构造时校验
+- `Message`、`ToolCall`: 表达对话内容、用户附件引用与模型工具调用 | 无副作用 | 输入在构造时校验并冻结；附件仅允许 user role
+- `ContextRequest`: 以不可变快照携带单次上下文构建的 thread、revision、输入、附件、宿主核对 task_facts、控制与纯数值预算 | 无副作用 | task_facts 仅允许标量 JSON 事实并冻结，不能由历史正文提供
+- `AgentEngine._build_turn_context`: 将宿主已冻结的 mode/permission 快照作为 task_facts 传给上下文构建器 | 无副作用 | 仅传递已存在的标量事实，不从消息内容推断
+- `ActionRequest`、`ActionResult`、`ToolDefinition`: 定义动作请求、结果与工具元数据 | 无副作用 | 仅承载 JSON 兼容数据
+- `ActionLineage`: 冻结父动作传给 child engine 的 owner、task 与 parent request | 无副作用 | 不携带 child 自身 origin/request
+- `ActionExecutionContext`: 冻结单次实际 dispatcher 调用的 owner/origin/task/request/parent request | 无副作用 | 所有存在的标识均为有界非空文本
+- `ModelEvent`、`Usage`、`ContextBundle`: 表达模型流事件、用量和构建后的上下文 | 无副作用 | 上下文度量只允许固定名称的非负整数计数
+- `AgentEvent`: 发布可持久化的内核生命周期事件 | 生成 UTC 时间戳 | `CONTEXT_BUILT` 仅记录本地数值预算、压缩和缓存计数；`PHASE_COMPLETED` 仅记录有界 phase/duration/action 标识，不含提示或工具输出
+- `CancellationToken`、`CancellationError`: 在线程与异步调用间传播首次取消原因 | 唤醒等待者
+- `ModelClient`: 约束统一的模型流式调用接口 | 具体副作用由实现负责
+- `ContextBuilder.build(request: ContextRequest)`: 以 Host 注入的不可变请求快照构建当前回合上下文 | 具体副作用由实现负责 | 不从消息文本猜测身份；内部异常不得触发重复调用
+- `CommandFact`、`TaskState`、`TaskStateUpdate`、`reduce_task_state`: 以有界 JSON 兼容事实表达持久任务进度 | 无副作用 | 只有实际尝试且失败的 raw shell/structured process 才记录失败事实；策略或预检拒绝不伪装成执行失败
+- `ActionDispatcher`: 暴露工具并接收可取消动作、可选任务授权和 keyword-only execution context | 具体副作用由实现负责 | unavailable/dispatch 前暂停不产生执行上下文
+- `AgentEngine._dispatch`: 单步动作执行与结果落地 | 调用 dispatcher、发布 `MESSAGE_ADDED` | 取消仅在动作、其结果与工具消息均已持久后生效（`token.raise_if_cancelled()` 置于结果记录之后），使运行在下一步停止而非丢弃该结果；已开始的写操作无论取消与否都必须先落可恢复记录
+- `SessionRepository`: 异步创建线程并持久化消息与事件 | 具体副作用由实现负责
+- `EngineLimits`: 冻结模型回合、工具调用、token 与输出字符预算 | 无副作用 | 越界前先阻止新的外部工具动作
+- `BudgetLeaseTier`、`select_budget_lease(...)`、`lease_limits(...)`: 按任务意图和显式深度信号选择 quick/standard/deep 初始软租约并裁剪到硬上限 | 无副作用 | 只影响收敛预算，不改变授权、沙箱、网络或 Provider 能力
+- `TaskProgressSnapshot`: 将 Host 已确认的 generation、subject、验证、失败、动作和交互修订压缩为稳定有界摘要，工具参数与结果先递归还原为普通 JSON 再计算指纹 | 无副作用 | 模型正文和自述不能构造可信进展；嵌套冻结映射不得泄漏到 JSON 编码器
+- `TaskBudget`: 表达可恢复任务的模型名、硬限制、软租约和已消耗额度 | 无副作用 | 使用量只允许单调增加；软租约不得超过硬上限
+- `TaskAuthorization`、`TaskContract`、`TaskRecord`、`TaskStatus`: 表达前台自主任务的范围、预算和生命周期 | 无副作用 | `ACCEPTED_PARTIAL` 只能由显式用户决定产生；`SUPERSEDED` 是不可恢复执行的终态
+- `TaskSupervisor.observe(...)`: 根据恢复后的持久预算、验证结果和失败指纹决定继续、checkpoint、暂停或等待决策 | 无副作用 | token/round/tool/stall 预算跨恢复持续累计；活跃时间保留累计遥测，但每次 Engine run 使用新的独立 active-time 段
+- `TaskContract.interaction_mode`: 冻结 `ask|code|plan` 行为并随任务持久化 | 无副作用 | `ask`、`plan` 必须同时关闭 workspace write 与 local execute，旧记录缺失字段时兼容为 `code`
+- `AgentEngine.run(..., task=...)`: 在同一 thread 内执行显式任务并持久化任务事件 | 调用抽象模型、动作与会话协议 | 模型回合前消费 steering；无工具回合在完成门前原子提升 FIFO follow-up，发布 `TASK_FOLLOWUPS_PROMOTED` 后继续同一任务；预算/探索 runtime notice 仅在 assistant/tool 配对闭合后以 developer 消息注入下一回合，summary-only 回合不执行工具
+- `AgentEngine.run(user_input, thread_id, cancellation)`: 持久化并流式发布回合、模型、工具和终态事件 | 调用抽象模型、动作与会话协议 | ad-hoc root 的 owner/origin 均为 active thread，child engine 继承构造器 lineage；未声明工具、重复 ID、无完成事件和预算越界均失败闭合
+- `AgentEngine._advertised_tools(...)`: 校验 dispatcher 快照并按 `name + schema digest` 应用本次 run 冻结的能力策略投影 | 无副作用 | MCP/Plugin schema 重载变化后旧披露自动失效；读取契约不执行目标工具或扩大授权
+- `AgentEngine.run_peer(thread_id, cancellation)`: 不制造 user Message 地唤醒一个不可信 peer 回合，并在首个合法模型事件持久化后确认其上下文 | 调用抽象模型、上下文、动作与会话协议 | 工具强制投影到构造时冻结的 peer allowlist；默认空集，不能取得 TaskAuthorization
+- `SessionJournal`: 把会话协议异常转换为稳定的内核持久化错误 | 调用会话协议 | 不允许不可信历史消息进入上下文
+- `AgentEngineError` 及子类: 表达预算、模型流、上下文构建与持久化失败 | 无副作用 | 对外错误不包含上游异常文本；模型流失败保留异常 cause 供上层提取状态，不向终端直接打印 traceback
+
+- ContextBundle 数值白名单兼容新增 `prompt_budget_tokens`、`prompt_safety_tokens`、`prompt_estimated_tokens`、`repo_context_budget_tokens`、`repo_context_estimated_tokens`；全部为本地配置/估计，不是 Usage。

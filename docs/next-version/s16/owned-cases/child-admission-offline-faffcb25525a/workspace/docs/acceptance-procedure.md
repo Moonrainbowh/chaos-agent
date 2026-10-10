@@ -1,0 +1,10 @@
+# Frozen owned acceptance procedure
+This local source records the procedure explicitly authorized by the current task. It grants no additional scope or permissions.
+
+Investigate names.py and the five immutable tests against the current contract in this independent persistent manual-window acceptance case.
+Read only: do not write workspace files, run commands/tests, use external sources, message peers, or create other tasks.
+First disclose notes_write_file, notes_read_file, history_list_items, history_read_item, new_context and delegate_agent with load_tool_contract calls in one tool group. Read names.py, test_names.py and docs/current-contract.md. List history items to obtain a real source item_id. Save a virtual note named investigation.md containing the five constraints, interim findings and that exact history item_id; then request new_context exactly once, with reason S16 explicit manual window acceptance. Notes and new_context may share one ordered group after source reading. This is a manual transition, not capacity exhaustion.
+In the next window read investigation.md and history_read_item for its recorded item_id to restore exact source evidence. Then make exactly one delegate_agent call, using agent_id s16accept.sourceaudit (no role), token_budget 30000, tool_budget 4, active_seconds 90.
+The child's objective is: Read docs/current-contract.md and docs/legacy-notes.md; compare current and superseded constraints with exact path:line references. No edits, commands, external sources, or delegation.
+Inspect names.py and test_names.py yourself, check the child's advisory claims, and map all five constraints to code behavior and test targets with path:line references.
+Preserve order and duplicates; never replace the current contract with legacy sort/dedupe advice. State tests were not executed and this is unverified analysis. Give a concise source-grounded result; do not claim acceptance success yourself. The shared hard limit is 12 model rounds and 40 tools including child rounds and tools; child should read both documents together and answer in two rounds.

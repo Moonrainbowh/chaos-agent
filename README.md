@@ -76,12 +76,21 @@ For a phone, use a paired HTTPS/WSS entry backed by `chaos-agent host`, or the [
 ## Development and evaluation
 
 ```sh
-python -m pip install -e .
-python scripts/run_tests.py
-python -m build
+python -m pip install uv==0.12.13
+uv sync --locked --group dev
+uv run --locked python scripts/run_tests.py
+uv run --locked python -m build --no-isolation
 ```
 
-The standard runner discovers all Feature suites, phone backend tests and root integration tests. CI uses Windows Python 3.10/3.13, Ubuntu 3.10/3.13 and macOS 3.13. A configured matrix does not prove a particular candidate has passed it.
+The checkout pins Python 3.13.7 in `.python-version`; verify the interpreter before testing. For local changes, run the affected unittest module or suite first. Push/PR CI selects tests on Windows Server 2025 (VS 2026) with Python 3.13.7 using the event baseline and actual checkout. Explicit documentation changes need no product tests; changed test modules/suites and reviewed local Units select affected tests. Shared, unknown, deleted-test or unavailable-baseline changes use the standard full runner, which discovers all Feature suites, phone backend tests and root integration tests. Shared test helpers also require full coverage. A dirty checkout conservatively selects full coverage.
+
+Inspect a local selection without running tests:
+
+```sh
+uv run --locked python scripts/select_ci_tests.py --base <base-sha> --head HEAD --plan
+```
+
+Before release, or for dependency, packaging or platform changes, use the manual CI entry with `compatibility` enabled. It runs Windows and Ubuntu 22.04 with Python 3.10.20/3.13.7, and macOS 26 (arm64) with Python 3.13.7, including builds and clean installs. A configured matrix does not prove a particular candidate has passed it.
 
 Development evaluation is excluded from the runtime wheel and provided separately; see [benchmarks](benchmarks/README.md) for build, installation and offline checks. Source scripts and historical imports remain compatible. Offline fixtures do not measure real model success.
 
